@@ -19,68 +19,75 @@ export function CategoryShowcase() {
     <section className="section-padding bg-cream-100" aria-label="Shop by category">
       <div className="container-brand">
         {/* Heading */}
-        <div className="text-center mb-10">
-          <p className="font-body text-xs font-semibold text-dark-600 uppercase tracking-[0.2em] mb-3">
-            Shop by Category
-          </p>
-          <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold text-dark-900 leading-tight">
-            Something for Every Craving
-          </h2>
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-3">
+              <span className="section-heading">Curated Selection</span>
+              <div className="h-px w-8 bg-saffron-500" />
+            </div>
+            <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold text-dark-900 leading-tight">
+              Something for Every Craving
+            </h2>
+          </div>
+          <Link
+            href="/shop"
+            className="inline-flex items-center gap-2 font-body text-sm font-semibold text-maroon-900 hover:text-saffron-600 transition-colors group whitespace-nowrap"
+          >
+            Explore Full Catalogue <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+          </Link>
         </div>
 
-        {/* Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 lg:gap-4">
-          {categories.map((cat) => {
+        {/* Asymmetric Editorial Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {categories.map((cat, idx) => {
             const imgSrc = categoryImages[cat.slug] ?? categoryImages['mixture'];
+            const isFeatured = idx === 0 || idx === 2; // Sev & Mixture featured emphasis
 
             return (
               <Link
                 key={cat.id}
                 href={`/categories/${cat.slug}`}
-                className="group relative overflow-hidden rounded-xl bg-dark-900 aspect-[4/5]"
+                className={`group relative overflow-hidden rounded-2xl bg-dark-950 border border-cream-200/50 shadow-card hover:shadow-product transition-all duration-500 ${
+                  isFeatured ? 'sm:col-span-2 lg:col-span-1 aspect-[16/11]' : 'aspect-[4/3] sm:aspect-[4/5]'
+                }`}
               >
                 {/* Image */}
                 <Image
                   src={imgSrc}
                   alt={cat.name}
                   fill
-                  sizes="(max-width: 640px) 50vw, 33vw"
-                  className="object-cover transition-all duration-700 group-hover:scale-105 group-hover:brightness-110 opacity-80"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  className="object-cover transition-all duration-700 group-hover:scale-105 group-hover:brightness-105 opacity-85"
                 />
 
-                {/* Gradient */}
-                <div className="absolute inset-0 bg-gradient-to-t from-dark-950/90 via-dark-950/20 to-transparent opacity-80 group-hover:opacity-100 transition-opacity duration-500" />
+                {/* Dark Editorial Gradient */}
+                <div className="absolute inset-0 bg-gradient-to-t from-dark-950/95 via-dark-950/40 to-transparent opacity-85 group-hover:opacity-90 transition-opacity duration-300" />
 
-                {/* Content */}
-                <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5">
-                  <div className="flex items-end justify-between">
+                {/* Content Overlay */}
+                <div className="absolute bottom-0 left-0 right-0 p-6 flex flex-col justify-end">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <span className="text-xl mb-1.5 block opacity-90">{cat.icon}</span>
-                      <h3 className="font-display text-base sm:text-lg font-bold text-cream-50 leading-tight">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-lg">{cat.icon}</span>
+                        <span className="font-body text-[11px] font-semibold text-saffron-400 uppercase tracking-widest bg-dark-900/80 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-saffron-500/20">
+                          {cat.productCount} Items
+                        </span>
+                      </div>
+                      <h3 className="font-display text-xl sm:text-2xl font-bold text-cream-50 leading-snug group-hover:text-saffron-400 transition-colors">
                         {cat.name}
                       </h3>
-                      <p className="font-body text-[11px] text-cream-200 mt-1 opacity-80">
-                        {cat.productCount} products
+                      <p className="font-body text-xs text-cream-200/80 mt-1 line-clamp-1 font-light max-w-xs">
+                        {cat.shortDescription}
                       </p>
                     </div>
-                    <div className="opacity-0 translate-x-[-10px] group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
-                      <ArrowRight className="h-4 w-4 text-cream-50" />
+                    <div className="h-10 w-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shrink-0">
+                      <ArrowRight className="h-4 w-4" />
                     </div>
                   </div>
                 </div>
               </Link>
             );
           })}
-        </div>
-
-        {/* View All */}
-        <div className="text-center mt-10">
-          <Link
-            href="/shop"
-            className="inline-flex items-center gap-2 font-body text-[13px] font-medium text-dark-900 hover:text-maroon-900 transition-colors uppercase tracking-wider"
-          >
-            View all products <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
         </div>
       </div>
     </section>

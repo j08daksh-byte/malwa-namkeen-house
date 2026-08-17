@@ -49,29 +49,29 @@ export function Footer() {
   ];
 
   return (
-    <footer className="bg-dark-900 text-cream-100" aria-label="Site footer">
+    <footer className="bg-gradient-to-b from-dark-950 via-dark-900 to-black text-cream-100 border-t border-dark-800" aria-label="Site footer">
       {/* Main Footer */}
-      <div className="container-brand pt-16 pb-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-6">
+      <div className="container-brand pt-20 pb-16">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-8">
           {/* Brand Column */}
           <div className="lg:col-span-4">
-            <Link href="/" className="inline-block mb-5">
+            <Link href="/" className="inline-block mb-6">
               <div className="flex flex-col leading-none">
-                <span className="font-display text-2xl font-bold text-white tracking-tight">
+                <span className="font-display text-3xl font-extrabold text-white tracking-tight">
                   Malwa
                 </span>
-                <span className="font-body text-[10px] font-semibold text-saffron-400 uppercase tracking-[0.2em] mt-0.5">
+                <span className="font-body text-[11px] font-semibold text-saffron-400 uppercase tracking-[0.25em] mt-1">
                   Namkeen House
                 </span>
               </div>
             </Link>
-            <p className="font-body text-sm text-dark-300 leading-relaxed max-w-xs mb-8">
+            <p className="font-body text-sm text-dark-300 leading-relaxed max-w-xs mb-8 font-light">
               Traditional namkeen and snacks from the heart of Malwa. Authentic
-              flavours, freshly packed, delivered across India.
+              flavours, freshly hand-blended and packed, delivered across India.
             </p>
 
             {/* Social Links */}
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-3">
               {socialLinks.map(({ href, label, Icon }) => (
                 <a
                   key={label}
@@ -79,7 +79,7 @@ export function Footer() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={label}
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-dark-600 text-dark-300 hover:bg-maroon-900 hover:border-maroon-900 hover:text-cream-100 transition-all duration-200"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-dark-700 bg-dark-900 text-dark-300 hover:bg-saffron-500 hover:border-saffron-500 hover:text-dark-950 transition-all duration-300 shadow-sm"
                 >
                   <Icon className="h-4 w-4" />
                 </a>
@@ -89,15 +89,15 @@ export function Footer() {
 
           {/* Shop Links */}
           <div className="lg:col-span-2">
-            <h3 className="font-body text-xs font-semibold text-cream-200 mb-5 uppercase tracking-[0.15em]">
+            <h3 className="font-body text-xs font-bold text-saffron-400 mb-6 uppercase tracking-[0.2em]">
               Shop
             </h3>
-            <ul className="space-y-3">
+            <ul className="space-y-3.5">
               {FOOTER_LINKS.shop.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="font-body text-sm text-dark-300 hover:text-white transition-colors duration-150"
+                    className="font-body text-sm text-dark-300 hover:text-white transition-colors duration-200 font-light"
                   >
                     {link.label}
                   </Link>
@@ -108,15 +108,15 @@ export function Footer() {
 
           {/* Support Links */}
           <div className="lg:col-span-2">
-            <h3 className="font-body text-xs font-semibold text-cream-200 mb-5 uppercase tracking-[0.15em]">
+            <h3 className="font-body text-xs font-bold text-saffron-400 mb-6 uppercase tracking-[0.2em]">
               Help
             </h3>
-            <ul className="space-y-3">
+            <ul className="space-y-3.5">
               {FOOTER_LINKS.support.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="font-body text-sm text-dark-300 hover:text-white transition-colors duration-150"
+                    className="font-body text-sm text-dark-300 hover:text-white transition-colors duration-200 font-light"
                   >
                     {link.label}
                   </Link>
@@ -127,15 +127,15 @@ export function Footer() {
 
           {/* Company Links */}
           <div className="lg:col-span-2">
-            <h3 className="font-body text-xs font-semibold text-cream-200 mb-5 uppercase tracking-[0.15em]">
+            <h3 className="font-body text-xs font-bold text-saffron-400 mb-6 uppercase tracking-[0.2em]">
               Company
             </h3>
-            <ul className="space-y-3">
+            <ul className="space-y-3.5">
               {FOOTER_LINKS.company.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="font-body text-sm text-dark-300 hover:text-white transition-colors duration-150"
+                    className="font-body text-sm text-dark-300 hover:text-white transition-colors duration-200 font-light"
                   >
                     {link.label}
                   </Link>
@@ -146,26 +146,26 @@ export function Footer() {
 
           {/* Contact */}
           <div className="lg:col-span-2">
-            <h3 className="font-body text-xs font-semibold text-cream-200 mb-5 uppercase tracking-[0.15em]">
+            <h3 className="font-body text-xs font-bold text-saffron-400 mb-6 uppercase tracking-[0.2em]">
               Connect
             </h3>
             <div className="space-y-4">
               <a
                 href={`mailto:${SITE_EMAIL}`}
-                className="flex items-start gap-2.5 font-body text-sm text-dark-300 hover:text-white transition-colors duration-150"
+                className="flex items-start gap-2.5 font-body text-xs text-dark-300 hover:text-white transition-colors duration-200 font-light"
               >
-                <Mail className="h-4 w-4 mt-0.5 flex-shrink-0 text-dark-400" />
+                <Mail className="h-4 w-4 text-saffron-400 shrink-0 mt-0.5" />
                 <span>{SITE_EMAIL}</span>
               </a>
               <a
                 href={`tel:${SITE_PHONE}`}
-                className="flex items-start gap-2.5 font-body text-sm text-dark-300 hover:text-white transition-colors duration-150"
+                className="flex items-start gap-2.5 font-body text-xs text-dark-300 hover:text-white transition-colors duration-200 font-light"
               >
-                <Phone className="h-4 w-4 mt-0.5 flex-shrink-0 text-dark-400" />
+                <Phone className="h-4 w-4 text-saffron-400 shrink-0 mt-0.5" />
                 <span>{SITE_PHONE}</span>
               </a>
-              <div className="flex items-start gap-2.5 font-body text-sm text-dark-400">
-                <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <div className="flex items-start gap-2.5 font-body text-xs text-dark-400 font-light">
+                <MapPin className="h-4 w-4 text-dark-500 shrink-0 mt-0.5" />
                 <span>{SITE_ADDRESS}</span>
               </div>
             </div>
@@ -174,25 +174,25 @@ export function Footer() {
       </div>
 
       {/* Bottom Bar */}
-      <div className="border-t border-dark-700/60">
-        <div className="container-brand py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="font-body text-xs text-dark-400">
-            © {currentYear} {SITE_NAME}. All rights reserved.
+      <div className="border-t border-dark-800/80 bg-black/40">
+        <div className="container-brand py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="font-body text-xs text-dark-400 font-light">
+            © {currentYear} {SITE_NAME}. Handcrafted in Indore, MP. All rights reserved.
           </p>
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-6">
             {['Privacy Policy', 'Terms of Service', 'Refund Policy'].map((item) => (
               <Link
                 key={item}
                 href={`/${item.toLowerCase().replace(/\s+/g, '-')}`}
-                className="font-body text-xs text-dark-400 hover:text-cream-200 transition-colors duration-150"
+                className="font-body text-xs text-dark-400 hover:text-cream-200 transition-colors duration-200 font-light"
               >
                 {item}
               </Link>
             ))}
           </div>
-          <div className="flex items-center gap-2">
-            <span className="font-body text-xs text-dark-500">FSSAI Lic.</span>
-            <span className="font-body text-xs text-dark-400">23724001000001</span>
+          <div className="flex items-center gap-2 bg-dark-900 px-3 py-1 rounded-full border border-dark-800">
+            <span className="font-body text-[11px] font-semibold text-saffron-400">FSSAI Lic:</span>
+            <span className="font-body text-[11px] text-dark-300 tracking-wider">23724001000001</span>
           </div>
         </div>
       </div>

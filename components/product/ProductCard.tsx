@@ -54,32 +54,32 @@ export function ProductCard({ product, className }: ProductCardProps) {
     <Link
       href={`/product/${product.slug}`}
       className={cn(
-        'group relative flex flex-col rounded-xl bg-white border border-cream-200 overflow-hidden transition-transform duration-300 hover:-translate-y-0.5',
+        'group relative flex flex-col rounded-2xl bg-white border border-cream-200/80 overflow-hidden shadow-card hover:shadow-float transition-all duration-300 hover:-translate-y-1',
         className
       )}
     >
-      {/* Image */}
-      <div className="relative aspect-square overflow-hidden bg-cream-100">
+      {/* Image Container */}
+      <div className="relative aspect-square overflow-hidden bg-cream-100/60">
         <Image
           src={product.images[0]}
           alt={product.name}
           fill
           sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-          className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+          className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
         />
 
         {/* Badges */}
-        {primaryBadge && (
-          <div className="absolute top-2.5 left-2.5">
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
+          {primaryBadge && (
             <Badge variant={primaryBadge}>
-              {primaryBadge === 'bestseller' ? 'Best Seller' : primaryBadge}
+              {primaryBadge === 'bestseller' ? '★ Bestseller' : primaryBadge}
             </Badge>
-          </div>
-        )}
+          )}
+        </div>
 
         {discount && (
-          <div className="absolute top-2.5 right-2.5">
-            <Badge variant="sale">{discount}% off</Badge>
+          <div className="absolute top-3 right-3 z-10">
+            <Badge variant="sale">{discount}% OFF</Badge>
           </div>
         )}
 
@@ -88,10 +88,10 @@ export function ProductCard({ product, className }: ProductCardProps) {
           onClick={handleWishlist}
           aria-label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
           className={cn(
-            'absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-full shadow-sm transition-all duration-300',
+            'absolute bottom-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full shadow-md backdrop-blur-md transition-all duration-300',
             wishlisted
               ? 'bg-maroon-900 text-white'
-              : 'bg-white text-dark-400 opacity-0 group-hover:opacity-100 hover:text-maroon-900'
+              : 'bg-white/90 text-dark-400 opacity-90 sm:opacity-0 group-hover:opacity-100 hover:text-maroon-900 hover:scale-110'
           )}
         >
           <Heart
@@ -101,30 +101,40 @@ export function ProductCard({ product, className }: ProductCardProps) {
         </button>
       </div>
 
-      {/* Info */}
-      <div className="flex flex-col flex-1 p-4 gap-1.5">
-        {/* Veg + name */}
-        <div className="flex items-start gap-1.5">
-          <VegBadge className="mt-0.5 flex-shrink-0" />
-          <h3 className="font-display font-semibold text-dark-900 text-[13px] leading-snug line-clamp-2 group-hover:text-maroon-900 transition-colors">
+      {/* Info Container */}
+      <div className="flex flex-col flex-1 p-5 gap-2">
+        {/* Category tag & Rating */}
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-body text-[11px] font-semibold text-saffron-600 uppercase tracking-wider">
+            {product.categoryName}
+          </span>
+          <div className="flex items-center gap-1 bg-cream-100 px-2 py-0.5 rounded-full border border-cream-200">
+            <Star className="h-3 w-3 fill-gold-500 text-gold-500" />
+            <span className="font-body text-[11px] font-bold text-dark-900">
+              {product.rating.toFixed(1)}
+            </span>
+            <span className="font-body text-[10px] text-dark-400">
+              ({product.reviewCount})
+            </span>
+          </div>
+        </div>
+
+        {/* Veg + Name */}
+        <div className="flex items-start gap-2">
+          <VegBadge className="mt-1 flex-shrink-0" />
+          <h3 className="font-display font-bold text-dark-900 text-base leading-snug line-clamp-2 group-hover:text-maroon-900 transition-colors">
             {product.name}
           </h3>
         </div>
 
-        {/* Rating */}
-        <div className="flex items-center gap-1">
-          <Star className="h-3 w-3 fill-gold-500 text-gold-500" />
-          <span className="font-body text-[11px] font-semibold text-dark-800">
-            {product.rating.toFixed(1)}
-          </span>
-          <span className="font-body text-[11px] text-dark-400">
-            ({product.reviewCount.toLocaleString('en-IN')})
-          </span>
-        </div>
+        {/* Short Description */}
+        <p className="font-body text-xs text-dark-500 line-clamp-1 font-light">
+          {product.shortDescription}
+        </p>
 
-        {/* Price */}
-        <div className="flex items-baseline gap-1.5">
-          <span className="font-display font-bold text-maroon-900 text-base">
+        {/* Price & Weight */}
+        <div className="flex items-baseline gap-2 mt-1">
+          <span className="font-display font-extrabold text-maroon-900 text-lg sm:text-xl">
             {formatPrice(price)}
           </span>
           {compareAt && (
@@ -132,28 +142,30 @@ export function ProductCard({ product, className }: ProductCardProps) {
               {formatPrice(compareAt)}
             </span>
           )}
-          <span className="font-body text-xs text-dark-400">/ {defaultWeight.label}</span>
+          <span className="font-body text-xs font-medium text-dark-500 ml-auto">
+            / {defaultWeight.label}
+          </span>
         </div>
 
-        {/* Add to Cart */}
+        {/* Add to Cart CTA */}
         <button
           onClick={handleAddToCart}
           aria-label={`Add ${product.name} to cart`}
           className={cn(
-            'mt-auto flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border font-body text-xs font-semibold uppercase tracking-wider transition-all duration-300',
+            'mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl font-body text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-sm',
             addedFeedback
-              ? 'border-green-500 bg-green-50 text-green-700'
+              ? 'border border-green-600 bg-green-600 text-white'
               : inCart
-              ? 'border-maroon-200 bg-maroon-50 text-maroon-700 hover:border-maroon-900 hover:bg-maroon-900 hover:text-white'
-              : 'border-maroon-900 bg-transparent text-maroon-900 hover:bg-maroon-900 hover:text-white'
+              ? 'border border-maroon-900 bg-maroon-50 text-maroon-900 hover:bg-maroon-900 hover:text-white'
+              : 'border border-maroon-900 bg-maroon-900 text-white hover:bg-maroon-800 hover:shadow-md'
           )}
         >
           {addedFeedback ? (
-            <>✓ Added</>
+            <>✓ Added to Bag</>
           ) : (
             <>
-              <ShoppingCart className="h-3.5 w-3.5" />
-              {inCart ? 'In Cart' : 'Add to Cart'}
+              <ShoppingCart className="h-4 w-4" />
+              {inCart ? 'In Bag (Add More)' : 'Add to Bag'}
             </>
           )}
         </button>
