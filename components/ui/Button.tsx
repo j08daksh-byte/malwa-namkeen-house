@@ -1,6 +1,11 @@
-'use client';
-
-import { forwardRef, type ButtonHTMLAttributes, type ReactElement } from 'react';
+import {
+  forwardRef,
+  cloneElement,
+  isValidElement,
+  type ButtonHTMLAttributes,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import { cn } from '@/lib/utils';
 
 // ─── Variants ─────────────────────────────────────────────────────────────────
@@ -42,6 +47,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
   fullWidth?: boolean;
   asChild?: boolean;
+  children?: ReactNode;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -69,20 +75,23 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       className
     );
 
-    // When asChild is true, render the child element directly with button styles
-    if (asChild && children) {
-      const child = children as ReactElement<Record<string, unknown>>;
-      if (child && typeof child === 'object' && 'props' in child) {
-        const { className: childClassName, ...childProps } = child.props;
-        return (
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          <child.type
-            {...childProps}
-            className={cn(classes, childClassName as string)}
-            ref={ref}
-          />
-        );
+    // When asChild is true, clone the child element and merge classes and props
+    if (asChild) {
+      const child = isValidElement(children)
+        ? children
+        : Array.isArray(children)
+        ? children.find(isValidElement)
+        : null;
+
+      if (child && isValidElement(child)) {
+        const childProps = (child as ReactElement<{ className?: string }>).props;
+        return cloneElement(child as ReactElement<{ className?: string }>, {
+          ...props,
+          className: cn(classes, childProps?.className),
+          ...(ref ? { ref } : {}),
+        });
       }
+      return null;
     }
 
     return (
