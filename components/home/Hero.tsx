@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 export function Hero() {
@@ -15,7 +15,7 @@ export function Hero() {
       <div className="absolute inset-0 z-0">
         <Image
           src="https://images.unsplash.com/photo-1601050690597-df0568f70950?w=1920&q=85"
-          alt="Colorful Indian namkeen and snacks spread"
+          alt="Authentic Malwa Ratlami Sev and Namkeen spread"
           fill
           priority
           sizes="100vw"

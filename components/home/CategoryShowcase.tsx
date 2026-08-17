@@ -260,4 +260,3 @@ export function CategoryShowcase() {
     </section>
   );
 }
-

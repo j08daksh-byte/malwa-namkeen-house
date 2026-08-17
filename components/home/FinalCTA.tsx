@@ -13,7 +13,7 @@ export function FinalCTA() {
       <div className="absolute inset-0 z-0">
         <Image
           src="https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=1920&q=70"
-          alt="Rich colourful namkeen spread"
+          alt="Rich colorful namkeen spread"
           fill
           sizes="100vw"
           className="object-cover opacity-20 scale-105"
@@ -79,4 +79,3 @@ export function FinalCTA() {
     </section>
   );
 }
-

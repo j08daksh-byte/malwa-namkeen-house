@@ -26,7 +26,9 @@ export function FAQPreview() {
           </div>
 
           {/* Accordion */}
-          <Accordion items={items} />
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-cream-200/80 shadow-2xs">
+            <Accordion items={items} />
+          </div>
 
           {/* View all link */}
           <div className="text-center mt-10">
@@ -43,4 +45,3 @@ export function FAQPreview() {
     </section>
   );
 }
-
