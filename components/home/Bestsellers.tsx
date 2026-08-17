@@ -7,28 +7,29 @@ export function Bestsellers() {
   const products = getBestsellerProducts().slice(0, 8);
 
   return (
-    <section className="section-padding bg-cream-100" aria-label="Bestselling products">
+    <section className="section-padding bg-cream-50/80 border-t border-cream-200/60" aria-label="Bestselling products">
       <div className="container-brand">
         {/* Heading */}
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
           <div>
-            <p className="font-body text-xs font-semibold text-saffron-600 uppercase tracking-[0.2em] mb-3">
-              Customer Favourites
-            </p>
-            <h2 className="font-display text-3xl sm:text-4xl font-bold text-dark-900 leading-tight">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="section-heading">Customer Favourites</span>
+              <div className="h-px w-8 bg-saffron-500" />
+            </div>
+            <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold text-dark-900 leading-tight">
               Loved by Our Customers
             </h2>
           </div>
           <Link
             href="/shop?filter=bestseller"
-            className="flex items-center gap-2 font-body text-sm font-semibold text-maroon-900 hover:text-saffron-600 transition-colors whitespace-nowrap"
+            className="inline-flex items-center gap-2 font-body text-sm font-semibold text-maroon-900 hover:text-saffron-600 transition-colors group whitespace-nowrap"
           >
-            View all bestsellers <ArrowRight className="h-4 w-4" />
+            View All Bestsellers <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
           </Link>
         </div>
 
         {/* Product Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
           {products.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}
