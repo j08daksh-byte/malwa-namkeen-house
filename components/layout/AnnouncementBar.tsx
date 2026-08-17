@@ -21,13 +21,13 @@ export function AnnouncementBar() {
 
   return (
     <div
-      className="bg-maroon-900 text-cream-100 py-2.5 px-4 text-center"
+      className="bg-dark-900 text-cream-200 py-2 px-4 text-center"
       role="banner"
       aria-live="polite"
     >
       <p
         className={cn(
-          'font-body text-xs sm:text-sm font-medium tracking-wide transition-opacity duration-300',
+          'font-body text-[11px] font-medium tracking-wider transition-opacity duration-300',
           visible ? 'opacity-100' : 'opacity-0'
         )}
       >

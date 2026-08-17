@@ -17,20 +17,6 @@ export function FinalCTA() {
         />
       </div>
 
-      {/* Decorative glow */}
-      <div className="absolute inset-0 z-0">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-saffron-500/10 rounded-full blur-[120px]" />
-      </div>
-
-      {/* Pattern */}
-      <div
-        className="absolute inset-0 z-0 opacity-[0.06]"
-        style={{
-          backgroundImage: `radial-gradient(circle at 2px 2px, #FFF8F0 1px, transparent 0)`,
-          backgroundSize: '24px 24px',
-        }}
-      />
-
       <div className="container-brand relative z-10 text-center">
         {/* Eyebrow */}
         <div className="flex items-center justify-center gap-3 mb-6">

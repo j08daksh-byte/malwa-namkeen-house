@@ -1,89 +1,103 @@
 import Link from 'next/link';
-import { FOOTER_LINKS, SITE_NAME, SITE_EMAIL, SITE_PHONE, SITE_WHATSAPP, TRUST_ITEMS } from '@/lib/constants';
+import { Mail, Phone, MapPin, MessageCircle } from 'lucide-react';
+import { FOOTER_LINKS, SITE_NAME, SITE_EMAIL, SITE_PHONE, SITE_WHATSAPP, SITE_ADDRESS } from '@/lib/constants';
+
+function InstagramIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+    </svg>
+  );
+}
+
+function FacebookIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+    </svg>
+  );
+}
+
+function YoutubeIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17" />
+      <polygon points="10 15 15 12 10 9 10 15" />
+    </svg>
+  );
+}
+
+function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9L3 21" />
+      <path d="M9 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1a5 5 0 0 0 5 5h1a.5.5 0 0 0 0-1h-1a.5.5 0 0 0 0 1" />
+    </svg>
+  );
+}
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
 
-  const socialIcons = {
-    instagram: Instagram,
-    facebook: Facebook,
-    youtube: Youtube,
-    'message-circle': MessageCircle,
-  };
+  const socialLinks = [
+    { href: 'https://instagram.com/malwanamkeenhouse', label: 'Instagram', Icon: InstagramIcon },
+    { href: 'https://facebook.com/malwanamkeenhouse', label: 'Facebook', Icon: FacebookIcon },
+    { href: 'https://youtube.com/@malwanamkeenhouse', label: 'YouTube', Icon: YoutubeIcon },
+    { href: `https://wa.me/${SITE_WHATSAPP}`, label: 'WhatsApp', Icon: WhatsAppIcon },
+  ];
 
   return (
     <footer className="bg-dark-900 text-cream-100" aria-label="Site footer">
-      {/* Trust Strip */}
-      <div className="border-b border-dark-700">
-        <div className="container-brand py-8">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-            {TRUST_ITEMS.map((item) => (
-              <div key={item.label} className="flex items-center gap-3">
-                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-maroon-900/40 text-saffron-400">
-                  <span className="text-lg">
-                    {item.label === 'Freshly Packed' ? '📦' :
-                     item.label === 'Authentic Taste' ? '⭐' :
-                     item.label === 'Quality Ingredients' ? '🌿' : '🛡️'}
-                  </span>
-                </div>
-                <div>
-                  <p className="font-display text-sm font-semibold text-cream-100">{item.label}</p>
-                  <p className="font-body text-xs text-dark-300">{item.sub}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {/* Main Footer */}
-      <div className="container-brand py-14">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-8">
+      <div className="container-brand pt-16 pb-12">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-6">
           {/* Brand Column */}
-          <div className="lg:col-span-2">
-            <Link href="/" className="inline-block mb-4">
+          <div className="lg:col-span-4">
+            <Link href="/" className="inline-block mb-5">
               <div className="flex flex-col leading-none">
-                <span className="font-display text-2xl font-bold text-white">Malwa</span>
-                <span className="font-body text-xs font-semibold text-saffron-400 uppercase tracking-[0.15em]">
+                <span className="font-display text-2xl font-bold text-white tracking-tight">
+                  Malwa
+                </span>
+                <span className="font-body text-[10px] font-semibold text-saffron-400 uppercase tracking-[0.2em] mt-0.5">
                   Namkeen House
                 </span>
               </div>
             </Link>
-            <p className="font-body text-sm text-dark-300 leading-relaxed max-w-xs mb-6">
-              Traditional namkeen and snacks from the heart of Malwa. Authentic flavours, freshly packed, delivered across India.
+            <p className="font-body text-sm text-dark-300 leading-relaxed max-w-xs mb-8">
+              Traditional namkeen and snacks from the heart of Malwa. Authentic
+              flavours, freshly packed, delivered across India.
             </p>
 
             {/* Social Links */}
-            <div className="flex items-center gap-3">
-              {[
-                { href: 'https://instagram.com/malwanamkeenhouse', label: 'Instagram', emoji: '📸' },
-                { href: 'https://facebook.com/malwanamkeenhouse', label: 'Facebook', emoji: '👥' },
-                { href: 'https://youtube.com/@malwanamkeenhouse', label: 'YouTube', emoji: '▶️' },
-                { href: `https://wa.me/${SITE_WHATSAPP}`, label: 'WhatsApp', emoji: '💬' },
-              ].map(({ href, label, emoji }) => (
+            <div className="flex items-center gap-2.5">
+              {socialLinks.map(({ href, label, Icon }) => (
                 <a
                   key={label}
                   href={href}
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={label}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-dark-700 text-dark-300 hover:bg-maroon-900 hover:text-cream-100 transition-all duration-200 text-sm"
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-dark-600 text-dark-300 hover:bg-maroon-900 hover:border-maroon-900 hover:text-cream-100 transition-all duration-200"
                 >
-                  {emoji}
+                  <Icon className="h-4 w-4" />
                 </a>
               ))}
             </div>
           </div>
 
           {/* Shop Links */}
-          <div>
-            <h3 className="font-display text-sm font-bold text-white mb-4 uppercase tracking-wide">Shop</h3>
-            <ul className="space-y-2.5">
+          <div className="lg:col-span-2">
+            <h3 className="font-body text-xs font-semibold text-cream-200 mb-5 uppercase tracking-[0.15em]">
+              Shop
+            </h3>
+            <ul className="space-y-3">
               {FOOTER_LINKS.shop.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="font-body text-sm text-dark-300 hover:text-saffron-400 transition-colors"
+                    className="font-body text-sm text-dark-300 hover:text-white transition-colors duration-150"
                   >
                     {link.label}
                   </Link>
@@ -93,14 +107,16 @@ export function Footer() {
           </div>
 
           {/* Support Links */}
-          <div>
-            <h3 className="font-display text-sm font-bold text-white mb-4 uppercase tracking-wide">Support</h3>
-            <ul className="space-y-2.5">
+          <div className="lg:col-span-2">
+            <h3 className="font-body text-xs font-semibold text-cream-200 mb-5 uppercase tracking-[0.15em]">
+              Help
+            </h3>
+            <ul className="space-y-3">
               {FOOTER_LINKS.support.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="font-body text-sm text-dark-300 hover:text-saffron-400 transition-colors"
+                    className="font-body text-sm text-dark-300 hover:text-white transition-colors duration-150"
                   >
                     {link.label}
                   </Link>
@@ -110,60 +126,72 @@ export function Footer() {
           </div>
 
           {/* Company Links */}
-          <div>
-            <h3 className="font-display text-sm font-bold text-white mb-4 uppercase tracking-wide">Company</h3>
-            <ul className="space-y-2.5">
+          <div className="lg:col-span-2">
+            <h3 className="font-body text-xs font-semibold text-cream-200 mb-5 uppercase tracking-[0.15em]">
+              Company
+            </h3>
+            <ul className="space-y-3">
               {FOOTER_LINKS.company.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="font-body text-sm text-dark-300 hover:text-saffron-400 transition-colors"
+                    className="font-body text-sm text-dark-300 hover:text-white transition-colors duration-150"
                   >
                     {link.label}
                   </Link>
                 </li>
               ))}
             </ul>
+          </div>
 
-            {/* Contact */}
-            <div className="mt-6 space-y-2">
-              <h4 className="font-display text-xs font-bold text-white uppercase tracking-wide">Contact</h4>
+          {/* Contact */}
+          <div className="lg:col-span-2">
+            <h3 className="font-body text-xs font-semibold text-cream-200 mb-5 uppercase tracking-[0.15em]">
+              Connect
+            </h3>
+            <div className="space-y-4">
               <a
                 href={`mailto:${SITE_EMAIL}`}
-                className="block font-body text-sm text-dark-300 hover:text-saffron-400 transition-colors"
+                className="flex items-start gap-2.5 font-body text-sm text-dark-300 hover:text-white transition-colors duration-150"
               >
-                {SITE_EMAIL}
+                <Mail className="h-4 w-4 mt-0.5 flex-shrink-0 text-dark-400" />
+                <span>{SITE_EMAIL}</span>
               </a>
               <a
                 href={`tel:${SITE_PHONE}`}
-                className="block font-body text-sm text-dark-300 hover:text-saffron-400 transition-colors"
+                className="flex items-start gap-2.5 font-body text-sm text-dark-300 hover:text-white transition-colors duration-150"
               >
-                {SITE_PHONE}
+                <Phone className="h-4 w-4 mt-0.5 flex-shrink-0 text-dark-400" />
+                <span>{SITE_PHONE}</span>
               </a>
+              <div className="flex items-start gap-2.5 font-body text-sm text-dark-400">
+                <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <span>{SITE_ADDRESS}</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Bottom Bar */}
-      <div className="border-t border-dark-700">
+      <div className="border-t border-dark-700/60">
         <div className="container-brand py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="font-body text-xs text-dark-400">
             © {currentYear} {SITE_NAME}. All rights reserved.
           </p>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-5">
             {['Privacy Policy', 'Terms of Service', 'Refund Policy'].map((item) => (
               <Link
                 key={item}
                 href={`/${item.toLowerCase().replace(/\s+/g, '-')}`}
-                className="font-body text-xs text-dark-400 hover:text-saffron-400 transition-colors"
+                className="font-body text-xs text-dark-400 hover:text-cream-200 transition-colors duration-150"
               >
                 {item}
               </Link>
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-body text-xs text-dark-500">FSSAI Lic. No.</span>
+            <span className="font-body text-xs text-dark-500">FSSAI Lic.</span>
             <span className="font-body text-xs text-dark-400">23724001000001</span>
           </div>
         </div>

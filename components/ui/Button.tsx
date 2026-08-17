@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, type ButtonHTMLAttributes } from 'react';
+import { forwardRef, type ButtonHTMLAttributes, type ReactElement } from 'react';
 import { cn } from '@/lib/utils';
 
 // ─── Variants ─────────────────────────────────────────────────────────────────
@@ -41,6 +41,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: keyof typeof sizes;
   loading?: boolean;
   fullWidth?: boolean;
+  asChild?: boolean;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -55,21 +56,40 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       fullWidth = false,
       disabled,
       children,
+      asChild = false,
       ...props
     },
     ref
   ) => {
+    const classes = cn(
+      base,
+      variants[variant],
+      sizes[size],
+      fullWidth && 'w-full',
+      className
+    );
+
+    // When asChild is true, render the child element directly with button styles
+    if (asChild && children) {
+      const child = children as ReactElement<Record<string, unknown>>;
+      if (child && typeof child === 'object' && 'props' in child) {
+        const { className: childClassName, ...childProps } = child.props;
+        return (
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          <child.type
+            {...childProps}
+            className={cn(classes, childClassName as string)}
+            ref={ref}
+          />
+        );
+      }
+    }
+
     return (
       <button
         ref={ref}
         disabled={disabled ?? loading}
-        className={cn(
-          base,
-          variants[variant],
-          sizes[size],
-          fullWidth && 'w-full',
-          className
-        )}
+        className={classes}
         {...props}
       >
         {loading ? (

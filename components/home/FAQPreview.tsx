@@ -8,7 +8,7 @@ export function FAQPreview() {
   const items = faqs.map((f) => ({ id: f.id, question: f.question, answer: f.answer }));
 
   return (
-    <section className="section-padding bg-white" aria-label="Frequently asked questions">
+    <section className="section-padding bg-cream-50" aria-label="Frequently asked questions">
       <div className="container-brand">
         <div className="max-w-3xl mx-auto">
           {/* Heading */}
@@ -19,7 +19,7 @@ export function FAQPreview() {
             <h2 className="font-display text-4xl sm:text-5xl font-bold text-dark-900 leading-tight">
               We&apos;ve Got
               <br />
-              <span className="gradient-text">Answers.</span>
+              <span>Answers.</span>
             </h2>
           </div>
 

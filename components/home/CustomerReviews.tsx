@@ -6,7 +6,7 @@ export function CustomerReviews() {
   const reviews = getHomepageReviews();
 
   return (
-    <section className="section-padding bg-white" aria-label="Customer reviews">
+    <section className="section-padding bg-cream-50" aria-label="Customer reviews">
       <div className="container-brand">
         {/* Header */}
         <div className="text-center mb-12">
@@ -16,12 +16,12 @@ export function CustomerReviews() {
           <h2 className="font-display text-4xl sm:text-5xl font-bold text-dark-900 leading-tight mb-6">
             The Taste Speaks
             <br />
-            <span className="gradient-text">for Itself.</span>
+            <span>for Itself.</span>
           </h2>
 
           {/* Global Rating */}
           <div className="flex items-center justify-center gap-4">
-            <span className="font-display text-6xl font-bold text-dark-900">
+            <span className="font-display text-5xl font-bold text-dark-900">
               {globalRating.average}
             </span>
             <div className="text-left">
@@ -42,23 +42,23 @@ export function CustomerReviews() {
           {reviews.map((review) => (
             <div
               key={review.id}
-              className="bg-cream-50 rounded-2xl p-6 border border-cream-200 flex flex-col gap-4 hover:shadow-card transition-shadow"
+              className="bg-white rounded-xl p-6 border border-cream-200 flex flex-col gap-4 hover:shadow-sm transition-shadow"
             >
               {/* Stars */}
               <Rating value={review.rating} size="sm" />
 
               {/* Title */}
-              <h3 className="font-display text-base font-bold text-dark-900 leading-snug">
+              <h3 className="font-display italic text-base font-bold text-dark-900 leading-snug">
                 &ldquo;{review.title}&rdquo;
               </h3>
 
               {/* Body */}
-              <p className="font-body text-sm text-dark-600 leading-relaxed flex-1 line-clamp-4">
+              <p className="font-body text-sm text-dark-600 leading-relaxed flex-1">
                 {review.body}
               </p>
 
               {/* Author */}
-              <div className="flex items-center justify-between pt-2 border-t border-cream-200">
+              <div className="flex items-center justify-between pt-2 border-t border-cream-100">
                 <div>
                   <div className="flex items-center gap-1.5">
                     <p className="font-body text-sm font-semibold text-dark-900">

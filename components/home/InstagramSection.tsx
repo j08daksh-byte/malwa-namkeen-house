@@ -11,22 +11,20 @@ const instagramImages = [
 
 export function InstagramSection() {
   return (
-    <section className="section-padding bg-cream-100" aria-label="Instagram gallery">
+    <section className="section-padding bg-white" aria-label="Instagram gallery">
       <div className="container-brand">
         {/* Heading */}
         <div className="text-center mb-10">
           <p className="font-body text-xs font-semibold text-saffron-600 uppercase tracking-[0.2em] mb-3">
-            Follow Us @malwanamkeenhouse
+            @malwanamkeenhouse
           </p>
           <h2 className="font-display text-4xl sm:text-5xl font-bold text-dark-900 leading-tight">
-            A Little Namkeen.
-            <br />
-            <span className="gradient-text">A Lot of Memories.</span>
+            From Our Kitchen to Yours
           </h2>
         </div>
 
         {/* Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
           {instagramImages.map((img, i) => (
             <a
               key={i}
@@ -34,21 +32,17 @@ export function InstagramSection() {
               target="_blank"
               rel="noopener noreferrer"
               aria-label={`View on Instagram: ${img.alt}`}
-              className="group relative aspect-square rounded-xl overflow-hidden bg-cream-200 img-zoom"
+              className="group relative aspect-square rounded-lg overflow-hidden bg-cream-200"
             >
               <Image
                 src={img.src}
                 alt={img.alt}
                 fill
-                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
-                className="object-cover"
+                sizes="(max-width: 640px) 33vw, 16vw"
+                className="object-cover transition-transform duration-500 group-hover:scale-105"
               />
               {/* Overlay */}
-              <div className="absolute inset-0 bg-dark-950/0 group-hover:bg-dark-950/30 transition-colors duration-300 flex items-center justify-center">
-                <span className="text-white text-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  📸
-                </span>
-              </div>
+              <div className="absolute inset-0 bg-dark-950/0 group-hover:bg-dark-950/20 transition-colors duration-300" />
             </a>
           ))}
         </div>

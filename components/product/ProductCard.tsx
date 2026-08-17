@@ -54,7 +54,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
     <Link
       href={`/product/${product.slug}`}
       className={cn(
-        'group relative flex flex-col rounded-2xl bg-white border border-cream-200 overflow-hidden card-lift',
+        'group relative flex flex-col rounded-xl bg-white border border-cream-200 overflow-hidden transition-transform duration-300 hover:-translate-y-0.5',
         className
       )}
     >
@@ -65,12 +65,12 @@ export function ProductCard({ product, className }: ProductCardProps) {
           alt={product.name}
           fill
           sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-          className="object-cover transition-transform duration-500 group-hover:scale-105"
+          className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
         />
 
         {/* Badges */}
         {primaryBadge && (
-          <div className="absolute top-3 left-3">
+          <div className="absolute top-2.5 left-2.5">
             <Badge variant={primaryBadge}>
               {primaryBadge === 'bestseller' ? 'Best Seller' : primaryBadge}
             </Badge>
@@ -78,7 +78,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
         )}
 
         {discount && (
-          <div className="absolute top-3 right-3">
+          <div className="absolute top-2.5 right-2.5">
             <Badge variant="sale">{discount}% off</Badge>
           </div>
         )}
@@ -88,7 +88,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
           onClick={handleWishlist}
           aria-label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
           className={cn(
-            'absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full shadow-card transition-all duration-200',
+            'absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-full shadow-sm transition-all duration-300',
             wishlisted
               ? 'bg-maroon-900 text-white'
               : 'bg-white text-dark-400 opacity-0 group-hover:opacity-100 hover:text-maroon-900'
@@ -102,29 +102,29 @@ export function ProductCard({ product, className }: ProductCardProps) {
       </div>
 
       {/* Info */}
-      <div className="flex flex-col flex-1 p-4 gap-2">
+      <div className="flex flex-col flex-1 p-4 gap-1.5">
         {/* Veg + name */}
-        <div className="flex items-start gap-2">
+        <div className="flex items-start gap-1.5">
           <VegBadge className="mt-0.5 flex-shrink-0" />
-          <h3 className="font-display font-semibold text-dark-900 text-sm leading-snug line-clamp-2 group-hover:text-maroon-900 transition-colors">
+          <h3 className="font-display font-semibold text-dark-900 text-[13px] leading-snug line-clamp-2 group-hover:text-maroon-900 transition-colors">
             {product.name}
           </h3>
         </div>
 
         {/* Rating */}
-        <div className="flex items-center gap-1.5">
-          <Star className="h-3.5 w-3.5 fill-gold-500 text-gold-500" />
-          <span className="font-body text-xs font-semibold text-dark-800">
+        <div className="flex items-center gap-1">
+          <Star className="h-3 w-3 fill-gold-500 text-gold-500" />
+          <span className="font-body text-[11px] font-semibold text-dark-800">
             {product.rating.toFixed(1)}
           </span>
-          <span className="font-body text-xs text-dark-400">
+          <span className="font-body text-[11px] text-dark-400">
             ({product.reviewCount.toLocaleString('en-IN')})
           </span>
         </div>
 
         {/* Price */}
-        <div className="flex items-baseline gap-2">
-          <span className="font-display font-bold text-maroon-900 text-lg">
+        <div className="flex items-baseline gap-1.5">
+          <span className="font-display font-bold text-maroon-900 text-base">
             {formatPrice(price)}
           </span>
           {compareAt && (
@@ -140,7 +140,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
           onClick={handleAddToCart}
           aria-label={`Add ${product.name} to cart`}
           className={cn(
-            'mt-auto flex h-10 w-full items-center justify-center gap-2 rounded-xl border-2 font-body font-semibold text-sm transition-all duration-200',
+            'mt-auto flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border font-body text-xs font-semibold uppercase tracking-wider transition-all duration-300',
             addedFeedback
               ? 'border-green-500 bg-green-50 text-green-700'
               : inCart
@@ -152,7 +152,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
             <>✓ Added</>
           ) : (
             <>
-              <ShoppingCart className="h-4 w-4" />
+              <ShoppingCart className="h-3.5 w-3.5" />
               {inCart ? 'In Cart' : 'Add to Cart'}
             </>
           )}

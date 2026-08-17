@@ -35,18 +35,6 @@ export function MalwaSpecialities() {
       className="relative section-padding overflow-hidden bg-dark-950"
       aria-label="The flavours that define us"
     >
-      {/* Texture */}
-      <div
-        className="absolute inset-0 opacity-[0.04]"
-        style={{
-          backgroundImage: `radial-gradient(circle at 2px 2px, #E8851C 1px, transparent 0)`,
-          backgroundSize: '28px 28px',
-        }}
-      />
-
-      {/* Maroon glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-maroon-900/20 rounded-full blur-[100px] pointer-events-none" />
-
       <div className="container-brand relative z-10">
         {/* Heading */}
         <div className="text-center mb-14">
@@ -60,17 +48,17 @@ export function MalwaSpecialities() {
           <h2 className="font-display text-4xl sm:text-5xl font-bold leading-tight">
             <span className="text-white">The Flavours That</span>
             <br />
-            <span className="gradient-text-cream">Define Us</span>
+            <span className="text-cream-200">Define Us</span>
           </h2>
         </div>
 
         {/* Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 lg:gap-7">
-          {specialities.map((item, index) => (
+          {specialities.map((item) => (
             <Link
               key={item.name}
               href={item.href}
-              className="group relative rounded-3xl overflow-hidden bg-dark-800 border border-dark-700 hover:border-saffron-500/40 transition-all duration-300 card-lift"
+              className="group relative rounded-2xl overflow-hidden bg-dark-800 border border-dark-700 hover:border-dark-500 transition-colors duration-300 card-lift"
             >
               {/* Image */}
               <div className="relative aspect-[4/3] overflow-hidden">
@@ -103,23 +91,8 @@ export function MalwaSpecialities() {
                   Order Now <ArrowRight className="h-4 w-4" />
                 </div>
               </div>
-
-              {/* Index number */}
-              <div className="absolute top-4 right-4 font-display text-5xl font-bold text-white/5">
-                {String(index + 1).padStart(2, '0')}
-              </div>
             </Link>
           ))}
-        </div>
-
-        {/* Bottom CTA */}
-        <div className="text-center mt-12">
-          <Link
-            href="/shop"
-            className="inline-flex items-center gap-2 font-body text-sm font-semibold text-saffron-400 hover:text-saffron-300 transition-colors"
-          >
-            Explore all products <ArrowRight className="h-4 w-4" />
-          </Link>
         </div>
       </div>
     </section>

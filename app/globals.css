@@ -131,7 +131,8 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-body);
-  line-height: 1.6;
+  line-height: 1.65;
+  letter-spacing: -0.01em;
   overflow-x: hidden;
 }
 
@@ -144,8 +145,9 @@ body {
 /* Focus styles */
 :focus-visible {
   outline: 2px solid #E8851C;
-  outline-offset: 2px;
+  outline-offset: 4px;
   border-radius: 4px;
+  transition: outline-offset 0.2s ease, outline-color 0.2s ease;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -169,12 +171,54 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   EDITORIAL & BRAND UTILITIES
+───────────────────────────────────────────────────────────────────────────── */
+
+.texture-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  mix-blend-mode: multiply;
+}
+
+.editorial-divider {
+  width: 60px;
+  height: 1px;
+  background-color: #E8851C;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.line-accent {
+  display: inline-block;
+  width: 40px;
+  height: 2px;
+  background-color: #E8851C;
+  vertical-align: middle;
+}
+
+.section-heading {
+  font-family: var(--font-body);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: #d96b0e; /* saffron-600 */
+}
+
+.transition-smooth {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    LAYOUT UTILITIES
 ───────────────────────────────────────────────────────────────────────────── */
 
 .container-brand {
   width: 100%;
-  max-width: 1320px;
+  max-width: 1280px;
   margin-left: auto;
   margin-right: auto;
   padding-left: 1.5rem;
@@ -313,16 +357,15 @@ h1, h2, h3, h4, h5, h6 {
 ───────────────────────────────────────────────────────────────────────────── */
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #FFF8F0;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: #D0BBA8;
-  border-radius: 9999px;
-  border: 2px solid #FFF8F0;
+  border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #6B0F1A;
