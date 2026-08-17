@@ -4,7 +4,7 @@ import { FOOTER_LINKS, SITE_NAME, SITE_EMAIL, SITE_PHONE, SITE_WHATSAPP, SITE_AD
 
 function InstagramIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
       <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
       <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
@@ -14,7 +14,7 @@ function InstagramIcon({ className }: { className?: string }) {
 
 function FacebookIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
     </svg>
   );
@@ -22,7 +22,7 @@ function FacebookIcon({ className }: { className?: string }) {
 
 function YoutubeIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17" />
       <polygon points="10 15 15 12 10 9 10 15" />
     </svg>
@@ -31,7 +31,7 @@ function YoutubeIcon({ className }: { className?: string }) {
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9L3 21" />
       <path d="M9 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1a5 5 0 0 0 5 5h1a.5.5 0 0 0 0-1h-1a.5.5 0 0 0 0 1" />
     </svg>
@@ -49,29 +49,28 @@ export function Footer() {
   ];
 
   return (
-    <footer className="bg-dark-900 text-cream-100" aria-label="Site footer">
-      {/* Main Footer */}
-      <div className="container-brand pt-16 pb-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-6">
-          {/* Brand Column */}
+    <footer className="bg-dark-950 text-cream-100 border-t border-white/10" aria-label="Site footer">
+      {/* Main Footer Container */}
+      <div className="container-brand pt-20 pb-16">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-12 lg:gap-8">
+          {/* Brand Column (4 cols) */}
           <div className="lg:col-span-4">
-            <Link href="/" className="inline-block mb-5">
+            <Link href="/" className="inline-block mb-6">
               <div className="flex flex-col leading-none">
-                <span className="font-display text-2xl font-bold text-white tracking-tight">
+                <span className="font-display text-3xl font-medium text-white tracking-tight">
                   Malwa
                 </span>
-                <span className="font-body text-[10px] font-semibold text-saffron-400 uppercase tracking-[0.2em] mt-0.5">
+                <span className="font-body text-[10px] font-semibold text-saffron-400 uppercase tracking-[0.25em] mt-1">
                   Namkeen House
                 </span>
               </div>
             </Link>
-            <p className="font-body text-sm text-dark-300 leading-relaxed max-w-xs mb-8">
-              Traditional namkeen and snacks from the heart of Malwa. Authentic
-              flavours, freshly packed, delivered across India.
+            <p className="font-body text-xs sm:text-sm text-dark-300 font-light leading-relaxed max-w-sm mb-8">
+              Traditional namkeen and snacks from the heart of Indore. Authentic recipes, freshly packed daily in 100% pure groundnut oil, delivered across India.
             </p>
 
-            {/* Social Links */}
-            <div className="flex items-center gap-2.5">
+            {/* Social Icons */}
+            <div className="flex items-center gap-3">
               {socialLinks.map(({ href, label, Icon }) => (
                 <a
                   key={label}
@@ -79,7 +78,7 @@ export function Footer() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={label}
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-dark-600 text-dark-300 hover:bg-maroon-900 hover:border-maroon-900 hover:text-cream-100 transition-all duration-200"
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-dark-300 hover:bg-saffron-500 hover:border-saffron-500 hover:text-dark-950 transition-all duration-300"
                 >
                   <Icon className="h-4 w-4" />
                 </a>
@@ -87,9 +86,9 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Shop Links */}
+          {/* Shop Column (2 cols) */}
           <div className="lg:col-span-2">
-            <h3 className="font-body text-xs font-semibold text-cream-200 mb-5 uppercase tracking-[0.15em]">
+            <h3 className="font-body text-xs font-semibold text-saffron-300 mb-5 uppercase tracking-[0.2em]">
               Shop
             </h3>
             <ul className="space-y-3">
@@ -97,7 +96,7 @@ export function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="font-body text-sm text-dark-300 hover:text-white transition-colors duration-150"
+                    className="font-body text-xs sm:text-[13px] text-dark-300 font-light hover:text-white transition-colors duration-200"
                   >
                     {link.label}
                   </Link>
@@ -106,17 +105,17 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Support Links */}
+          {/* Categories Column (2 cols) */}
           <div className="lg:col-span-2">
-            <h3 className="font-body text-xs font-semibold text-cream-200 mb-5 uppercase tracking-[0.15em]">
-              Help
+            <h3 className="font-body text-xs font-semibold text-saffron-300 mb-5 uppercase tracking-[0.2em]">
+              Categories
             </h3>
             <ul className="space-y-3">
-              {FOOTER_LINKS.support.map((link) => (
+              {FOOTER_LINKS.categories.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="font-body text-sm text-dark-300 hover:text-white transition-colors duration-150"
+                    className="font-body text-xs sm:text-[13px] text-dark-300 font-light hover:text-white transition-colors duration-200"
                   >
                     {link.label}
                   </Link>
@@ -125,9 +124,9 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Company Links */}
+          {/* Company & Support (2 cols) */}
           <div className="lg:col-span-2">
-            <h3 className="font-body text-xs font-semibold text-cream-200 mb-5 uppercase tracking-[0.15em]">
+            <h3 className="font-body text-xs font-semibold text-saffron-300 mb-5 uppercase tracking-[0.2em]">
               Company
             </h3>
             <ul className="space-y-3">
@@ -135,37 +134,45 @@ export function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="font-body text-sm text-dark-300 hover:text-white transition-colors duration-150"
+                    className="font-body text-xs sm:text-[13px] text-dark-300 font-light hover:text-white transition-colors duration-200"
                   >
                     {link.label}
                   </Link>
                 </li>
               ))}
+              <li>
+                <Link
+                  href="/faq"
+                  className="font-body text-xs sm:text-[13px] text-dark-300 font-light hover:text-white transition-colors duration-200"
+                >
+                  FAQs
+                </Link>
+              </li>
             </ul>
           </div>
 
-          {/* Contact */}
+          {/* Contact Column (2 cols) */}
           <div className="lg:col-span-2">
-            <h3 className="font-body text-xs font-semibold text-cream-200 mb-5 uppercase tracking-[0.15em]">
+            <h3 className="font-body text-xs font-semibold text-saffron-300 mb-5 uppercase tracking-[0.2em]">
               Connect
             </h3>
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               <a
                 href={`mailto:${SITE_EMAIL}`}
-                className="flex items-start gap-2.5 font-body text-sm text-dark-300 hover:text-white transition-colors duration-150"
+                className="flex items-start gap-2.5 font-body text-xs sm:text-[13px] text-dark-300 font-light hover:text-white transition-colors duration-200"
               >
-                <Mail className="h-4 w-4 mt-0.5 flex-shrink-0 text-dark-400" />
-                <span>{SITE_EMAIL}</span>
+                <Mail className="h-4 w-4 mt-0.5 shrink-0 text-saffron-400/80" />
+                <span className="break-all">{SITE_EMAIL}</span>
               </a>
               <a
                 href={`tel:${SITE_PHONE}`}
-                className="flex items-start gap-2.5 font-body text-sm text-dark-300 hover:text-white transition-colors duration-150"
+                className="flex items-start gap-2.5 font-body text-xs sm:text-[13px] text-dark-300 font-light hover:text-white transition-colors duration-200"
               >
-                <Phone className="h-4 w-4 mt-0.5 flex-shrink-0 text-dark-400" />
+                <Phone className="h-4 w-4 mt-0.5 shrink-0 text-saffron-400/80" />
                 <span>{SITE_PHONE}</span>
               </a>
-              <div className="flex items-start gap-2.5 font-body text-sm text-dark-400">
-                <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <div className="flex items-start gap-2.5 font-body text-xs text-dark-400 font-light">
+                <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-saffron-400/80" />
                 <span>{SITE_ADDRESS}</span>
               </div>
             </div>
@@ -173,29 +180,30 @@ export function Footer() {
         </div>
       </div>
 
-      {/* Bottom Bar */}
-      <div className="border-t border-dark-700/60">
-        <div className="container-brand py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="font-body text-xs text-dark-400">
+      {/* Bottom Hairline Bar */}
+      <div className="border-t border-white/10">
+        <div className="container-brand py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="font-body text-[11px] text-dark-400 font-light">
             © {currentYear} {SITE_NAME}. All rights reserved.
           </p>
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-6">
             {['Privacy Policy', 'Terms of Service', 'Refund Policy'].map((item) => (
               <Link
                 key={item}
                 href={`/${item.toLowerCase().replace(/\s+/g, '-')}`}
-                className="font-body text-xs text-dark-400 hover:text-cream-200 transition-colors duration-150"
+                className="font-body text-[11px] text-dark-400 hover:text-cream-200 transition-colors duration-200 font-light"
               >
                 {item}
               </Link>
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-body text-xs text-dark-500">FSSAI Lic.</span>
-            <span className="font-body text-xs text-dark-400">23724001000001</span>
+            <span className="font-body text-[11px] text-dark-500 uppercase tracking-wider">FSSAI Lic.</span>
+            <span className="font-body text-[11px] text-dark-400 font-mono">23724001000001</span>
           </div>
         </div>
       </div>
     </footer>
   );
 }
+

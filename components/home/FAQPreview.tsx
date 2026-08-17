@@ -8,18 +8,20 @@ export function FAQPreview() {
   const items = faqs.map((f) => ({ id: f.id, question: f.question, answer: f.answer }));
 
   return (
-    <section className="section-padding bg-cream-50" aria-label="Frequently asked questions">
+    <section className="section-padding bg-cream-50/50" aria-label="Frequently asked questions">
       <div className="container-brand">
         <div className="max-w-3xl mx-auto">
-          {/* Heading */}
-          <div className="text-center mb-10">
-            <p className="font-body text-xs font-semibold text-saffron-600 uppercase tracking-[0.2em] mb-3">
-              Got Questions?
-            </p>
-            <h2 className="font-display text-4xl sm:text-5xl font-bold text-dark-900 leading-tight">
-              We&apos;ve Got
-              <br />
-              <span>Answers.</span>
+          {/* Header */}
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center justify-center gap-3 mb-3">
+              <span className="h-px w-8 bg-saffron-600" />
+              <p className="font-body text-xs font-semibold text-saffron-700 uppercase tracking-[0.25em]">
+                Common Inquiries
+              </p>
+              <span className="h-px w-8 bg-saffron-600" />
+            </div>
+            <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-normal text-dark-900 leading-tight">
+              Frequently Asked Questions
             </h2>
           </div>
 
@@ -27,12 +29,13 @@ export function FAQPreview() {
           <Accordion items={items} />
 
           {/* View all link */}
-          <div className="text-center mt-8">
+          <div className="text-center mt-10">
             <Link
               href="/faq"
-              className="inline-flex items-center gap-2 font-body text-sm font-semibold text-maroon-900 hover:text-saffron-600 transition-colors"
+              className="group inline-flex items-center gap-2 font-body text-xs font-semibold text-maroon-900 uppercase tracking-widest hover:text-saffron-600 transition-colors"
             >
-              View all FAQs <ArrowRight className="h-4 w-4" />
+              <span>View All Questions</span>
+              <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
             </Link>
           </div>
         </div>
@@ -40,3 +43,4 @@ export function FAQPreview() {
     </section>
   );
 }
+

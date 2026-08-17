@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Sparkles } from 'lucide-react';
 
 const specialities = [
   {
@@ -10,6 +10,7 @@ const specialities = [
     image: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600&q=80',
     href: '/product/ratlami-sev',
     badge: '#1 Bestseller',
+    origin: 'Ratlam Heritage',
   },
   {
     name: 'Indore Mixture',
@@ -18,6 +19,7 @@ const specialities = [
     image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&q=80',
     href: '/product/indori-mixture',
     badge: 'City Classic',
+    origin: 'Indore Recipe',
   },
   {
     name: 'Classic Bhujia',
@@ -26,69 +28,84 @@ const specialities = [
     image: 'https://images.unsplash.com/photo-1567337710282-00832b415979?w=600&q=80',
     href: '/product/classic-bhujia',
     badge: '1000+ Reviews',
+    origin: 'Traditional Blend',
   },
 ];
 
 export function MalwaSpecialities() {
   return (
     <section
-      className="relative section-padding overflow-hidden bg-dark-950"
+      className="relative section-padding overflow-hidden bg-[#180407] border-y border-maroon-950/60"
       aria-label="The flavours that define us"
     >
+      {/* Subtle warm glow background effects */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-maroon-700/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-0 right-0 w-96 h-96 bg-saffron-500/5 rounded-full blur-3xl pointer-events-none" />
+
       <div className="container-brand relative z-10">
-        {/* Heading */}
-        <div className="text-center mb-14">
-          <div className="flex items-center justify-center gap-3 mb-5">
-            <div className="h-px w-10 bg-saffron-500" />
-            <span className="font-body text-xs font-semibold text-saffron-400 uppercase tracking-[0.2em]">
+        {/* Section Header */}
+        <div className="text-center max-w-2xl mx-auto mb-14 lg:mb-16">
+          <div className="inline-flex items-center gap-3 px-3.5 py-1 rounded-full bg-saffron-500/10 border border-saffron-400/20 backdrop-blur-sm mb-4">
+            <span className="h-1.5 w-1.5 rounded-full bg-saffron-400" />
+            <span className="font-body text-xs font-semibold text-saffron-300 uppercase tracking-[0.25em]">
               The Taste of Malwa
             </span>
-            <div className="h-px w-10 bg-saffron-500" />
           </div>
-          <h2 className="font-display text-4xl sm:text-5xl font-bold leading-tight">
-            <span className="text-white">The Flavours That</span>
-            <br />
-            <span className="text-cream-200">Define Us</span>
+          <h2 className="font-display text-3xl sm:text-5xl lg:text-6xl font-normal text-white leading-tight mb-4">
+            The Flavours That{' '}
+            <span className="italic text-saffron-300">Define Us</span>
           </h2>
+          <p className="font-body text-sm sm:text-base text-cream-200/75 font-light leading-relaxed">
+            Three iconic creations carrying decades of culinary pride from the streets of Ratlam and Indore to your family table.
+          </p>
         </div>
 
-        {/* Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 lg:gap-7">
+        {/* Signature Campaign Showcase Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
           {specialities.map((item) => (
             <Link
               key={item.name}
               href={item.href}
-              className="group relative rounded-2xl overflow-hidden bg-dark-800 border border-dark-700 hover:border-dark-500 transition-colors duration-300 card-lift"
+              className="group relative flex flex-col rounded-2xl overflow-hidden bg-dark-950/80 border border-white/10 hover:border-saffron-500/40 transition-all duration-500 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-maroon-950/70"
             >
-              {/* Image */}
-              <div className="relative aspect-[4/3] overflow-hidden">
+              {/* Image Container */}
+              <div className="relative aspect-[16/11] overflow-hidden bg-dark-900">
                 <Image
                   src={item.image}
                   alt={item.name}
                   fill
-                  sizes="(max-width: 640px) 100vw, 33vw"
-                  className="object-cover transition-transform duration-500 group-hover:scale-105"
+                  sizes="(max-width: 768px) 100vw, 33vw"
+                  className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-dark-900/80 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-dark-950 via-dark-950/40 to-transparent opacity-85" />
 
-                {/* Badge */}
-                <div className="absolute top-4 left-4">
-                  <span className="inline-flex items-center px-3 py-1 rounded-full bg-saffron-500/90 text-white font-body text-xs font-semibold">
+                {/* Top Badge */}
+                <div className="absolute top-3.5 left-3.5 flex items-center gap-2">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full bg-saffron-500/90 backdrop-blur-md text-white font-body text-[11px] font-bold tracking-wider uppercase shadow-xs">
                     {item.badge}
+                  </span>
+                </div>
+
+                <div className="absolute top-3.5 right-3.5">
+                  <span className="font-body text-[10px] uppercase tracking-widest text-cream-300/80 px-2.5 py-1 rounded-full bg-dark-950/60 backdrop-blur-md border border-white/10">
+                    {item.origin}
                   </span>
                 </div>
               </div>
 
-              {/* Content */}
-              <div className="p-6">
-                <h3 className="font-display text-xl font-bold text-white mb-2 group-hover:text-saffron-400 transition-colors">
+              {/* Content Body */}
+              <div className="p-6 sm:p-7 flex flex-col flex-1">
+                <h3 className="font-display text-2xl font-normal text-white mb-2.5 group-hover:text-saffron-300 transition-colors">
                   {item.name}
                 </h3>
-                <p className="font-body text-sm text-dark-300 leading-relaxed mb-4">
+                <p className="font-body text-xs sm:text-sm text-cream-200/70 font-light leading-relaxed mb-6 flex-1">
                   {item.description}
                 </p>
-                <div className="flex items-center gap-1.5 font-body text-sm font-semibold text-saffron-400 group-hover:gap-3 transition-all duration-200">
-                  Order Now <ArrowRight className="h-4 w-4" />
+                <div className="pt-4 border-t border-white/10 flex items-center justify-between font-body text-xs font-semibold text-saffron-300 uppercase tracking-wider group-hover:text-white transition-colors">
+                  <span>Order Fresh Batch</span>
+                  <div className="h-7 w-7 rounded-full bg-saffron-500/20 group-hover:bg-saffron-500 group-hover:text-dark-950 flex items-center justify-center transition-all duration-300">
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
+                  </div>
                 </div>
               </div>
             </Link>
@@ -98,3 +115,4 @@ export function MalwaSpecialities() {
     </section>
   );
 }
+
