@@ -1,333 +1,187 @@
-﻿import { EVENTS } from '../../lib/events';
-import { NAV_HEIGHT } from '../../lib/tokens';
-import { CARDS, type CardData } from '../../data/heritage-cards';
+type HeritageCardProps = {
+  className: string;
+  image: string;
+  eyebrow: string;
+  title: string;
+  description?: string;
+  position?: string;
+};
 
-function goToMenu(categoryId: string) {
-  window.dispatchEvent(new CustomEvent(EVENTS.MENU_CATEGORY, { detail: categoryId }));
-  const el = document.querySelector('#menu');
-  if (el) {
-    const top = el.getBoundingClientRect().top + window.scrollY - NAV_HEIGHT;
-    window.scrollTo({ top, behavior: 'smooth' });
-  }
-}
-
-// ─── Card ─────────────────────────────────────────────────────────────────────
-function Card({ card, idx }: { card: CardData; idx: number }) {
-  const activate = () => goToMenu(card.menuCategory);
+function HeritageCard({ className, image, eyebrow, title, description, position = 'center' }: HeritageCardProps) {
   return (
-    <div
-      className="heritage-card"
-      data-ci={idx}
-      role="button"
-      tabIndex={0}
-      aria-label={card.ariaLabel}
-      onClick={activate}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); } }}
-    >
-      <img
-        src={card.image}
-        alt={card.title}
-        className="heritage-card__img"
-        loading="lazy"
-        decoding="async"
-      />
-      <div className="heritage-card__overlay">
-        <span className="heritage-card__subtitle">{card.subtitle}</span>
-        <h3 className="heritage-card__title">{card.title}</h3>
-        <p className="heritage-card__desc">{card.description}</p>
-        <div className="heritage-card__btn" aria-hidden="true">
-          <svg width="12" height="10" viewBox="0 0 12 10" fill="none">
-            <path d="M1 5h9.5M6.5 1.5L10.5 5l-4 3.5" stroke="#C99A32" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
+    <article className={`heritage-editorial__card ${className}`}>
+      <img src={image} alt="" className="heritage-editorial__image" style={{ objectPosition: position }} loading="lazy" decoding="async" />
+      <div className="heritage-editorial__shade" />
+      <div className="heritage-editorial__card-copy">
+        <span>{eyebrow}</span>
+        <h3>{title}</h3>
+        {description && <p>{description}</p>}
       </div>
-    </div>
+    </article>
   );
 }
 
-// ─── Section ──────────────────────────────────────────────────────────────────
 export default function HeritageSpecialities() {
   return (
-    <section id="heritage" aria-label="Heritage Specialities">
+    <section id="heritage" className="heritage-editorial" aria-label="Our Heritage">
       <style>{`
-        /* ── Section ───────────────────────────────────────────────── */
-        #heritage {
+        .heritage-editorial {
           background: #F6EFE3;
-          padding: clamp(48px, 7vw, 88px) clamp(16px, 4vw, 48px) clamp(56px, 8vw, 100px);
-          overflow-x: hidden;
-        }
-
-        /* ── Heading block ─────────────────────────────────────────── */
-        #heritage .hs-heading {
-          text-align: center;
-          margin-bottom: clamp(28px, 4vw, 52px);
-          max-width: 680px;
-          margin-inline: auto;
-          margin-bottom: clamp(28px, 4vw, 52px);
-        }
-        #heritage .hs-h2 {
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(26px, 4.5vw, 54px);
-          font-weight: 600;
-          line-height: 1.15;
-          color: #55000A;
-          margin: 0 0 14px;
-          letter-spacing: -0.01em;
-        }
-        #heritage .hs-h2 em {
-          font-style: italic;
-          color: #C99A32;
-        }
-        #heritage .hs-hdivider {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          margin-bottom: 12px;
-        }
-        #heritage .hs-hbar {
-          width: clamp(32px, 4vw, 52px);
-          height: 1px;
-          background: #C99A32;
-          opacity: 0.65;
-        }
-        #heritage .hs-hsub {
-          font-family: Inter, sans-serif;
-          font-size: clamp(12px, 1.4vw, 15px);
-          color: #74645B;
-          line-height: 1.68;
-          margin: 0;
-        }
-
-        /* ── Grid ──────────────────────────────────────────────────── */
-        #heritage .hs-grid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 24px;
-          max-width: 1050px;
-          margin: 0 auto;
-        }
-
-        /* ── Card shell ────────────────────────────────────────────── */
-        /* aspect-ratio matches PNG natural size (971×1619) exactly   */
-        /* so object-fit:contain fills the card with zero letterboxing */
-        .heritage-card {
-          position: relative;
-          display: block;
-          background: #F6EFE3;
-          aspect-ratio: 971 / 1350;
-          transition: transform 250ms ease, box-shadow 250ms ease;
-          cursor: pointer;
-          outline: none;
-          border-radius: 0 0 16px 16px;
+          padding: clamp(68px, 9vw, 118px) clamp(20px, 4vw, 48px) clamp(76px, 9vw, 124px);
           overflow: hidden;
+        }
+        .heritage-editorial__wrap { width: min(100%, 1180px); margin: 0 auto; }
+        .heritage-editorial__head {
+          display: flex;
+          align-items: end;
+          justify-content: space-between;
+          gap: 32px;
+          margin-bottom: clamp(32px, 4.5vw, 56px);
+        }
+        .heritage-editorial__eyebrow,
+        .heritage-editorial__card-copy span {
+          display: block;
+          color: #C99A32;
+          font-family: Inter, sans-serif;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.18em;
+          line-height: 1.2;
+          text-transform: uppercase;
+        }
+        .heritage-editorial__eyebrow { margin-bottom: 14px; }
+        .heritage-editorial__head h2 {
+          max-width: 670px;
+          margin: 0;
+          color: #55000A;
+          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+          font-size: clamp(40px, 5vw, 67px);
+          font-weight: 600;
+          letter-spacing: -0.03em;
+          line-height: 0.98;
+        }
+        .heritage-editorial__head h2 em { color: #C99A32; font-style: italic; font-weight: 500; }
+        .heritage-editorial__view-all {
+          flex-shrink: 0;
+          margin-bottom: 7px;
+          border-bottom: 1px solid rgba(85, 0, 10, 0.45);
+          color: #55000A;
+          font-family: Inter, sans-serif;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.14em;
+          line-height: 1.65;
+          text-decoration: none;
+          text-transform: uppercase;
+          transition: color 0.2s ease, border-color 0.2s ease;
+        }
+        .heritage-editorial__view-all:hover { color: #C99A32; border-color: #C99A32; }
+
+        .heritage-editorial__grid {
+          display: grid;
+          grid-template-columns: repeat(12, minmax(0, 1fr));
+          grid-template-rows: 218px 218px 238px;
+          gap: 18px;
+        }
+        .heritage-editorial__card {
+          position: relative;
+          min-width: 0;
+          overflow: hidden;
+          border-radius: 18px;
+          background: #55000A;
           isolation: isolate;
         }
-        .heritage-card:hover {
-          transform: translateY(-6px) scale(1.015);
-          box-shadow: 0 16px 24px rgba(85,0,10, 0.22);
-        }
-        .heritage-card:focus-visible {
-          outline: 3px solid #C99A32;
-          outline-offset: 4px;
-        }
-        @media (hover: none) {
-          .heritage-card:hover {
-            transform: none;
-            box-shadow: none;
-          }
-        }
-        .heritage-card__img {
+        .heritage-editorial__feature { grid-column: span 8; grid-row: span 2; }
+        .heritage-editorial__side-one,
+        .heritage-editorial__side-two { grid-column: span 4; }
+        .heritage-editorial__bottom { grid-column: span 4; }
+        .heritage-editorial__image {
           width: 100%;
           height: 100%;
           display: block;
           object-fit: cover;
-          object-position: center top;
-          filter: brightness(1.05);
-          transition: transform 350ms ease;
-          transform-origin: center 30%;
+          transition: transform 0.5s ease;
         }
-        .heritage-card:hover .heritage-card__img {
-          transform: scale(1.04);
-        }
-
-        /* ── Text overlay ──────────────────────────────────────────────
-           PNG structure (1024×1536):
-             0–62%  : arch food photo
-             62–65% : baked-in gold divider ornament
-             65–93% : maroon text panel
-             93–100%: bottom gold border frame
-           Overlay starts at 63% so it sits inside the maroon panel
-           with just enough top breathing room. bottom:3% stays
-           above the gold border. card overflow:hidden clips safely. */
-        .heritage-card__overlay {
+        .heritage-editorial__card:hover .heritage-editorial__image { transform: scale(1.045); }
+        .heritage-editorial__shade {
           position: absolute;
-          left: 7%;
-          right: 7%;
-          top: 75%;
-          bottom: 2%;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          text-align: center;
-          padding: 8px 10px 6px;
-          overflow: hidden;
+          inset: 0;
+          background: linear-gradient(180deg, rgba(30, 10, 5, 0.02) 28%, rgba(31, 8, 8, 0.76) 100%);
+          pointer-events: none;
         }
-        .heritage-card__subtitle {
-          font-family: Inter, sans-serif;
-          font-size: clamp(5px, 0.44vw, 7px);
-          font-weight: 700;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: #C99A32;
-          line-height: 1.2;
-          flex-shrink: 0;
-          margin-bottom: 3px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          max-width: 100%;
+        .heritage-editorial__card-copy {
+          position: absolute;
+          right: clamp(18px, 2.5vw, 30px);
+          bottom: clamp(18px, 2.5vw, 28px);
+          left: clamp(18px, 2.5vw, 30px);
+          z-index: 1;
         }
-        .heritage-card__title {
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(10px, 0.95vw, 14px);
-          font-weight: 700;
+        .heritage-editorial__card-copy span { color: #E1B457; font-size: 9px; letter-spacing: 0.15em; }
+        .heritage-editorial__card-copy h3 {
+          margin: 7px 0 0;
           color: #FFF8EC;
-          line-height: 1.1;
-          letter-spacing: 0.03em;
-          margin: 0 0 4px;
-          flex-shrink: 0;
-          word-break: break-word;
-          overflow-wrap: break-word;
-          hyphens: auto;
+          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+          font-size: clamp(25px, 2.6vw, 40px);
+          font-weight: 600;
+          letter-spacing: -0.02em;
+          line-height: 0.98;
         }
-        .heritage-card__desc {
+        .heritage-editorial__feature .heritage-editorial__card-copy h3 { font-size: clamp(36px, 4vw, 58px); }
+        .heritage-editorial__card-copy p {
+          max-width: 350px;
+          margin: 10px 0 0;
+          color: rgba(255, 248, 236, 0.82);
           font-family: Inter, sans-serif;
-          font-size: clamp(8px, 0.65vw, 9.5px);
-          color: #E9D8C8;
-          line-height: 1.35;
-          margin: 0 auto;
-          max-width: 92%;
-          overflow: hidden;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          flex-shrink: 1;
-        }
-        .heritage-card__btn {
-          width: 26px;
-          height: 26px;
-          border-radius: 50%;
-          border: 1.5px solid rgba(201,154,50,0.55);
-          background: rgba(201,154,50,0.08);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-          cursor: pointer;
-          transition: border-color 220ms ease, background 220ms ease, transform 220ms ease;
-          padding: 0;
-          margin-top: 4px;
-        }
-        .heritage-card:hover .heritage-card__btn {
-          border-color: rgba(201,154,50,0.95);
-          background: rgba(201,154,50,0.18);
-          transform: translateX(3px);
+          font-size: 12px;
+          line-height: 1.55;
         }
 
-        /* ── Tablet: 768px – 1099px ────────────────────────────────── */
-        @media (min-width: 768px) and (max-width: 1099px) {
-          #heritage .hs-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            max-width: 720px;
-            gap: 20px;
-          }
-          .heritage-card__subtitle { font-size: clamp(5.5px, 0.7vw, 7.5px); letter-spacing: 0.10em; }
-          .heritage-card__title    { font-size: clamp(11px, 1.4vw, 14px); }
-          .heritage-card__desc     { font-size: clamp(8.5px, 0.85vw, 10px); -webkit-line-clamp: 2; }
+        @media (max-width: 820px) {
+          .heritage-editorial__head { align-items: start; flex-direction: column; gap: 18px; }
+          .heritage-editorial__view-all { margin-bottom: 0; }
+          .heritage-editorial__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: 330px 218px 218px 230px 230px; gap: 14px; }
+          .heritage-editorial__feature { grid-column: span 2; grid-row: span 1; }
+          .heritage-editorial__side-one,
+          .heritage-editorial__side-two,
+          .heritage-editorial__bottom { grid-column: span 1; }
+          .heritage-editorial__bottom:last-child { grid-column: 1 / -1; }
+          .heritage-editorial__feature .heritage-editorial__card-copy h3 { font-size: clamp(36px, 7vw, 52px); }
         }
 
-        /* ── Mobile: below 768px — 2 cards per row ──────────────────── */
-        @media (max-width: 767px) {
-          #heritage {
-            padding: 32px 0 44px;
-          }
-          #heritage .hs-heading {
-            padding: 0 16px;
-          }
-          #heritage .hs-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
-            padding-inline: 10px;
-            max-width: 100%;
-          }
-          .heritage-card__overlay {
-            left: 5%;
-            right: 5%;
-            top: 75%;
-            bottom: 2%;
-            padding: 6px 8px 5px;
-          }
-          .heritage-card__subtitle {
-            font-size: clamp(4.5px, 1.1vw, 6.5px);
-            letter-spacing: 0.09em;
-            margin-bottom: 2px;
-          }
-          .heritage-card__title {
-            font-size: clamp(9px, 2.2vw, 12px);
-            margin-bottom: 2px;
-            line-height: 1.08;
-          }
-          .heritage-card__desc {
-            font-size: clamp(7px, 1.6vw, 9px);
-            line-height: 1.3;
-            -webkit-line-clamp: 2;
-          }
-          .heritage-card__btn {
-            width: 20px;
-            height: 20px;
-            margin-top: 3px;
-          }
-          .heritage-card__btn svg {
-            width: 9px;
-            height: 7px;
-          }
+        @media (max-width: 520px) {
+          .heritage-editorial { padding: 64px 16px 76px; }
+          .heritage-editorial__head h2 { font-size: clamp(38px, 12vw, 52px); }
+          .heritage-editorial__grid { display: flex; flex-direction: column; gap: 13px; }
+          .heritage-editorial__card { height: 250px; flex: 0 0 250px; border-radius: 15px; }
+          .heritage-editorial__feature { height: 360px; flex-basis: 360px; }
+          .heritage-editorial__feature .heritage-editorial__card-copy h3 { font-size: 42px; }
+          .heritage-editorial__card-copy h3 { font-size: 30px; }
+          .heritage-editorial__card-copy p { font-size: 11px; }
         }
 
-        /* ── Very small screens: below 370px ────────────────────────── */
-        @media (max-width: 369px) {
-          .heritage-card__subtitle { font-size: 5.5px; letter-spacing: 0.09em; }
-          .heritage-card__title    { font-size: 11px; }
-          .heritage-card__desc     { font-size: 8px; }
-          .heritage-card__btn      { width: 22px; height: 22px; }
+        @media (hover: none) {
+          .heritage-editorial__card:hover .heritage-editorial__image { transform: none; }
         }
       `}</style>
 
-      {/* Heading */}
-      <div className="hs-heading">
-        <h2 className="hs-h2">
-          OUR HERITAGE <em>SPECIALITIES</em>
-        </h2>
-        <div className="hs-hdivider">
-          <div className="hs-hbar" />
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-            <path d="M5 0.5 L9.5 5 L5 9.5 L0.5 5 Z" stroke="#C99A32" strokeWidth="0.9" fill="rgba(184,137,59,0.20)" />
-            <circle cx="5" cy="5" r="1.7" fill="#C99A32" />
-          </svg>
-          <div className="hs-hbar" />
+      <div className="heritage-editorial__wrap">
+        <header className="heritage-editorial__head">
+          <div>
+            <span className="heritage-editorial__eyebrow">Our Heritage</span>
+            <h2>Flavours shaped by <em>tradition</em></h2>
+          </div>
+          <a className="heritage-editorial__view-all" href="#menu">View all flavours</a>
+        </header>
+
+        <div className="heritage-editorial__grid">
+          <HeritageCard className="heritage-editorial__feature" image="/mishtichaat/chaat-plate.jpg" eyebrow="The Malwa table" title="Crafted for the shared table" description="Bold, bright and generously layered — every handful carries the warmth of a family recipe." />
+          <HeritageCard className="heritage-editorial__side-one" image="/mishtichaat/dahi-puri.png" eyebrow="Handcrafted" title="Crisp by tradition" />
+          <HeritageCard className="heritage-editorial__side-two" image="/mishtichaat/jalebi.jpg" eyebrow="Old city rituals" title="Made with patience" />
+          <HeritageCard className="heritage-editorial__bottom" image="/mishtichaat/dahi-bhalla.jpg" eyebrow="Celebration" title="Generations of flavour" position="center 55%" />
+          <HeritageCard className="heritage-editorial__bottom" image="/mishtichaat/kachori.jpg" eyebrow="The everyday feast" title="Malwa, in every bite" />
+          <HeritageCard className="heritage-editorial__bottom" image="/mishtichaat/hero-food.jpg" eyebrow="From our kitchen" title="Time-honoured craft" position="center 70%" />
         </div>
-        <p className="hs-hsub">
-          Journey through the sacred culinary rituals of Banaras. An exploration of traditional morning delights, street-poetry chaats, and ceremonial feasts.
-        </p>
       </div>
-
-      {/* Cards */}
-      <div className="hs-grid">
-        {CARDS.map((card, i) => (
-          <Card key={card.title} card={card} idx={i} />
-        ))}
-      </div>
-
     </section>
   );
 }

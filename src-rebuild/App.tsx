@@ -10,12 +10,12 @@ import LegacyStory          from './components/sections/LegacyStory';
 import MenuSection          from './components/sections/MenuSection';
 import SignatureDelicacies  from './components/sections/SignatureDelicacies';
 import Katering             from './components/sections/Katering';
-import Location             from './components/sections/Location';
 import QualityValues        from './components/sections/QualityValues';
 import GuestReviews         from './components/sections/GuestReviews';
 import Contact              from './components/sections/Contact';
 import Footer               from './components/sections/Footer';
 import ReservationModal     from './components/sections/ReservationModal';
+import Shop                 from './pages/Shop';
 
 // Admin pages
 import AdminLogin        from './pages/admin/AdminLogin';
@@ -45,7 +45,6 @@ function PublicSite() {
         <MenuSection />
         <SignatureDelicacies />
         <Katering />
-        <Location />
         <QualityValues />
         <GuestReviews />
         <Contact />
@@ -62,6 +61,7 @@ export default function App() {
       <Routes>
         {/* Public website */}
         <Route path="/" element={<PublicSite />} />
+        <Route path="/shop" element={<Shop />} />
 
         {/* Legal pages */}
         <Route path="/privacy-policy"      element={<PrivacyPolicy />} />

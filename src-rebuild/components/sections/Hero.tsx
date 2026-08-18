@@ -1,417 +1,166 @@
-﻿const HERO_IMAGE = "/mishtichaat/semi-hero.png";
+import { BUSINESS } from '../../lib/business';
+import type { MouseEvent } from 'react';
 
-function scrollTo(id: string) {
-  if (id === '#hero') { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
-  document.querySelector(id)?.scrollIntoView({ behavior: 'smooth' });
+function scrollToMenu(event: MouseEvent<HTMLAnchorElement>) {
+  event.preventDefault();
+  document.querySelector('#menu')?.scrollIntoView({ behavior: 'smooth' });
 }
 
-export default function Hero({ onReserve }: { onReserve?: () => void }) {
+export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void }) {
   return (
-    <section id="hero" className="hero-split">
+    <section id="hero" className="hero-editorial">
       <style>{`
-        /* ══════════════════════════════════════════════════
-           DESKTOP  ≥ 768px
-           ══════════════════════════════════════════════════ */
-        .hero-split {
+        .hero-editorial {
           --nav-h: 68px;
-          --mobile-nav-h: 68px;
           width: 100%;
-          height: calc(100svh - var(--nav-h));
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-          background: #EAD5C2;
-        }
-
-        .hero-image-section {
-          position: relative;
-          width: 100%;
-          flex: 0 0 57%;
-          min-height: 0;
-          overflow: hidden;
+          min-height: calc(100svh - var(--nav-h));
           background: #EAD5C2;
           display: flex;
           align-items: center;
-          justify-content: center;
-        }
-
-        .hero-image-section img {
-          width: 103.1%;
-          height: 103.1%;
-          max-width: none;
-          display: block;
-          object-fit: cover;
-          object-position: center 50%;
-          transform: scale(0.97);
-          transform-origin: center;
-        }
-
-        .hero-content-section {
-          width: 100%;
-          flex: 0 0 43%;
-          min-height: 0;
           overflow: hidden;
-          background: #EAD5C2;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 10px 20px 14px;
         }
 
-        .hero-inner {
-          width: min(100%, 980px);
-          margin-inline: auto;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          text-align: center;
-          transform: none;
-        }
-
-        /* Centred flex decorative dividers */
-        .hero-divider {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 12px;
-          margin-inline: auto;
-        }
-
-        .hero-divider-line {
-          display: block;
-          width: 52px;
-          height: 1px;
-          flex: 0 0 52px;
-          background: #C99A32;
-        }
-
-        .hero-divider-diamond {
-          display: block;
-          flex: 0 0 auto;
-          color: #C99A32;
-          font-size: 8px;
-          line-height: 1;
-        }
-
-        .hero-divider--top {
-          margin: 0 auto 10px;
-        }
-
-        .hero-divider--bottom {
-          margin: 10px auto 10px;
-        }
-
-        /* Main heading — refined editorial serif */
-        .hero-title {
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(44px, 4.4vw, 70px);
-          line-height: 0.93;
-          font-weight: 600;
-          color: #55000A;
-          letter-spacing: -0.025em;
-          margin: 0;
-          text-align: center;
-          display: flex;
-          flex-direction: column;
-          gap: 0.06em;
-        }
-        /* First line — upright */
-        .hero-title-line1 {
-          display: block;
-          font-style: normal;
-          font-weight: 600;
-        }
-        /* Second line — italic, slightly lighter */
-        .hero-title-line2 {
-          display: block;
-          font-style: italic;
-          font-weight: 500;
-          color: #55000A;
-        }
-
-        /* Body copy */
-        .hero-description {
-          width: min(100%, 820px);
+        .hero-editorial__inner {
+          width: min(100%, 1240px);
           margin: 0 auto;
-          text-align: center;
-          font-family: Inter, sans-serif;
-          font-size: clamp(14px, 1.05vw, 17px);
-          line-height: 1.42;
-          font-weight: 500;
-          color: #5E4940;
+          padding: clamp(52px, 7vw, 96px) clamp(20px, 4vw, 48px) clamp(40px, 5vw, 72px);
+          display: grid;
+          grid-template-columns: minmax(280px, 0.9fr) minmax(440px, 1.35fr);
+          gap: clamp(44px, 7vw, 112px);
+          align-items: center;
         }
 
-        /* Buttons row */
-        .hero-actions {
-          width: 100%;
-          margin-top: 14px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 14px;
+        .hero-editorial__copy { max-width: 480px; }
+        .hero-editorial__eyebrow {
+          display: block;
+          margin-bottom: 19px;
+          color: #C99A32;
+          font-family: Inter, sans-serif;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.18em;
+          line-height: 1.2;
         }
-        .hero-btn-primary {
+        .hero-editorial__title {
+          margin: 0;
+          color: #55000A;
+          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+          font-size: clamp(48px, 5.2vw, 78px);
+          font-weight: 600;
+          letter-spacing: -0.035em;
+          line-height: 0.92;
+        }
+        .hero-editorial__description {
+          max-width: 415px;
+          margin: 25px 0 0;
+          color: #5E4940;
+          font-family: Inter, sans-serif;
+          font-size: clamp(13px, 1.15vw, 16px);
+          font-weight: 500;
+          line-height: 1.65;
+        }
+        .hero-editorial__actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-top: 29px;
+        }
+        .hero-editorial__button {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          height: 48px;
-          padding: 0 34px;
+          min-height: 47px;
+          padding: 0 23px;
+          border-radius: 999px;
+          font-family: Inter, sans-serif;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.1em;
+          text-decoration: none;
+          transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+        }
+        .hero-editorial__button:hover { transform: translateY(-2px); }
+        .hero-editorial__button--primary {
+          border: 1px solid #55000A;
           background: #55000A;
           color: #FFF8EC;
-          border: 1.5px solid #55000A;
-          border-radius: 999px;
-          font-family: Inter, sans-serif;
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          text-decoration: none;
-          cursor: pointer;
-          box-shadow: 0 10px 26px rgba(85,0,10,0.20);
-          transition: background 0.22s, border-color 0.22s, transform 0.22s, box-shadow 0.22s;
-          white-space: nowrap;
+          box-shadow: 0 10px 24px rgba(85, 0, 10, 0.18);
         }
-        .hero-btn-primary:hover {
-          background: #6B000D;
-          border-color: #6B000D;
-          transform: translateY(-2px);
-          box-shadow: 0 16px 32px rgba(85,0,10,0.26);
-        }
-        .hero-btn-secondary {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          height: 48px;
-          padding: 0 34px;
+        .hero-editorial__button--primary:hover { background: #6B000D; border-color: #6B000D; }
+        .hero-editorial__button--secondary {
+          border: 1px solid rgba(85, 0, 10, 0.44);
           background: transparent;
           color: #55000A;
-          border: 1px solid rgba(85,0,10,0.45);
-          border-radius: 999px;
-          font-family: Inter, sans-serif;
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          text-decoration: none;
-          cursor: pointer;
-          transition: background 0.22s, border-color 0.22s, transform 0.22s;
-          white-space: nowrap;
         }
-        .hero-btn-secondary:hover {
-          background: rgba(85,0,10,0.05);
-          border-color: rgba(85,0,10,0.70);
-          transform: translateY(-2px);
-        }
+        .hero-editorial__button--secondary:hover { background: rgba(85, 0, 10, 0.06); }
 
-        /* ── 1440px+ ────────────────────────────────────── */
-        @media (min-width: 1440px) {
-          .hero-inner { max-width: 860px; }
+        .hero-editorial__image-wrap {
+          width: 100%;
+          aspect-ratio: 1.34 / 1;
+          overflow: hidden;
+          border-radius: 22px;
+          background: #D8BFA8;
+          box-shadow: 0 22px 44px rgba(85, 0, 10, 0.18);
+          transition: box-shadow 0.45s ease;
         }
-
-        /* ── Tablet 768–1023px ──────────────────────────── */
-        @media (min-width: 768px) and (max-width: 1023px) {
-          .hero-image-section {
-            flex-basis: 54%;
-          }
-          .hero-content-section {
-            flex-basis: 46%;
-            padding: 14px 20px 18px;
-          }
-          .hero-image-section img {
-            width: 102%;
-            height: 102%;
-            max-width: none;
-            object-fit: cover;
-            object-position: center;
-            transform: scale(0.98);
-          }
-          .hero-title {
-            font-size: clamp(42px, 6vw, 60px);
-          }
-          .hero-actions {
-            margin-top: 14px;
-          }
-          .hero-divider-line {
-            width: 44px;
-            flex-basis: 44px;
-          }
+        .hero-editorial__image-wrap:hover { box-shadow: 0 30px 58px rgba(85, 0, 10, 0.28); }
+        .hero-editorial__image {
+          width: 100%;
+          height: 100%;
+          display: block;
+          object-fit: cover;
+          object-position: center;
+          transition: transform 0.45s ease;
         }
+        .hero-editorial__image-wrap:hover .hero-editorial__image { transform: scale(1.045); }
 
-        /* ══════════════════════════════════════════════════
-           MOBILE  < 768px
-           ══════════════════════════════════════════════════ */
         @media (max-width: 767px) {
-          .hero-split {
-            height: auto;
-            min-height: calc(100svh - var(--mobile-nav-h));
-            overflow: visible;
+          .hero-editorial { display: block; }
+          .hero-editorial__inner {
+            min-height: calc(100svh - var(--nav-h));
+            grid-template-columns: 1fr;
+            gap: 34px;
+            padding: 100px 20px 42px;
           }
-
-          .hero-image-section {
-            flex: none;
-            width: 100%;
-            height: clamp(260px, 38svh, 340px);
-            overflow: hidden;
-            background: #EAD5C2;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-
-          .hero-image-section img {
-            width: 100%;
-            height: 100%;
-            max-width: none;
-            object-fit: cover;
-            object-position: center 50%;
-            transform: scale(1.03);
-            transform-origin: center;
-          }
-
-          .hero-content-section {
-            flex: none;
-            height: auto;
-            min-height: 0;
-            overflow: visible;
-            padding: 18px 18px 28px;
-            background: #EAD5C2;
-          }
-
-          .hero-inner {
-            width: 100%;
-            transform: none;
-          }
-
-          .hero-divider--top { margin-bottom: 8px; }
-          .hero-ornament-bar { width: 18px; }
-
-          .hero-title {
-            font-size: clamp(38px, 11.5vw, 52px);
-            line-height: 0.94;
-          }
-
-          .hero-divider--bottom { margin-top: 8px; }
-          .hero-divider-bar { width: 30px; }
-
-          .hero-description {
-            font-size: 14px;
-            line-height: 1.5;
-            max-width: 300px;
-            margin: 8px auto 0;
-          }
-
-          .hero-divider {
-            gap: 9px;
-          }
-
-          .hero-divider-line {
-            width: 36px;
-            flex-basis: 36px;
-          }
-
-          .hero-actions {
-            display: flex;
-            flex-direction: row;
-            justify-content: center;
-            gap: 12px;
-            margin-top: 14px;
-            width: 100%;
-            flex-wrap: wrap;
-          }
-          .hero-btn-primary,
-          .hero-btn-secondary {
-            width: auto;
-            flex: 0 1 auto;
-            height: 46px;
-            font-size: 10px;
-            padding: 0 24px;
-          }
+          .hero-editorial__copy { max-width: 530px; }
+          .hero-editorial__eyebrow { margin-bottom: 15px; font-size: 10px; }
+          .hero-editorial__title { font-size: clamp(46px, 13vw, 64px); }
+          .hero-editorial__description { margin-top: 19px; font-size: 13px; }
+          .hero-editorial__actions { margin-top: 24px; }
+          .hero-editorial__image-wrap { border-radius: 17px; aspect-ratio: 1.28 / 1; }
         }
 
-        @media (max-width: 480px) {
-          .hero-actions {
-            flex-direction: column;
-            gap: 10px;
-          }
-          .hero-actions > * {
-            width: 100%;
-          }
-          .hero-btn-primary,
-          .hero-btn-secondary {
-            padding: 0 16px;
-          }
+        @media (hover: none) {
+          .hero-editorial__image-wrap:hover .hero-editorial__image { transform: none; }
         }
 
-        @media (max-width: 430px) {
-          .hero-title  { font-size: clamp(30px, 9.5vw, 42px); }
-          .hero-description { font-size: 12.5px; }
-        }
         @media (max-width: 390px) {
-          .hero-title  { font-size: clamp(28px, 9vw, 38px); }
-          .hero-description { font-size: 12px; max-width: 270px; }
-        }
-        @media (max-width: 360px) {
-          .hero-title  { font-size: 26px; }
-          .hero-description { font-size: 11.5px; }
-          .hero-actions { gap: 7px; }
-          .hero-btn-primary, .hero-btn-secondary { height: 42px; }
-        }
-        @media (max-width: 320px) {
-          .hero-title  { font-size: 24px; }
-          .hero-description { font-size: 11px; }
+          .hero-editorial__actions { display: grid; grid-template-columns: 1fr; }
+          .hero-editorial__button { width: 100%; }
         }
       `}</style>
 
-      <div className="hero-image-section">
-        <img
-          src={HERO_IMAGE}
-          alt="MishtiChaat Banaras heritage"
-          fetchPriority="high"
-          decoding="async"
-        />
-      </div>
-
-      <div className="hero-content-section">
-        <div className="hero-inner">
-
-          <h1 className="hero-title">
-            <span className="hero-title-line1">With Love</span>
-            <span className="hero-title-line2">From Banaras</span>
-          </h1>
-
-          <div className="hero-divider hero-divider--bottom" aria-hidden="true">
-            <span className="hero-divider-line" />
-            <span className="hero-divider-diamond">◆</span>
-            <span className="hero-divider-line" />
-          </div>
-
-          <p className="hero-description">
-            Rooted in the timeless flavours of Banaras, Mishti Chaat brings handcrafted sweets, soulful street food and warm hospitality to the heart of Bengaluru.
+      <div className="hero-editorial__inner">
+        <div className="hero-editorial__copy">
+          <span className="hero-editorial__eyebrow">MALWA · UJJAIN · NAMKEEN</span>
+          <h1 className="hero-editorial__title">Ujjain&apos;s crisp<br />tradition, since<br />generations</h1>
+          <p className="hero-editorial__description">
+            Small-batch sev, chivda and mixtures fried the Malwa way — clove-warm masalas, groundnut oil, and recipes our family has kept unchanged for decades.
           </p>
-
-          <div className="hero-actions">
-            <a
-              href="#menu"
-              className="hero-btn-primary"
-              onClick={e => { e.preventDefault(); scrollTo('#menu'); }}
-            >
-              Explore Menu
+          <div className="hero-editorial__actions">
+            <a className="hero-editorial__button hero-editorial__button--primary" href={`https://wa.me/${BUSINESS.whatsappNumber}`} target="_blank" rel="noopener noreferrer">
+              Order on WhatsApp
             </a>
-            <button
-              className="hero-btn-secondary"
-              onClick={() => onReserve?.()}
-              style={{ background: 'transparent', cursor: 'pointer' }}
-              title="Reservation requests are manually confirmed by our team"
-            >
-              Reservation Enquiry
-            </button>
+            <a className="hero-editorial__button hero-editorial__button--secondary" href="#menu" onClick={scrollToMenu}>
+              Browse bestsellers
+            </a>
           </div>
+        </div>
 
+        <div className="hero-editorial__image-wrap">
+          <img className="hero-editorial__image" src="/mishtichaat/chaat-plate.jpg" alt="Assorted chaat topped with sev" fetchPriority="high" />
         </div>
       </div>
-
     </section>
   );
 }

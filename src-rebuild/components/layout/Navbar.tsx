@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, type ReactNode, type CSSProperties } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { NAV_LINKS, MOBILE_LINKS } from '../../data/nav-links';
 
 function scrollTo(href: string) {
@@ -23,11 +24,12 @@ function HamburgerIcon({ open }: { open: boolean }) {
 }
 
 function NavLink({ href, children }: { href: string; children: ReactNode }) {
+  const navigate = useNavigate();
   return (
     <a
       href={href}
       className="nav-link"
-      onClick={e => { e.preventDefault(); scrollTo(href); }}
+      onClick={e => { e.preventDefault(); href.startsWith('/') ? navigate(href) : scrollTo(href); }}
     >
       {children}
     </a>
@@ -35,8 +37,11 @@ function NavLink({ href, children }: { href: string; children: ReactNode }) {
 }
 
 export default function Navbar({ onReserve }: { onReserve?: () => void }) {
+  const navigate = useNavigate();
   const [open,     setOpen]     = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const navbarLinks = NAV_LINKS.map(link => link.label === 'Location' ? { label: 'Shop', href: '/shop' } : link);
+  const mobileLinks = MOBILE_LINKS.map(link => link.label === 'Location' ? { label: 'Shop', href: '/shop' } : link);
 
   /* Scroll shadow */
   useEffect(() => {
@@ -79,7 +84,7 @@ export default function Navbar({ onReserve }: { onReserve?: () => void }) {
 
   const handleLink = (href: string) => {
     close();
-    scrollTo(href);
+    href.startsWith('/') ? navigate(href) : scrollTo(href);
   };
 
   return (
@@ -152,7 +157,7 @@ export default function Navbar({ onReserve }: { onReserve?: () => void }) {
 
           {/* Desktop nav links */}
           <nav className="nav-desktop-links" aria-label="Main navigation">
-            {NAV_LINKS.map(l => <NavLink key={l.href} href={l.href}>{l.label}</NavLink>)}
+            {navbarLinks.map(l => <NavLink key={l.href} href={l.href}>{l.label}</NavLink>)}
           </nav>
 
           {/* Right side */}
@@ -207,7 +212,7 @@ export default function Navbar({ onReserve }: { onReserve?: () => void }) {
           pointerEvents: open ? 'auto' : 'none',
         }}
       >
-        {MOBILE_LINKS.map((link, i) => (
+        {mobileLinks.map((link, i) => (
           <a
             key={link.href}
             href={link.href}
@@ -217,7 +222,7 @@ export default function Navbar({ onReserve }: { onReserve?: () => void }) {
               padding: '13px 10px',
               fontFamily: 'Inter, sans-serif', fontSize: '15px', fontWeight: 500,
               color: '#FFF8EC', textDecoration: 'none',
-              borderBottom: i < MOBILE_LINKS.length - 1
+              borderBottom: i < mobileLinks.length - 1
                 ? '1px solid rgba(255,255,255,0.08)' : 'none',
               transition: 'color 0.15s',
             }}
