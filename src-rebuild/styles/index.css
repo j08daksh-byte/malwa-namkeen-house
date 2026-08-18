@@ -1,0 +1,128 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   MishtiChaat Design System — v3
+   Heritage-warm · Banaras-inspired · Premium editorial
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Faster font load: preconnect is in index.html; this import is the fallback */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400;1,600;1,700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@import "tailwindcss";
+
+/* ── Brand tokens ───────────────────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --bg-parchment:   #F6EFE3;
+  --bg-ivory:       #FFFDF8;
+  --bg-warm-beige:  #EFE5D4;
+  --bg-card:        #FFFDF8;
+  --bg-card-alt:    #FAF5ED;
+
+  /* Brand maroon — unified at #55000A */
+  --brand-maroon:   #55000A;   /* THE shared brand maroon — single source of truth */
+  --maroon:         #55000A;   /* base maroon (text, borders, outlines) */
+  --maroon-dark:    #3D0007;   /* deepest — gradient end / overlay */
+  --maroon-deep:    #2A0005;   /* shadow/overlay depth */
+  --maroon-section: #6B000D;   /* slightly lighter — section BG gradient start */
+  --maroon-hover:   #6B000D;   /* hover state on dark surfaces */
+  --maroon-light:   rgba(85,0,10,0.08);
+  /* Shared nav/footer/intro surface — single source of truth */
+  --brand-nav:      #55000A;
+
+  /* Gold spectrum — antique, no neon */
+  --gold:           #C99A32;   /* primary brand gold */
+  --gold-accent:    #D4AA45;   /* CTA buttons, highlights */
+  --gold-bright:    #D4AA45;   /* replaces neon F0C74E */
+  --gold-logo:      #C99A32;   /* wordmark / logo gold */
+  --gold-pale:      #F0DFA0;
+
+  /* Text */
+  --text-dark:      #34211D;
+  --text-body:      #5E4940;
+  --text-muted:     #75645C;
+  --text-light:     #9E8C82;
+  --text-on-dark:   #FFF8EC;
+  --text-on-dark-muted: rgba(255,248,236,0.72);
+
+  /* Borders */
+  --border-soft:    #DDCDBA;
+  --border-warm:    rgba(200,154,61,0.28);
+  --border-gold:    rgba(200,154,61,0.55);
+
+  /* Layout */
+  --nav-h:          68px;
+  --container-max:  1240px;
+  --container-px:   24px;
+}
+
+/* ── Global reset ───────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--nav-h) + 12px);
+}
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: var(--bg-parchment);
+  color: var(--text-dark);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+img, video { display: block; max-width: 100%; }
+
+h1, h2, h3, h4 {
+  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+}
+
+/* ── Layout helpers ─────────────────────────────────────────────────────── */
+.container {
+  width: 100%;
+  max-width: var(--container-max);
+  margin-inline: auto;
+  padding-inline: var(--container-px);
+}
+@media (min-width: 640px)  { .container { padding-inline: 32px; } }
+@media (min-width: 1024px) { .container { padding-inline: 48px; } }
+
+/* ── Typography helpers ─────────────────────────────────────────────────── */
+.font-sans { font-family: 'Inter', system-ui, sans-serif; }
+.eyebrow {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px; font-weight: 800;
+  letter-spacing: 0.24em; text-transform: uppercase;
+  color: var(--gold);
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg-warm-beige); }
+::-webkit-scrollbar-thumb { background: var(--border-soft); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+/* ── Forms ──────────────────────────────────────────────────────────────── */
+input, textarea, select { font-family: inherit; }
+input::placeholder, textarea::placeholder { color: var(--text-light); }
+
+/* ── Focus visible ──────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+/* ── Image — load gracefully ────────────────────────────────────────────── */
+img {
+  transition: opacity 0.4s ease;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration:        0.01ms !important;
+    animation-iteration-count: 1      !important;
+    transition-duration:       0.01ms !important;
+    scroll-behavior:           auto   !important;
+  }
+}
