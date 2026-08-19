@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, type ReactNode, type CSSProperties } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { NAV_LINKS, MOBILE_LINKS } from '../../data/nav-links';
 
 function scrollTo(href: string) {
@@ -25,11 +25,18 @@ function HamburgerIcon({ open }: { open: boolean }) {
 
 function NavLink({ href, children }: { href: string; children: ReactNode }) {
   const navigate = useNavigate();
+  const location = useLocation();
   return (
     <a
       href={href}
       className="nav-link"
-      onClick={e => { e.preventDefault(); href.startsWith('/') ? navigate(href) : scrollTo(href); }}
+      onClick={e => {
+        e.preventDefault();
+        if (href === '/') { navigate('/'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+        else if (href.startsWith('/')) navigate(href);
+        else if (location.pathname === '/') scrollTo(href);
+        else navigate(`/${href}`);
+      }}
     >
       {children}
     </a>
@@ -38,6 +45,7 @@ function NavLink({ href, children }: { href: string; children: ReactNode }) {
 
 export default function Navbar({ onReserve }: { onReserve?: () => void }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [open,     setOpen]     = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const navbarLinks = NAV_LINKS.map(link => link.label === 'Location' ? { label: 'Shop', href: '/shop' } : link);
@@ -49,6 +57,13 @@ export default function Navbar({ onReserve }: { onReserve?: () => void }) {
     window.addEventListener('scroll', fn, { passive: true });
     return () => window.removeEventListener('scroll', fn);
   }, []);
+
+  /* Scroll to homepage sections after navigating from another route. */
+  useEffect(() => {
+    if (location.pathname !== '/' || !location.hash) return;
+    const timer = window.setTimeout(() => scrollTo(location.hash), 0);
+    return () => window.clearTimeout(timer);
+  }, [location.hash, location.pathname]);
 
   /* Close when viewport goes desktop */
   useEffect(() => {
@@ -84,7 +99,10 @@ export default function Navbar({ onReserve }: { onReserve?: () => void }) {
 
   const handleLink = (href: string) => {
     close();
-    href.startsWith('/') ? navigate(href) : scrollTo(href);
+    if (href === '/') { navigate('/'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    else if (href.startsWith('/')) navigate(href);
+    else if (location.pathname === '/') scrollTo(href);
+    else navigate(`/${href}`);
   };
 
   return (
@@ -142,9 +160,9 @@ export default function Navbar({ onReserve }: { onReserve?: () => void }) {
 
           {/* Logo */}
           <a
-            href="#hero"
+            href="/"
             aria-label="MishtiChaat — return to top"
-            onClick={e => { e.preventDefault(); scrollTo('#hero'); }}
+            onClick={e => { e.preventDefault(); navigate('/'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
             style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', flexShrink: 0 }}
           >
             <img

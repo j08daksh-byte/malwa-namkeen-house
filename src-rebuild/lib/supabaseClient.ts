@@ -1,19 +1,28 @@
 /**
- * Frontend Supabase client — uses the public anon key only.
- * This is safe to ship in the browser. Never use the service role key here.
+ * Frontend Supabase client.
  *
- * Used exclusively by the admin login page for Supabase Auth.
- * All other DB operations go through Express (server-side with service role).
+ * Supabase is optional during frontend-only development.
+ * Admin login will be unavailable until VITE_SUPABASE_URL
+ * and VITE_SUPABASE_ANON_KEY are configured.
  */
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const url = import.meta.env.VITE_SUPABASE_URL as string;
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-if (!url || !key) {
-  console.warn('[MishtiChaat] VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY not set — admin login will not work.');
+let supabase: SupabaseClient | null = null;
+
+if (url && key) {
+  supabase = createClient(url, key, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+  });
+} else {
+  console.warn(
+    '[MishtiChaat] Supabase is not configured — admin login is disabled.'
+  );
 }
 
-export const supabase = createClient(url ?? '', key ?? '', {
-  auth: { persistSession: true, autoRefreshToken: true },
-});
+export { supabase };

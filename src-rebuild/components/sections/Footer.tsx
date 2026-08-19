@@ -1,4 +1,5 @@
 ﻿import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { BUSINESS } from '../../lib/business';
 import { NAV_LINKS } from '../../data/nav-links';
 
@@ -41,6 +42,20 @@ function SocialBtn({ label, path, href }: { label: string; path: string; href?: 
 }
 
 export default function Footer() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleNavigation = (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    event.preventDefault();
+    if (href.startsWith('/')) {
+      navigate(href);
+    } else if (location.pathname === '/') {
+      document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      navigate(`/${href}`);
+    }
+  };
+
   return (
     <footer id="footer-section">
       <style>{`
@@ -304,10 +319,7 @@ export default function Footer() {
                 <li key={l.href}>
                   <a
                     href={l.href}
-                    onClick={e => {
-                      e.preventDefault();
-                      document.querySelector(l.href)?.scrollIntoView({ behavior: 'smooth' });
-                    }}
+                    onClick={e => handleNavigation(e, l.href)}
                   >
                     {l.label}
                   </a>

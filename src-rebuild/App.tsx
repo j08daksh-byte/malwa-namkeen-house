@@ -16,6 +16,8 @@ import Contact              from './components/sections/Contact';
 import Footer               from './components/sections/Footer';
 import ReservationModal     from './components/sections/ReservationModal';
 import Shop                 from './pages/Shop';
+import ContactPage          from './pages/Contact';
+import AboutUs              from './pages/AboutUs';
 
 // Admin pages
 import AdminLogin        from './pages/admin/AdminLogin';
@@ -62,6 +64,8 @@ export default function App() {
         {/* Public website */}
         <Route path="/" element={<PublicSite />} />
         <Route path="/shop" element={<Shop />} />
+        <Route path="/contact" element={<ContactPage />} />
+        <Route path="/about-us" element={<AboutUs />} />
 
         {/* Legal pages */}
         <Route path="/privacy-policy"      element={<PrivacyPolicy />} />
