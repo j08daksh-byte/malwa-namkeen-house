@@ -4,6 +4,8 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 // Public site sections
 import Navbar               from './components/layout/Navbar';
+import { CartProvider }     from './components/layout/CartContext';
+import { CustomerSessionProvider } from './components/layout/CustomerSessionContext';
 import Hero                 from './components/sections/Hero';
 import HeritageSpecialities from './components/sections/HeritageSpecialities';
 import LegacyStory          from './components/sections/LegacyStory';
@@ -18,6 +20,8 @@ import ReservationModal     from './components/sections/ReservationModal';
 import Shop                 from './pages/Shop';
 import ContactPage          from './pages/Contact';
 import AboutUs              from './pages/AboutUs';
+import Account              from './pages/Account';
+import Dashboard            from './pages/Dashboard';
 
 // Admin pages
 import AdminLogin        from './pages/admin/AdminLogin';
@@ -60,12 +64,17 @@ function PublicSite() {
 export default function App() {
   return (
     <BrowserRouter>
+      <CartProvider>
+      <CustomerSessionProvider>
       <Routes>
         {/* Public website */}
         <Route path="/" element={<PublicSite />} />
         <Route path="/shop" element={<Shop />} />
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/about-us" element={<AboutUs />} />
+        <Route path="/account" element={<Account />} />
+        <Route path="/login" element={<Account />} />
+        <Route path="/dashboard" element={<Dashboard />} />
 
         {/* Legal pages */}
         <Route path="/privacy-policy"      element={<PrivacyPolicy />} />
@@ -82,6 +91,8 @@ export default function App() {
         <Route path="/admin/enquiries"    element={<ProtectedRoute><AdminEnquiries /></ProtectedRoute>} />
         <Route path="/admin/settings"     element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
       </Routes>
+      </CustomerSessionProvider>
+      </CartProvider>
     </BrowserRouter>
   );
 }

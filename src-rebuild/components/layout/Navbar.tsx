@@ -1,313 +1,40 @@
-import { useState, useEffect, useCallback, type ReactNode, type CSSProperties } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode, type CSSProperties } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Search, UserRound, ShoppingBag, X, Minus, Plus, ArrowRight } from 'lucide-react';
 import { NAV_LINKS, MOBILE_LINKS } from '../../data/nav-links';
+import { ACTIVE_MENU, type MenuItem } from '../../data/menu';
+import { useCart } from './CartContext';
+import { useCustomerSession } from './CustomerSessionContext';
 
-function scrollTo(href: string) {
-  if (href === '#hero') { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
-  document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' });
-}
-
-function HamburgerIcon({ open }: { open: boolean }) {
-  const bar: CSSProperties = {
-    display: 'block', width: '22px', height: '2px',
-    backgroundColor: '#FFF9EF', borderRadius: '2px',
-    transition: 'transform 0.24s ease, opacity 0.24s ease',
-    transformOrigin: 'center',
-  };
-  return (
-    <div style={{ width: '22px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-      <span style={{ ...bar, transform: open ? 'translateY(7px) rotate(45deg)' : 'none' }} />
-      <span style={{ ...bar, opacity: open ? 0 : 1 }} />
-      <span style={{ ...bar, transform: open ? 'translateY(-7px) rotate(-45deg)' : 'none' }} />
-    </div>
-  );
-}
-
-function NavLink({ href, children }: { href: string; children: ReactNode }) {
-  const navigate = useNavigate();
-  const location = useLocation();
-  return (
-    <a
-      href={href}
-      className="nav-link"
-      onClick={e => {
-        e.preventDefault();
-        if (href === '/') { navigate('/'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-        else if (href.startsWith('/')) navigate(href);
-        else if (location.pathname === '/') scrollTo(href);
-        else navigate(`/${href}`);
-      }}
-    >
-      {children}
-    </a>
-  );
-}
+function scrollTo(href: string) { if (href === '#hero') window.scrollTo({ top: 0, behavior: 'smooth' }); else document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' }); }
+function price(value: MenuItem['price']) { return typeof value === 'number' ? `₹${value}` : value ?? 'Price on request'; }
+function HamburgerIcon({ open }: { open: boolean }) { const bar: CSSProperties = { display:'block', width:'22px', height:'2px', backgroundColor:'#FFF9EF', borderRadius:'2px', transition:'transform .24s ease, opacity .24s ease', transformOrigin:'center' }; return <div style={{width:'22px',display:'flex',flexDirection:'column',gap:'5px'}}><span style={{...bar,transform:open?'translateY(7px) rotate(45deg)':'none'}}/><span style={{...bar,opacity:open?0:1}}/><span style={{...bar,transform:open?'translateY(-7px) rotate(-45deg)':'none'}}/></div>; }
+function NavLink({ href, children }: { href: string; children: ReactNode }) { const navigate=useNavigate(), location=useLocation(); return <a href={href} className="nav-link" onClick={e=>{e.preventDefault();if(href==='/'){navigate('/');window.scrollTo({top:0,behavior:'smooth'});}else if(href.startsWith('/'))navigate(href);else if(location.pathname==='/')scrollTo(href);else navigate(`/${href}`);}}>{children}</a>; }
 
 export default function Navbar({ onReserve }: { onReserve?: () => void }) {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [open,     setOpen]     = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const navbarLinks = NAV_LINKS.map(link => link.label === 'Location' ? { label: 'Shop', href: '/shop' } : link);
-  const mobileLinks = MOBILE_LINKS.map(link => link.label === 'Location' ? { label: 'Shop', href: '/shop' } : link);
-
-  /* Scroll shadow */
-  useEffect(() => {
-    const fn = () => setScrolled(window.scrollY > 40);
-    window.addEventListener('scroll', fn, { passive: true });
-    return () => window.removeEventListener('scroll', fn);
-  }, []);
-
-  /* Scroll to homepage sections after navigating from another route. */
-  useEffect(() => {
-    if (location.pathname !== '/' || !location.hash) return;
-    const timer = window.setTimeout(() => scrollTo(location.hash), 0);
-    return () => window.clearTimeout(timer);
-  }, [location.hash, location.pathname]);
-
-  /* Close when viewport goes desktop */
-  useEffect(() => {
-    const fn = () => { if (window.innerWidth >= 900) setOpen(false); };
-    window.addEventListener('resize', fn);
-    return () => window.removeEventListener('resize', fn);
-  }, []);
-
-  /* Escape key */
-  const close = useCallback(() => setOpen(false), []);
-  useEffect(() => {
-    if (!open) return;
-    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
-    document.addEventListener('keydown', fn);
-    return () => document.removeEventListener('keydown', fn);
-  }, [open, close]);
-
-  /* Body scroll lock */
-  useEffect(() => {
-    document.body.style.overflow = open ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
-  }, [open]);
-
-  /* Click outside */
-  useEffect(() => {
-    if (!open) return;
-    const fn = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest('[data-nav]')) close();
-    };
-    document.addEventListener('click', fn);
-    return () => document.removeEventListener('click', fn);
-  }, [open, close]);
-
-  const handleLink = (href: string) => {
-    close();
-    if (href === '/') { navigate('/'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-    else if (href.startsWith('/')) navigate(href);
-    else if (location.pathname === '/') scrollTo(href);
-    else navigate(`/${href}`);
-  };
-
-  return (
-    <>
-      <style>{`
-        /* ── Shared ──────────────────────────────────────────── */
-        .nav-desktop-links { display: flex; align-items: center; gap: 6px; flex: 1; justify-content: center; }
-        .nav-reserve        { display: inline-flex; }
-        .nav-hamburger      { display: none !important; }
-        .nav-drawer         { display: none; }
-
-        /* ── Nav link ────────────────────────────────────────── */
-        .nav-link {
-          font-family: Inter, sans-serif; font-size: 14px; font-weight: 500;
-          letter-spacing: 0.03em; white-space: nowrap;
-          color: rgba(255,249,239,0.80);
-          text-decoration: none;
-          padding: 6px 16px; border-radius: 3px;
-          background-color: transparent;
-          transition: color 0.15s, background-color 0.15s;
-        }
-        .nav-link:hover {
-          color: #D4AA45;
-          background-color: rgba(212,170,69,0.10);
-        }
-
-        /* ── Mobile < 900px ──────────────────────────────────── */
-        @media (max-width: 899px) {
-          .nav-desktop-links { display: none !important; }
-          .nav-reserve        { display: none !important; }
-          .nav-hamburger      { display: flex !important; }
-          .nav-drawer         { display: block; }
-        }
-      `}</style>
-
-      <header
-        data-nav
-        role="banner"
-        style={{
-          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 200,
-          height: '68px',
-          backgroundColor: 'var(--brand-nav)',
-          borderBottom: scrolled ? '1px solid rgba(200,154,61,0.28)' : 'none',
-          boxShadow:    scrolled ? '0 6px 18px rgba(35,3,10,0.16)' : 'none',
-          transition: 'box-shadow 0.30s, border-color 0.30s',
-          display: 'flex', alignItems: 'center',
-        }}
-      >
-        <div style={{
-          maxWidth: '1240px', margin: '0 auto',
-          padding: '0 clamp(16px, 3vw, 48px)',
-          width: '100%', display: 'flex',
-          alignItems: 'center', justifyContent: 'space-between', gap: '16px',
-        }}>
-
-          {/* Logo */}
-          <a
-            href="/"
-            aria-label="MishtiChaat — return to top"
-            onClick={e => { e.preventDefault(); navigate('/'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-            style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', flexShrink: 0 }}
-          >
-            <img
-              src="/mishtichaat/logo.svg"
-              alt="MishtiChaat"
-              style={{ height: '52px', width: 'auto', maxWidth: '220px', objectFit: 'contain', flexShrink: 0 }}
-              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-            />
-          </a>
-
-          {/* Desktop nav links */}
-          <nav className="nav-desktop-links" aria-label="Main navigation">
-            {navbarLinks.map(l => <NavLink key={l.href} href={l.href}>{l.label}</NavLink>)}
-          </nav>
-
-          {/* Right side */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-
-            {/* Desktop reserve button */}
-            <ReserveBtn className="nav-reserve" onClick={onReserve} />
-
-            {/* Hamburger — mobile only */}
-            <button
-              className="nav-hamburger"
-              data-nav
-              onClick={() => setOpen(o => !o)}
-              aria-label={open ? 'Close navigation menu' : 'Open navigation menu'}
-              aria-expanded={open}
-              aria-controls="mobile-nav"
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                padding: '11px', lineHeight: 0, borderRadius: '4px',
-                minWidth: '44px', minHeight: '44px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <HamburgerIcon open={open} />
-            </button>
-          </div>
-
-        </div>
-      </header>
-
-      {/* ── Mobile drawer ─────────────────────────────────────── */}
-      <div
-        id="mobile-nav"
-        data-nav
-        className="nav-drawer"
-        role="navigation"
-        aria-label="Mobile navigation"
-        style={{
-          position: 'fixed',
-          top: '68px', left: 0, right: 0,
-          zIndex: 199,
-          backgroundColor: 'var(--brand-nav)',
-          borderTop: '1px solid rgba(200,154,61,0.22)',
-          boxShadow: '0 6px 18px rgba(35,3,10,0.16)',
-          /* Slide in/out */
-          transform: open ? 'translateY(0)' : 'translateY(-110%)',
-          opacity:   open ? 1 : 0,
-          transition: 'transform 0.28s ease, opacity 0.24s ease',
-          padding: '8px 18px 20px',
-          maxHeight: 'calc(100dvh - 68px)',
-          overflowY: 'auto',
-          pointerEvents: open ? 'auto' : 'none',
-        }}
-      >
-        {mobileLinks.map((link, i) => (
-          <a
-            key={link.href}
-            href={link.href}
-            onClick={e => { e.preventDefault(); handleLink(link.href); }}
-            style={{
-              display: 'block',
-              padding: '13px 10px',
-              fontFamily: 'Inter, sans-serif', fontSize: '15px', fontWeight: 500,
-              color: '#FFF8EC', textDecoration: 'none',
-              borderBottom: i < mobileLinks.length - 1
-                ? '1px solid rgba(255,255,255,0.08)' : 'none',
-              transition: 'color 0.15s',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#D4AA45')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#FFF8EC')}
-          >
-            {link.label}
-          </a>
-        ))}
-
-        {/* Reserve CTA */}
-        <div style={{ paddingTop: '16px' }}>
-          <button
-            onClick={() => { close(); onReserve?.(); }}
-            style={{
-              display: 'block', width: '100%', textAlign: 'center',
-              fontFamily: 'Inter, sans-serif', fontSize: '12px', fontWeight: 800,
-              letterSpacing: '0.10em', textTransform: 'uppercase',
-              backgroundColor: '#D4AA45', color: '#2C0612',
-              padding: '15px', borderRadius: '999px',
-              boxShadow: '0 4px 14px rgba(212,170,69,0.28)',
-              border: 'none', cursor: 'pointer',
-            }}
-          >
-            Reservation Enquiry
-          </button>
-          <p style={{
-            textAlign: 'center', marginTop: '8px',
-            fontFamily: 'Inter, sans-serif', fontSize: '11px',
-            color: 'rgba(255,248,236,0.40)', lineHeight: 1.5,
-          }}>
-            Requests are manually confirmed by our team.
-          </p>
-        </div>
-      </div>
-
-      {/* Height spacer so content clears fixed header */}
-      <div style={{ height: '68px' }} aria-hidden="true" />
-    </>
-  );
-}
-
-function ReserveBtn({ className, onClick }: { className?: string; onClick?: () => void }) {
-  const [hov, setHov] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      className={className}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        alignItems: 'center',
-        fontFamily: 'Inter, sans-serif', fontSize: '12px', fontWeight: 800,
-        letterSpacing: '0.08em', textTransform: 'uppercase',
-        textDecoration: 'none',
-        backgroundColor: hov ? '#C99A32' : '#D4AA45',
-        color: '#2C0612',
-        height: '40px', padding: '0 24px', borderRadius: '999px',
-        boxShadow: hov ? '0 6px 18px rgba(201,154,50,0.40)' : '0 4px 14px rgba(212,170,69,0.30)',
-        transition: 'background-color 0.20s, box-shadow 0.20s, transform 0.20s',
-        transform: hov ? 'translateY(-1px)' : 'none',
-        whiteSpace: 'nowrap',
-        border: 'none',
-        cursor: 'pointer',
-      }}
-    >
-      Reservation Enquiry
-    </button>
-  );
+  const navigate=useNavigate(), location=useLocation(); const { customer } = useCustomerSession(); const {items,itemCount,subtotal,addItem,updateQuantity,removeItem}=useCart();
+  const openCustomerAccount=()=>navigate(customer ? '/dashboard' : '/account');
+  const [open,setOpen]=useState(false),[scrolled,setScrolled]=useState(false),[cartOpen,setCartOpen]=useState(false),[searchOpen,setSearchOpen]=useState(false),[query,setQuery]=useState(''); const searchInput=useRef<HTMLInputElement>(null);
+  const navbarLinks=NAV_LINKS.map(l=>l.label==='Location'?{label:'Shop',href:'/shop'}:l), mobileLinks=MOBILE_LINKS.map(l=>l.label==='Location'?{label:'Shop',href:'/shop'}:l);
+  const results=useMemo(()=>{const term=query.trim().toLowerCase();return term?ACTIVE_MENU.filter(p=>[p.name,p.description,p.category,...p.keywords].join(' ').toLowerCase().includes(term)).slice(0,6):[];},[query]);
+  const closeMenu=useCallback(()=>setOpen(false),[]), closePanels=useCallback(()=>{setCartOpen(false);setSearchOpen(false);},[]);
+  useEffect(()=>{const fn=()=>setScrolled(window.scrollY>40);window.addEventListener('scroll',fn,{passive:true});return()=>window.removeEventListener('scroll',fn);},[]);
+  useEffect(()=>{if(location.pathname!=='/'||!location.hash)return;const timer=window.setTimeout(()=>scrollTo(location.hash),0);return()=>window.clearTimeout(timer);},[location.hash,location.pathname]);
+  useEffect(()=>{const fn=()=>{if(window.innerWidth>=900)setOpen(false);};window.addEventListener('resize',fn);return()=>window.removeEventListener('resize',fn);},[]);
+  useEffect(()=>{if(!searchOpen)return;const timer=window.setTimeout(()=>searchInput.current?.focus(),80);return()=>window.clearTimeout(timer);},[searchOpen]);
+  useEffect(()=>{if(!open&&!cartOpen&&!searchOpen)return;const fn=(e:KeyboardEvent)=>{if(e.key==='Escape'){closeMenu();closePanels();}};document.addEventListener('keydown',fn);return()=>document.removeEventListener('keydown',fn);},[open,cartOpen,searchOpen,closeMenu,closePanels]);
+  useEffect(()=>{document.body.style.overflow=open||cartOpen||searchOpen?'hidden':'';return()=>{document.body.style.overflow='';};},[open,cartOpen,searchOpen]);
+  useEffect(()=>{if(!open)return;const fn=(e:MouseEvent)=>{if(!(e.target as HTMLElement).closest('[data-nav]'))closeMenu();};document.addEventListener('click',fn);return()=>document.removeEventListener('click',fn);},[open,closeMenu]);
+  const go=(href:string)=>{closeMenu();if(href==='/'){navigate('/');window.scrollTo({top:0,behavior:'smooth'});}else if(href.startsWith('/'))navigate(href);else if(location.pathname==='/')scrollTo(href);else navigate(`/${href}`);};
+  const showSearch=()=>{closeMenu();setCartOpen(false);setSearchOpen(true);},showCart=()=>{closeMenu();setSearchOpen(false);setCartOpen(true);},addFromSearch=(product:MenuItem)=>{addItem(product);setSearchOpen(false);setCartOpen(true);};
+  return <>
+    <style>{`
+      .nav-desktop-links{display:flex;align-items:center;gap:6px;flex:1;justify-content:center}.nav-actions{display:flex;align-items:center;gap:2px;flex-shrink:0}.nav-hamburger,.nav-drawer{display:none!important}.nav-link{font-family:Inter,sans-serif;font-size:14px;font-weight:500;letter-spacing:.03em;white-space:nowrap;color:rgba(255,249,239,.8);text-decoration:none;padding:6px 16px;border-radius:3px;transition:color .15s,background-color .15s}.nav-link:hover{color:#D4AA45;background-color:rgba(212,170,69,.1)}.nav-action{position:relative;display:inline-grid;place-items:center;width:38px;height:40px;border:0;border-radius:50%;color:#FFF8EC;background:transparent;cursor:pointer;transition:color .18s,background-color .18s,transform .18s}.nav-action:hover{color:#D4AA45;background:rgba(212,170,69,.12);transform:translateY(-1px)}.nav-action__count{position:absolute;top:4px;right:1px;min-width:15px;height:15px;padding:0 3px;display:grid;place-items:center;border-radius:50%;background:#D4AA45;color:#3D0007;font:800 9px/1 Inter,sans-serif}.shop-overlay{position:fixed;inset:0;z-index:500;background:rgba(42,0,5,.46);opacity:0;transition:opacity .28s;pointer-events:none}.shop-overlay--open{opacity:1;pointer-events:auto}.cart-panel{position:fixed;z-index:501;top:0;right:0;bottom:0;width:min(100%,430px);display:flex;flex-direction:column;background:#FFFDF8;box-shadow:-18px 0 52px rgba(42,0,5,.22);transform:translateX(104%);transition:transform .34s cubic-bezier(.22,.8,.25,1)}.cart-panel--open{transform:translateX(0)}.cart-panel__head{display:flex;align-items:center;justify-content:space-between;padding:25px 25px 19px;border-bottom:1px solid var(--border-soft)}.cart-panel__title{color:var(--brand-maroon);font-family:'Cormorant Garamond','Playfair Display',Georgia,serif;font-size:38px;font-weight:600;line-height:1;letter-spacing:-.03em}.panel-close{width:36px;height:36px;display:grid;place-items:center;border:1px solid var(--border-soft);border-radius:50%;color:var(--brand-maroon);background:transparent;cursor:pointer;transition:background .18s,color .18s,border-color .18s}.panel-close:hover{background:var(--brand-maroon);color:var(--text-on-dark);border-color:var(--brand-maroon)}.cart-panel__body{flex:1;overflow-y:auto;padding:24px}.cart-empty{min-height:260px;display:grid;place-content:center;text-align:center;color:var(--text-muted)}.cart-empty svg{margin:0 auto 16px;color:var(--gold);stroke-width:1.25}.cart-empty h3{margin:0 0 7px;color:var(--brand-maroon);font-family:'Cormorant Garamond','Playfair Display',Georgia,serif;font-size:30px;font-weight:600}.cart-empty p{max-width:230px;font-size:13px;line-height:1.6}.cart-line{display:grid;grid-template-columns:1fr auto;gap:14px;padding:0 0 19px;margin:0 0 19px;border-bottom:1px solid var(--border-soft)}.cart-line__name{color:var(--text-dark);font:600 16px/1.2 'Cormorant Garamond','Playfair Display',Georgia,serif}.cart-line__meta{margin-top:5px;color:var(--text-muted);font-size:11px;letter-spacing:.05em;text-transform:uppercase}.cart-line__price{color:var(--brand-maroon);font:700 14px Inter,sans-serif;text-align:right}.quantity-control{display:inline-flex;align-items:center;gap:4px;margin-top:12px;padding:3px;border:1px solid var(--border-soft);border-radius:999px}.quantity-control button{width:23px;height:23px;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:var(--brand-maroon);cursor:pointer}.quantity-control button:hover{background:var(--maroon-light)}.quantity-control span{min-width:18px;text-align:center;color:var(--text-dark);font:700 12px Inter,sans-serif}.cart-panel__footer{padding:20px 24px 25px;border-top:1px solid var(--border-soft);background:var(--bg-card-alt)}.cart-subtotal{display:flex;justify-content:space-between;margin-bottom:16px;color:var(--brand-maroon);font:700 14px Inter,sans-serif}.checkout-btn{width:100%;padding:14px;border:0;border-radius:999px;background:var(--brand-maroon);color:var(--text-on-dark);font:800 11px Inter,sans-serif;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:background .18s,transform .18s}.checkout-btn:hover{background:var(--maroon-hover);transform:translateY(-1px)}.search-shell{position:fixed;z-index:501;top:0;left:0;right:0;padding:calc(68px + clamp(20px,5vw,64px)) clamp(16px,5vw,64px) 40px;background:var(--bg-parchment);transform:translateY(-105%);transition:transform .34s cubic-bezier(.22,.8,.25,1);box-shadow:0 16px 40px rgba(42,0,5,.16)}.search-shell--open{transform:translateY(0)}.search-shell__inner{width:min(100%,900px);margin:0 auto}.search-shell__top{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:18px}.search-shell__eyebrow{color:var(--gold);font:800 10px Inter,sans-serif;letter-spacing:.18em;text-transform:uppercase}.search-field{display:flex;align-items:center;gap:12px;padding:0 16px;border:1px solid var(--border-warm);background:var(--bg-ivory);box-shadow:0 8px 20px rgba(61,0,7,.06)}.search-field:focus-within{border-color:var(--gold)}.search-field svg{color:var(--gold);flex:none}.search-field input{width:100%;height:58px;border:0;outline:0;background:transparent;color:var(--text-dark);font:500 16px Inter,sans-serif}.search-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px}.search-result{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px;border:1px solid var(--border-soft);background:var(--bg-ivory);text-align:left;cursor:pointer;transition:border-color .18s,transform .18s}.search-result:hover{border-color:var(--gold);transform:translateY(-2px)}.search-result__name{display:block;color:var(--brand-maroon);font:600 18px/1.1 'Cormorant Garamond','Playfair Display',Georgia,serif}.search-result__info{display:block;margin-top:4px;color:var(--text-muted);font-size:11px}.search-result__price{color:var(--gold);font:800 12px Inter,sans-serif;white-space:nowrap}.search-status{margin:16px 2px 0;color:var(--text-muted);font-size:13px}@media(max-width:899px){.nav-desktop-links{display:none!important}.nav-hamburger{display:flex!important}.nav-drawer{display:block!important}.nav-actions{gap:0}.nav-action{width:34px;height:40px}.nav-action svg{width:18px;height:18px}.nav-action__count{top:5px;right:0}.search-results{grid-template-columns:1fr}.search-shell{padding-top:98px}.cart-panel{width:min(100%,390px)}}@media(max-width:420px){.cart-panel__head{padding:22px 18px 17px}.cart-panel__body{padding:20px 18px}.cart-panel__footer{padding:18px}.search-shell{padding-inline:16px}.search-field input{font-size:15px}.search-result{padding:13px}}
+    `}</style>
+    <header data-nav role="banner" style={{position:'fixed',top:0,left:0,right:0,zIndex:200,height:'68px',backgroundColor:'var(--brand-nav)',borderBottom:scrolled?'1px solid rgba(200,154,61,.28)':'none',boxShadow:scrolled?'0 6px 18px rgba(35,3,10,.16)':'none',transition:'box-shadow .3s,border-color .3s',display:'flex',alignItems:'center'}}><div style={{maxWidth:'1240px',margin:'0 auto',padding:'0 clamp(16px,3vw,48px)',width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'16px'}}><a href="/" aria-label="MishtiChaat — return to top" onClick={e=>{e.preventDefault();navigate('/');window.scrollTo({top:0,behavior:'smooth'});}} style={{display:'flex',alignItems:'center',textDecoration:'none',flexShrink:0}}><img src="/mishtichaat/logo.svg" alt="MishtiChaat" style={{height:'52px',width:'auto',maxWidth:'220px',objectFit:'contain'}}/></a><nav className="nav-desktop-links" aria-label="Main navigation">{navbarLinks.map(l=><NavLink key={l.href} href={l.href}>{l.label}</NavLink>)}</nav><div style={{display:'flex',alignItems:'center',gap:'5px',flexShrink:0}}><div className="nav-actions" aria-label="Utility navigation"><button className="nav-action" onClick={showSearch} aria-label="Search products"><Search size={19} strokeWidth={1.7}/></button><button className="nav-action" onClick={openCustomerAccount} aria-label={customer?'Open customer dashboard':'Sign in to your account'}><UserRound size={19} strokeWidth={1.7}/></button><button className="nav-action" onClick={showCart} aria-label={`Cart, ${itemCount} items`}><ShoppingBag size={19} strokeWidth={1.7}/>{itemCount>0&&<span className="nav-action__count">{itemCount>9?'9+':itemCount}</span>}</button></div><button className="nav-hamburger" data-nav onClick={()=>setOpen(o=>!o)} aria-label={open?'Close navigation menu':'Open navigation menu'} aria-expanded={open} aria-controls="mobile-nav" style={{background:'none',border:'none',cursor:'pointer',padding:'11px',lineHeight:0,borderRadius:'4px',minWidth:'44px',minHeight:'44px',alignItems:'center',justifyContent:'center'}}><HamburgerIcon open={open}/></button></div></div></header>
+    <div id="mobile-nav" data-nav className="nav-drawer" role="navigation" aria-label="Mobile navigation" style={{position:'fixed',top:'68px',left:0,right:0,zIndex:199,backgroundColor:'var(--brand-nav)',borderTop:'1px solid rgba(200,154,61,.22)',boxShadow:'0 6px 18px rgba(35,3,10,.16)',transform:open?'translateY(0)':'translateY(-110%)',opacity:open?1:0,transition:'transform .28s ease,opacity .24s ease',padding:'8px 18px 20px',maxHeight:'calc(100dvh - 68px)',overflowY:'auto',pointerEvents:open?'auto':'none'}}>{mobileLinks.map((link,i)=><a key={link.href} href={link.href} onClick={e=>{e.preventDefault();go(link.href);}} style={{display:'block',padding:'13px 10px',fontFamily:'Inter,sans-serif',fontSize:'15px',fontWeight:500,color:'#FFF8EC',textDecoration:'none',borderBottom:i<mobileLinks.length-1?'1px solid rgba(255,255,255,.08)':'none'}}>{link.label}</a>)}</div><div style={{height:'68px'}} aria-hidden="true"/>
+    <div className={`shop-overlay ${cartOpen||searchOpen?'shop-overlay--open':''}`} onClick={closePanels} aria-hidden="true"/>
+    <aside className={`cart-panel ${cartOpen?'cart-panel--open':''}`} role="dialog" aria-modal="true" aria-label="Shopping cart" aria-hidden={!cartOpen}><div className="cart-panel__head"><h2 className="cart-panel__title">Cart</h2><button className="panel-close" onClick={()=>setCartOpen(false)} aria-label="Close cart"><X size={19}/></button></div><div className="cart-panel__body">{items.length===0?<div className="cart-empty"><ShoppingBag size={38}/><h3>Your cart is empty</h3><p>Add something delicious from our menu to begin your order.</p></div>:items.map(({product,quantity})=><div className="cart-line" key={product.id}><div><div className="cart-line__name">{product.name}</div><div className="cart-line__meta">{product.category}</div><div className="quantity-control"><button onClick={()=>updateQuantity(product.id,quantity-1)} aria-label={`Remove one ${product.name}`}><Minus size={13}/></button><span>{quantity}</span><button onClick={()=>updateQuantity(product.id,quantity+1)} aria-label={`Add one ${product.name}`}><Plus size={13}/></button></div></div><div className="cart-line__price">{price(typeof product.price==='number'?product.price*quantity:product.price)}<button onClick={()=>removeItem(product.id)} style={{display:'block',margin:'12px 0 0 auto',border:0,padding:0,color:'var(--text-muted)',background:'none',font:'500 11px Inter,sans-serif',textDecoration:'underline',cursor:'pointer'}}>Remove</button></div></div>)}</div>{items.length>0&&<div className="cart-panel__footer"><div className="cart-subtotal"><span>Subtotal</span><span>₹{subtotal}</span></div><button className="checkout-btn">Proceed to checkout <ArrowRight size={14} style={{verticalAlign:'-2px',marginLeft:5}}/></button></div>}</aside>
+    <section className={`search-shell ${searchOpen?'search-shell--open':''}`} role="dialog" aria-modal="true" aria-label="Search our menu" aria-hidden={!searchOpen}><div className="search-shell__inner"><div className="search-shell__top"><span className="search-shell__eyebrow">Search the menu</span><button className="panel-close" onClick={()=>setSearchOpen(false)} aria-label="Close search"><X size={19}/></button></div><label className="search-field"><Search size={20} strokeWidth={1.7}/><input ref={searchInput} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search for a favourite…" aria-label="Search menu items"/></label>{query.trim()&&<>{results.length?<div className="search-results">{results.map(product=><button className="search-result" key={product.id} onClick={()=>addFromSearch(product)}><span><span className="search-result__name">{product.name}</span><span className="search-result__info">{product.description||product.category}</span></span><span className="search-result__price">{price(product.price)} +</span></button>)}</div>:<p className="search-status">No menu items match “{query.trim()}”. Try another flavour or dish.</p>}</>}</div></section>
+  </>;
 }
