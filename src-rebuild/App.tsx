@@ -65,33 +65,33 @@ export default function App() {
   return (
     <BrowserRouter>
       <CartProvider>
-      <CustomerSessionProvider>
-      <Routes>
-        {/* Public website */}
-        <Route path="/" element={<PublicSite />} />
-        <Route path="/shop" element={<Shop />} />
-        <Route path="/contact" element={<ContactPage />} />
-        <Route path="/about-us" element={<AboutUs />} />
-        <Route path="/account" element={<Account />} />
-        <Route path="/login" element={<Account />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <CustomerSessionProvider>
+          <Routes>
+            {/* Public website */}
+            <Route path="/" element={<PublicSite />} />
+            <Route path="/shop" element={<Shop />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/about-us" element={<AboutUs />} />
+            <Route path="/account" element={<Account />} />
+            <Route path="/login" element={<Account />} />
+            <Route path="/dashboard" element={<Dashboard />} />
 
-        {/* Legal pages */}
-        <Route path="/privacy-policy"      element={<PrivacyPolicy />} />
-        <Route path="/terms-and-conditions" element={<TermsConditions />} />
-        <Route path="/cancellation-policy"  element={<CancellationPolicy />} />
-        <Route path="/refund-policy"        element={<RefundPolicy />} />
+            {/* Legal pages */}
+            <Route path="/privacy-policy"      element={<PrivacyPolicy />} />
+            <Route path="/terms-and-conditions" element={<TermsConditions />} />
+            <Route path="/cancellation-policy"  element={<CancellationPolicy />} />
+            <Route path="/refund-policy"        element={<RefundPolicy />} />
 
-        {/* Admin — login (public) */}
-        <Route path="/admin" element={<AdminLogin />} />
+            {/* Admin — login (public) */}
+            <Route path="/admin" element={<AdminLogin />} />
 
-        {/* Admin — protected */}
-        <Route path="/admin/dashboard"    element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-        <Route path="/admin/reservations" element={<ProtectedRoute><AdminReservations /></ProtectedRoute>} />
-        <Route path="/admin/enquiries"    element={<ProtectedRoute><AdminEnquiries /></ProtectedRoute>} />
-        <Route path="/admin/settings"     element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
-      </Routes>
-      </CustomerSessionProvider>
+            {/* Admin — protected */}
+            <Route path="/admin/dashboard"    element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/reservations" element={<ProtectedRoute><AdminReservations /></ProtectedRoute>} />
+            <Route path="/admin/enquiries"    element={<ProtectedRoute><AdminEnquiries /></ProtectedRoute>} />
+            <Route path="/admin/settings"     element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
+          </Routes>
+        </CustomerSessionProvider>
       </CartProvider>
     </BrowserRouter>
   );
