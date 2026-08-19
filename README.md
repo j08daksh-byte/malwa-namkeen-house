@@ -1,6 +1,6 @@
 # MishtiChaat
 
-Premium mithai, authentic Banarasi chaat and festive gifting — Bengaluru.
+Premium mithai, authentic Banarasi chaat and festive gifting — Bengaluru .
 
 ## Architecture
 
