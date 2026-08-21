@@ -122,10 +122,14 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     e.preventDefault();
     if (isSubmitting || cart.length === 0) return;
 
-    setIsSubmitting(true);
-    setErrorMessage(null);
+    // 1. Check Authentication
+    if (!token || !customer) {
+      setErrorMessage('Please sign in or create an account to complete your order.');
+      setIsSubmitting(false);
+      return;
+    }
 
-    // 1. Revalidate Cart before final order creation
+    // 2. Revalidate Cart before final order creation
     try {
       const reval = await revalidateCart();
       if (!reval.valid && reval.adjustments.length > 0) {
@@ -489,6 +493,24 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
             {/* Left Column: Delivery Address Selection */}
             <div>
               <h3 className="checkout-section-title">1. Delivery Destination</h3>
+
+              {!customer && !sessionLoading && (
+                <div style={{ background: '#FFFDF0', border: '1px solid #E6D28C', padding: '12px 14px', borderRadius: '10px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: '12.5px', color: '#6A4A0A' }}>
+                    <strong>Have an account?</strong> Sign in for address autofill & order tracking.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      navigate('/account', { state: { from: window.location.pathname } });
+                    }}
+                    style={{ background: '#3C0815', color: '#FFF8EC', border: 'none', borderRadius: '6px', padding: '6px 14px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Sign In / Register
+                  </button>
+                </div>
+              )}
 
               {errorMessage && (
                 <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', padding: '10px 14px', borderRadius: '8px', fontSize: '12px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>

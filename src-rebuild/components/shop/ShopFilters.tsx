@@ -373,6 +373,8 @@ export default function ShopFilters({
               <option value="price-asc">Price: Low to High</option>
               <option value="price-desc">Price: High to Low</option>
               <option value="rating">Highest Rated</option>
+              <option value="name-asc">Name: A to Z</option>
+              <option value="name-desc">Name: Z to A</option>
             </select>
           </div>
         </div>

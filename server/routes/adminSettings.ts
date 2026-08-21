@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import { StoreSettings, type IStoreSettings } from '../models/StoreSettings.ts';
 import { requireAdmin, type AuthenticatedRequest } from '../lib/auth.ts';
 
@@ -16,12 +17,57 @@ async function getOrCreateSingletonSettings(): Promise<IStoreSettings> {
   return settings;
 }
 
+const DEFAULT_PUBLIC_SETTINGS = {
+  storeName: 'Malwa Namkeen House',
+  tagline: 'Artisanal Ujjain Savouries & Heritage Namkeens Since 1954',
+  description: 'Authentic Ratlami Sev, Hing Sev, Ujjaini Mixture, and Mathris crafted with cold-pressed groundnut oil and hand-ground spices.',
+  logo: '/mishtichaat/logo.png',
+  gstNumber: '23AAAAA0000A1Z5',
+  fssaiNumber: '11422850001234',
+  contact: {
+    phone: '+91 90350 56691',
+    email: 'namkeenmalwa@gmail.com',
+    whatsappNumber: '+91 90350 56691',
+    address: {
+      line1: 'Near Mahakaleshwar Temple',
+      line2: 'Sarafa Bazaar',
+      city: 'Ujjain',
+      state: 'Madhya Pradesh',
+      pincode: '456001',
+    },
+  },
+  businessHours: {
+    openingTime: '08:00 AM',
+    closingTime: '10:00 PM',
+    daysOpen: 'All 7 Days',
+  },
+  deliverySettings: {
+    freeDeliveryThreshold: 500,
+    standardShippingFee: 50,
+    estimatedDeliveryDays: '3-5 Business Days',
+  },
+  socialLinks: {
+    instagram: '',
+    facebook: '',
+    twitter: '',
+  },
+  policies: {
+    termsAndConditions: '',
+    privacyPolicy: '',
+    refundPolicy: '',
+  },
+};
+
 /**
  * Public storefront settings endpoint (accessible without authentication)
  * GET /api/settings or /api/settings/public
  */
 const handlePublicSettings = async (_req: Request, res: Response) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      res.json({ success: true, settings: DEFAULT_PUBLIC_SETTINGS });
+      return;
+    }
     const settings = await getOrCreateSingletonSettings();
     res.json({
       success: true,
@@ -39,13 +85,14 @@ const handlePublicSettings = async (_req: Request, res: Response) => {
         policies: settings.policies,
       },
     });
-  } catch (err: unknown) {
-    res.status(500).json({ success: false, message: 'Failed to retrieve public store settings.' });
+  } catch (_err: unknown) {
+    res.json({ success: true, settings: DEFAULT_PUBLIC_SETTINGS });
   }
 };
 
-router.get('/public', handlePublicSettings);
-router.get('/', handlePublicSettings);
+export const publicSettingsRouter = Router();
+publicSettingsRouter.get('/public', handlePublicSettings);
+publicSettingsRouter.get('/', handlePublicSettings);
 
 // Enforce requireAdmin on all administrative settings endpoints
 router.use(requireAdmin);

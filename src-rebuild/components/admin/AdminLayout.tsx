@@ -14,20 +14,20 @@ import {
   X,
   ShieldCheck,
   ExternalLink,
+  UserCheck,
 } from 'lucide-react';
-import { supabase } from '../../lib/supabaseClient.ts';
 import type { AdminUser } from '../../lib/adminApi.ts';
 import SEOHead from '../seo/SEOHead.tsx';
 
-const NAV_ITEMS = [
-  { to: '/admin/dashboard',   label: 'Dashboard',   icon: LayoutDashboard },
-  { to: '/admin/products',    label: 'Products',    icon: Package },
-  { to: '/admin/categories',  label: 'Categories',  icon: FolderTree },
-  { to: '/admin/orders',      label: 'Orders',      icon: ShoppingBag },
-  { to: '/admin/customers',   label: 'Customers',   icon: Users },
-  { to: '/admin/discounts',   label: 'Discounts',   icon: Tag },
-  { to: '/admin/inquiries',   label: 'Inquiries',   icon: MessageSquare },
-  { to: '/admin/settings',    label: 'Settings',    icon: Settings },
+const BASE_NAV_ITEMS = [
+  { to: '/admin/dashboard',   label: 'Dashboard',       icon: LayoutDashboard },
+  { to: '/admin/products',    label: 'Products',        icon: Package },
+  { to: '/admin/categories',  label: 'Categories',      icon: FolderTree },
+  { to: '/admin/orders',      label: 'Orders',          icon: ShoppingBag },
+  { to: '/admin/customers',   label: 'Customers',       icon: Users },
+  { to: '/admin/discounts',   label: 'Discounts',       icon: Tag },
+  { to: '/admin/inquiries',   label: 'Inquiries',       icon: MessageSquare },
+  { to: '/admin/settings',    label: 'Store Settings',  icon: Settings },
 ];
 
 interface Props {
@@ -41,14 +41,27 @@ export default function AdminLayout({ admin, children }: Props) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  const isSuperAdmin = admin.role === 'super_admin';
+
+  const navItems = useMemo(() => {
+    if (isSuperAdmin) {
+      return [
+        ...BASE_NAV_ITEMS.slice(0, 7),
+        { to: '/admin/staff', label: 'Staff & Roles', icon: UserCheck },
+        BASE_NAV_ITEMS[7],
+      ];
+    }
+    return BASE_NAV_ITEMS;
+  }, [isSuperAdmin]);
+
   // Compute active page title
   const currentTitle = useMemo(() => {
-    const matched = NAV_ITEMS.find(n => location.pathname.startsWith(n.to));
+    const matched = navItems.find(n => location.pathname.startsWith(n.to));
     if (matched) return matched.label;
     if (location.pathname.includes('/admin/enquiries')) return 'Inquiries';
     if (location.pathname.includes('/admin/reservations')) return 'Reservations';
     return 'Admin Management';
-  }, [location.pathname]);
+  }, [location.pathname, navItems]);
 
   async function handleLogout() {
     if (loggingOut) return;
@@ -56,11 +69,11 @@ export default function AdminLayout({ admin, children }: Props) {
     try {
       localStorage.removeItem('malwa_admin_token');
       await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-      await supabase.auth.signOut();
     } catch {
       // Ignore errors during logout
+    } finally {
+      navigate('/admin');
     }
-    navigate('/admin');
   }
 
   const roleLabel = (admin.role || 'admin').replace('_', ' ').toUpperCase();
@@ -219,7 +232,7 @@ export default function AdminLayout({ admin, children }: Props) {
 
         {/* Navigation Links */}
         <nav style={{ flex: 1, paddingTop: '10px', overflowY: 'auto' }}>
-          {NAV_ITEMS.map(n => {
+          {navItems.map(n => {
             const Icon = n.icon;
             const isMatch = location.pathname.startsWith(n.to) ||
               (n.to === '/admin/inquiries' && location.pathname.startsWith('/admin/enquiries'));

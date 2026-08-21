@@ -128,6 +128,25 @@ export default function AdminCustomers() {
     fetchCustomers();
   }, [fetchCustomers]);
 
+  // Dialog scroll lock and Escape key
+  useEffect(() => {
+    if (selectedCustomer) {
+      document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          setSelectedCustomer(null);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.body.style.overflow = '';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = '';
+    }
+  }, [selectedCustomer]);
+
   // Fetch Full Customer Details & Order History
   const openCustomerDetails = async (customer: CustomerRecord) => {
     setSelectedCustomer(customer);

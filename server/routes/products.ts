@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { Product } from '../models/Product.ts';
 import { Category } from '../models/Category.ts';
+import { PRODUCTS as FALLBACK_PRODUCTS, SHOP_CATEGORIES as FALLBACK_CATEGORIES } from '../../src-rebuild/data/products.ts';
 
 const router = Router();
 
@@ -81,28 +82,47 @@ function formatPublicProduct(p: any) {
  */
 router.get('/categories', async (_req: Request, res: Response) => {
   try {
-    const categories = await Category.find({ active: true })
-      .sort({ sortOrder: 1, name: 1 })
-      .lean();
+    if (mongoose.connection.readyState === 1) {
+      const categories = await Category.find({ active: true })
+        .sort({ sortOrder: 1, name: 1 })
+        .lean();
 
-    res.setHeader('Cache-Control', 'public, max-age=120, stale-while-revalidate=300');
-    res.json({
-      success: true,
-      categories: categories.map(c => ({
-        id: c.slug,
-        _id: String(c._id),
-        slug: c.slug,
-        name: c.name,
-        label: c.name,
-        shortLabel: c.name.replace(/(Signature|Heritage|Royal|Crisp)\s+/i, ''),
-        description: c.description || '',
-        image: c.image || '',
-      })),
-    });
-  } catch (err: unknown) {
-    console.error('[Public Categories Error]', err);
-    res.status(500).json({ success: false, message: 'Failed to fetch categories.' });
+      if (categories.length > 0) {
+        res.setHeader('Cache-Control', 'public, max-age=120, stale-while-revalidate=300');
+        res.json({
+          success: true,
+          categories: categories.map(c => ({
+            id: c.slug,
+            _id: String(c._id),
+            slug: c.slug,
+            name: c.name,
+            label: c.name,
+            shortLabel: c.name.replace(/(Signature|Heritage|Royal|Crisp)\s+/i, ''),
+            description: c.description || '',
+            image: c.image || '',
+          })),
+        });
+        return;
+      }
+    }
+  } catch (_err: unknown) {
+    // Fall back below
   }
+
+  // Fallback to rich static categories
+  res.json({
+    success: true,
+    categories: FALLBACK_CATEGORIES.map(c => ({
+      id: c.id,
+      _id: c.id,
+      slug: c.id,
+      name: c.label,
+      label: c.label,
+      shortLabel: c.shortLabel,
+      description: c.description,
+      image: '',
+    })),
+  });
 });
 
 /**
@@ -121,96 +141,132 @@ router.get('/products', async (req: Request, res: Response) => {
       limit = '100',
     } = req.query as Record<string, string>;
 
-    const filter: Record<string, unknown> = { active: true };
+    if (mongoose.connection.readyState === 1) {
+      const filter: Record<string, unknown> = { active: true };
 
-    // Category filter by slug or ID
-    if (category && category !== 'all') {
-      if (mongoose.Types.ObjectId.isValid(category)) {
-        filter.category = new mongoose.Types.ObjectId(category);
-      } else {
-        const catDoc = await Category.findOne({ slug: category.toLowerCase(), active: true }).lean();
-        if (catDoc) {
-          filter.category = catDoc._id;
+      // Category filter by slug or ID
+      if (category && category !== 'all') {
+        if (mongoose.Types.ObjectId.isValid(category)) {
+          filter.category = new mongoose.Types.ObjectId(category);
         } else {
-          // No matching category -> return empty list
-          res.json({ success: true, products: [], total: 0 });
-          return;
+          const catDoc = await Category.findOne({ slug: category.toLowerCase(), active: true }).lean();
+          if (catDoc) {
+            filter.category = catDoc._id;
+          } else {
+            res.json({ success: true, products: [], total: 0 });
+            return;
+          }
         }
       }
+
+      if (spice && spice !== 'All') {
+        filter.spiceLevel = spice;
+      }
+
+      if (featured === 'true') {
+        filter.featured = true;
+      }
+
+      if (search && search.trim()) {
+        const q = search.trim();
+        filter.$or = [
+          { name: { $regex: q, $options: 'i' } },
+          { hindiName: { $regex: q, $options: 'i' } },
+          { tagline: { $regex: q, $options: 'i' } },
+          { description: { $regex: q, $options: 'i' } },
+          { ingredients: { $regex: q, $options: 'i' } },
+        ];
+      }
+
+      let sortObj: Record<string, 1 | -1> = { featured: -1, createdAt: -1 };
+      if (sortBy === 'price-asc') {
+        sortObj = { 'variants.0.price': 1 };
+      } else if (sortBy === 'price-desc') {
+        sortObj = { 'variants.0.price': -1 };
+      } else if (sortBy === 'rating') {
+        sortObj = { rating: -1 };
+      } else if (sortBy === 'name-asc') {
+        sortObj = { name: 1 };
+      } else if (sortBy === 'newest') {
+        sortObj = { createdAt: -1 };
+      }
+
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 100));
+      const skip = (pageNum - 1) * limitNum;
+
+      const [total, rawProducts, allCategories] = await Promise.all([
+        Product.countDocuments(filter),
+        Product.find(filter)
+          .populate({ path: 'category', select: 'name slug image', strictPopulate: false })
+          .sort(sortObj)
+          .skip(skip)
+          .limit(limitNum)
+          .lean(),
+        Category.find({ active: true }).sort({ sortOrder: 1 }).lean(),
+      ]);
+
+      if (total > 0 || rawProducts.length > 0) {
+        const formattedProducts = rawProducts.map(formatPublicProduct);
+        res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+        res.json({
+          success: true,
+          products: formattedProducts,
+          categories: allCategories.map(c => ({
+            id: c.slug,
+            _id: String(c._id),
+            slug: c.slug,
+            name: c.name,
+            label: c.name,
+          })),
+          total,
+          page: pageNum,
+          totalPages: Math.ceil(total / limitNum) || 1,
+        });
+        return;
+      }
     }
-
-    // Spice level filter
-    if (spice && spice !== 'All') {
-      filter.spiceLevel = spice;
-    }
-
-    // Featured filter
-    if (featured === 'true') {
-      filter.featured = true;
-    }
-
-    // Search query
-    if (search && search.trim()) {
-      const q = search.trim();
-      filter.$or = [
-        { name: { $regex: q, $options: 'i' } },
-        { hindiName: { $regex: q, $options: 'i' } },
-        { tagline: { $regex: q, $options: 'i' } },
-        { description: { $regex: q, $options: 'i' } },
-        { ingredients: { $regex: q, $options: 'i' } },
-      ];
-    }
-
-    // Sort order
-    let sortObj: Record<string, 1 | -1> = { featured: -1, createdAt: -1 };
-    if (sortBy === 'price-asc') {
-      sortObj = { 'variants.0.price': 1 };
-    } else if (sortBy === 'price-desc') {
-      sortObj = { 'variants.0.price': -1 };
-    } else if (sortBy === 'rating') {
-      sortObj = { rating: -1 };
-    } else if (sortBy === 'name-asc') {
-      sortObj = { name: 1 };
-    } else if (sortBy === 'newest') {
-      sortObj = { createdAt: -1 };
-    }
-
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 100));
-    const skip = (pageNum - 1) * limitNum;
-
-    const [total, rawProducts, allCategories] = await Promise.all([
-      Product.countDocuments(filter),
-      Product.find(filter)
-        .populate('category', 'name slug image')
-        .sort(sortObj)
-        .skip(skip)
-        .limit(limitNum)
-        .lean(),
-      Category.find({ active: true }).sort({ sortOrder: 1 }).lean(),
-    ]);
-
-    const formattedProducts = rawProducts.map(formatPublicProduct);
-
-    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
-    res.json({
-      success: true,
-      products: formattedProducts,
-      categories: allCategories.map(c => ({
-        id: c.slug,
-        _id: String(c._id),
-        slug: c.slug,
-        name: c.name,
-        label: c.name,
-      })),
-      total,
-      page: pageNum,
-      totalPages: Math.ceil(total / limitNum) || 1,
-    });
-  } catch (err: unknown) {
-    console.error('[Public Products Error]', err);
-    res.status(500).json({ success: false, message: 'Failed to fetch products catalog.' });
+  } catch (_err: unknown) {
+    // Fall back to static catalog
   }
+
+  // Fallback to rich static product catalog
+  let filtered = [...FALLBACK_PRODUCTS];
+  const { category = 'all', search = '', spice = 'All', sortBy = 'featured' } = req.query as Record<string, string>;
+
+  if (category && category !== 'all') {
+    filtered = filtered.filter(p => p.category === category || p.slug === category);
+  }
+  if (spice && spice !== 'All') {
+    filtered = filtered.filter(p => p.spiceLevel === spice);
+  }
+  if (search && search.trim()) {
+    const q = search.trim().toLowerCase();
+    filtered = filtered.filter(
+      p =>
+        p.name.toLowerCase().includes(q) ||
+        (p.hindiName && p.hindiName.toLowerCase().includes(q)) ||
+        p.tagline.toLowerCase().includes(q) ||
+        p.description.toLowerCase().includes(q) ||
+        (Array.isArray(p.ingredients) && p.ingredients.some(i => i.toLowerCase().includes(q)))
+    );
+  }
+  if (sortBy === 'price-asc') {
+    filtered.sort((a, b) => (a.options[0]?.price || 0) - (b.options[0]?.price || 0));
+  } else if (sortBy === 'price-desc') {
+    filtered.sort((a, b) => (b.options[0]?.price || 0) - (a.options[0]?.price || 0));
+  } else if (sortBy === 'name-asc') {
+    filtered.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  res.json({
+    success: true,
+    products: filtered,
+    categories: FALLBACK_CATEGORIES,
+    total: filtered.length,
+    page: 1,
+    totalPages: 1,
+  });
 });
 
 /**
@@ -218,34 +274,42 @@ router.get('/products', async (req: Request, res: Response) => {
  * Public product detail by slug or ID
  */
 router.get('/products/:slugOrId', async (req: Request, res: Response) => {
+  const { slugOrId } = req.params;
   try {
-    const { slugOrId } = req.params;
+    if (mongoose.connection.readyState === 1) {
+      let productDoc: any = null;
 
-    let productDoc: any = null;
+      if (mongoose.Types.ObjectId.isValid(slugOrId)) {
+        productDoc = await Product.findOne({ _id: slugOrId, active: true })
+          .populate({ path: 'category', select: 'name slug image', strictPopulate: false })
+          .lean();
+      }
 
-    if (mongoose.Types.ObjectId.isValid(slugOrId)) {
-      productDoc = await Product.findOne({ _id: slugOrId, active: true })
-        .populate('category', 'name slug image')
-        .lean();
+      if (!productDoc) {
+        productDoc = await Product.findOne({ slug: slugOrId.toLowerCase(), active: true })
+          .populate({ path: 'category', select: 'name slug image', strictPopulate: false })
+          .lean();
+      }
+
+      if (productDoc) {
+        const product = formatPublicProduct(productDoc);
+        res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+        res.json({ success: true, product });
+        return;
+      }
     }
+  } catch (_err: unknown) {
+    // Fall back to static lookup
+  }
 
-    if (!productDoc) {
-      productDoc = await Product.findOne({ slug: slugOrId.toLowerCase(), active: true })
-        .populate('category', 'name slug image')
-        .lean();
-    }
-
-    if (!productDoc) {
-      res.status(404).json({ success: false, message: 'Product delicacy not found or unavailable.' });
-      return;
-    }
-
-    const product = formatPublicProduct(productDoc);
-    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
-    res.json({ success: true, product });
-  } catch (err: unknown) {
-    console.error('[Product Detail Error]', err);
-    res.status(500).json({ success: false, message: 'Failed to fetch product details.' });
+  const cleanSlug = slugOrId.toLowerCase().trim();
+  const fallback = FALLBACK_PRODUCTS.find(
+    p => (p.slug || p.id).toLowerCase() === cleanSlug || p.id === cleanSlug || p.name.toLowerCase().replace(/\s+/g, '-').includes(cleanSlug) || cleanSlug.includes(p.id)
+  );
+  if (fallback) {
+    res.json({ success: true, product: fallback });
+  } else {
+    res.status(404).json({ success: false, message: 'Product delicacy not found or unavailable.' });
   }
 });
 

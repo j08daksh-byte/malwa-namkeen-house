@@ -1,15 +1,9 @@
 /**
- * Typed fetch wrappers for all admin API endpoints.
- * Every request attaches the Supabase access token as a Bearer header.
- * The Express backend verifies this token and checks admin_profiles.
+ * Typed fetch wrappers for admin API endpoints.
+ * Attaches the JWT admin token as a Bearer header.
  */
-import { supabase } from './supabaseClient.ts';
-
 async function getToken(): Promise<string | null> {
-  const local = localStorage.getItem('malwa_admin_token');
-  if (local) return local;
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
+  return localStorage.getItem('malwa_admin_token');
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {

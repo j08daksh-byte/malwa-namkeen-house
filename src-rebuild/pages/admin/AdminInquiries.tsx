@@ -102,6 +102,27 @@ export default function AdminInquiries() {
     fetchInquiries();
   }, [fetchInquiries]);
 
+  // Dialog scroll lock and Escape key
+  useEffect(() => {
+    const isAnyModalOpen = Boolean(selectedInquiry || deleteConfirmId);
+    if (isAnyModalOpen) {
+      document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          if (selectedInquiry && !savingStatus) setSelectedInquiry(null);
+          if (deleteConfirmId) setDeleteConfirmId(null);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.body.style.overflow = '';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = '';
+    }
+  }, [selectedInquiry, deleteConfirmId, savingStatus]);
+
   // Open Details Modal
   const openInquiryDetails = (inq: InquiryRecord) => {
     setSelectedInquiry(inq);

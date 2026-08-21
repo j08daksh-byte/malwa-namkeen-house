@@ -62,7 +62,7 @@ router.post('/register', registerLimiter, async (req: Request, res: Response) =>
     const { name, email, phone, password } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
-      res.status(400).json({ success: false, message: 'Please provide a valid full name.' });
+      res.status(400).json({ success: false, message: 'Please provide your full name (minimum 2 characters).' });
       return;
     }
 
@@ -103,6 +103,7 @@ router.post('/register', registerLimiter, async (req: Request, res: Response) =>
       phone: cleanPhone,
       password: hashedPassword,
       role: 'customer',
+      active: true,
     });
 
     const token = generateToken({
@@ -129,7 +130,7 @@ router.post('/register', registerLimiter, async (req: Request, res: Response) =>
     console.error('[Auth Register Error]', err instanceof Error ? err.message : err);
     res.status(500).json({
       success: false,
-      message: 'Failed to create account. Please try again later.',
+      message: 'Unable to complete registration. Please verify your connection or try again shortly.',
     });
   }
 });
@@ -157,7 +158,15 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     if (!user || !user.password) {
       res.status(401).json({
         success: false,
-        message: 'Invalid email address or password.',
+        message: 'Email or password is incorrect.',
+      });
+      return;
+    }
+
+    if (!user.active) {
+      res.status(403).json({
+        success: false,
+        message: 'Your account is currently inactive. Please contact support.',
       });
       return;
     }
@@ -166,10 +175,13 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     if (!isValid) {
       res.status(401).json({
         success: false,
-        message: 'Invalid email address or password.',
+        message: 'Email or password is incorrect.',
       });
       return;
     }
+
+    user.lastLoginAt = new Date();
+    await user.save();
 
     const token = generateToken({
       userId: user._id.toString(),
@@ -195,7 +207,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     console.error('[Auth Login Error]', err instanceof Error ? err.message : err);
     res.status(500).json({
       success: false,
-      message: 'Failed to sign in. Please try again later.',
+      message: 'Unable to connect to the authentication service. Please try again shortly.',
     });
   }
 });
@@ -237,7 +249,7 @@ router.post('/admin/login', adminLoginLimiter, async (req: Request, res: Respons
     }
 
     // Strict role check
-    if (user.role !== 'admin') {
+    if (user.role !== 'admin' && user.role !== 'super_admin') {
       res.status(403).json({
         success: false,
         message: 'Access denied. You do not have administrator permissions.',
@@ -245,10 +257,21 @@ router.post('/admin/login', adminLoginLimiter, async (req: Request, res: Respons
       return;
     }
 
+    if (!user.active) {
+      res.status(403).json({
+        success: false,
+        message: 'Your administrator account has been deactivated. Please contact your super administrator.',
+      });
+      return;
+    }
+
+    user.lastLoginAt = new Date();
+    await user.save();
+
     const token = generateToken({
       userId: user._id.toString(),
       email: user.email,
-      role: 'admin',
+      role: user.role,
     });
 
     setAuthCookie(res, token);

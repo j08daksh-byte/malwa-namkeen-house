@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode, type CSSProperties } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, UserRound, ShoppingBag, Heart, X, Minus, Plus, ArrowRight } from 'lucide-react';
+import { Search, UserRound, ShoppingBag, Heart, ShieldCheck, X, Minus, Plus, ArrowRight } from 'lucide-react';
 import { NAV_LINKS, MOBILE_LINKS } from '../../data/nav-links';
 import { ACTIVE_MENU, type MenuItem } from '../../data/menu';
 import { useCart } from './CartContext';
@@ -637,6 +637,17 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
               <button className="nav-action" onClick={showSearch} aria-label="Search products">
                 <Search size={19} strokeWidth={1.7} />
               </button>
+              {(customer?.role === 'admin' || customer?.role === 'super_admin') && (
+                <button
+                  className="nav-action"
+                  onClick={() => navigate('/admin/dashboard')}
+                  aria-label="Open Admin Portal"
+                  title="Admin Portal"
+                  style={{ color: '#F0C74E' }}
+                >
+                  <ShieldCheck size={19} strokeWidth={1.8} />
+                </button>
+              )}
               <button
                 className="nav-action"
                 onClick={openCustomerAccount}
@@ -710,6 +721,30 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
           pointerEvents: open ? 'auto' : 'none',
         }}
       >
+        {(customer?.role === 'admin' || customer?.role === 'super_admin') && (
+          <button
+            type="button"
+            className="mobile-link"
+            onClick={() => {
+              setOpen(false);
+              navigate('/admin/dashboard');
+            }}
+            style={{ color: '#F0C74E', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(255,255,255,.08)' }}
+          >
+            <ShieldCheck size={16} /> Admin Portal
+          </button>
+        )}
+        <button
+          type="button"
+          className="mobile-link"
+          onClick={() => {
+            setOpen(false);
+            openCustomerAccount();
+          }}
+          style={{ borderBottom: '1px solid rgba(255,255,255,.08)' }}
+        >
+          {customer ? 'Your Account' : 'Sign In'}
+        </button>
         {mobileLinks.map((link, i) => (
           <a
             key={link.href}
@@ -839,8 +874,14 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
               ref={searchInput}
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search for a favourite…"
-              aria-label="Search menu items"
+              onKeyDown={e => {
+                if (e.key === 'Enter' && query.trim()) {
+                  setSearchOpen(false);
+                  navigate(`/shop?q=${encodeURIComponent(query.trim())}`);
+                }
+              }}
+              placeholder="Search for a favourite delicacy…"
+              aria-label="Search delicacies"
             />
           </label>
           {query.trim() && (

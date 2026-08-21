@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import mongoose from 'mongoose';
 import { Order, type OrderStatus, type PaymentStatus, type ShipmentStatus } from '../models/Order.ts';
 import { requireAdmin, type AuthenticatedRequest } from '../lib/auth.ts';
+import { sendOrderStatusUpdate } from '../lib/emailService.ts';
 
 const router = Router();
 
@@ -171,6 +172,8 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
       return;
     }
 
+    const previousStatus = order.orderStatus;
+
     const validOrderStatuses: OrderStatus[] = [
       'pending',
       'confirmed',
@@ -230,6 +233,21 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
     }
 
     await order.save();
+
+    // Asynchronously notify customer of meaningful status transitions
+    if (previousStatus !== order.orderStatus) {
+      (async () => {
+        try {
+          await sendOrderStatusUpdate({
+            order,
+            previousStatus,
+            newStatus: order.orderStatus,
+          });
+        } catch (emailErr) {
+          console.warn('[Status Notification Warning] Failed to dispatch status email:', emailErr);
+        }
+      })();
+    }
 
     res.json({
       success: true,

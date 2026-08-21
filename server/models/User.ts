@@ -1,6 +1,6 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 
-export type UserRole = 'customer' | 'admin';
+export type UserRole = 'customer' | 'admin' | 'super_admin';
 
 export interface IUserAddress {
   _id?: string;
@@ -25,6 +25,14 @@ export interface IUser extends Document {
   addresses?: IUserAddress[];
   wishlist?: mongoose.Types.ObjectId[];
   lastLoginAt?: Date;
+  emailVerifiedAt?: Date;
+  passwordResetTokenHash?: string;
+  passwordResetExpiresAt?: Date;
+  invitationTokenHash?: string;
+  invitationExpiresAt?: Date;
+  invitationAcceptedAt?: Date;
+  invitedBy?: mongoose.Types.ObjectId;
+  invitedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -65,12 +73,15 @@ const userSchema = new Schema<IUser>(
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
+      required: function (this: any) {
+        // Password is required unless user has pending invitation
+        return !this.invitationTokenHash;
+      },
       select: false, // Never return password hash in queries by default
     },
     role: {
       type: String,
-      enum: ['customer', 'admin'],
+      enum: ['customer', 'admin', 'super_admin'],
       default: 'customer',
       required: true,
     },
@@ -91,6 +102,43 @@ const userSchema = new Schema<IUser>(
       type: Date,
       default: null,
     },
+    emailVerifiedAt: {
+      type: Date,
+      default: null,
+    },
+    passwordResetTokenHash: {
+      type: String,
+      select: false,
+      index: true,
+      default: null,
+    },
+    passwordResetExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    invitationTokenHash: {
+      type: String,
+      select: false,
+      index: true,
+      default: null,
+    },
+    invitationExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    invitationAcceptedAt: {
+      type: Date,
+      default: null,
+    },
+    invitedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    invitedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -99,3 +147,4 @@ const userSchema = new Schema<IUser>(
 
 export const User: Model<IUser> =
   mongoose.models.User || mongoose.model<IUser>('User', userSchema);
+

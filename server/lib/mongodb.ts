@@ -5,8 +5,35 @@
  */
 
 import mongoose from 'mongoose';
+import { User } from '../models/User.ts';
+import { hashPassword } from './auth.ts';
 
 let isConnected = false;
+
+async function seedInitialAdmin(): Promise<void> {
+  try {
+    const adminEmail = process.env.ADMIN_EMAIL ? process.env.ADMIN_EMAIL.toLowerCase().trim() : '';
+    const adminPassword = process.env.ADMIN_PASSWORD || '';
+
+    if (!adminEmail) return;
+
+    // 1. If an account with ADMIN_EMAIL already exists in MongoDB, ensure it is super_admin
+    const existing = await User.findOne({ email: adminEmail });
+    if (existing) {
+      if (existing.role !== 'super_admin' || !existing.active) {
+        existing.role = 'super_admin';
+        existing.active = true;
+        await existing.save();
+        console.log(`[MongoDB] Designated owner <${adminEmail}> successfully designated as super_admin.`);
+      }
+      return;
+    }
+
+    console.log(`[MongoDB] ADMIN_EMAIL <${adminEmail}> is configured. Registered account will automatically receive super_admin privileges.`);
+  } catch (err: unknown) {
+    console.warn('[MongoDB] Initial admin check skipped:', err instanceof Error ? err.message : err);
+  }
+}
 
 /**
  * Connect to MongoDB Atlas.
@@ -23,9 +50,13 @@ export async function connectMongoDB(): Promise<void> {
   }
 
   try {
-    await mongoose.connect(uri);
+    await mongoose.connect(uri, {
+      serverSelectionTimeoutMS: 5000,
+      dbName: process.env.MONGODB_DB_NAME || 'malwa_namkeen',
+    });
     isConnected = true;
-    console.log('[MongoDB] Connected successfully.');
+    console.log(`[MongoDB] Connected successfully to database: "${mongoose.connection.name}".`);
+    await seedInitialAdmin();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     // Never log the full URI — it contains credentials

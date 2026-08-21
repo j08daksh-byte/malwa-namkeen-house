@@ -42,6 +42,9 @@ import AdminInquiries    from './pages/admin/AdminInquiries';
 import AdminReservations from './pages/admin/AdminReservations';
 import AdminEnquiries    from './pages/admin/AdminEnquiries';
 import AdminSettings     from './pages/admin/AdminSettings';
+import AdminStaff        from './pages/admin/AdminStaff';
+import ResetPassword     from './pages/admin/ResetPassword';
+import AcceptInvite      from './pages/admin/AcceptInvite';
 
 // Legal pages
 import PrivacyPolicy      from './pages/legal/PrivacyPolicy';
@@ -133,6 +136,10 @@ export default function App() {
               {/* Admin — login (public) */}
               <Route path="/admin" element={<AdminLogin />} />
 
+              {/* Admin — public recovery and invite acceptance */}
+              <Route path="/admin/reset-password" element={<ResetPassword />} />
+              <Route path="/admin/accept-invite"  element={<AcceptInvite />} />
+
               {/* Admin — protected */}
               <Route path="/admin/dashboard"    element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
               <Route path="/admin/products"     element={<ProtectedRoute><AdminProducts /></ProtectedRoute>} />
@@ -143,6 +150,7 @@ export default function App() {
               <Route path="/admin/inquiries"    element={<ProtectedRoute><AdminInquiries /></ProtectedRoute>} />
               <Route path="/admin/enquiries"    element={<ProtectedRoute><AdminEnquiries /></ProtectedRoute>} />
               <Route path="/admin/reservations" element={<ProtectedRoute><AdminReservations /></ProtectedRoute>} />
+              <Route path="/admin/staff"        element={<ProtectedRoute requireSuperAdmin><AdminStaff /></ProtectedRoute>} />
               <Route path="/admin/settings"     element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
 
               {/* 404 Catch-All */}

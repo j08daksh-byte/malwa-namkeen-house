@@ -27,19 +27,20 @@ export default function PrivacyPolicy() {
       <h2>6. Third-Party Services</h2>
       <p>Our website uses the following third-party services:</p>
       <ul>
-        <li><strong>Supabase</strong> — database and authentication hosting.</li>
+        <li><strong>MongoDB Atlas</strong> — cloud database hosting.</li>
         <li><strong>Resend</strong> — transactional email delivery.</li>
+        <li><strong>Cloudinary</strong> — media and image asset delivery.</li>
       </ul>
       <p>These services operate under their own privacy policies and data processing agreements.</p>
 
       <h2>7. Your Rights</h2>
-      <p>You have the right to request access to, correction of, or deletion of the personal data we hold about you. To exercise these rights, please contact us at <a href="mailto:contact@mishtichaat.com">contact@mishtichaat.com</a>.</p>
+      <p>You have the right to request access to, correction of, or deletion of the personal data we hold about you. To exercise these rights, please contact us at <a href="mailto:contact@malwanamkeen.com">contact@malwanamkeen.com</a>.</p>
 
       <h2>8. Changes to This Policy</h2>
       <p>We may update this Privacy Policy from time to time. The "Last Updated" date at the top of this page reflects the most recent revision. Continued use of our website after any changes constitutes acceptance of the revised policy.</p>
 
       <h2>9. Contact</h2>
-      <p>Malwa Namkeen House, No. 87/4-B, Sulikunte Village, Sarjapur Main Road, Dommasandra Post, Bengaluru – 562125, Karnataka, India.<br />Email: <a href="mailto:contact@mishtichaat.com">contact@mishtichaat.com</a></p>
+      <p>Malwa Namkeen House, Indore, Madhya Pradesh, India.<br />Email: <a href="mailto:contact@malwanamkeen.com">contact@malwanamkeen.com</a></p>
     </LegalLayout>
   );
 }

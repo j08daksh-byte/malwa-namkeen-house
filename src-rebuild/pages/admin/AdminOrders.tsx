@@ -162,6 +162,25 @@ export default function AdminOrders() {
     fetchOrders();
   }, [fetchOrders]);
 
+  // Dialog scroll lock and Escape key
+  useEffect(() => {
+    if (selectedOrder) {
+      document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape' && !savingStatus) {
+          setSelectedOrder(null);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.body.style.overflow = '';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = '';
+    }
+  }, [selectedOrder, savingStatus]);
+
   // Open Details Modal
   const openOrderDetails = (order: OrderRecord) => {
     setSelectedOrder(order);

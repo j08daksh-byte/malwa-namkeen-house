@@ -49,9 +49,7 @@ router.post('/revalidate', async (req: Request, res: Response) => {
     const products = await Product.find({
       _id: { $in: productIds },
       active: true,
-    })
-      .populate('category', 'name slug')
-      .lean();
+    }).lean();
 
     const productMap = new Map<string, any>(products.map(p => [String(p._id), p]));
 

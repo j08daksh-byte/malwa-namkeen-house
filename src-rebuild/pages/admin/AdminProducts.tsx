@@ -179,6 +179,27 @@ export default function AdminProducts() {
     fetchProducts();
   }, [fetchProducts]);
 
+  // Dialog scroll lock and Escape key
+  useEffect(() => {
+    const isAnyModalOpen = modalOpen || Boolean(deleteConfirmId);
+    if (isAnyModalOpen) {
+      document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          if (modalOpen && !formSubmitting) setModalOpen(false);
+          if (deleteConfirmId) setDeleteConfirmId(null);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.body.style.overflow = '';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = '';
+    }
+  }, [modalOpen, deleteConfirmId, formSubmitting]);
+
   // Open Create Modal
   const openCreateModal = () => {
     setEditingProduct(null);

@@ -13,7 +13,6 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
 import enquiryRoutes from './server/routes/enquiries.ts';
-import adminRoutes from './server/routes/admin.ts';
 import authRoutes from './server/routes/auth.ts';
 import uploadRoutes from './server/routes/uploads.ts';
 import adminProductRoutes from './server/routes/adminProducts.ts';
@@ -22,7 +21,9 @@ import adminOrderRoutes from './server/routes/adminOrders.ts';
 import adminCustomerRoutes from './server/routes/adminCustomers.ts';
 import adminDiscountRoutes from './server/routes/adminDiscounts.ts';
 import adminInquiryRoutes from './server/routes/adminInquiries.ts';
-import adminSettingsRoutes from './server/routes/adminSettings.ts';
+import adminStaffRoutes from './server/routes/adminStaff.ts';
+import authRecoveryRoutes from './server/routes/authRecovery.ts';
+import adminSettingsRoutes, { publicSettingsRouter } from './server/routes/adminSettings.ts';
 import adminDashboardRoutes from './server/routes/adminDashboard.ts';
 import publicCatalogRoutes from './server/routes/products.ts';
 import cartWishlistRoutes from './server/routes/cartWishlist.ts';
@@ -223,13 +224,17 @@ async function startServer() {
   app.use('/api/orders', customerOrdersRoutes);
 
   // Public customer store settings (MongoDB)
-  app.use('/api/settings', adminSettingsRoutes);
+  app.use('/api/settings', publicSettingsRouter);
 
   // Admin dashboard live analytics
   app.use('/api/admin/dashboard', adminDashboardRoutes);
 
   // Authentication routes (register, login, logout, me, admin verify)
   app.use('/api/auth', authRoutes);
+  app.use('/api/auth', authRecoveryRoutes);
+
+  // Super Admin Staff Management routes (protected by requireSuperAdmin)
+  app.use('/api/admin/staff', adminStaffRoutes);
 
   // Admin store settings routes (protected by requireAdmin)
   app.use('/api/admin/settings', adminSettingsRoutes);
@@ -258,16 +263,9 @@ async function startServer() {
 
   // Admin product routes (protected by requireAdmin)
   app.use('/api/admin/products', adminProductRoutes);
-
-  // Admin upload routes (protected by requireAdmin)
   app.use('/api/admin/uploads', uploadRoutes);
 
-  // Admin routes must be registered BEFORE app.use('/api', formLimiter, ...)
-  // to prevent the form rate-limiter from intercepting admin requests.
-  app.use('/api/admin', adminRoutes);
-
-  // Form submission routes — rate-limited. Registered after /api/admin so the
-  // formLimiter only applies to enquiry endpoints, not admin endpoints.
+  // Form submission routes — rate-limited
   app.use('/api', formLimiter, enquiryRoutes);
 
   // ── Concierge chatbot ─────────────────────────────────────────────────────

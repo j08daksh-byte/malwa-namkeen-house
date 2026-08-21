@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient.ts';
 import SEOHead from '../../components/seo/SEOHead.tsx';
 
 export default function AdminLogin() {
@@ -10,11 +9,30 @@ export default function AdminLogin() {
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
 
-  // Already logged in → redirect
+  // Forgot password state
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSubmitted, setForgotSubmitted] = useState(false);
+
+  // If already logged in with valid admin session → redirect to dashboard
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate('/admin/dashboard', { replace: true });
-    });
+    const token = localStorage.getItem('malwa_admin_token');
+    if (token) {
+      fetch('/api/auth/admin/verify', {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+      })
+        .then(res => (res.ok ? res.json() : null))
+        .then(data => {
+          if (data?.success && data?.admin) {
+            navigate('/admin/dashboard', { replace: true });
+          } else {
+            localStorage.removeItem('malwa_admin_token');
+          }
+        })
+        .catch(() => {});
+    }
   }, [navigate]);
 
   async function handleLogin(e: React.FormEvent) {
@@ -22,50 +40,49 @@ export default function AdminLogin() {
     setError('');
     setLoading(true);
     try {
-      // 1. Try MongoDB Admin Auth
-      const mongoRes = await fetch('/api/auth/admin/login', {
+      const res = await fetch('/api/auth/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
         credentials: 'include',
       });
 
-      if (mongoRes.ok) {
-        const data = await mongoRes.json();
-        if (data.success) {
-          if (data.token) localStorage.setItem('malwa_admin_token', data.token);
-          navigate('/admin/dashboard', { replace: true });
-          return;
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        if (data.token) {
+          localStorage.setItem('malwa_admin_token', data.token);
         }
+        navigate('/admin/dashboard', { replace: true });
+        return;
+      }
+
+      if (res.status === 403) {
+        setError(data.message || 'Access denied. You do not have administrator permissions.');
       } else {
-        const errData = await mongoRes.json().catch(() => ({}));
-        if (mongoRes.status === 403) {
-          setError(errData.message || 'Access denied. You do not have administrator permissions.');
-          return;
-        }
+        setError(data.message || 'Email or password is incorrect.');
       }
-
-      // 2. Fallback to Supabase Auth
-      const { error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-      if (authError) {
-        setError('Invalid email or password. Please try again.');
-        return;
-      }
-      // Verify admin profile exists on the server
-      const { data: session } = await supabase.auth.getSession();
-      const token = session.session?.access_token;
-      if (!token) { setError('Session error. Please try again.'); return; }
-
-      const res = await fetch('/api/admin/me', { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setError(body.message ?? 'Access denied. Contact your administrator.');
-        await supabase.auth.signOut();
-        return;
-      }
-      navigate('/admin/dashboard', { replace: true });
+    } catch {
+      setError('Unable to connect to authentication server. Please check your network.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!forgotEmail.trim()) return;
+    setForgotLoading(true);
+    try {
+      await fetch('/api/auth/admin/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      });
+      setForgotSubmitted(true);
+    } catch {
+      setForgotSubmitted(true); // Maintain generic response on network error
+    } finally {
+      setForgotLoading(false);
     }
   }
 
@@ -97,7 +114,16 @@ export default function AdminLogin() {
               style={inputStyle}
             />
 
-            <label style={{ ...labelStyle, marginTop: '14px' }}>Password</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '14px', marginBottom: '6px' }}>
+              <label style={{ ...labelStyle, margin: 0 }}>Password</label>
+              <button
+                type="button"
+                onClick={() => { setShowForgotModal(true); setForgotSubmitted(false); setForgotEmail(email); }}
+                style={{ background: 'transparent', border: 'none', color: '#8B5E3C', fontSize: '12px', cursor: 'pointer', padding: 0, fontWeight: 600 }}
+              >
+                Forgot Password?
+              </button>
+            </div>
             <input
               type="password" required
               value={password} onChange={e => setPassword(e.target.value)}
@@ -123,6 +149,112 @@ export default function AdminLogin() {
           <a href="/" style={{ color: 'rgba(255,248,236,0.45)', fontSize: '12px', textDecoration: 'none' }}>← Back to website</a>
         </p>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgotModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          zIndex: 9999,
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '16px',
+            maxWidth: '420px',
+            width: '100%',
+            padding: '28px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+          }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#1A0A0F', margin: '0 0 8px' }}>
+              Reset Administrator Password
+            </h2>
+            <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 20px' }}>
+              Enter your registered staff email address to receive password recovery instructions.
+            </p>
+
+            {forgotSubmitted ? (
+              <div>
+                <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#065F46', padding: '14px', borderRadius: '10px', fontSize: '13px', marginBottom: '20px' }}>
+                  If an administrative account exists for <strong>{forgotEmail}</strong>, password reset instructions have been dispatched.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(false)}
+                  style={{
+                    width: '100%',
+                    padding: '11px',
+                    background: '#3C0815',
+                    color: '#FFF8EC',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: 600,
+                    fontSize: '13.5px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Return to Sign In
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPassword}>
+                <label style={labelStyle}>Staff Email</label>
+                <input
+                  type="email"
+                  required
+                  value={forgotEmail}
+                  onChange={e => setForgotEmail(e.target.value)}
+                  placeholder="admin@malwanamkeen.com"
+                  style={inputStyle}
+                  autoFocus
+                />
+                <div style={{ display: 'flex', gap: '10px', marginTop: '22px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotModal(false)}
+                    style={{
+                      flex: 1,
+                      padding: '11px',
+                      background: '#F3F4F6',
+                      color: '#4B5563',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '13.5px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={forgotLoading}
+                    style={{
+                      flex: 2,
+                      padding: '11px',
+                      background: '#3C0815',
+                      color: '#FFF8EC',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontWeight: 600,
+                      fontSize: '13.5px',
+                      cursor: forgotLoading ? 'not-allowed' : 'pointer',
+                      opacity: forgotLoading ? 0.7 : 1,
+                    }}
+                  >
+                    {forgotLoading ? 'Sending…' : 'Send Recovery Link'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

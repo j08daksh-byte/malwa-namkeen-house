@@ -1,7 +1,12 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import dotenv from 'dotenv';
+import path from 'path';
 import { User, type IUser, type UserRole } from '../models/User.ts';
+
+dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true });
 
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
@@ -12,10 +17,9 @@ function getJwtSecret(): string {
     }
     return secret.trim();
   }
-  return secret || 'malwa-namkeen-dev-only-secret-key-2026';
+  return secret?.trim() || 'malwa-namkeen-dev-only-secret-key-2026';
 }
 
-const JWT_SECRET = getJwtSecret();
 const TOKEN_EXPIRY = '7d';
 export const AUTH_COOKIE_NAME = 'malwa_auth_token';
 
@@ -48,7 +52,7 @@ export async function comparePassword(plainText: string, hash: string): Promise<
  * Generate a signed JWT token.
  */
 export function generateToken(payload: AuthPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: TOKEN_EXPIRY });
 }
 
 /**
@@ -56,7 +60,7 @@ export function generateToken(payload: AuthPayload): string {
  */
 export function verifyToken(token: string): AuthPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as AuthPayload;
+    return jwt.verify(token, getJwtSecret()) as AuthPayload;
   } catch {
     return null;
   }
@@ -134,7 +138,7 @@ export async function requireAuth(
 }
 
 /**
- * Middleware: Requires an authenticated user with role === 'admin'.
+ * Middleware: Requires an authenticated user with role === 'admin' or 'super_admin'.
  */
 export async function requireAdmin(
   req: AuthenticatedRequest,
@@ -160,10 +164,50 @@ export async function requireAdmin(
     return;
   }
 
-  if (payload.role !== 'admin') {
+  if (payload.role !== 'admin' && payload.role !== 'super_admin') {
     res.status(403).json({
       success: false,
       message: 'Access denied. Administrator privilege required.',
+    });
+    return;
+  }
+
+  req.user = payload;
+  res.locals.user = payload;
+  next();
+}
+
+/**
+ * Middleware: Requires an authenticated user with role === 'super_admin'.
+ */
+export async function requireSuperAdmin(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  const token = extractToken(req);
+
+  if (!token) {
+    res.status(401).json({
+      success: false,
+      message: 'Authentication required. Please sign in.',
+    });
+    return;
+  }
+
+  const payload = verifyToken(token);
+  if (!payload) {
+    res.status(401).json({
+      success: false,
+      message: 'Invalid or expired session. Please sign in again.',
+    });
+    return;
+  }
+
+  if (payload.role !== 'super_admin') {
+    res.status(403).json({
+      success: false,
+      message: 'Access denied. Super Administrator privilege required.',
     });
     return;
   }

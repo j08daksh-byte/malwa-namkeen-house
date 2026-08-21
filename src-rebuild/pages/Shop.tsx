@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/sections/Footer';
 import ReservationModal from '../components/sections/ReservationModal';
@@ -13,18 +14,74 @@ import SEOHead from '../components/seo/SEOHead';
 import { PRODUCTS as FALLBACK_PRODUCTS, SHOP_CATEGORIES as FALLBACK_CATEGORIES, type Product, type ShopCategory } from '../data/products';
 
 export default function Shop() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
   const [categories, setCategories] = useState<ShopCategory[]>(FALLBACK_CATEGORIES);
   const [loading, setLoading] = useState<boolean>(true);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedSpice, setSelectedSpice] = useState<string>('All');
-  const [sortBy, setSortBy] = useState<string>('featured');
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    () => searchParams.get('category') || 'all'
+  );
+  const [searchQuery, setSearchQuery] = useState<string>(
+    () => searchParams.get('q') || searchParams.get('search') || ''
+  );
+  const [selectedSpice, setSelectedSpice] = useState<string>(
+    () => searchParams.get('spice') || 'All'
+  );
+  const [sortBy, setSortBy] = useState<string>(
+    () => searchParams.get('sort') || 'featured'
+  );
+
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
   const [reservationOpen, setReservationOpen] = useState<boolean>(false);
+
+  // Sync state changes to URL Search Params (replace: true prevents bloating history)
+  const syncToUrl = useCallback(
+    (cat: string, q: string, spice: string, sort: string) => {
+      const nextParams = new URLSearchParams();
+      if (cat && cat !== 'all') nextParams.set('category', cat);
+      if (q && q.trim()) nextParams.set('q', q.trim());
+      if (spice && spice !== 'All') nextParams.set('spice', spice);
+      if (sort && sort !== 'featured') nextParams.set('sort', sort);
+      setSearchParams(nextParams, { replace: true });
+    },
+    [setSearchParams]
+  );
+
+  // Handle URL change from browser navigation (Back / Forward)
+  useEffect(() => {
+    const cat = searchParams.get('category') || 'all';
+    const q = searchParams.get('q') || searchParams.get('search') || '';
+    const spice = searchParams.get('spice') || 'All';
+    const sort = searchParams.get('sort') || 'featured';
+
+    setSelectedCategory(cat);
+    setSearchQuery(q);
+    setSelectedSpice(spice);
+    setSortBy(sort);
+  }, [searchParams]);
+
+  const handleCategoryChange = (cat: string) => {
+    setSelectedCategory(cat);
+    syncToUrl(cat, searchQuery, selectedSpice, sortBy);
+  };
+
+  const handleSearchChange = (q: string) => {
+    setSearchQuery(q);
+    syncToUrl(selectedCategory, q, selectedSpice, sortBy);
+  };
+
+  const handleSpiceChange = (spice: string) => {
+    setSelectedSpice(spice);
+    syncToUrl(selectedCategory, searchQuery, spice, sortBy);
+  };
+
+  const handleSortChange = (sort: string) => {
+    setSortBy(sort);
+    syncToUrl(selectedCategory, searchQuery, selectedSpice, sort);
+  };
 
   const shopStructuredData = {
     '@context': 'https://schema.org',
@@ -122,11 +179,12 @@ export default function Shop() {
       const q = searchQuery.trim().toLowerCase();
       list = list.filter(p =>
         p.name.toLowerCase().includes(q) ||
-        (p.hindiName && p.hindiName.includes(q)) ||
+        (p.hindiName && p.hindiName.toLowerCase().includes(q)) ||
         (p.tagline && p.tagline.toLowerCase().includes(q)) ||
         (p.description && p.description.toLowerCase().includes(q)) ||
         (Array.isArray(p.ingredients) && p.ingredients.some(ing => ing.toLowerCase().includes(q))) ||
-        (p.categoryLabel && p.categoryLabel.toLowerCase().includes(q))
+        (p.categoryLabel && p.categoryLabel.toLowerCase().includes(q)) ||
+        (Array.isArray(p.options) && p.options.some(opt => (opt as any).sku?.toLowerCase().includes(q)))
       );
     }
 
@@ -137,6 +195,10 @@ export default function Shop() {
       list.sort((a, b) => (b.options?.[0]?.price ?? 0) - (a.options?.[0]?.price ?? 0));
     } else if (sortBy === 'rating') {
       list.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+    } else if (sortBy === 'name-asc') {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === 'name-desc') {
+      list.sort((a, b) => b.name.localeCompare(a.name));
     }
 
     return list;
@@ -147,6 +209,7 @@ export default function Shop() {
     setSelectedSpice('All');
     setSearchQuery('');
     setSortBy('featured');
+    setSearchParams(new URLSearchParams(), { replace: true });
   };
 
   return (
@@ -320,13 +383,13 @@ export default function Shop() {
           {/* Filtering & Search Controls */}
           <ShopFilters
             selectedCategory={selectedCategory}
-            onSelectCategory={setSelectedCategory}
+            onSelectCategory={handleCategoryChange}
             searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
+            onSearchChange={handleSearchChange}
             selectedSpice={selectedSpice}
-            onSelectSpice={setSelectedSpice}
+            onSelectSpice={handleSpiceChange}
             sortBy={sortBy}
-            onSortChange={setSortBy}
+            onSortChange={handleSortChange}
             categoryCounts={categoryCounts}
             totalResults={filteredProducts.length}
             categories={categories}

@@ -19,6 +19,7 @@ import {
   Truck,
   CheckCircle2,
   XCircle,
+  ShieldCheck,
 } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/sections/Footer';
@@ -854,6 +855,15 @@ export default function Dashboard() {
               <span>Customer Portal</span>
             </div>
             <nav className="customer-nav">
+              {(customer?.role === 'admin' || customer?.role === 'super_admin') && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/admin/dashboard')}
+                  style={{ color: '#C99A32', fontWeight: 800, background: 'rgba(201, 154, 50, 0.12)' }}
+                >
+                  <ShieldCheck size={16} /> Admin Portal
+                </button>
+              )}
               {navItems.map(item => {
                 const Icon = item.icon;
                 return (
@@ -904,6 +914,31 @@ export default function Dashboard() {
                 </p>
 
                 <div className="customer-overview">
+                  {customer?.role === 'admin' && (
+                    <div
+                      className="overview-card"
+                      style={{
+                        background: '#3C0815',
+                        color: '#FFF8EC',
+                        gridColumn: '1 / -1',
+                        cursor: 'pointer',
+                        border: '1px solid rgba(200, 154, 61, 0.45)',
+                      }}
+                      onClick={() => navigate('/admin/dashboard')}
+                    >
+                      <div className="overview-card__icon" style={{ background: '#F0C74E', color: '#3C0815' }}>
+                        <ShieldCheck size={20} />
+                      </div>
+                      <div>
+                        <h3 style={{ color: '#F0DFA0' }}>Store Administrator Panel</h3>
+                        <p style={{ color: 'rgba(255, 248, 236, 0.75)' }}>
+                          Manage products, inventory variants, categories, incoming orders, coupons, and store settings.
+                        </p>
+                      </div>
+                      <ArrowRight size={18} style={{ marginLeft: 'auto', color: '#F0C74E' }} />
+                    </div>
+                  )}
+
                   <div className="overview-card" onClick={() => go('orders')}>
                     <div className="overview-card__icon"><Package size={20} /></div>
                     <div>

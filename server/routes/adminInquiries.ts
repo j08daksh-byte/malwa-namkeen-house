@@ -2,7 +2,9 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { Inquiry, type InquiryStatus } from '../models/Inquiry.ts';
+import { User } from '../models/User.ts';
 import { requireAdmin, type AuthenticatedRequest } from '../lib/auth.ts';
+import { sendInquiryAcknowledgement, sendNewInquiryAdminAlert } from '../lib/emailService.ts';
 
 const router = Router();
 
@@ -29,6 +31,35 @@ const handlePublicInquiry = async (req: Request, res: Response) => {
       return;
     }
 
+    if (mongoose.connection.readyState !== 1) {
+      const fallbackInquiry = {
+        _id: new mongoose.Types.ObjectId(),
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phone ? String(phone).trim() : '',
+        category: String(category).trim().toLowerCase(),
+        message: message.trim(),
+        status: 'new',
+        createdAt: new Date(),
+      };
+
+      (async () => {
+        try {
+          await sendInquiryAcknowledgement({ inquiry: fallbackInquiry });
+        } catch (err) {
+          console.warn('[Inquiry Acknowledgement Warning]', err);
+        }
+      })();
+
+      res.status(201).json({
+        success: true,
+        message: 'Thank you! Your inquiry has been received. The Malwa Namkeen team will reach out shortly.',
+        referenceId: fallbackInquiry._id.toString().slice(-6).toUpperCase(),
+        inquiryId: fallbackInquiry._id,
+      });
+      return;
+    }
+
     const inquiry = await Inquiry.create({
       name: name.trim(),
       email: email.trim().toLowerCase(),
@@ -37,6 +68,27 @@ const handlePublicInquiry = async (req: Request, res: Response) => {
       message: message.trim(),
       status: 'new',
     });
+
+    // Asynchronous non-blocking email notifications
+    (async () => {
+      try {
+        // 1. Customer Acknowledgement
+        await sendInquiryAcknowledgement({ inquiry });
+
+        // 2. Active Admin Alerts
+        const activeAdmins = await User.find({
+          role: { $in: ['admin', 'super_admin'] },
+          active: true,
+        }).select('email').lean();
+
+        const adminEmails = activeAdmins.map(a => a.email).filter(Boolean);
+        if (adminEmails.length > 0) {
+          await sendNewInquiryAdminAlert({ inquiry, adminEmails });
+        }
+      } catch (notifyErr) {
+        console.warn('[Inquiry Notification Warning] Failed to dispatch inquiry emails:', notifyErr);
+      }
+    })();
 
     res.status(201).json({
       success: true,
