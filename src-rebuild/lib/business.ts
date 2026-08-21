@@ -4,11 +4,11 @@
  */
 
 export const BUSINESS = {
-  name:    'Malwa Namkeen House',
-  tagline: 'Authentic Malwa Namkeens, Sweets & Savouries',
-  email:   'contact@mishtichaat.com',
-  phone:   '+91 90350 56691',
-  whatsappNumber: '919035056691',
+  name:    'MALWA NAMKEEN HOUSE',
+  tagline: 'THE NAMKEEN & SNACKS HUB',
+  email:   'contact@malwanamkeen.com',
+  phone:   '+91 7987732765',
+  whatsappNumber: '917987732765',
   gstNumber:   '29AQWPP5638F2ZO',
   fssaiNumber: '11225302002687',
   address: {

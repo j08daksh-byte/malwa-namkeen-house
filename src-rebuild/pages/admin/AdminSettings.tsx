@@ -70,16 +70,16 @@ interface StoreSettingsData {
 }
 
 const DEFAULT_SETTINGS: StoreSettingsData = {
-  storeName: 'Malwa Namkeen House',
-  tagline: 'Authentic Malwa Namkeens, Sweets & Savouries',
+  storeName: 'MALWA NAMKEEN HOUSE',
+  tagline: 'THE NAMKEEN & SNACKS HUB',
   description: 'Heritage artisanal namkeens, sweets and chivdas extruded by hand and fried in pure cold-pressed groundnut oil.',
   logo: '',
   gstNumber: '29AQWPP5638F2ZO',
   fssaiNumber: '11225302002687',
   contact: {
-    phone: '+91 90350 56691',
+    phone: '+91 7987732765',
     email: 'contact@malwanamkeen.com',
-    whatsappNumber: '919035056691',
+    whatsappNumber: '917987732765',
     address: {
       line1: 'No. 87/4-B, Sulikunte Village',
       line2: 'Sarjapur Main Road, Dommasandra Post',
@@ -113,7 +113,7 @@ const DEFAULT_SETTINGS: StoreSettingsData = {
     shippingPolicy: 'Standard delivery takes 2–4 business days across India. Orders above ₹499 qualify for Free Standard Delivery.',
     refundPolicy: 'Due to the perishable and artisanal nature of our fresh food items, returns are only accepted for damaged packaging or incorrect dispatches.',
     privacyPolicy: 'We respect your privacy and never sell or rent your personal information to third parties.',
-    termsConditions: 'By placing an order on Malwa Namkeen House, you agree to our standard store terms of service.',
+    termsConditions: 'By placing an order on MALWA NAMKEEN HOUSE, you agree to our standard store terms of service.',
   },
 };
 
@@ -520,7 +520,7 @@ export default function AdminSettings() {
                 <input
                   value={settings.contact.whatsappNumber}
                   onChange={e => updateSetting(s => ({ ...s, contact: { ...s.contact, whatsappNumber: e.target.value } }))}
-                  placeholder="919035056691"
+                  placeholder="917987732765"
                   style={inputStyle}
                 />
               </div>

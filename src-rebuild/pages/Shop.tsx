@@ -88,7 +88,7 @@ export default function Shop() {
     '@type': 'CollectionPage',
     name: 'The Malwa Shop — Authentic Artisanal Namkeens',
     url: 'https://malwanamkeen.com/shop',
-    description: 'Shop authentic Ratlami Sev, Ujjaini chivda, khasta mathri, and festive gift boxes from Malwa Namkeen House.',
+    description: 'Shop authentic Ratlami Sev, Ujjaini chivda, khasta mathri, and festive gift boxes from MALWA NAMKEEN HOUSE.',
     breadcrumb: {
       '@type': 'BreadcrumbList',
       itemListElement: [
@@ -365,7 +365,7 @@ export default function Shop() {
 
       <SEOHead
         title="The Malwa Shop — Artisanal Sev, Namkeens & Gifting"
-        description="Shop authentic Ratlami Sev, Ujjaini chivda, khasta mathri, and festive gift boxes from Malwa Namkeen House."
+        description="Shop authentic Ratlami Sev, Ujjaini chivda, khasta mathri, and festive gift boxes from MALWA NAMKEEN HOUSE."
         canonicalPath="/shop"
         structuredData={shopStructuredData}
       />

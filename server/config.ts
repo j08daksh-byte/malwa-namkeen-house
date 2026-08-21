@@ -1,14 +1,14 @@
 /**
- * Centralized business configuration for MishtiChaat.
+ * Centralized business configuration for Malwa Namkeen House.
  * All brand constants live here — never scatter them across components or routes.
  */
 
 export const BUSINESS = {
-  name:        'Malwa Namkeen House',
-  tagline:     'Authentic Malwa Namkeens, Sweets & Savouries',
-  email:       'contact@mishtichaat.com',
-  phone:       '+91 90350 56691',
-  whatsappNumber: '919035056691',
+  name:        'MALWA NAMKEEN HOUSE',
+  tagline:     'THE NAMKEEN & SNACKS HUB',
+  email:       'contact@malwanamkeen.com',
+  phone:       '+91 7987732765',
+  whatsappNumber: '917987732765',
   address: {
     line1:      'No. 87/4-B, Sulikunte Village',
     line2:      'Sarjapur Main Road, Dommasandra Post',

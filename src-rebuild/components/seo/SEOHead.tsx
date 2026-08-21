@@ -11,10 +11,10 @@ export interface SEOHeadProps {
   structuredData?: object | object[];
 }
 
-const DEFAULT_TITLE = 'Malwa Namkeen House — Artisanal Heritage Namkeens, Ratlami Sev & Delicacies';
+const DEFAULT_TITLE = 'MALWA NAMKEEN HOUSE — THE NAMKEEN & SNACKS HUB';
 const DEFAULT_DESC =
   'Authentic Malwa namkeens, small-batch Ratlami Sev, Ujjaini chivda, and festive gifting crafted with traditional spices and 100% pure cold-pressed groundnut oil.';
-const DEFAULT_OG_IMAGE = '/mishtichaat/chaat-plate.jpg';
+const DEFAULT_OG_IMAGE = '/logo.png';
 
 export default function SEOHead({
   title,
@@ -27,7 +27,7 @@ export default function SEOHead({
 }: SEOHeadProps) {
   useEffect(() => {
     // 1. Page Title
-    const fullTitle = title ? `${title} | Malwa Namkeen House` : DEFAULT_TITLE;
+    const fullTitle = title ? `${title} | MALWA NAMKEEN HOUSE` : DEFAULT_TITLE;
     document.title = fullTitle;
 
     // 2. Meta Tag Helper
@@ -55,7 +55,7 @@ export default function SEOHead({
     setMetaTag('property', 'og:url', canonicalUrl);
     setMetaTag('property', 'og:type', ogType);
     setMetaTag('property', 'og:image', absoluteOgImage);
-    setMetaTag('property', 'og:site_name', 'Malwa Namkeen House');
+    setMetaTag('property', 'og:site_name', 'MALWA NAMKEEN HOUSE');
 
     // Twitter Card
     setMetaTag('name', 'twitter:card', 'summary_large_image');

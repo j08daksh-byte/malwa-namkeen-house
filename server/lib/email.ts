@@ -23,7 +23,7 @@ function getResend(): Resend | null {
   return _resend;
 }
 
-const FROM_EMAIL  = process.env.RESEND_FROM_EMAIL       ?? `no-reply@mishtichaat.com`;
+const FROM_EMAIL  = process.env.RESEND_FROM_EMAIL       ?? `no-reply@malwanamkeen.com`;
 const ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL ?? BUSINESS.email;
 
 // ── HTML safety ─────────────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ function wrap(title: string, body: string, isDark = false): string {
             ${esc(BUSINESS.name)}
           </p>
           <p style="margin:4px 0 0;font-size:11px;color:rgba(255,248,236,0.60);letter-spacing:0.18em;text-transform:uppercase;">
-            With Love From Banaras
+            ${esc(BUSINESS.tagline)}
           </p>
         </td></tr>
 
@@ -209,7 +209,7 @@ export async function sendContactAdminEmail(d: ContactEmailData): Promise<EmailR
       ${esc(d.message)}
     </p>
     <p style="margin:24px 0 0;">
-      <a href="https://wa.me/${esc(BUSINESS.whatsappNumber)}?text=${encodeURIComponent(`Hello ${d.customerName}, thank you for reaching out to MishtiChaat (Ref: ${d.referenceId}). We are happy to assist you!`)}"
+      <a href="https://wa.me/${esc(BUSINESS.whatsappNumber)}?text=${encodeURIComponent(`Hello ${d.customerName}, thank you for reaching out to MALWA NAMKEEN HOUSE (Ref: ${d.referenceId}). We are happy to assist you!`)}"
          style="display:inline-block;background:#25D366;color:#fff;text-decoration:none;
                 padding:10px 22px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">
         Reply via WhatsApp
@@ -295,7 +295,7 @@ export async function sendReservationAdminEmail(d: ReservationEmailData): Promis
       ['Location',       d.locationId],
     ])}
     <p style="margin:24px 0 0;">
-      <a href="https://wa.me/${esc(BUSINESS.whatsappNumber.replace(d.phone, ''))}${encodeURIComponent(d.phone.replace(/\D/g, ''))}?text=${encodeURIComponent(`Hello ${d.customerName}, this is MishtiChaat confirming your reservation enquiry (Ref: ${d.referenceId}) for ${d.reservationDate} at ${d.preferredTime}.`)}"
+      <a href="https://wa.me/${esc(BUSINESS.whatsappNumber.replace(d.phone, ''))}${encodeURIComponent(d.phone.replace(/\D/g, ''))}?text=${encodeURIComponent(`Hello ${d.customerName}, this is MALWA NAMKEEN HOUSE confirming your enquiry (Ref: ${d.referenceId}) for ${d.reservationDate} at ${d.preferredTime}.`)}"
          style="display:inline-block;background:#25D366;color:#fff;text-decoration:none;
                 padding:10px 22px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">
         Reply via WhatsApp

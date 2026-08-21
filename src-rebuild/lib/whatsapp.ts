@@ -3,7 +3,7 @@
  * All URLs use wa.me/ click-to-chat — no Meta API credentials required.
  */
 
-const WA_NUMBER = '919035056691';
+const WA_NUMBER = '917987732765';
 const BASE      = `https://wa.me/${WA_NUMBER}`;
 
 export function buildWaUrl(message: string): string {

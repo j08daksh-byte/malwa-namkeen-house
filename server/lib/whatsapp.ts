@@ -15,13 +15,13 @@ export function buildWhatsAppUrl(message: string): string {
 
 /** Pre-built deep-link URLs for each enquiry context. */
 export const WA_URLS = {
-  general:    buildWhatsAppUrl('Hello, I have a question about MishtiChaat.'),
-  reservation:buildWhatsAppUrl('Hello, I would like to follow up on my reservation enquiry at MishtiChaat.'),
-  catering:   buildWhatsAppUrl('Hello, I would like to enquire about catering services at MishtiChaat.'),
-  gifting:    buildWhatsAppUrl('Hello, I would like to enquire about gifting options at MishtiChaat.'),
-  birthday:   buildWhatsAppUrl('Hello, I would like to enquire about a birthday party booking at MishtiChaat.'),
-  bulkOrders: buildWhatsAppUrl('Hello, I would like to place a bulk order with MishtiChaat.'),
-  corporate:  buildWhatsAppUrl('Hello, I would like to enquire about corporate gifting at MishtiChaat.'),
+  general:    buildWhatsAppUrl('Hello, I have a question about Malwa Namkeen House.'),
+  reservation:buildWhatsAppUrl('Hello, I would like to follow up on my enquiry at Malwa Namkeen House.'),
+  catering:   buildWhatsAppUrl('Hello, I would like to enquire about bulk namkeen & catering services at Malwa Namkeen House.'),
+  gifting:    buildWhatsAppUrl('Hello, I would like to enquire about festive gifting options at Malwa Namkeen House.'),
+  birthday:   buildWhatsAppUrl('Hello, I would like to enquire about event savouries at Malwa Namkeen House.'),
+  bulkOrders: buildWhatsAppUrl('Hello, I would like to place a bulk order with Malwa Namkeen House.'),
+  corporate:  buildWhatsAppUrl('Hello, I would like to enquire about corporate gifting at Malwa Namkeen House.'),
 } as const;
 
 /** Returns the appropriate WhatsApp URL for a given enquiry category. */

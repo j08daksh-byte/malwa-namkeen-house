@@ -300,9 +300,9 @@ export default function Footer() {
           <div className="ft-col-brand">
             <div style={{ marginBottom: '16px' }}>
               <img
-                src="/mishtichaat/logo.svg"
-                alt="Malwa Namkeen House"
-                style={{ height: '42px', width: 'auto', filter: 'brightness(0) invert(1)', opacity: 0.88 }}
+                src="/logo-gold.png"
+                alt="MALWA NAMKEEN HOUSE"
+                style={{ height: '48px', width: 'auto', opacity: 0.92 }}
                 onError={e => { e.currentTarget.style.display = 'none'; }}
               />
             </div>
@@ -384,9 +384,9 @@ export default function Footer() {
         {/* ── Bottom bar ── */}
         <div className="ft-bottom">
           <p className="ft-bottom-copy">
-            © {new Date().getFullYear()} Malwa Namkeen House. All rights reserved.
+            © {new Date().getFullYear()} MALWA NAMKEEN HOUSE. All rights reserved.
           </p>
-          <p className="ft-bottom-tagline">Made with heritage &amp; heart in Malwa.</p>
+          <p className="ft-bottom-tagline">THE NAMKEEN &amp; SNACKS HUB</p>
         </div>
 
       </div>

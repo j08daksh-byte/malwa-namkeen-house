@@ -274,7 +274,7 @@ export default function Location() {
         <span className="lc-eyebrow">Visit Us</span>
         <h2 className="lc-h2">Our Bengaluru Locations</h2>
         <p className="lc-sub">
-          Bringing the warmth of Banaras to Bengaluru — one neighbourhood at a time.
+          Bringing the authentic taste of Malwa to every neighbourhood — one delivery at a time.
         </p>
       </header>
 

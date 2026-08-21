@@ -92,7 +92,7 @@ export default function AdminLogin() {
       <div style={{ width: '100%', maxWidth: '400px' }}>
         {/* Logo area */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ color: '#F0C74E', fontSize: '22px', fontWeight: 800, letterSpacing: '0.04em' }}>Malwa Namkeen House</div>
+          <div style={{ color: '#F0C74E', fontSize: '22px', fontWeight: 800, letterSpacing: '0.04em' }}>MALWA NAMKEEN HOUSE</div>
           <div style={{ color: 'rgba(255,248,236,0.45)', fontSize: '12px', marginTop: '4px', letterSpacing: '0.10em', textTransform: 'uppercase' }}>Admin Portal</div>
         </div>
 

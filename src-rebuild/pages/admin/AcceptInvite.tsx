@@ -133,7 +133,7 @@ export default function AcceptInvite() {
             Join Admin Team
           </h1>
           <p style={{ fontSize: '13px', color: '#D4AF37', opacity: 0.8, margin: 0 }}>
-            Malwa Namkeen House Administration Portal
+            MALWA NAMKEEN HOUSE Administration Portal
           </p>
         </div>
 
