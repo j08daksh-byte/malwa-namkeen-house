@@ -11,6 +11,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabase } from './supabase.ts';
+import { verifyToken, extractToken } from './auth.ts';
 
 export interface AdminUser {
   id:        string;
@@ -31,23 +32,45 @@ function getAnonClient() {
   if (_anonClient) return _anonClient;
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_ANON_KEY;
-  if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY must be set for admin auth.');
+  if (!url || !key) return null;
   _anonClient = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   return _anonClient;
 }
 
 export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) {
+  const token = extractToken(req);
+  if (!token) {
     res.status(401).json({ success: false, message: 'Authentication required.' });
     return;
   }
 
-  const token = header.slice(7);
+  // 1. Try MongoDB Admin Token
+  const mongoPayload = verifyToken(token);
+  if (mongoPayload) {
+    if (mongoPayload.role !== 'admin') {
+      res.status(403).json({ success: false, message: 'Access denied. Administrator privileges required.' });
+      return;
+    }
+
+    res.locals.adminUser = {
+      id: mongoPayload.userId,
+      email: mongoPayload.email,
+      full_name: mongoPayload.email.split('@')[0],
+      role: 'super_admin',
+    };
+    next();
+    return;
+  }
+
+  // 2. Try Supabase Session Token
+  const anonClient = getAnonClient();
+  if (!anonClient) {
+    res.status(401).json({ success: false, message: 'Invalid or expired session.' });
+    return;
+  }
 
   try {
-    // 1. Verify the token is a valid Supabase session token
-    const { data: { user }, error: authError } = await getAnonClient().auth.getUser(token);
+    const { data: { user }, error: authError } = await anonClient.auth.getUser(token);
     if (authError || !user) {
       res.status(401).json({ success: false, message: 'Invalid or expired session.' });
       return;

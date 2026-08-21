@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/sections/Footer';
 import ReservationModal from '../components/sections/ReservationModal';
@@ -9,9 +9,15 @@ import ProductQuickViewModal from '../components/shop/ProductQuickViewModal';
 import CartDrawer from '../components/shop/CartDrawer';
 import CheckoutModal from '../components/shop/CheckoutModal';
 import ShopToast from '../components/shop/ShopToast';
-import { PRODUCTS, type Product } from '../data/products';
+import SEOHead from '../components/seo/SEOHead';
+import { PRODUCTS as FALLBACK_PRODUCTS, SHOP_CATEGORIES as FALLBACK_CATEGORIES, type Product, type ShopCategory } from '../data/products';
 
 export default function Shop() {
+  const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
+  const [categories, setCategories] = useState<ShopCategory[]>(FALLBACK_CATEGORIES);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [apiError, setApiError] = useState<string | null>(null);
+
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedSpice, setSelectedSpice] = useState<string>('All');
@@ -20,28 +26,90 @@ export default function Shop() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
   const [reservationOpen, setReservationOpen] = useState<boolean>(false);
 
-  // Set document title & scroll to top on mount
+  const shopStructuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: 'The Malwa Shop — Authentic Artisanal Namkeens',
+    url: 'https://malwanamkeen.com/shop',
+    description: 'Shop authentic Ratlami Sev, Ujjaini chivda, khasta mathri, and festive gift boxes from Malwa Namkeen House.',
+    breadcrumb: {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://malwanamkeen.com' },
+        { '@type': 'ListItem', position: 2, name: 'Shop', item: 'https://malwanamkeen.com/shop' },
+      ],
+    },
+  };
+
+  // Scroll to top on mount
   useEffect(() => {
-    document.title = 'The Malwa Shop — Artisanal Sev, Namkeens & Gifting | Malwa Namkeen House';
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, []);
 
+  // Fetch Live Catalog Data from MongoDB
+  const fetchLiveCatalog = useCallback(async () => {
+    setLoading(true);
+    setApiError(null);
+    try {
+      const [catRes, prodRes] = await Promise.all([
+        fetch('/api/categories'),
+        fetch('/api/products?limit=100'),
+      ]);
+
+      if (catRes.ok) {
+        const catData = await catRes.json();
+        if (catData.success && Array.isArray(catData.categories) && catData.categories.length > 0) {
+          const formattedCats: ShopCategory[] = [
+            {
+              id: 'all',
+              label: 'All Delicacies',
+              shortLabel: 'All',
+              description: 'Explore our complete heritage collection of small-batch savouries, sweets, and curated gift boxes.',
+            },
+            ...catData.categories.map((c: any) => ({
+              id: c.slug || c.id,
+              label: c.name || c.label,
+              shortLabel: c.shortLabel || c.name,
+              description: c.description || 'Artisanal authentic recipe extruded and prepared in pure groundnut oil.',
+            })),
+          ];
+          setCategories(formattedCats);
+        }
+      }
+
+      if (prodRes.ok) {
+        const prodData = await prodRes.json();
+        if (prodData.success && Array.isArray(prodData.products) && prodData.products.length > 0) {
+          setProducts(prodData.products);
+        }
+      }
+    } catch (err: unknown) {
+      console.warn('[Shop Catalog] Using fallback catalog data:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLiveCatalog();
+  }, [fetchLiveCatalog]);
+
   // Compute counts per category
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: PRODUCTS.length };
-    for (const p of PRODUCTS) {
+    const counts: Record<string, number> = { all: products.length };
+    for (const p of products) {
       counts[p.category] = (counts[p.category] ?? 0) + 1;
     }
     return counts;
-  }, []);
+  }, [products]);
 
   // Filter and sort items
   const filteredProducts = useMemo(() => {
-    let list = [...PRODUCTS];
+    let list = [...products];
 
     // Category filter
     if (selectedCategory !== 'all') {
-      list = list.filter(p => p.category === selectedCategory);
+      list = list.filter(p => p.category === selectedCategory || (p as any).categoryId === selectedCategory);
     }
 
     // Spice level filter
@@ -55,24 +123,24 @@ export default function Shop() {
       list = list.filter(p =>
         p.name.toLowerCase().includes(q) ||
         (p.hindiName && p.hindiName.includes(q)) ||
-        p.tagline.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q) ||
-        p.ingredients.some(ing => ing.toLowerCase().includes(q)) ||
-        p.categoryLabel.toLowerCase().includes(q)
+        (p.tagline && p.tagline.toLowerCase().includes(q)) ||
+        (p.description && p.description.toLowerCase().includes(q)) ||
+        (Array.isArray(p.ingredients) && p.ingredients.some(ing => ing.toLowerCase().includes(q))) ||
+        (p.categoryLabel && p.categoryLabel.toLowerCase().includes(q))
       );
     }
 
     // Sort order
     if (sortBy === 'price-asc') {
-      list.sort((a, b) => a.options[0].price - b.options[0].price);
+      list.sort((a, b) => (a.options?.[0]?.price ?? 0) - (b.options?.[0]?.price ?? 0));
     } else if (sortBy === 'price-desc') {
-      list.sort((a, b) => b.options[0].price - a.options[0].price);
+      list.sort((a, b) => (b.options?.[0]?.price ?? 0) - (a.options?.[0]?.price ?? 0));
     } else if (sortBy === 'rating') {
-      list.sort((a, b) => b.rating - a.rating);
+      list.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
     }
 
     return list;
-  }, [selectedCategory, selectedSpice, searchQuery, sortBy]);
+  }, [products, selectedCategory, selectedSpice, searchQuery, sortBy]);
 
   const handleResetFilters = () => {
     setSelectedCategory('all');
@@ -108,6 +176,40 @@ export default function Shop() {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: clamp(20px, 2.5vw, 32px);
+        }
+
+        /* ── Skeleton Loading ─────────────────────────────────── */
+        .shop-skeleton-card {
+          background: #FFFDF8;
+          border: 1px solid rgba(200, 154, 61, 0.2);
+          border-radius: 18px;
+          overflow: hidden;
+          padding-bottom: 20px;
+          animation: pulse 1.5s infinite ease-in-out;
+        }
+
+        .shop-skeleton-media {
+          width: 100%;
+          aspect-ratio: 1.22 / 1;
+          background: #EAE3D2;
+        }
+
+        .shop-skeleton-content {
+          padding: 18px 20px 0;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .shop-skeleton-line {
+          height: 14px;
+          border-radius: 6px;
+          background: #EAE3D2;
+        }
+
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.55; }
         }
 
         /* ── Empty Search Results ─────────────────────────────── */
@@ -198,6 +300,13 @@ export default function Shop() {
         }
       `}</style>
 
+      <SEOHead
+        title="The Malwa Shop — Artisanal Sev, Namkeens & Gifting"
+        description="Shop authentic Ratlami Sev, Ujjaini chivda, khasta mathri, and festive gift boxes from Malwa Namkeen House."
+        canonicalPath="/shop"
+        structuredData={shopStructuredData}
+      />
+
       {/* Navbar with Reserve Modal Trigger */}
       <Navbar onReserve={() => setReservationOpen(true)} />
 
@@ -220,10 +329,25 @@ export default function Shop() {
             onSortChange={setSortBy}
             categoryCounts={categoryCounts}
             totalResults={filteredProducts.length}
+            categories={categories}
           />
 
-          {/* Products Grid or Empty State */}
-          {filteredProducts.length === 0 ? (
+          {/* Products Grid or Loading Skeleton or Empty State */}
+          {loading ? (
+            <div className="shop-grid" role="status" aria-label="Loading delicacies">
+              {[1, 2, 3, 4, 5, 6].map(n => (
+                <div key={n} className="shop-skeleton-card">
+                  <div className="shop-skeleton-media" />
+                  <div className="shop-skeleton-content">
+                    <div className="shop-skeleton-line" style={{ width: '40%' }} />
+                    <div className="shop-skeleton-line" style={{ width: '80%', height: '20px' }} />
+                    <div className="shop-skeleton-line" style={{ width: '60%' }} />
+                    <div className="shop-skeleton-line" style={{ width: '100%', height: '36px', marginTop: '12px' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredProducts.length === 0 ? (
             <div className="shop-empty-state" role="status">
               <div className="shop-empty-icon" aria-hidden="true">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">

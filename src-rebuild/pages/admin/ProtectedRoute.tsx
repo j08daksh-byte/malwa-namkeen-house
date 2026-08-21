@@ -22,6 +22,35 @@ export default function ProtectedRoute({ children }: Props) {
     let cancelled = false;
 
     async function check() {
+      // 1. Try MongoDB admin session
+      try {
+        const token = localStorage.getItem('malwa_admin_token');
+        const res = await fetch('/api/auth/admin/verify', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.admin) {
+            if (!cancelled) {
+              setState({
+                status: 'ok',
+                admin: {
+                  id: data.admin.userId || data.admin.id,
+                  email: data.admin.email,
+                  full_name: data.admin.name || data.admin.email.split('@')[0],
+                  role: 'super_admin',
+                },
+              });
+            }
+            return;
+          }
+        }
+      } catch {
+        // Fallback to Supabase
+      }
+
+      // 2. Try Supabase session
       const { data } = await supabase.auth.getSession();
       if (!data.session) { if (!cancelled) setState({ status: 'denied' }); return; }
 

@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 type HeritageCardProps = {
   className: string;
   image: string;
@@ -170,7 +172,7 @@ export default function HeritageSpecialities() {
             <span className="heritage-editorial__eyebrow">Our Heritage</span>
             <h2>Flavours shaped by <em>tradition</em></h2>
           </div>
-          <a className="heritage-editorial__view-all" href="#menu">View all flavours</a>
+          <Link className="heritage-editorial__view-all" to="/shop">View all flavours</Link>
         </header>
 
         <div className="heritage-editorial__grid">

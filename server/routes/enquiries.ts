@@ -18,6 +18,7 @@ import {
   insertKatering,
   insertGifting,
 } from '../lib/enquiries.ts';
+import { Inquiry } from '../models/Inquiry.ts';
 
 import {
   sendContactCustomerEmail,
@@ -108,15 +109,43 @@ router.post('/contact', async (req: Request, res: Response) => {
     id = await insertContact(row);
   } catch (err: unknown) {
     if (err instanceof Error && err.message.includes('SUPABASE_')) {
-      dbConfigError(res); return;
+      // Fallback: save to MongoDB directly
+      try {
+        const mongoInq = await Inquiry.create({
+          name: parsed.name,
+          email: parsed.email,
+          phone: parsed.phone ?? '',
+          category: parsed.category,
+          message: parsed.message,
+          status: 'new',
+        });
+        id = String(mongoInq._id);
+      } catch {
+        dbConfigError(res); return;
+      }
+    } else {
+      console.error('[Contact] insert failed:', err instanceof Error ? err.message : err);
+      res.status(500).json({
+        success: false,
+        message: 'Could not save your enquiry. Please try again or reach us via WhatsApp.',
+        whatsappUrl: WA_URLS.general,
+      });
+      return;
     }
-    console.error('[Contact] insert failed:', err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: 'Could not save your enquiry. Please try again or reach us via WhatsApp.',
-      whatsappUrl: WA_URLS.general,
+  }
+
+  // Also sync to MongoDB Inquiry model
+  try {
+    await Inquiry.create({
+      name: parsed.name,
+      email: parsed.email,
+      phone: parsed.phone ?? '',
+      category: parsed.category,
+      message: parsed.message,
+      status: 'new',
     });
-    return;
+  } catch {
+    // Non-blocking sync
   }
 
   // Send emails — failures do NOT block the success response

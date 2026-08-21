@@ -1,31 +1,1372 @@
-import { useState, type FormEvent } from 'react';
+import React, { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, MapPin, CreditCard, UserRound, LogOut, Plus, Pencil, Trash2, Check, ArrowRight, X, LockKeyhole, ChevronRight } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Package,
+  MapPin,
+  UserRound,
+  LogOut,
+  Plus,
+  Pencil,
+  Trash2,
+  Check,
+  ArrowRight,
+  X,
+  LockKeyhole,
+  ChevronRight,
+  ExternalLink,
+  Clock,
+  Truck,
+  CheckCircle2,
+  XCircle,
+} from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
+import Footer from '../components/sections/Footer';
+import SEOHead from '../components/seo/SEOHead';
 import { useCustomerSession } from '../components/layout/CustomerSessionContext';
 
-type Section = 'dashboard' | 'orders' | 'addresses' | 'payments' | 'details';
-type Address = { id: number; name: string; phone: string; line: string; city: string; state: string; pin: string; default?: boolean };
-const blankAddress = { id: 0, name: '', phone: '', line: '', city: '', state: '', pin: '' };
+type Section = 'dashboard' | 'orders' | 'addresses' | 'details';
+
+export interface CustomerAddress {
+  _id?: string;
+  name: string;
+  phone: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  landmark?: string;
+  isDefault?: boolean;
+}
+
+export interface CustomerOrder {
+  _id: string;
+  orderNumber: string;
+  items: Array<{
+    productName: string;
+    variantLabel: string;
+    sku?: string;
+    price: number;
+    quantity: number;
+    itemTotal: number;
+    image?: string;
+  }>;
+  subtotal: number;
+  discount: number;
+  discountCode?: string;
+  shipping: number;
+  total: number;
+  shippingAddress: CustomerAddress;
+  orderStatus: string;
+  paymentStatus: string;
+  shipmentStatus: string;
+  trackingInfo?: {
+    courierName?: string;
+    trackingNumber?: string;
+    trackingUrl?: string;
+  };
+  createdAt: string;
+}
+
+const blankAddress: CustomerAddress = {
+  name: '',
+  phone: '',
+  addressLine1: '',
+  addressLine2: '',
+  city: '',
+  state: '',
+  pincode: '',
+  landmark: '',
+  isDefault: false,
+};
 
 export default function Dashboard() {
-  const navigate = useNavigate(); const { customer, signOut, updateProfile } = useCustomerSession();
-  const [section, setSection] = useState<Section>('dashboard'); const [addresses, setAddresses] = useState<Address[]>([]); const [editing, setEditing] = useState<Address | null>(null); const [notice, setNotice] = useState('');
-  const customerName = customer?.name || 'Guest';
-  const go = (next: Section) => { setSection(next); setNotice(''); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const saveAddress = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const data = new FormData(event.currentTarget); const address: Address = { id: editing?.id || Date.now(), name: String(data.get('name')), phone: String(data.get('phone')), line: String(data.get('line')), city: String(data.get('city')), state: String(data.get('state')), pin: String(data.get('pin')), default: editing?.default || addresses.length === 0 }; setAddresses(current => editing ? current.map(item => item.id === address.id ? address : item) : [...current, address]); setEditing(null); setNotice(editing ? 'Address updated.' : 'Address saved.'); };
-  const updateDetails = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const data = new FormData(event.currentTarget); updateProfile({ name: String(data.get('name')), email: String(data.get('email')), phone: String(data.get('phone')) }); setNotice('Your account details have been updated in this browser.'); };
-  const navItems: { id: Section; label: string; icon: typeof LayoutDashboard }[] = [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }, { id: 'orders', label: 'Order History', icon: Package }, { id: 'addresses', label: 'Saved Addresses', icon: MapPin }, { id: 'payments', label: 'Payment Methods', icon: CreditCard }, { id: 'details', label: 'Account Details', icon: UserRound }];
-  if (!customer) { navigate('/account', { replace: true }); return null; }
-  return <><Navbar /><main className="customer-dashboard"><style>{`
-    .customer-dashboard{min-height:calc(100dvh - 68px);padding:clamp(26px,4vw,58px) clamp(16px,4vw,48px) 76px;background:var(--bg-parchment)}.customer-shell{width:min(100%,1200px);margin:auto;display:grid;grid-template-columns:245px minmax(0,1fr);gap:clamp(28px,4vw,62px)}.customer-sidebar{height:max-content;padding:23px 16px;border:1px solid var(--border-soft);background:var(--bg-ivory);box-shadow:0 12px 30px rgba(61,0,7,.05)}.customer-sidebar__brand{padding:5px 10px 21px;color:var(--brand-maroon);font:700 21px 'Cormorant Garamond','Playfair Display',Georgia,serif;border-bottom:1px solid var(--border-soft)}.customer-sidebar__brand span{display:block;margin-top:3px;color:var(--gold);font:800 9px Inter,sans-serif;letter-spacing:.15em;text-transform:uppercase}.customer-nav{display:grid;gap:4px;padding-top:17px}.customer-nav button{display:flex;align-items:center;gap:11px;width:100%;padding:11px 10px;border:0;border-radius:3px;background:transparent;color:var(--text-muted);font:600 13px Inter,sans-serif;text-align:left;cursor:pointer;transition:background .18s,color .18s}.customer-nav button:hover{background:var(--bg-card-alt);color:var(--brand-maroon)}.customer-nav button.is-active{background:var(--brand-maroon);color:var(--text-on-dark)}.customer-nav button svg{width:17px;stroke-width:1.6}.customer-logout{display:flex;align-items:center;gap:10px;width:calc(100% - 20px);margin:20px 10px 0;padding:15px 0 2px;border:0;border-top:1px solid var(--border-soft);background:transparent;color:var(--text-muted);font:700 11px Inter,sans-serif;letter-spacing:.09em;text-transform:uppercase;cursor:pointer;transition:color .18s}.customer-logout:hover{color:var(--brand-maroon)}.customer-content{min-width:0}.customer-eyebrow{color:var(--gold);font:800 10px Inter,sans-serif;letter-spacing:.19em;text-transform:uppercase}.customer-title{margin:8px 0 11px;color:var(--brand-maroon);font:600 clamp(43px,5vw,64px)/.92 'Cormorant Garamond','Playfair Display',Georgia,serif;letter-spacing:-.045em}.customer-lede{max-width:590px;color:var(--text-muted);font-size:14px;line-height:1.7}.customer-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:36px}.overview-card{display:flex;align-items:flex-start;gap:14px;padding:21px;border:1px solid var(--border-soft);background:var(--bg-ivory);text-align:left;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s}.overview-card:hover{transform:translateY(-3px);border-color:var(--border-gold);box-shadow:0 13px 25px rgba(61,0,7,.08)}.overview-card__icon{width:38px;height:38px;display:grid;place-items:center;flex:none;border-radius:50%;background:var(--maroon-light);color:var(--brand-maroon)}.overview-card__icon svg{width:18px;stroke-width:1.5}.overview-card h3{color:var(--brand-maroon);font:600 23px/1 'Cormorant Garamond','Playfair Display',Georgia,serif}.overview-card p{margin-top:6px;color:var(--text-muted);font-size:12px;line-height:1.5}.content-section{margin-top:45px}.section-heading{display:flex;align-items:end;justify-content:space-between;gap:20px;margin-bottom:17px}.section-heading h2{color:var(--brand-maroon);font:600 35px/1 'Cormorant Garamond','Playfair Display',Georgia,serif;letter-spacing:-.03em}.section-heading p{color:var(--text-muted);font-size:13px}.empty-panel{display:grid;place-items:center;min-height:265px;padding:35px;text-align:center;border:1px solid var(--border-soft);background:var(--bg-ivory)}.empty-panel__icon{width:52px;height:52px;display:grid;place-items:center;margin-bottom:15px;border-radius:50%;background:var(--maroon-light);color:var(--gold)}.empty-panel h3{color:var(--brand-maroon);font:600 29px/1 'Cormorant Garamond','Playfair Display',Georgia,serif}.empty-panel p{max-width:360px;margin-top:9px;color:var(--text-muted);font-size:13px;line-height:1.6}.brand-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;margin-top:22px;padding:13px 19px;border:0;border-radius:999px;background:var(--brand-maroon);color:var(--text-on-dark);font:800 10px Inter,sans-serif;letter-spacing:.13em;text-decoration:none;text-transform:uppercase;cursor:pointer;transition:background .18s,transform .18s}.brand-button:hover{background:var(--maroon-hover);transform:translateY(-1px)}.section-action{margin:0;padding:11px 16px;background:var(--brand-maroon)}.address-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.address-card{position:relative;padding:23px;border:1px solid var(--border-soft);background:var(--bg-ivory)}.address-card--default{border-color:var(--border-gold)}.address-card__tag{display:inline-flex;align-items:center;gap:4px;margin-bottom:14px;color:var(--gold);font:800 9px Inter,sans-serif;letter-spacing:.12em;text-transform:uppercase}.address-card h3{color:var(--brand-maroon);font:600 23px/1 'Cormorant Garamond','Playfair Display',Georgia,serif}.address-card p{margin-top:8px;color:var(--text-muted);font-size:13px;line-height:1.55}.address-card__actions{display:flex;gap:14px;margin-top:18px}.text-action{padding:0;border:0;background:transparent;color:var(--brand-maroon);font:700 11px Inter,sans-serif;text-decoration:underline;text-underline-offset:3px;cursor:pointer}.text-action--muted{color:var(--text-muted)}.dialog-backdrop{position:fixed;z-index:600;inset:0;display:grid;place-items:center;padding:18px;background:rgba(42,0,5,.48)}.address-dialog{width:min(100%,590px);max-height:calc(100dvh - 36px);overflow:auto;padding:28px;background:var(--bg-ivory);box-shadow:0 22px 60px rgba(42,0,5,.25)}.dialog-heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:23px}.dialog-heading h2{color:var(--brand-maroon);font:600 34px/1 'Cormorant Garamond','Playfair Display',Georgia,serif}.dialog-close{display:grid;place-items:center;width:34px;height:34px;border:1px solid var(--border-soft);border-radius:50%;background:transparent;color:var(--brand-maroon);cursor:pointer}.profile-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.profile-form--single{grid-template-columns:1fr}.profile-field{display:grid;gap:7px}.profile-field label{color:var(--text-dark);font:800 10px Inter,sans-serif;letter-spacing:.12em;text-transform:uppercase}.profile-field input{width:100%;height:47px;padding:0 13px;border:1px solid var(--border-soft);outline:0;background:var(--bg-card);color:var(--text-dark);font:500 14px Inter,sans-serif}.profile-field input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(212,170,69,.12)}.profile-field--wide{grid-column:1/-1}.notice{display:flex;align-items:center;gap:8px;margin:19px 0 0;padding:11px 13px;border:1px solid rgba(100,130,79,.36);background:#F7FBF1;color:#466536;font-size:12px}.password-card{margin-top:20px;padding:25px;border:1px solid var(--border-soft);background:var(--bg-card-alt)}.password-card h3{color:var(--brand-maroon);font:600 27px/1 'Cormorant Garamond','Playfair Display',Georgia,serif}.password-card p{margin:7px 0 19px;color:var(--text-muted);font-size:12px}.password-card form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.payment-note{margin-top:17px;color:var(--text-light);font-size:11px;text-align:center}.dashboard-card{margin-top:37px}.customer-breadcrumb{display:flex;align-items:center;gap:7px;color:var(--text-light);font:700 10px Inter,sans-serif;letter-spacing:.11em;text-transform:uppercase}.customer-breadcrumb span{color:var(--gold)}@media(max-width:850px){.customer-shell{grid-template-columns:1fr;gap:26px}.customer-sidebar{position:sticky;top:78px;z-index:2;display:flex;align-items:center;padding:10px;overflow-x:auto}.customer-sidebar__brand{display:none}.customer-nav{display:flex;gap:5px;padding:0}.customer-nav button{width:max-content;white-space:nowrap;padding:10px 12px}.customer-logout{width:max-content;margin:0 4px;padding:10px 12px;border:0;white-space:nowrap}.customer-overview{margin-top:29px}.content-section{margin-top:36px}}@media(max-width:540px){.customer-dashboard{padding:24px 16px 54px}.customer-title{font-size:46px}.customer-overview,.address-grid{grid-template-columns:1fr}.overview-card{padding:18px}.section-heading{align-items:flex-start;flex-direction:column}.section-heading h2{font-size:32px}.section-action{margin-top:0}.empty-panel{min-height:235px;padding:25px}.profile-form,.password-card form{grid-template-columns:1fr}.profile-field--wide{grid-column:auto}.address-dialog{padding:23px 18px}.customer-nav button{font-size:12px}.customer-nav button svg{width:16px}.customer-lede{font-size:13px}}
-  `}</style><div className="customer-shell"><aside className="customer-sidebar" aria-label="Customer account navigation"><div className="customer-sidebar__brand">MALWA<span>Customer account</span></div><nav className="customer-nav">{navItems.map(item=>{const Icon=item.icon;return <button key={item.id} onClick={()=>go(item.id)} className={section===item.id?'is-active':''}><Icon/>{item.label}</button>;})}</nav><button className="customer-logout" onClick={()=>{signOut();navigate('/');}}><LogOut size={16}/> Logout</button></aside><section className="customer-content">{section==='dashboard'&&<DashboardHome name={customerName} onNavigate={go}/>} {section==='orders'&&<Orders/>} {section==='addresses'&&<Addresses addresses={addresses} onAdd={()=>setEditing(blankAddress)} onEdit={setEditing} onDelete={id=>setAddresses(current=>current.filter(item=>item.id!==id))} onDefault={id=>setAddresses(current=>current.map(item=>({...item,default:item.id===id})))} />} {section==='payments'&&<Payments/>} {section==='details'&&<Details customerName={customerName} customer={customer} notice={notice} onSave={updateDetails} onPassword={()=>setNotice('Password changes will be available when secure customer authentication launches.')} />}{notice&&section!=='details'&&<div className="notice"><Check size={16}/>{notice}</div>}</section></div>{editing&&<div className="dialog-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setEditing(null);}}><div className="address-dialog" role="dialog" aria-modal="true" aria-label="Address form"><div className="dialog-heading"><h2>{editing.id?'Edit address':'New address'}</h2><button className="dialog-close" onClick={()=>setEditing(null)} aria-label="Close address form"><X size={18}/></button></div><form className="profile-form" onSubmit={saveAddress}><Field label="Full name" name="name" value={editing.name}/><Field label="Phone" name="phone" value={editing.phone}/><Field label="Address line" name="line" value={editing.line} wide/><Field label="City" name="city" value={editing.city}/><Field label="State" name="state" value={editing.state}/><Field label="PIN code" name="pin" value={editing.pin}/><button className="brand-button" type="submit">Save address <ArrowRight size={14}/></button></form></div></div>}</main></>;
+  const navigate = useNavigate();
+  const { customer, loading: sessionLoading, signOut, updateProfile } = useCustomerSession();
+
+  const [section, setSection] = useState<Section>('dashboard');
+  const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
+  const [orders, setOrders] = useState<CustomerOrder[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<CustomerOrder | null>(null);
+
+  const [editingAddress, setEditingAddress] = useState<CustomerAddress | null>(null);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [addressError, setAddressError] = useState<string | null>(null);
+
+  const [notice, setNotice] = useState<string>('');
+  const [errorNotice, setErrorNotice] = useState<string>('');
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const token = typeof window !== 'undefined' ? localStorage.getItem('malwa_auth_token') : null;
+
+  // Protect route
+  useEffect(() => {
+    if (!sessionLoading && !customer) {
+      navigate('/account', { replace: true });
+    }
+  }, [customer, sessionLoading, navigate]);
+
+  // Fetch Addresses
+  const fetchAddresses = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/customer/addresses', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.addresses)) {
+          setAddresses(data.addresses);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch customer addresses', e);
+    }
+  }, [token]);
+
+  // Fetch Orders
+  const fetchOrders = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/customer/orders', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.orders)) {
+          setOrders(data.orders);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch customer orders', e);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (customer && token) {
+      fetchAddresses();
+      fetchOrders();
+    }
+  }, [customer, token, fetchAddresses, fetchOrders]);
+
+  // Dialog scroll lock and Escape key
+  useEffect(() => {
+    const isModalOpen = Boolean(editingAddress || selectedOrder);
+    if (isModalOpen) {
+      document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          setEditingAddress(null);
+          setSelectedOrder(null);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.body.style.overflow = '';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = '';
+    }
+  }, [editingAddress, selectedOrder]);
+
+  const go = (next: Section) => {
+    setSection(next);
+    setNotice('');
+    setErrorNotice('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Save Address (Create or Edit)
+  const handleSaveAddress = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!token) return;
+
+    setIsSavingAddress(true);
+    setAddressError(null);
+
+    const formData = new FormData(e.currentTarget);
+    const payload = {
+      name: String(formData.get('name') || '').trim(),
+      phone: String(formData.get('phone') || '').trim(),
+      addressLine1: String(formData.get('addressLine1') || '').trim(),
+      addressLine2: String(formData.get('addressLine2') || '').trim(),
+      city: String(formData.get('city') || '').trim(),
+      state: String(formData.get('state') || '').trim(),
+      pincode: String(formData.get('pincode') || '').trim(),
+      landmark: String(formData.get('landmark') || '').trim(),
+      isDefault: formData.get('isDefault') === 'on' || addresses.length === 0,
+    };
+
+    try {
+      const isEditing = editingAddress && editingAddress._id;
+      const url = isEditing
+        ? `/api/customer/addresses/${editingAddress._id}`
+        : '/api/customer/addresses';
+      const method = isEditing ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAddresses(data.addresses || []);
+        setEditingAddress(null);
+        setNotice(isEditing ? 'Address updated successfully.' : 'New address added to your book.');
+      } else {
+        setAddressError(data.message || 'Failed to save address. Please check your fields.');
+      }
+    } catch {
+      setAddressError('Network error. Could not save address.');
+    } finally {
+      setIsSavingAddress(false);
+    }
+  };
+
+  // Delete Address
+  const handleDeleteAddress = async (addressId?: string) => {
+    if (!addressId || !token) return;
+    if (!window.confirm('Are you sure you want to remove this address?')) return;
+
+    try {
+      const res = await fetch(`/api/customer/addresses/${addressId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAddresses(data.addresses || []);
+        setNotice('Address removed.');
+      }
+    } catch {
+      setErrorNotice('Failed to delete address.');
+    }
+  };
+
+  // Set Default Address
+  const handleSetDefault = async (addressId?: string) => {
+    if (!addressId || !token) return;
+
+    try {
+      const res = await fetch(`/api/customer/addresses/${addressId}/default`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAddresses(data.addresses || []);
+        setNotice('Default delivery address updated.');
+      }
+    } catch {
+      setErrorNotice('Failed to update default address.');
+    }
+  };
+
+  // Update Profile
+  const handleUpdateProfile = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!token) return;
+
+    setIsUpdatingProfile(true);
+    setNotice('');
+    setErrorNotice('');
+
+    const formData = new FormData(e.currentTarget);
+    const name = String(formData.get('name') || '').trim();
+    const phone = String(formData.get('phone') || '').trim();
+
+    try {
+      const res = await fetch('/api/customer/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name, phone }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.profile) {
+        updateProfile(data.profile);
+        setNotice('Your profile information has been saved.');
+      } else {
+        setErrorNotice(data.message || 'Failed to update profile.');
+      }
+    } catch {
+      setErrorNotice('Network error. Could not update profile.');
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
+
+  // Change Password
+  const handleChangePassword = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!token) return;
+
+    setIsChangingPassword(true);
+    setNotice('');
+    setErrorNotice('');
+
+    const formData = new FormData(e.currentTarget);
+    const currentPassword = String(formData.get('currentPassword') || '');
+    const newPassword = String(formData.get('newPassword') || '');
+    const confirmPassword = String(formData.get('confirmPassword') || '');
+
+    if (newPassword !== confirmPassword) {
+      setErrorNotice('New passwords do not match.');
+      setIsChangingPassword(false);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/customer/password', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setNotice('Password updated successfully.');
+        (e.target as HTMLFormElement).reset();
+      } else {
+        setErrorNotice(data.message || 'Failed to update password.');
+      }
+    } catch {
+      setErrorNotice('Network error. Could not update password.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  if (sessionLoading || !customer) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#F6EFE3' }}>
+        <p style={{ fontFamily: 'Inter, sans-serif', color: '#55000A', fontWeight: 600 }}>
+          Opening your Malwa Account…
+        </p>
+      </div>
+    );
+  }
+
+  const navItems = [
+    { id: 'dashboard' as const, label: 'Overview', icon: LayoutDashboard },
+    { id: 'orders' as const, label: `Order History (${orders.length})`, icon: Package },
+    { id: 'addresses' as const, label: `Saved Addresses (${addresses.length})`, icon: MapPin },
+    { id: 'details' as const, label: 'Profile Details', icon: UserRound },
+  ];
+
+  return (
+    <>
+      <SEOHead title="Customer Portal" noIndex={true} />
+      <Navbar />
+      <main className="customer-dashboard">
+        <style>{`
+          .customer-dashboard {
+            min-height: calc(100dvh - 68px);
+            padding: clamp(26px, 4vw, 58px) clamp(16px, 4vw, 48px) 76px;
+            background: #F6EFE3;
+          }
+
+          .customer-shell {
+            width: min(100%, 1200px);
+            margin: auto;
+            display: grid;
+            grid-template-columns: 260px minmax(0, 1fr);
+            gap: clamp(28px, 4vw, 52px);
+          }
+
+          .customer-sidebar {
+            height: max-content;
+            padding: 24px 18px;
+            border: 1px solid rgba(200, 154, 61, 0.28);
+            background: #FDFAF4;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(85, 0, 10, 0.04);
+          }
+
+          .customer-sidebar__brand {
+            padding: 4px 10px 18px;
+            color: #55000A;
+            font: 700 20px 'Cormorant Garamond', Georgia, serif;
+            border-bottom: 1px solid rgba(200, 154, 61, 0.22);
+          }
+
+          .customer-sidebar__brand span {
+            display: block;
+            margin-top: 3px;
+            color: #C99A32;
+            font: 800 9.5px Inter, sans-serif;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+          }
+
+          .customer-nav {
+            display: grid;
+            gap: 6px;
+            padding-top: 16px;
+          }
+
+          .customer-nav button {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 12px 14px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: #75645C;
+            font: 600 13px Inter, sans-serif;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.18s;
+          }
+
+          .customer-nav button:hover {
+            background: rgba(201, 154, 50, 0.12);
+            color: #55000A;
+          }
+
+          .customer-nav button.is-active {
+            background: #55000A;
+            color: #FFF8EC;
+          }
+
+          .customer-logout {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: calc(100% - 20px);
+            margin: 20px 10px 0;
+            padding: 14px 0 2px;
+            border: 0;
+            border-top: 1px solid rgba(200, 154, 61, 0.22);
+            background: transparent;
+            color: #8C786E;
+            font: 700 11px Inter, sans-serif;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: color 0.18s;
+          }
+
+          .customer-logout:hover {
+            color: #DC2626;
+          }
+
+          .customer-content {
+            min-width: 0;
+          }
+
+          .customer-eyebrow {
+            color: #C99A32;
+            font: 800 10.5px Inter, sans-serif;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+          }
+
+          .customer-title {
+            margin: 0 0 10px;
+            color: #55000A;
+            font: 600 clamp(36px, 4.5vw, 54px)/1 'Cormorant Garamond', Georgia, serif;
+            letter-spacing: -0.03em;
+          }
+
+          .customer-lede {
+            max-width: 620px;
+            color: #75645C;
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 0 0 28px;
+          }
+
+          .customer-overview {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+          }
+
+          .overview-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 22px;
+            border: 1px solid rgba(200, 154, 61, 0.28);
+            background: #FDFAF4;
+            border-radius: 14px;
+            text-align: left;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+          }
+
+          .overview-card:hover {
+            transform: translateY(-2px);
+            border-color: #C99A32;
+            box-shadow: 0 10px 24px rgba(85, 0, 10, 0.06);
+          }
+
+          .overview-card__icon {
+            width: 44px;
+            height: 44px;
+            display: grid;
+            place-items: center;
+            flex: none;
+            border-radius: 50%;
+            background: rgba(201, 154, 50, 0.14);
+            color: #55000A;
+          }
+
+          .overview-card h3 {
+            margin: 0;
+            color: #55000A;
+            font: 700 20px 'Cormorant Garamond', Georgia, serif;
+          }
+
+          .overview-card p {
+            margin: 4px 0 0;
+            color: #75645C;
+            font-size: 12.5px;
+            line-height: 1.4;
+          }
+
+          /* ── Address Book ──────────────────────────────────── */
+          .address-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+          }
+
+          .address-card {
+            position: relative;
+            padding: 22px;
+            border: 1px solid rgba(200, 154, 61, 0.28);
+            background: #FDFAF4;
+            border-radius: 14px;
+          }
+
+          .address-card--default {
+            border: 2px solid #C99A32;
+            background: #FFFDF8;
+          }
+
+          .address-card__tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 12px;
+            background: rgba(201, 154, 50, 0.15);
+            color: #881337;
+            font: 800 9px Inter, sans-serif;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            padding: 3px 8px;
+            border-radius: 999px;
+          }
+
+          .address-card h3 {
+            margin: 0;
+            color: #55000A;
+            font: 700 20px 'Cormorant Garamond', Georgia, serif;
+          }
+
+          .address-card p {
+            margin: 8px 0 0;
+            color: #75645C;
+            font-size: 13px;
+            line-height: 1.55;
+          }
+
+          .address-card__actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-top: 18px;
+            border-top: 1px solid rgba(200, 154, 61, 0.18);
+            padding-top: 14px;
+          }
+
+          .text-action {
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: #55000A;
+            font: 700 11.5px Inter, sans-serif;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            cursor: pointer;
+          }
+
+          .text-action--muted {
+            color: #A39086;
+          }
+
+          .text-action--muted:hover {
+            color: #DC2626;
+          }
+
+          /* ── Orders Table ──────────────────────────────────── */
+          .orders-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+          }
+
+          .order-item-card {
+            background: #FDFAF4;
+            border: 1px solid rgba(200, 154, 61, 0.28);
+            border-radius: 14px;
+            padding: 20px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.18s;
+          }
+
+          .order-item-card:hover {
+            border-color: #C99A32;
+            box-shadow: 0 8px 20px rgba(85, 0, 10, 0.05);
+          }
+
+          .order-number {
+            font-family: monospace;
+            font-weight: 700;
+            font-size: 14px;
+            color: #55000A;
+          }
+
+          .order-date {
+            font-size: 12px;
+            color: #8C786E;
+            margin-top: 2px;
+          }
+
+          .order-status-badge {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 4px 10px;
+            border-radius: 999px;
+            display: inline-block;
+          }
+
+          .status-delivered { background: #D1FAE5; color: #065F46; }
+          .status-shipped { background: #E0E7FF; color: #3730A3; }
+          .status-processing { background: #FEF3C7; color: #92400E; }
+          .status-pending { background: #F3F4F6; color: #374151; }
+          .status-cancelled { background: #FEE2E2; color: #991B1B; }
+
+          /* ── Modal Dialog ──────────────────────────────────── */
+          .dialog-backdrop {
+            position: fixed;
+            z-index: 600;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            padding: 18px;
+            background: rgba(35, 3, 10, 0.65);
+            backdrop-filter: blur(3px);
+          }
+
+          .address-dialog {
+            width: min(100%, 580px);
+            max-height: calc(100dvh - 40px);
+            overflow-y: auto;
+            padding: 32px;
+            background: #FDFAF4;
+            border-radius: 18px;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(200, 154, 61, 0.35);
+          }
+
+          .dialog-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 22px;
+          }
+
+          .dialog-heading h2 {
+            margin: 0;
+            color: #55000A;
+            font: 700 28px 'Cormorant Garamond', Georgia, serif;
+          }
+
+          .dialog-close {
+            width: 32px;
+            height: 32px;
+            border: 1px solid rgba(200, 154, 61, 0.3);
+            border-radius: 50%;
+            background: transparent;
+            color: #55000A;
+            display: grid;
+            place-items: center;
+            cursor: pointer;
+          }
+
+          .profile-form {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+          }
+
+          .profile-form--single {
+            grid-template-columns: 1fr;
+          }
+
+          .profile-field {
+            display: grid;
+            gap: 6px;
+          }
+
+          .profile-field label {
+            color: #34211D;
+            font: 800 10.5px Inter, sans-serif;
+            letter-spacing: 0.10em;
+            text-transform: uppercase;
+          }
+
+          .profile-field input {
+            width: 100%;
+            height: 46px;
+            padding: 0 14px;
+            border: 1px solid rgba(200, 154, 61, 0.35);
+            border-radius: 8px;
+            background: #FFFFFF;
+            color: #34211D;
+            font: 500 14px Inter, sans-serif;
+            outline: 0;
+          }
+
+          .profile-field input:focus {
+            border-color: #C99A32;
+            box-shadow: 0 0 0 3px rgba(201, 154, 50, 0.15);
+          }
+
+          .profile-field--wide {
+            grid-column: 1 / -1;
+          }
+
+          .brand-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            height: 44px;
+            padding: 0 24px;
+            border: 0;
+            border-radius: 999px;
+            background: #55000A;
+            color: #FFF8EC;
+            font: 800 11px Inter, sans-serif;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: background 0.18s, transform 0.18s;
+          }
+
+          .brand-button:hover {
+            background: #6B000D;
+            transform: translateY(-1px);
+          }
+
+          .notice-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 16px 0;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+          }
+
+          .notice-box--success {
+            background: #F0FDF4;
+            border: 1px solid #BBF7D0;
+            color: #166534;
+          }
+
+          .notice-box--error {
+            background: #FEF2F2;
+            border: 1px solid #FECACA;
+            color: #991B1B;
+          }
+
+          @media (max-width: 850px) {
+            .customer-shell {
+              grid-template-columns: 1fr;
+            }
+            .customer-sidebar {
+              position: sticky;
+              top: 78px;
+              z-index: 2;
+              display: flex;
+              align-items: center;
+              padding: 10px;
+              overflow-x: auto;
+            }
+            .customer-sidebar__brand {
+              display: none;
+            }
+            .customer-nav {
+              display: flex;
+              padding-top: 0;
+            }
+            .customer-nav button {
+              white-space: nowrap;
+            }
+          }
+
+          @media (max-width: 580px) {
+            .address-grid, .customer-overview {
+              grid-template-columns: 1fr;
+            }
+            .profile-form {
+              grid-template-columns: 1fr;
+            }
+            .profile-field--wide {
+              grid-column: auto;
+            }
+          }
+        `}</style>
+
+        <div className="customer-shell">
+          {/* Sidebar Navigation */}
+          <aside className="customer-sidebar" aria-label="Customer account navigation">
+            <div className="customer-sidebar__brand">
+              MALWA NAMKEEN
+              <span>Customer Portal</span>
+            </div>
+            <nav className="customer-nav">
+              {navItems.map(item => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => go(item.id)}
+                    className={section === item.id ? 'is-active' : ''}
+                  >
+                    <Icon size={16} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+            <button
+              className="customer-logout"
+              onClick={() => {
+                signOut();
+                navigate('/');
+              }}
+            >
+              <LogOut size={15} /> Sign out
+            </button>
+          </aside>
+
+          {/* Main Content Area */}
+          <section className="customer-content">
+            {notice && (
+              <div className="notice-box notice-box--success">
+                <CheckCircle2 size={16} />
+                <span>{notice}</span>
+              </div>
+            )}
+            {errorNotice && (
+              <div className="notice-box notice-box--error">
+                <XCircle size={16} />
+                <span>{errorNotice}</span>
+              </div>
+            )}
+
+            {/* Overview / Dashboard */}
+            {section === 'dashboard' && (
+              <>
+                <p className="customer-eyebrow">Personal Concierge</p>
+                <h1 className="customer-title">Welcome back, {customer.name}</h1>
+                <p className="customer-lede">
+                  Manage your Malwa savouries orders, saved delivery addresses, and personal profile from one central home.
+                </p>
+
+                <div className="customer-overview">
+                  <div className="overview-card" onClick={() => go('orders')}>
+                    <div className="overview-card__icon"><Package size={20} /></div>
+                    <div>
+                      <h3>Orders ({orders.length})</h3>
+                      <p>View your past delicacies and track delivery status.</p>
+                    </div>
+                    <ChevronRight size={18} style={{ marginLeft: 'auto', color: '#C99A32' }} />
+                  </div>
+
+                  <div className="overview-card" onClick={() => go('addresses')}>
+                    <div className="overview-card__icon"><MapPin size={20} /></div>
+                    <div>
+                      <h3>Address Book ({addresses.length})</h3>
+                      <p>Keep your home and gifting delivery addresses ready.</p>
+                    </div>
+                    <ChevronRight size={18} style={{ marginLeft: 'auto', color: '#C99A32' }} />
+                  </div>
+
+                  <div className="overview-card" onClick={() => go('details')}>
+                    <div className="overview-card__icon"><UserRound size={20} /></div>
+                    <div>
+                      <h3>Account Profile</h3>
+                      <p>Update your contact details and security credentials.</p>
+                    </div>
+                    <ChevronRight size={18} style={{ marginLeft: 'auto', color: '#C99A32' }} />
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '40px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px' }}>
+                    <h2 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '26px', color: '#55000A', margin: 0 }}>
+                      Recent Orders
+                    </h2>
+                    {orders.length > 0 && (
+                      <button className="text-action" onClick={() => go('orders')}>
+                        View all ({orders.length})
+                      </button>
+                    )}
+                  </div>
+
+                  {orders.length === 0 ? (
+                    <div style={{ background: '#FDFAF4', border: '1px solid rgba(200,154,61,0.28)', borderRadius: '14px', padding: '36px', textAlign: 'center' }}>
+                      <Package size={32} style={{ color: '#C99A32', marginBottom: '12px' }} />
+                      <h3 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#55000A', fontSize: '22px', margin: '0 0 6px' }}>
+                        No orders yet
+                      </h3>
+                      <p style={{ color: '#75645C', fontSize: '13px', margin: '0 0 18px' }}>
+                        Your authentic Malwa namkeens and sweets will appear here once you place your first order.
+                      </p>
+                      <button className="brand-button" onClick={() => navigate('/shop')}>
+                        Explore Shop <ArrowRight size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="orders-list">
+                      {orders.slice(0, 3).map(order => (
+                        <div key={order._id} className="order-item-card" onClick={() => setSelectedOrder(order)}>
+                          <div>
+                            <div className="order-number">#{order.orderNumber}</div>
+                            <div className="order-date">{new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} · {order.items.length} items</div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                            <span className={`order-status-badge status-${order.orderStatus}`}>
+                              {order.orderStatus}
+                            </span>
+                            <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '18px', fontWeight: 700, color: '#55000A' }}>
+                              ₹{order.total}
+                            </span>
+                            <ChevronRight size={16} style={{ color: '#C99A32' }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Orders Section */}
+            {section === 'orders' && (
+              <>
+                <p className="customer-eyebrow">Order History</p>
+                <h1 className="customer-title">Your Delicacies</h1>
+                <p className="customer-lede">
+                  A complete record of your heritage orders with current delivery status and items breakdown.
+                </p>
+
+                {orders.length === 0 ? (
+                  <div style={{ background: '#FDFAF4', border: '1px solid rgba(200,154,61,0.28)', borderRadius: '14px', padding: '48px 24px', textAlign: 'center' }}>
+                    <Package size={36} style={{ color: '#C99A32', marginBottom: '14px' }} />
+                    <h3 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#55000A', fontSize: '24px', margin: '0 0 6px' }}>
+                      No order history found
+                    </h3>
+                    <p style={{ color: '#75645C', fontSize: '13px', margin: '0 0 20px' }}>
+                      You haven't placed an order yet. Treat yourself to our signature Ratlami sev and mixtures.
+                    </p>
+                    <button className="brand-button" onClick={() => navigate('/shop')}>
+                      Browse Shop Catalog <ArrowRight size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="orders-list">
+                    {orders.map(order => (
+                      <div key={order._id} className="order-item-card" onClick={() => setSelectedOrder(order)}>
+                        <div>
+                          <div className="order-number">#{order.orderNumber}</div>
+                          <div className="order-date">
+                            Placed on {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#55000A', marginTop: '4px' }}>
+                            {order.items.map(i => `${i.productName} (${i.variantLabel}) × ${i.quantity}`).join(', ')}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                          <span className={`order-status-badge status-${order.orderStatus}`}>
+                            {order.orderStatus}
+                          </span>
+                          <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '20px', fontWeight: 700, color: '#55000A' }}>
+                            ₹{order.total}
+                          </span>
+                          <ChevronRight size={16} style={{ color: '#C99A32' }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Saved Addresses Section */}
+            {section === 'addresses' && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+                  <div>
+                    <p className="customer-eyebrow">Delivery Details</p>
+                    <h1 className="customer-title">Saved Address Book</h1>
+                    <p className="customer-lede" style={{ marginBottom: 0 }}>
+                      Save your residential, workplace, and gifting delivery locations for faster ordering.
+                    </p>
+                  </div>
+                  <button
+                    className="brand-button"
+                    onClick={() => {
+                      setEditingAddress(blankAddress);
+                      setAddressError(null);
+                    }}
+                  >
+                    <Plus size={15} /> Add New Address
+                  </button>
+                </div>
+
+                {addresses.length === 0 ? (
+                  <div style={{ background: '#FDFAF4', border: '1px solid rgba(200,154,61,0.28)', borderRadius: '14px', padding: '48px 24px', textAlign: 'center' }}>
+                    <MapPin size={36} style={{ color: '#C99A32', marginBottom: '14px' }} />
+                    <h3 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#55000A', fontSize: '24px', margin: '0 0 6px' }}>
+                      No saved addresses
+                    </h3>
+                    <p style={{ color: '#75645C', fontSize: '13px', margin: '0 0 20px' }}>
+                      Add your default shipping address to streamline future checkouts.
+                    </p>
+                    <button
+                      className="brand-button"
+                      onClick={() => {
+                        setEditingAddress(blankAddress);
+                        setAddressError(null);
+                      }}
+                    >
+                      <Plus size={15} /> Add First Address
+                    </button>
+                  </div>
+                ) : (
+                  <div className="address-grid">
+                    {addresses.map(addr => (
+                      <article
+                        key={addr._id || addr.name}
+                        className={`address-card ${addr.isDefault ? 'address-card--default' : ''}`}
+                      >
+                        {addr.isDefault && (
+                          <span className="address-card__tag">
+                            <Check size={11} /> Default Shipping Address
+                          </span>
+                        )}
+                        <h3>{addr.name}</h3>
+                        <p>
+                          {addr.addressLine1}
+                          {addr.addressLine2 ? `, ${addr.addressLine2}` : ''}
+                          <br />
+                          {addr.city}, {addr.state} — {addr.pincode}
+                          <br />
+                          <strong>Phone:</strong> {addr.phone}
+                          {addr.landmark ? <><br /><strong>Landmark:</strong> {addr.landmark}</> : null}
+                        </p>
+                        <div className="address-card__actions">
+                          <button
+                            className="text-action"
+                            onClick={() => {
+                              setEditingAddress(addr);
+                              setAddressError(null);
+                            }}
+                          >
+                            <Pencil size={12} /> Edit
+                          </button>
+                          {!addr.isDefault && (
+                            <button
+                              className="text-action"
+                              onClick={() => handleSetDefault(addr._id)}
+                            >
+                              Set as Default
+                            </button>
+                          )}
+                          <button
+                            className="text-action text-action--muted"
+                            onClick={() => handleDeleteAddress(addr._id)}
+                          >
+                            <Trash2 size={12} /> Delete
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Profile Details & Password */}
+            {section === 'details' && (
+              <>
+                <p className="customer-eyebrow">Personal Details</p>
+                <h1 className="customer-title">Profile & Security</h1>
+                <p className="customer-lede">
+                  Keep your contact details and account security credentials up to date.
+                </p>
+
+                <div style={{ background: '#FDFAF4', border: '1px solid rgba(200,154,61,0.28)', borderRadius: '16px', padding: '28px', marginBottom: '28px' }}>
+                  <h3 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '24px', color: '#55000A', margin: '0 0 16px' }}>
+                    Contact Information
+                  </h3>
+                  <form className="profile-form" onSubmit={handleUpdateProfile}>
+                    <div className="profile-field">
+                      <label>Full Name</label>
+                      <input name="name" defaultValue={customer.name} required />
+                    </div>
+                    <div className="profile-field">
+                      <label>Email Address (Account ID)</label>
+                      <input name="email" defaultValue={customer.email} disabled style={{ background: '#F0EBE1', cursor: 'not-allowed' }} />
+                    </div>
+                    <div className="profile-field profile-field--wide">
+                      <label>Primary Phone</label>
+                      <input name="phone" defaultValue={customer.phone || ''} placeholder="+91 00000 00000" />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
+                      <button className="brand-button" type="submit" disabled={isUpdatingProfile}>
+                        {isUpdatingProfile ? 'Saving...' : 'Save Profile Changes'} <ArrowRight size={14} />
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                <div style={{ background: '#FDFAF4', border: '1px solid rgba(200,154,61,0.28)', borderRadius: '16px', padding: '28px' }}>
+                  <h3 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '24px', color: '#55000A', margin: '0 0 6px' }}>
+                    Change Password
+                  </h3>
+                  <p style={{ color: '#75645C', fontSize: '13px', margin: '0 0 20px' }}>
+                    Ensure your account is protected with a secure password containing at least 6 characters.
+                  </p>
+                  <form className="profile-form" onSubmit={handleChangePassword}>
+                    <div className="profile-field profile-field--wide">
+                      <label>Current Password</label>
+                      <input name="currentPassword" type="password" required placeholder="••••••••" />
+                    </div>
+                    <div className="profile-field">
+                      <label>New Password</label>
+                      <input name="newPassword" type="password" required minLength={6} placeholder="••••••••" />
+                    </div>
+                    <div className="profile-field">
+                      <label>Confirm New Password</label>
+                      <input name="confirmPassword" type="password" required minLength={6} placeholder="••••••••" />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
+                      <button className="brand-button" type="submit" disabled={isChangingPassword}>
+                        {isChangingPassword ? 'Updating...' : 'Update Password'} <LockKeyhole size={14} />
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+
+        {/* Address Add / Edit Modal */}
+        {editingAddress && (
+          <div
+            className="dialog-backdrop"
+            onMouseDown={e => {
+              if (e.target === e.currentTarget) setEditingAddress(null);
+            }}
+          >
+            <div className="address-dialog" role="dialog" aria-modal="true" aria-label="Address form">
+              <div className="dialog-heading">
+                <h2>{editingAddress._id ? 'Edit Address' : 'New Delivery Address'}</h2>
+                <button
+                  className="dialog-close"
+                  onClick={() => setEditingAddress(null)}
+                  aria-label="Close address modal"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {addressError && (
+                <div className="notice-box notice-box--error" style={{ marginBottom: '18px' }}>
+                  <XCircle size={16} />
+                  <span>{addressError}</span>
+                </div>
+              )}
+
+              <form className="profile-form" onSubmit={handleSaveAddress}>
+                <div className="profile-field">
+                  <label>Recipient Name</label>
+                  <input name="name" defaultValue={editingAddress.name} required />
+                </div>
+                <div className="profile-field">
+                  <label>Contact Phone</label>
+                  <input name="phone" defaultValue={editingAddress.phone} required placeholder="+91 00000 00000" />
+                </div>
+                <div className="profile-field profile-field--wide">
+                  <label>Flat / House No. / Building / Street</label>
+                  <input name="addressLine1" defaultValue={editingAddress.addressLine1} required />
+                </div>
+                <div className="profile-field profile-field--wide">
+                  <label>Area / Sector / Colony (Optional)</label>
+                  <input name="addressLine2" defaultValue={editingAddress.addressLine2} />
+                </div>
+                <div className="profile-field">
+                  <label>City</label>
+                  <input name="city" defaultValue={editingAddress.city} required />
+                </div>
+                <div className="profile-field">
+                  <label>State</label>
+                  <input name="state" defaultValue={editingAddress.state} required />
+                </div>
+                <div className="profile-field">
+                  <label>6-Digit PIN Code</label>
+                  <input name="pincode" defaultValue={editingAddress.pincode} required pattern="[0-9]{6}" />
+                </div>
+                <div className="profile-field">
+                  <label>Landmark (Optional)</label>
+                  <input name="landmark" defaultValue={editingAddress.landmark} />
+                </div>
+                <div className="profile-field profile-field--wide" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                  <input
+                    type="checkbox"
+                    id="isDefault"
+                    name="isDefault"
+                    defaultChecked={editingAddress.isDefault || addresses.length === 0}
+                    style={{ width: '16px', height: '16px', accentColor: '#55000A' }}
+                  />
+                  <label htmlFor="isDefault" style={{ cursor: 'pointer', margin: 0, textTransform: 'none', fontSize: '13px' }}>
+                    Set as my primary default delivery address
+                  </label>
+                </div>
+                <div style={{ gridColumn: '1 / -1', marginTop: '12px' }}>
+                  <button className="brand-button" type="submit" disabled={isSavingAddress}>
+                    {isSavingAddress ? 'Saving Address...' : 'Save Address'} <ArrowRight size={14} />
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Order Details Modal */}
+        {selectedOrder && (
+          <div
+            className="dialog-backdrop"
+            onMouseDown={e => {
+              if (e.target === e.currentTarget) setSelectedOrder(null);
+            }}
+          >
+            <div className="address-dialog" role="dialog" aria-modal="true" aria-label="Order Details">
+              <div className="dialog-heading">
+                <div>
+                  <h2 style={{ fontSize: '24px' }}>Order #{selectedOrder.orderNumber}</h2>
+                  <div style={{ fontSize: '12px', color: '#8C786E', marginTop: '2px' }}>
+                    Placed on {new Date(selectedOrder.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+                <button
+                  className="dialog-close"
+                  onClick={() => setSelectedOrder(null)}
+                  aria-label="Close order details modal"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+                <span className={`order-status-badge status-${selectedOrder.orderStatus}`}>
+                  Order: {selectedOrder.orderStatus}
+                </span>
+                <span className={`order-status-badge status-${selectedOrder.paymentStatus === 'paid' ? 'delivered' : 'pending'}`}>
+                  Payment: {selectedOrder.paymentStatus}
+                </span>
+              </div>
+
+              {/* Items List */}
+              <div style={{ borderTop: '1px solid rgba(200,154,61,0.25)', paddingTop: '16px', marginBottom: '18px' }}>
+                <h4 style={{ fontFamily: 'Inter, sans-serif', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#C99A32', margin: '0 0 12px' }}>
+                  Ordered Delicacies
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {selectedOrder.items.map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
+                      <div>
+                        <strong>{item.productName}</strong> ({item.variantLabel}) × {item.quantity}
+                        <div style={{ fontSize: '11px', color: '#8C786E' }}>₹{item.price} each</div>
+                      </div>
+                      <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 700, fontSize: '16px', color: '#55000A' }}>
+                        ₹{item.itemTotal}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Pricing Breakdown */}
+              <div style={{ borderTop: '1px solid rgba(200,154,61,0.25)', paddingTop: '14px', marginBottom: '18px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Subtotal</span>
+                  <span>₹{selectedOrder.subtotal}</span>
+                </div>
+                {selectedOrder.discount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669', fontWeight: 700 }}>
+                    <span>Discount ({selectedOrder.discountCode || 'Promo'})</span>
+                    <span>-₹{selectedOrder.discount}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Shipping</span>
+                  <span>{selectedOrder.shipping === 0 ? 'Complimentary' : `₹${selectedOrder.shipping}`}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(200,154,61,0.2)', paddingTop: '8px', fontWeight: 700, fontSize: '16px', color: '#55000A' }}>
+                  <span>Total Amount</span>
+                  <span>₹{selectedOrder.total}</span>
+                </div>
+              </div>
+
+              {/* Delivery Address */}
+              {selectedOrder.shippingAddress && (
+                <div style={{ background: '#FAF6EF', padding: '14px', borderRadius: '10px', fontSize: '12.5px', color: '#55000A' }}>
+                  <strong style={{ display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '10.5px', color: '#C99A32' }}>
+                    Delivery Destination
+                  </strong>
+                  {selectedOrder.shippingAddress.name} ({selectedOrder.shippingAddress.phone})<br />
+                  {selectedOrder.shippingAddress.addressLine1}, {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state} — {selectedOrder.shippingAddress.pincode}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </main>
+      <Footer />
+    </>
+  );
 }
-function Field({label,name,value,wide=false,type='text'}:{label:string;name:string;value?:string;wide?:boolean;type?:string}){return <div className={`profile-field ${wide?'profile-field--wide':''}`}><label htmlFor={`field-${name}`}>{label}</label><input id={`field-${name}`} name={name} type={type} defaultValue={value} required/></div>;}
-function DashboardHome({name,onNavigate}:{name:string;onNavigate:(section:Section)=>void}){const cards=[{id:'orders' as const,label:'Orders',text:'Review your recent Malwa favourites.',icon:Package},{id:'addresses' as const,label:'Saved Addresses',text:'Keep delivery details close at hand.',icon:MapPin},{id:'payments' as const,label:'Payment Methods',text:'Manage payment preferences safely.',icon:CreditCard},{id:'details' as const,label:'Account Details',text:'Update your personal information.',icon:UserRound}];return <><p className="customer-eyebrow">A warm welcome</p><h1 className="customer-title">Welcome back, {name}</h1><p className="customer-lede">Manage your orders, addresses, and account details from one place.</p><div className="customer-overview">{cards.map(card=>{const Icon=card.icon;return <button className="overview-card" key={card.id} onClick={()=>onNavigate(card.id)}><span className="overview-card__icon"><Icon/></span><span><h3>{card.label}</h3><p>{card.text}</p></span><ChevronRight size={16} style={{marginLeft:'auto',color:'var(--gold)',alignSelf:'center'}}/></button>})}</div><section className="content-section dashboard-card"><div className="section-heading"><div><p className="customer-eyebrow">Your table</p><h2>Recent Orders</h2></div></div><Empty icon={Package} title="No orders yet" copy="Your delicious Malwa favourites will appear here once you place your first order." cta="Explore Shop"/></section></>}
-function Empty({icon:Icon,title,copy,cta}:{icon:typeof Package;title:string;copy:string;cta?:string}){return <div className="empty-panel"><div><span className="empty-panel__icon"><Icon size={25}/></span><h3>{title}</h3><p>{copy}</p>{cta&&<a className="brand-button" href="/shop">{cta} <ArrowRight size={14}/></a>}</div></div>}
-function Orders(){return <><Header eyebrow="Orders" title="Order History" copy="A record of every flavourful order, ready when you need it."/><Empty icon={Package} title="No orders yet" copy="When you place an order, its number, items, total, and delivery status will appear here." cta="Explore Shop"/></>}
-function Addresses({addresses,onAdd,onEdit,onDelete,onDefault}:{addresses:Address[];onAdd:()=>void;onEdit:(address:Address)=>void;onDelete:(id:number)=>void;onDefault:(id:number)=>void}){return <><Header eyebrow="Delivery details" title="Saved Addresses" copy="Save your preferred places for a more effortless checkout." action={<button className="brand-button section-action" onClick={onAdd}><Plus size={14}/> Add address</button>}/>{addresses.length===0?<Empty icon={MapPin} title="No saved addresses" copy="Add a delivery address to make your next order feel even more effortless."/>:<div className="address-grid">{addresses.map(address=><article className={`address-card ${address.default?'address-card--default':''}`} key={address.id}>{address.default&&<span className="address-card__tag"><Check size={12}/> Default address</span>}<h3>{address.name}</h3><p>{address.line}<br/>{address.city}, {address.state} — {address.pin}<br/>{address.phone}</p><div className="address-card__actions"><button className="text-action" onClick={()=>onEdit(address)}><Pencil size={12}/> Edit</button>{!address.default&&<button className="text-action" onClick={()=>onDefault(address.id)}>Set default</button>}<button className="text-action text-action--muted" onClick={()=>onDelete(address.id)}><Trash2 size={12}/> Delete</button></div></article>)}</div>}</>}
-function Payments(){return <><Header eyebrow="Checkout" title="Payment Methods" copy="Your payment preferences, presented securely when available."/><Empty icon={CreditCard} title="No saved payment methods" copy="Your payment methods will appear here when available. We never display or store card details in this preview."/><p className="payment-note">Payment methods will be handled only through a secure checkout provider.</p></>}
-function Details({customer,customerName,notice,onSave,onPassword}:{customer:{name:string;email:string;phone?:string};customerName:string;notice:string;onSave:(event:FormEvent<HTMLFormElement>)=>void;onPassword:()=>void}){return <><Header eyebrow="Personal details" title="Account Details" copy={`Keep your Malwa Namkeen House profile up to date, ${customerName}.`}/><form className="profile-form profile-form--single" onSubmit={onSave}><Field label="Full name" name="name" value={customer.name}/><Field label="Email address" name="email" value={customer.email} type="email"/><Field label="Phone number" name="phone" value={customer.phone}/><button className="brand-button" type="submit">Save changes <ArrowRight size={14}/></button></form>{notice&&<div className="notice"><Check size={16}/>{notice}</div>}<section className="password-card"><h3>Change Password</h3><p>Password changes are reserved for secure customer authentication.</p><form onSubmit={event=>{event.preventDefault();onPassword();}}><Field label="Current password" name="current" type="password"/><Field label="New password" name="new" type="password"/><Field label="Confirm password" name="confirm" type="password"/><button className="brand-button" type="submit"><LockKeyhole size={14}/> Change password</button></form></section></>}
-function Header({eyebrow,title,copy,action}:{eyebrow:string;title:string;copy:string;action?:React.ReactNode}){return <div className="section-heading"><div><p className="customer-eyebrow">{eyebrow}</p><h1 className="customer-title">{title}</h1><p className="customer-lede">{copy}</p></div>{action}</div>}

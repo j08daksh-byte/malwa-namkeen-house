@@ -12,6 +12,7 @@ interface ShopFiltersProps {
   onSortChange: (sort: string) => void;
   categoryCounts: Record<string, number>;
   totalResults: number;
+  categories?: ShopCategory[];
 }
 
 const SPICE_LEVELS = ['All', 'Mild', 'Medium', 'Zesty', 'Clove Hot', 'Sweet & Tangy'];
@@ -27,8 +28,14 @@ export default function ShopFilters({
   onSortChange,
   categoryCounts,
   totalResults,
+  categories,
 }: ShopFiltersProps) {
-  const activeCategoryObj = SHOP_CATEGORIES.find(c => c.id === selectedCategory) ?? SHOP_CATEGORIES[0];
+  const categoriesList = categories && categories.length > 0 ? categories : SHOP_CATEGORIES;
+  const activeCategoryObj = categoriesList.find(c => c.id === selectedCategory) ?? categoriesList[0] ?? {
+    id: 'all',
+    label: 'All Delicacies',
+    description: 'Explore our complete heritage collection of small-batch savouries, sweets, and curated gift boxes.',
+  };
 
   return (
     <div className="shop-filters-container">
@@ -374,7 +381,7 @@ export default function ShopFilters({
       {/* Category Pills */}
       <div className="shop-filters__categories-scroll" role="tablist" aria-label="Product categories">
         <div className="shop-filters__categories-list">
-          {SHOP_CATEGORIES.map(cat => {
+          {categoriesList.map(cat => {
             const isActive = selectedCategory === cat.id;
             const count = categoryCounts[cat.id] ?? 0;
             return (

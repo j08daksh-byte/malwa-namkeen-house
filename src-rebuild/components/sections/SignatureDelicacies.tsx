@@ -1,32 +1,29 @@
-﻿const DISHES = [
+import { Link } from 'react-router-dom';
+
+const DISHES = [
   {
-    name:     'Banarasi Tamatar Chaat',
-    image:    '/mishtichaat/chaat-tamatar.jpg',
-    position: 'center center',
+    name: 'Ratlami Laung Sev',
+    image: '/mishtichaat/sweets-jalebi.jpg',
+    position: 'center 35%',
   },
   {
-    name:     'Tikki Chaat',
-    image:    '/mishtichaat/dahi-bhalla.jpg',
-    position: 'center 42%',
+    name: 'Ujjaini Sev',
+    image: '/mishtichaat/sweets-rabdi.jpg',
+    position: 'center 40%',
   },
   {
-    name:     'Dahi Puri',
-    image:    '/mishtichaat/dahi-puri.png',
-    position: 'center center',
+    name: 'Khasta Heeng Mathri',
+    image: '/mishtichaat/sweets-malai-sandwich.jpg',
+    position: 'center 45%',
   },
   {
-    name:     'Rabdi Jalebi',
-    image:    '/mishtichaat/jalebi.jpg',
+    name: 'Khatta Meetha Mixture',
+    image: '/mishtichaat/sweets-rasgulla.jpg',
     position: 'center 45%',
   },
 ];
 
 export default function SignatureDelicacies() {
-  function scrollToMenu(e: React.MouseEvent) {
-    e.preventDefault();
-    document.querySelector('#menu')?.scrollIntoView({ behavior: 'smooth' });
-  }
-
   return (
     <section id="sweets">
       <style>{`
@@ -299,14 +296,14 @@ export default function SignatureDelicacies() {
           </h2>
           <div className="sd-rule" aria-hidden="true" />
           <p className="sd-desc">
-            From iconic Banarasi flavours to popular street-style chaat, every bite is a journey of nostalgia and delight.
+            From peppery clove-infused sevs to crunchy heritage mixtures, every bite is a journey through authentic Malwa flavours.
           </p>
-          <a href="#menu" className="sd-btn" onClick={scrollToMenu}>
-            Explore Menu
+          <Link to="/shop" className="sd-btn">
+            Explore The Shop
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
               <path d="M1 6h10M7 2l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-          </a>
+          </Link>
         </div>
 
         {/* ── Right: nav + cards ──────────────────────────────── */}

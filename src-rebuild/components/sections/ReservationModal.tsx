@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { submitReservation } from '../../lib/api.ts';
 import { WA_URLS } from '../../lib/whatsapp.ts';
 
@@ -322,9 +322,9 @@ export default function ReservationModal({ open, onClose }: Props) {
 
           {/* Header */}
           <div className="rm-header">
-            <h2 id="rm-title" className="rm-header-title">Request a Table</h2>
-            <p className="rm-header-sub">Send us your details and our team will manually confirm your reservation.</p>
-            <button className="rm-close" onClick={close} aria-label="Close reservation form">
+            <h2 id="rm-title" className="rm-header-title">Bulk &amp; Gifting Enquiry</h2>
+            <p className="rm-header-sub">Send us your requirements for bulk namkeens, wedding boxes, or corporate hampers.</p>
+            <button className="rm-close" onClick={close} aria-label="Close enquiry form">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
               </svg>
@@ -344,8 +344,8 @@ export default function ReservationModal({ open, onClose }: Props) {
                   Enquiry received!
                 </p>
                 <div className="rm-notice" style={{ textAlign: 'left' }}>
-                  <strong>This is a reservation enquiry — not a confirmed booking yet.</strong>
-                  {' '}Our team will contact you to confirm availability.
+                  <strong>Thank you! Your bulk/gifting enquiry has been received.</strong>
+                  {' '}Our team will contact you shortly with customized quotations.
                 </div>
                 {success.referenceId && (
                   <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', color: '#A08D82', margin: '0 0 4px' }}>
@@ -372,8 +372,7 @@ export default function ReservationModal({ open, onClose }: Props) {
               <form onSubmit={handleSubmit} noValidate className="rm-form">
 
                 <div className="rm-notice">
-                  <strong>Reservation enquiry only.</strong> This form captures your request.
-                  We will call or message you to confirm your table.
+                  <strong>Gifting &amp; Bulk supply.</strong> We will contact you via WhatsApp or email with packaging options and volume rates.
                 </div>
 
                 {/* Name + Email */}
@@ -495,8 +494,8 @@ export default function ReservationModal({ open, onClose }: Props) {
                       onChange={e => setConsent(e.target.checked)}
                     />
                     <span className="rm-consent-text">
-                      I agree that MishtiChaat may use my details to respond to this reservation enquiry.
-                      I understand this is <strong>not a confirmed booking</strong> and requires manual confirmation.
+                      I agree that Malwa Namkeen House may use my details to respond to this order enquiry.
+                      I understand this requires manual confirmation from the store team.
                     </span>
                   </label>
                   {fieldErr('consent_accepted')}
@@ -510,7 +509,7 @@ export default function ReservationModal({ open, onClose }: Props) {
                 )}
 
                 <button type="submit" className="rm-submit" disabled={loading}>
-                  {loading ? 'Submitting…' : 'Submit Reservation Enquiry'}
+                  {loading ? 'Submitting…' : 'Submit Gifting & Bulk Enquiry'}
                 </button>
 
               </form>

@@ -8,7 +8,7 @@ const root = document.getElementById('root');
 
 if (!root) {
   throw new Error(
-    '[MishtiChaat] Root element #root not found. ' +
+    '[MalwaNamkeen] Root element #root not found. ' +
     'Ensure index.html contains <div id="root"></div>.',
   );
 }

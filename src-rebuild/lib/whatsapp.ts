@@ -11,13 +11,13 @@ export function buildWaUrl(message: string): string {
 }
 
 export const WA_URLS = {
-  general:    buildWaUrl('Hello, I have a question about MishtiChaat.'),
-  reservation:buildWaUrl('Hello, I would like to follow up on my reservation enquiry at MishtiChaat.'),
-  catering:   buildWaUrl('Hello, I would like to enquire about catering services at MishtiChaat.'),
-  gifting:    buildWaUrl('Hello, I would like to enquire about gifting options at MishtiChaat.'),
-  birthday:   buildWaUrl('Hello, I would like to enquire about a birthday party at MishtiChaat.'),
-  bulkOrders: buildWaUrl('Hello, I would like to place a bulk order with MishtiChaat.'),
-  corporate:  buildWaUrl('Hello, I would like to enquire about corporate gifting at MishtiChaat.'),
+  general:    buildWaUrl('Hello, I have a question about Malwa Namkeen House.'),
+  reservation:buildWaUrl('Hello, I would like to follow up on my order enquiry at Malwa Namkeen House.'),
+  catering:   buildWaUrl('Hello, I would like to enquire about bulk namkeen & catering services at Malwa Namkeen House.'),
+  gifting:    buildWaUrl('Hello, I would like to enquire about festive gifting options at Malwa Namkeen House.'),
+  birthday:   buildWaUrl('Hello, I would like to enquire about event savouries at Malwa Namkeen House.'),
+  bulkOrders: buildWaUrl('Hello, I would like to place a bulk order with Malwa Namkeen House.'),
+  corporate:  buildWaUrl('Hello, I would like to enquire about corporate gifting at Malwa Namkeen House.'),
 } as const;
 
 export const CATEGORY_WA_URLS: Record<string, string> = {

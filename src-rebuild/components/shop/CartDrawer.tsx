@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../lib/cartContext';
 import { BUSINESS } from '../../lib/business';
 
@@ -6,14 +7,35 @@ interface CartDrawerProps {
   onOpenCheckout: () => void;
 }
 
-const FREE_SHIPPING_THRESHOLD = 800;
+const FREE_SHIPPING_THRESHOLD = 499;
 
 export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
-  const { cart, isCartOpen, closeCart, updateQuantity, removeFromCart, subtotal, totalItems, clearCart } = useCart();
+  const navigate = useNavigate();
+  const {
+    cart,
+    isCartOpen,
+    closeCart,
+    updateQuantity,
+    removeFromCart,
+    subtotal,
+    discountAmount,
+    coupon,
+    couponError,
+    isApplyingCoupon,
+    applyCoupon,
+    removeCoupon,
+    revalidateCart,
+    totalItems,
+  } = useCart();
+
+  const [inputCoupon, setInputCoupon] = useState('');
+  const [isRevalidating, setIsRevalidating] = useState(false);
+  const [revalidateNotes, setRevalidateNotes] = useState<string[]>([]);
 
   useEffect(() => {
     if (isCartOpen) {
       document.body.style.overflow = 'hidden';
+      setRevalidateNotes([]);
     } else {
       document.body.style.overflow = '';
     }
@@ -34,16 +56,48 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
 
   const remainingForFreeShipping = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
   const freeShippingPercent = Math.min(100, Math.round((subtotal / FREE_SHIPPING_THRESHOLD) * 100));
+  const finalTotal = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
 
-  const handleWhatsAppCheckout = () => {
+  const handleApplyCouponSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputCoupon.trim()) return;
+    await applyCoupon(inputCoupon);
+    setInputCoupon('');
+  };
+
+  const handleProceedCheckout = async () => {
+    setIsRevalidating(true);
+    setRevalidateNotes([]);
+    try {
+      const result = await revalidateCart();
+      if (result.adjustments && result.adjustments.length > 0) {
+        setRevalidateNotes(result.adjustments);
+      }
+    } finally {
+      setIsRevalidating(false);
+      closeCart();
+      onOpenCheckout();
+    }
+  };
+
+  const handleWhatsAppCheckout = async () => {
     if (cart.length === 0) return;
+
+    setIsRevalidating(true);
+    const result = await revalidateCart();
+    setIsRevalidating(false);
 
     let itemsList = '';
     cart.forEach((item, idx) => {
       itemsList += `${idx + 1}. *${item.product.name}* (${item.selectedOption.weight}) × ${item.quantity} — ₹${item.selectedOption.price * item.quantity}\n`;
     });
 
-    const message = `Namaste ${BUSINESS.name}! 🙏\nI would like to order from your Shop:\n\n🛍️ *ORDER SUMMARY:*\n${itemsList}\n📦 *Total Items:* ${totalItems}\n💰 *Subtotal:* ₹${subtotal}\n\nPlease confirm availability and payment details. Thank you!`;
+    let couponInfo = '';
+    if (coupon && discountAmount > 0) {
+      couponInfo = `🎟️ *Coupon Applied (${coupon.code}):* -₹${discountAmount}\n`;
+    }
+
+    const message = `Namaste ${BUSINESS.name}! 🙏\nI would like to order from your Shop:\n\n🛍️ *ORDER SUMMARY:*\n${itemsList}\n📦 *Total Items:* ${totalItems}\n💰 *Subtotal:* ₹${result.subtotal || subtotal}\n${couponInfo}✨ *Final Total:* ₹${result.total || finalTotal}\n\nPlease confirm delivery availability and dispatch timeline. Thank you!`;
 
     window.open(`https://wa.me/${BUSINESS.whatsappNumber}?text=${encodeURIComponent(message)}`, '_blank');
   };
@@ -86,7 +140,7 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
 
         /* ── Header ─────────────────────────────────────────── */
         .cart-drawer__header {
-          background: #55000A;
+          background: #3C0815;
           color: #FFF8EC;
           padding: 20px 24px;
           display: flex;
@@ -107,68 +161,66 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           font-weight: 700;
           color: #FFF8EC;
           margin: 0;
-          letter-spacing: -0.01em;
+          letter-spacing: -0.02em;
         }
 
         .cart-drawer__count-badge {
+          background: #D4AA45;
+          color: #3C0815;
           font-family: Inter, sans-serif;
           font-size: 11px;
           font-weight: 800;
-          color: #2C0612;
-          background: #D4AA45;
-          padding: 2px 8px;
+          padding: 2px 7px;
           border-radius: 999px;
         }
 
         .cart-drawer__close-btn {
-          background: none;
+          background: rgba(255, 255, 255, 0.1);
           border: none;
-          color: rgba(255, 248, 236, 0.80);
-          cursor: pointer;
-          padding: 6px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          color: #FFF8EC;
+          width: 32px;
+          height: 32px;
           border-radius: 50%;
-          transition: color 0.15s, background 0.15s;
+          display: grid;
+          place-items: center;
+          cursor: pointer;
+          transition: background 0.18s;
         }
 
         .cart-drawer__close-btn:hover {
-          color: #D4AA45;
-          background: rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.22);
         }
 
-        /* ── Free Shipping Progress ─────────────────────────── */
+        /* ── Free Shipping Progress Bar ─────────────────────── */
         .cart-drawer__shipping-bar {
-          background: #FAF5ED;
+          background: #F8F4EC;
+          border-bottom: 1px solid rgba(200, 154, 61, 0.2);
           padding: 12px 24px;
-          border-bottom: 1px solid rgba(200, 154, 61, 0.18);
         }
 
         .cart-drawer__shipping-text {
           font-family: Inter, sans-serif;
           font-size: 12px;
-          color: #5E4940;
+          color: #55000A;
           margin: 0 0 6px;
-          line-height: 1.4;
         }
 
         .cart-drawer__shipping-text strong {
-          color: #55000A;
+          color: #881337;
         }
 
         .cart-drawer__progress-track {
           width: 100%;
           height: 5px;
-          background: rgba(200, 154, 61, 0.22);
-          border-radius: 4px;
+          background: #EAE2D2;
+          border-radius: 999px;
           overflow: hidden;
         }
 
         .cart-drawer__progress-fill {
           height: 100%;
-          background: linear-gradient(90deg, #C99A32 0%, #D4AA45 100%);
-          border-radius: 4px;
+          background: linear-gradient(90deg, #D4AA45 0%, #059669 100%);
+          border-radius: 999px;
           transition: width 0.3s ease;
         }
 
@@ -179,25 +231,27 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           padding: 16px 24px;
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          gap: 14px;
         }
 
         .cart-item {
           display: grid;
-          grid-template-columns: 68px 1fr auto;
+          grid-template-columns: 64px minmax(0, 1fr) auto;
           gap: 14px;
           align-items: center;
-          padding-bottom: 16px;
-          border-bottom: 1px solid rgba(200, 154, 61, 0.14);
+          background: #FFFFFF;
+          border: 1px solid rgba(200, 154, 61, 0.2);
+          border-radius: 12px;
+          padding: 12px;
+          box-shadow: 0 2px 8px rgba(85, 0, 10, 0.03);
         }
 
         .cart-item__thumb {
-          width: 68px;
-          height: 68px;
-          border-radius: 10px;
+          width: 64px;
+          height: 64px;
+          border-radius: 8px;
           overflow: hidden;
-          background: #55000A;
-          border: 1px solid rgba(200, 154, 61, 0.25);
+          background: #3C0815;
           flex-shrink: 0;
         }
 
@@ -208,63 +262,60 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
         }
 
         .cart-item__info {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
           min-width: 0;
         }
 
         .cart-item__name {
           font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 17px;
+          font-size: 16px;
           font-weight: 700;
-          color: #34211D;
-          margin: 0 0 2px;
+          color: #3C0815;
+          margin: 0;
           line-height: 1.2;
-          white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .cart-item__meta {
           font-family: Inter, sans-serif;
-          font-size: 11.5px;
+          font-size: 12px;
           color: #75645C;
-          margin: 0 0 8px;
+          margin: 0;
         }
 
         .cart-item__stepper {
           display: inline-flex;
           align-items: center;
-          height: 28px;
-          border-radius: 999px;
-          border: 1px solid rgba(85, 0, 10, 0.25);
-          background: #FFFDF8;
-          overflow: hidden;
+          gap: 8px;
+          background: #FAF6EF;
+          border: 1px solid rgba(200, 154, 61, 0.35);
+          border-radius: 6px;
+          padding: 2px 6px;
+          margin-top: 4px;
+          width: fit-content;
         }
 
         .cart-item__step-btn {
-          width: 26px;
-          height: 100%;
-          background: transparent;
+          background: none;
           border: none;
-          color: #55000A;
+          font-size: 14px;
           font-weight: 700;
-          font-size: 13px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          color: #881337;
           cursor: pointer;
-        }
-
-        .cart-item__step-btn:hover {
-          background: rgba(85, 0, 10, 0.08);
+          padding: 0 4px;
+          line-height: 1;
         }
 
         .cart-item__step-val {
           font-family: Inter, sans-serif;
-          font-size: 11.5px;
+          font-size: 12px;
           font-weight: 700;
           color: #34211D;
-          padding: 0 6px;
-          min-width: 20px;
+          min-width: 16px;
           text-align: center;
         }
 
@@ -279,23 +330,61 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           font-family: 'Cormorant Garamond', Georgia, serif;
           font-size: 18px;
           font-weight: 700;
-          color: #55000A;
-          line-height: 1;
+          color: #3C0815;
         }
 
         .cart-item__delete {
           background: none;
           border: none;
-          color: #A38C82;
+          color: #A39086;
           cursor: pointer;
           padding: 4px;
-          display: flex;
-          align-items: center;
+          display: grid;
+          place-items: center;
           transition: color 0.15s;
         }
 
         .cart-item__delete:hover {
-          color: #C0392B;
+          color: #DC2626;
+        }
+
+        /* ── Coupon Box ─────────────────────────────────────── */
+        .cart-drawer__coupon-box {
+          background: #FAF6EF;
+          border: 1px dashed #D4AA45;
+          border-radius: 10px;
+          padding: 10px 14px;
+          margin-top: 6px;
+        }
+
+        .cart-drawer__coupon-form {
+          display: flex;
+          gap: 8px;
+        }
+
+        .cart-drawer__coupon-input {
+          flex: 1;
+          padding: 7px 10px;
+          border-radius: 6px;
+          border: 1px solid #D4AA45;
+          background: #FFFFFF;
+          font-family: monospace;
+          font-size: 12.5px;
+          font-weight: 700;
+          color: #3C0815;
+          text-transform: uppercase;
+          outline: none;
+        }
+
+        .cart-drawer__coupon-btn {
+          background: #3C0815;
+          color: #FFF9EF;
+          border: none;
+          border-radius: 6px;
+          padding: 7px 12px;
+          font-size: 11.5px;
+          font-weight: 700;
+          cursor: pointer;
         }
 
         /* ── Empty State ────────────────────────────────────── */
@@ -318,7 +407,7 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #C99A32;
+          color: #D4AA45;
           margin-bottom: 16px;
         }
 
@@ -326,7 +415,7 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           font-family: 'Cormorant Garamond', Georgia, serif;
           font-size: 22px;
           font-weight: 700;
-          color: #55000A;
+          color: #3C0815;
           margin: 0 0 6px;
         }
 
@@ -343,7 +432,7 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           height: 40px;
           padding: 0 24px;
           border-radius: 999px;
-          background: #55000A;
+          background: #3C0815;
           color: #FFF8EC;
           border: none;
           font-family: Inter, sans-serif;
@@ -355,18 +444,14 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           transition: background 0.18s;
         }
 
-        .cart-drawer__browse-btn:hover {
-          background: #6B000D;
-        }
-
         /* ── Footer / Checkout ──────────────────────────────── */
         .cart-drawer__footer {
           background: #FFFDF8;
           border-top: 1px solid rgba(200, 154, 61, 0.22);
-          padding: 20px 24px 24px;
+          padding: 16px 24px 20px;
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 10px;
         }
 
         .cart-drawer__summary-row {
@@ -374,35 +459,24 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           justify-content: space-between;
           align-items: baseline;
           font-family: Inter, sans-serif;
-        }
-
-        .cart-drawer__summary-label {
           font-size: 13px;
           color: #75645C;
         }
 
-        .cart-drawer__summary-subtotal {
+        .cart-drawer__summary-total {
           font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 26px;
+          font-size: 24px;
           font-weight: 700;
-          color: #55000A;
-        }
-
-        .cart-drawer__note {
-          font-family: Inter, sans-serif;
-          font-size: 11px;
-          color: #9E8C82;
-          line-height: 1.4;
-          margin: 0;
+          color: #3C0815;
         }
 
         .cart-drawer__btn-primary {
           width: 100%;
           height: 46px;
           border-radius: 999px;
-          background: #55000A;
+          background: #3C0815;
           color: #FFF8EC;
-          border: 1px solid #55000A;
+          border: 1px solid #3C0815;
           font-family: Inter, sans-serif;
           font-size: 12px;
           font-weight: 800;
@@ -413,18 +487,13 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           align-items: center;
           justify-content: center;
           gap: 8px;
-          box-shadow: 0 6px 18px rgba(85, 0, 10, 0.20);
+          box-shadow: 0 6px 18px rgba(60, 8, 21, 0.20);
           transition: background 0.18s, transform 0.18s;
-        }
-
-        .cart-drawer__btn-primary:hover {
-          background: #6B000D;
-          transform: translateY(-1px);
         }
 
         .cart-drawer__btn-wa {
           width: 100%;
-          height: 42px;
+          height: 40px;
           border-radius: 999px;
           background: #25D366;
           color: white;
@@ -440,12 +509,6 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           justify-content: center;
           gap: 8px;
           box-shadow: 0 4px 12px rgba(37, 211, 102, 0.25);
-          transition: background 0.18s, transform 0.18s;
-        }
-
-        .cart-drawer__btn-wa:hover {
-          background: #20BA5A;
-          transform: translateY(-1px);
         }
       `}</style>
 
@@ -482,6 +545,15 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           </div>
         )}
 
+        {/* Adjustments note banner */}
+        {revalidateNotes.length > 0 && (
+          <div style={{ background: '#FEF3C7', color: '#92400E', padding: '8px 16px', fontSize: '11.5px', borderBottom: '1px solid #FDE68A' }}>
+            {revalidateNotes.map((n, i) => (
+              <div key={i}>● {n}</div>
+            ))}
+          </div>
+        )}
+
         {/* Item list or Empty state */}
         {cart.length === 0 ? (
           <div className="cart-drawer__empty">
@@ -496,13 +568,19 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
             <p className="cart-drawer__empty-sub">
               Explore our small-batch Ratlami sev, signature mixtures, and pure ghee mithai.
             </p>
-            <button className="cart-drawer__browse-btn" onClick={closeCart}>
+            <button
+              className="cart-drawer__browse-btn"
+              onClick={() => {
+                closeCart();
+                navigate('/shop');
+              }}
+            >
               Explore Delicacies
             </button>
           </div>
         ) : (
           <div className="cart-drawer__items" role="list">
-            {cart.map((item) => (
+            {cart.map(item => (
               <div key={`${item.product.id}-${item.selectedOption.weight}`} className="cart-item" role="listitem">
                 <div className="cart-item__thumb">
                   <img src={item.product.image} alt={item.product.name} />
@@ -552,28 +630,75 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
         {/* Footer Checkout actions */}
         {cart.length > 0 && (
           <div className="cart-drawer__footer">
-            <div className="cart-drawer__summary-row">
-              <span className="cart-drawer__summary-label">Subtotal</span>
-              <span className="cart-drawer__summary-subtotal">₹{subtotal}</span>
+            {/* Coupon Application Strip */}
+            <div className="cart-drawer__coupon-box">
+              {coupon ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#059669' }}>
+                    🎟️ {coupon.code} applied (-₹{discountAmount})
+                  </div>
+                  <button
+                    type="button"
+                    onClick={removeCoupon}
+                    style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleApplyCouponSubmit} className="cart-drawer__coupon-form">
+                  <input
+                    placeholder="Coupon code (e.g. MALWA15)"
+                    value={inputCoupon}
+                    onChange={e => setInputCoupon(e.target.value.toUpperCase())}
+                    className="cart-drawer__coupon-input"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isApplyingCoupon}
+                    className="cart-drawer__coupon-btn"
+                  >
+                    {isApplyingCoupon ? '...' : 'Apply'}
+                  </button>
+                </form>
+              )}
+              {couponError && (
+                <div style={{ color: '#DC2626', fontSize: '11px', marginTop: '4px', fontWeight: 600 }}>
+                  {couponError}
+                </div>
+              )}
             </div>
-            <p className="cart-drawer__note">
-              Taxes included. Standard shipping calculated at checkout or confirmed via WhatsApp.
-            </p>
+
+            <div className="cart-drawer__summary-row">
+              <span>Subtotal</span>
+              <span>₹{subtotal}</span>
+            </div>
+
+            {discountAmount > 0 && (
+              <div className="cart-drawer__summary-row" style={{ color: '#059669', fontWeight: 700 }}>
+                <span>Promotional Discount</span>
+                <span>-₹{discountAmount}</span>
+              </div>
+            )}
+
+            <div className="cart-drawer__summary-row" style={{ borderTop: '1px solid #EAE3D2', paddingTop: '8px' }}>
+              <span style={{ fontWeight: 700, color: '#3C0815' }}>Total</span>
+              <span className="cart-drawer__summary-total">₹{finalTotal}</span>
+            </div>
 
             <button
               type="button"
               className="cart-drawer__btn-primary"
-              onClick={() => {
-                closeCart();
-                onOpenCheckout();
-              }}
+              disabled={isRevalidating}
+              onClick={handleProceedCheckout}
             >
-              Proceed to Delivery Details
+              {isRevalidating ? 'Verifying items…' : 'Proceed to Delivery Details'}
             </button>
 
             <button
               type="button"
               className="cart-drawer__btn-wa"
+              disabled={isRevalidating}
               onClick={handleWhatsAppCheckout}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">

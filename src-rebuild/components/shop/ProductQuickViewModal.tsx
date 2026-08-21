@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { type Product, type ProductWeightOption } from '../../data/products';
 import { useCart } from '../../lib/cartContext';
 import { BUSINESS } from '../../lib/business';
@@ -9,6 +10,7 @@ interface ProductQuickViewModalProps {
 }
 
 export default function ProductQuickViewModal({ product, onClose }: ProductQuickViewModalProps) {
+  const navigate = useNavigate();
   const { addToCart, openCart } = useCart();
   const [selectedOption, setSelectedOption] = useState<ProductWeightOption | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -16,7 +18,7 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
 
   useEffect(() => {
     if (product) {
-      setSelectedOption(product.options[0]);
+      setSelectedOption(product.options?.[0] || { weight: 'Standard', price: 150 });
       setQuantity(1);
       setIsAdded(false);
       document.body.style.overflow = 'hidden';
@@ -510,6 +512,28 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.694.062-1.127-.08-.271-.089-.624-.22-1.077-.42-1.912-.846-3.149-2.775-3.245-2.903-.095-.129-.773-1.029-.773-1.962 0-.933.489-1.393.663-1.583.174-.19.38-.238.507-.238.127 0 .254.001.365.006.118.005.277-.045.433.332.162.392.553 1.348.601 1.446.048.098.08.213.016.342-.064.129-.096.208-.19.319-.096.111-.202.247-.289.332-.097.094-.198.196-.085.39.113.194.502.828 1.077 1.341.74.66 1.364.865 1.558.961.194.096.308.08.423-.051.114-.131.488-.568.618-.762.13-.195.26-.162.437-.097.178.064 1.128.532 1.322.629.194.097.324.145.372.228.047.081.047.472-.097.877z" />
               </svg>
+            </button>
+          </div>
+
+          <div style={{ marginTop: '16px', textAlign: 'center' }}>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                navigate(`/product/${product.slug || product.id}`);
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#55000A',
+                fontSize: '12px',
+                fontWeight: 700,
+                textDecoration: 'underline',
+                textUnderlineOffset: '3px',
+                cursor: 'pointer',
+              }}
+            >
+              View Full Delicacy Page & Story →
             </button>
           </div>
         </div>

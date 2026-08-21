@@ -4,8 +4,8 @@
  */
 
 export const BUSINESS = {
-  name:        'MishtiChaat',
-  tagline:     'With Love From Banaras',
+  name:        'Malwa Namkeen House',
+  tagline:     'Authentic Malwa Namkeens, Sweets & Savouries',
   email:       'contact@mishtichaat.com',
   phone:       '+91 90350 56691',
   whatsappNumber: '919035056691',

@@ -6,6 +6,7 @@ export interface ProductWeightOption {
 
 export interface Product {
   id: string;
+  slug?: string;
   name: string;
   hindiName?: string;
   tagline: string;
@@ -17,6 +18,7 @@ export interface Product {
   spiceLevel: 'Mild' | 'Medium' | 'Zesty' | 'Clove Hot' | 'Sweet & Tangy';
   shelfLife: string;
   image: string;
+  images?: string[];
   badge?: string;
   rating: number;
   reviewCount: number;

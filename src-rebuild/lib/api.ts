@@ -1,5 +1,5 @@
 /**
- * Typed fetch wrappers for all public MishtiChaat API endpoints.
+ * Typed fetch wrappers for public Malwa Namkeen House API endpoints.
  * All calls go to the Express backend via the Vite proxy (/api → port 3000).
  */
 

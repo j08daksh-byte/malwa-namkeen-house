@@ -1,46 +1,36 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
+import { EVENTS } from '../../lib/events';
+import { WA_URLS } from '../../lib/whatsapp';
 
 function goToContact(category: string) {
-  window.dispatchEvent(new CustomEvent('mishtichaat:selectCategory', { detail: category }));
-  document.querySelector('#contact')?.scrollIntoView({ behavior: 'smooth' });
+  window.dispatchEvent(new CustomEvent(EVENTS.SELECT_CATEGORY, { detail: category }));
+  const target = document.getElementById('contact');
+  if (target) {
+    const topPos = target.getBoundingClientRect().top + window.scrollY - 68;
+    window.scrollTo({ top: Math.max(0, topPos), behavior: 'smooth' });
+  }
 }
 
 const FAQS = [
   {
     q: 'Do you accept bulk orders?',
-    a: 'Absolutely! We cater to gatherings of all sizes, from private family reunions to massive celebrations. All bulk order requests are routed directly to our dedicated WhatsApp support line for personal customization.',
+    a: 'Absolutely! We supply bulk namkeens and festive gift hampers for weddings, family celebrations, and corporate gatherings. You can submit an inquiry online or connect via WhatsApp for custom requirements.',
   },
   {
-    q: 'Do you provide corporate catering?',
-    a: 'Yes, we offer premium corporate catering with customizable menus, elegant live counter setups and professional hospitality. For fast coordination, your inquiry is handled directly by our lead executive on WhatsApp.',
+    q: 'Do you provide corporate gifting packages?',
+    a: 'Yes, we curate custom gift boxes containing signature Ratlami sev, artisanal mathris, and pure sweets with personalized corporate branding and nationwide delivery.',
   },
   {
-    q: 'Do you offer franchise opportunities?',
-    a: 'Yes, we are actively expanding. We offer franchise opportunities with comprehensive kitchen support, raw ingredient logistics and brand training. Direct franchise inquiries are routed to our growth team through WhatsApp.',
+    q: 'Are your products prepared fresh for bulk orders?',
+    a: 'Yes, all bulk order batches are fried fresh in 100% pure cold-pressed groundnut oil and packed in airtight aroma-seal packaging to ensure maximum shelf life and crunch.',
   },
   {
-    q: 'Can I reserve tables online?',
-    a: 'Of course! You can use the Reserve a Table button in the navigation bar or speak with the Mishti Concierge. For special-date reservations or customized table styling, you may also contact us directly through chat.',
-  },
-  {
-    q: 'Do you provide customized gifting?',
-    a: 'We offer bespoke premium sweet boxes, wooden gift boxes and customized festive chocolate and kaju bundles with personalized greetings. All gifting consultations are routed directly to our design desk on WhatsApp.',
-  },
-  {
-    q: 'Do you host birthday parties?',
-    a: 'Yes, we love hosting celebrations. Our premium cafés feature dedicated areas with warm lighting and sound support, along with customized chaat bars and catering options for birthdays, anniversaries and family events.',
-  },
-  {
-    q: 'Do you offer festival hampers?',
-    a: 'We offer limited-edition premium gift sets for Diwali, Holi, Raksha Bandhan, Eid and New Year, featuring fresh pure-ghee sweets and curated dry fruits with WhatsApp order support.',
-  },
-  {
-    q: 'Do you provide catering for events?',
-    a: 'Yes. From weddings to private garden lunches, our cooks and service team prepare fresh Banarasi chaats, tandoor kulchas and traditional sweets directly at your event location.',
+    q: 'What is the minimum quantity for custom gift hampers?',
+    a: 'We accommodate custom gifting starting from 25 hampers up to large festive consignments. Contact our gifting team for tailored catalog options.',
   },
 ];
 
-const WA_HREF = `https://wa.me/919035056691?text=${encodeURIComponent('Hello, I have a question about MishtiChaat.')}`;
+const WA_HREF = WA_URLS.catering;
 
 const WA_ICON = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

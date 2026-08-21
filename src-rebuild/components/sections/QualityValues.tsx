@@ -1,7 +1,7 @@
-﻿const CARDS = [
+const CARDS = [
   {
-    title: 'Finest Ingredients',
-    desc: 'Only the purest whole spices, fresh dairy and quality produce go into every recipe.',
+    title: 'Pure Groundnut Oil',
+    desc: 'Prepared exclusively in 100% pure cold-pressed groundnut oil — zero palm oil, zero trans fats.',
     icon: (
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M12 2C9 7 5 8.5 5 13a7 7 0 0014 0c0-4.5-4-6-7-11z" stroke="#B77F22" strokeWidth="1.6" strokeLinejoin="round" fill="rgba(183,127,34,0.14)"/>
@@ -10,8 +10,8 @@
     ),
   },
   {
-    title: 'Hygienic Preparation',
-    desc: 'Strict kitchen standards and daily sanitisation ensure every plate is safe and clean.',
+    title: 'Stone-Ground Spices',
+    desc: 'Aromatic cloves, black pepper, hing, and ajwain blended in-house for bold authentic Malwa taste.',
     icon: (
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M12 2l1.5 4.5H18l-3.7 2.7 1.4 4.3L12 11l-3.7 2.5 1.4-4.3L6 6.5h4.5z" stroke="#B77F22" strokeWidth="1.5" strokeLinejoin="round" fill="rgba(183,127,34,0.14)"/>
@@ -21,8 +21,8 @@
     ),
   },
   {
-    title: 'Handcrafted Recipes',
-    desc: 'Time-honoured techniques passed through generations — never rushed, never compromised.',
+    title: 'Small-Batch Heritage',
+    desc: 'Traditional artisan techniques passed down through generations — never rushed, never automated.',
     icon: (
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <ellipse cx="12" cy="8" rx="7" ry="3" stroke="#B77F22" strokeWidth="1.5" fill="rgba(183,127,34,0.12)"/>
@@ -32,8 +32,8 @@
     ),
   },
   {
-    title: 'Freshly Packed',
-    desc: 'Prepared each morning and packed on the same day — freshness is our promise, always.',
+    title: 'Aroma-Seal Freshness',
+    desc: 'Crisp, vacuum-sealed packaging protects flavour and crunch for fresh delivery anywhere in India.',
     icon: (
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <rect x="4" y="9" width="16" height="12" rx="2" stroke="#B77F22" strokeWidth="1.5" fill="rgba(183,127,34,0.12)"/>

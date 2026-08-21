@@ -1,16 +1,23 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode, type CSSProperties } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, UserRound, ShoppingBag, X, Minus, Plus, ArrowRight } from 'lucide-react';
+import { Search, UserRound, ShoppingBag, Heart, X, Minus, Plus, ArrowRight } from 'lucide-react';
 import { NAV_LINKS, MOBILE_LINKS } from '../../data/nav-links';
 import { ACTIVE_MENU, type MenuItem } from '../../data/menu';
 import { useCart } from './CartContext';
+import { useWishlist } from '../../lib/wishlistContext';
 import { useCustomerSession } from './CustomerSessionContext';
 
 function scrollTo(href: string) {
-  if (href === '#hero') {
+  if (href === '/' || href === '#hero' || href === '/#hero') {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  } else {
-    document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' });
+    return;
+  }
+  const cleanId = href.replace(/^(\/)?#/, '');
+  const el = document.getElementById(cleanId);
+  if (el) {
+    const navbarHeight = 68;
+    const topPos = el.getBoundingClientRect().top + window.scrollY - navbarHeight;
+    window.scrollTo({ top: Math.max(0, topPos), behavior: 'smooth' });
   }
 }
 
@@ -40,7 +47,13 @@ function HamburgerIcon({ open }: { open: boolean }) {
 function NavLink({ href, children }: { href: string; children: ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const isActive = (href.startsWith('/') && location.pathname === href) || (href === '/' && location.pathname === '/');
+
+  const isHashLink = href.includes('#');
+  const targetHash = isHashLink ? `#${href.split('#')[1]}` : '';
+  const isActive = isHashLink
+    ? location.pathname === '/' && location.hash === targetHash
+    : location.pathname === href;
+
   return (
     <a
       href={href}
@@ -48,14 +61,20 @@ function NavLink({ href, children }: { href: string; children: ReactNode }) {
       onClick={e => {
         e.preventDefault();
         if (href === '/') {
-          navigate('/');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        } else if (href.startsWith('/')) {
-          navigate(href);
-        } else if (location.pathname === '/') {
-          scrollTo(href);
+          if (location.pathname === '/') {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          } else {
+            navigate('/');
+          }
+        } else if (isHashLink) {
+          if (location.pathname === '/') {
+            scrollTo(href);
+            window.history.pushState(null, '', href);
+          } else {
+            navigate(href);
+          }
         } else {
-          navigate(`/${href}`);
+          navigate(href);
         }
       }}
     >
@@ -69,6 +88,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
   const location = useLocation();
   const { customer } = useCustomerSession();
   const { items, itemCount, subtotal, addItem, updateQuantity, removeItem } = useCart();
+  const { wishlistCount } = useWishlist();
 
   const openCustomerAccount = () => navigate(customer ? '/dashboard' : '/account');
 
@@ -151,15 +171,22 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
 
   const go = (href: string) => {
     closeMenu();
+    const isHashLink = href.includes('#');
     if (href === '/') {
-      navigate('/');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (href.startsWith('/')) {
-      navigate(href);
-    } else if (location.pathname === '/') {
-      scrollTo(href);
+      if (location.pathname === '/') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        navigate('/');
+      }
+    } else if (isHashLink) {
+      if (location.pathname === '/') {
+        scrollTo(href);
+        window.history.pushState(null, '', href);
+      } else {
+        navigate(href);
+      }
     } else {
-      navigate(`/${href}`);
+      navigate(href);
     }
   };
 
@@ -578,18 +605,20 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
           {/* Logo */}
           <a
             href="/"
-            aria-label="MishtiChaat — return to top"
+            className="brand-logo"
+            aria-label="Malwa Namkeen House — return to top"
             onClick={e => {
               e.preventDefault();
               navigate('/');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', flexShrink: 0 }}
           >
             <img
               src="/mishtichaat/logo.svg"
-              alt="MishtiChaat"
-              style={{ height: '52px', width: 'auto', maxWidth: '220px', objectFit: 'contain' }}
+              alt="Malwa Namkeen House"
+              className="brand-logo__img"
+              width={160}
+              height={40}
             />
           </a>
 
@@ -614,6 +643,15 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
                 aria-label={customer ? 'Open customer dashboard' : 'Sign in to your account'}
               >
                 <UserRound size={19} strokeWidth={1.7} />
+              </button>
+              <button
+                className="nav-action"
+                onClick={() => navigate('/shop')}
+                aria-label={`Wishlist, ${wishlistCount} items`}
+                title="Wishlist"
+              >
+                <Heart size={19} strokeWidth={1.7} />
+                {wishlistCount > 0 && <span className="nav-action__count">{wishlistCount > 9 ? '9+' : wishlistCount}</span>}
               </button>
               <button className="nav-action" onClick={showCart} aria-label={`Cart, ${itemCount} items`}>
                 <ShoppingBag size={19} strokeWidth={1.7} />

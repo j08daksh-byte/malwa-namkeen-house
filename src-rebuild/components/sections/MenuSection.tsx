@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { MENU_CATEGORIES, ACTIVE_MENU, type MenuCategory } from '../../data/menu';
+import { EVENTS } from '../../lib/events';
 
 // ── Search highlight ──────────────────────────────────────────────────────────
 
@@ -155,8 +156,8 @@ export default function MenuSection() {
         }, 420);
       }, 80);
     };
-    window.addEventListener('mishtichaat:menuCategory', handler);
-    return () => window.removeEventListener('mishtichaat:menuCategory', handler);
+    window.addEventListener(EVENTS.MENU_CATEGORY, handler);
+    return () => window.removeEventListener(EVENTS.MENU_CATEGORY, handler);
   }, [scrollToCategory]);
 
   // ── Panel scrollspy ──

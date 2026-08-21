@@ -1,4 +1,5 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 const TAGS = ['100% Satvik', 'Pure Desi Ghee', 'Since 1978', 'Heritage Recipes'];
 
@@ -242,15 +243,15 @@ export default function LegacyStory() {
             </div>
 
             <h2 className="ls-h2">
-              From the Ghats of Banaras
-              <em>to the Streets of Bengaluru</em>
+              From the Royal Kitchens of Malwa
+              <em>to Every Chai Table Across India</em>
             </h2>
 
             <p className="ls-body" style={{ marginTop: '20px' }}>
-              Born in the lanes of Banaras and inspired by its vibrant chaat culture, MishtiChaat brings traditional recipes, handcrafted sweets and the warmth of Indian hospitality to Bengaluru.
+              Born in the heart of Malwa and inspired by its rich culinary heritage, Malwa Namkeen House brings authentic small-batch namkeens, peppery Ratlami sev, handcrafted mathris, and pure sweets directly to your home.
             </p>
             <p className="ls-body-muted">
-              Every recipe carries the care of home-style preparation, pure ingredients, slow-crafted spices and generations of culinary memory.
+              Every recipe carries the care of traditional hand-extrusion, cold-pressed groundnut oil, slow-roasted spices, and generations of culinary mastery.
             </p>
 
             <div className="ls-tags">
@@ -259,10 +260,9 @@ export default function LegacyStory() {
               ))}
             </div>
 
-            <a
-              href="#contact"
+            <Link
+              to="/about-us"
               className="ls-cta"
-              onClick={e => { e.preventDefault(); document.querySelector('#contact')?.scrollIntoView({ behavior: 'smooth' }); }}
               onMouseEnter={() => setHov(true)}
               onMouseLeave={() => setHov(false)}
               style={{
@@ -274,7 +274,7 @@ export default function LegacyStory() {
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                 <path d="M1 6h10M7 2l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-            </a>
+            </Link>
 
           </div>
 
@@ -284,8 +284,8 @@ export default function LegacyStory() {
             <div className="ls-postcard">
               <div className="ls-postcard-border">
                 <img
-                  src="/mishtichaat/banaras-ghat.jpg"
-                  alt="Historic ghats of Banaras along the River Ganges"
+                  src="/mishtichaat/chaat-plate.jpg"
+                  alt="Heritage Malwa Namkeen craftsmanship"
                   className="ls-postcard-img"
                   loading="lazy"
                   decoding="async"
@@ -298,7 +298,7 @@ export default function LegacyStory() {
                 <div className="ls-postcard-inset" aria-hidden="true" />
               </div>
               <div className="ls-postcard-caption">
-                <span className="ls-postcard-caption-text">The Ghats of Banaras</span>
+                <span className="ls-postcard-caption-text">The Heritage of Malwa</span>
               </div>
             </div>
 

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import LegalHeader from '../../components/layout/LegalHeader';
+import SEOHead from '../../components/seo/SEOHead';
 
 interface Props {
   title: string;
@@ -10,6 +11,11 @@ interface Props {
 export default function LegalLayout({ title, lastUpdated, children }: Props) {
   return (
     <div style={{ minHeight: '100vh', background: '#FFF8EC', fontFamily: 'Inter, Georgia, serif' }}>
+      <SEOHead
+        title={title}
+        description={`Legal terms and policies for Malwa Namkeen House — ${title}.`}
+        canonicalPath={typeof window !== 'undefined' ? window.location.pathname : ''}
+      />
       <style>{`
         .legal-shell {
           max-width: 760px;
@@ -50,7 +56,7 @@ export default function LegalLayout({ title, lastUpdated, children }: Props) {
 
         {/* Footer */}
         <div style={{ marginTop: '52px', paddingTop: '20px', borderTop: '1px solid #E8D5B7', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <a href="/" style={{ fontSize: '13px', color: '#9CA3AF', textDecoration: 'none' }}>← Back to MishtiChaat</a>
+          <a href="/" style={{ fontSize: '13px', color: '#9CA3AF', textDecoration: 'none' }}>← Back to Malwa Namkeen House</a>
           {/* Temporary template — pending final legal review. */}
           <p style={{ fontSize: '11.5px', color: '#C4B49A', fontStyle: 'italic', margin: 0 }}>
             These pages are working drafts and are pending final legal review. They do not constitute professional legal advice.

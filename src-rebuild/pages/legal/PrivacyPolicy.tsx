@@ -16,7 +16,7 @@ export default function PrivacyPolicy() {
       <p>We do not sell or rent your personal information to third parties.</p>
 
       <h2>3. Data Storage</h2>
-      <p>Your submitted information is stored in a database hosted by Supabase (supabase.com). Access to your data is restricted to authorised MishtiChaat staff. For details on Supabase's security practices, please refer to <a href="https://supabase.com/security" target="_blank" rel="noreferrer">supabase.com/security</a>.</p>
+      <p>Your submitted information is stored securely in our cloud database. Access to your data is restricted to authorised Malwa Namkeen House staff. We implement administrative and technical security measures to safeguard your personal data.</p>
 
       <h2>4. Data Retention</h2>
       <p>We retain reservation and enquiry records for as long as necessary for business and legal purposes. You may request deletion of your data at any time by contacting us at the address below, and we will respond within a reasonable timeframe.</p>
@@ -39,7 +39,7 @@ export default function PrivacyPolicy() {
       <p>We may update this Privacy Policy from time to time. The "Last Updated" date at the top of this page reflects the most recent revision. Continued use of our website after any changes constitutes acceptance of the revised policy.</p>
 
       <h2>9. Contact</h2>
-      <p>MishtiChaat Cafe, No. 87/4-B, Sulikunte Village, Sarjapur Main Road, Dommasandra Post, Bengaluru – 562125, Karnataka, India.<br />Email: <a href="mailto:contact@mishtichaat.com">contact@mishtichaat.com</a></p>
+      <p>Malwa Namkeen House, No. 87/4-B, Sulikunte Village, Sarjapur Main Road, Dommasandra Post, Bengaluru – 562125, Karnataka, India.<br />Email: <a href="mailto:contact@mishtichaat.com">contact@mishtichaat.com</a></p>
     </LegalLayout>
   );
 }

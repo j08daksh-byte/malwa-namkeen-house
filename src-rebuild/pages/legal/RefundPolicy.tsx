@@ -4,14 +4,14 @@ export default function RefundPolicy() {
   return (
     <LegalLayout title="Refund Policy" lastUpdated="June 2026">
       <h2>1. General Policy</h2>
-      <p>MishtiChaat aims to handle all refund requests fairly and promptly. This page outlines the general circumstances under which refunds may be considered for advance payments. Specific refund terms for any order are communicated at the time of booking confirmation.</p>
+      <p>Malwa Namkeen House aims to handle all refund requests fairly and promptly. This page outlines the general circumstances under which refunds may be considered for online orders and bulk bookings.</p>
 
       <h2>2. When a Refund May Apply</h2>
       <p>A refund may be considered in the following situations:</p>
       <ul>
-        <li>Cancellation of a catering or event order in accordance with the terms agreed at booking (see <a href="/cancellation-policy">Cancellation Policy</a>).</li>
-        <li>A cancellation initiated by MishtiChaat.</li>
-        <li>Documented failure to deliver a confirmed service as agreed.</li>
+        <li>Cancellation of a catering or bulk order in accordance with the terms agreed at booking.</li>
+        <li>A cancellation initiated by Malwa Namkeen House due to out-of-stock inventory.</li>
+        <li>Documented transit damage or delivery error of perishable savouries.</li>
         <li>A duplicate payment made in error.</li>
       </ul>
 
@@ -37,7 +37,7 @@ export default function RefundPolicy() {
       <p>If you believe a refund has been incorrectly denied, please raise the matter in writing to <a href="mailto:contact@mishtichaat.com">contact@mishtichaat.com</a>. We will review the case and respond as soon as possible.</p>
 
       <h2>7. Contact</h2>
-      <p>MishtiChaat Cafe, No. 87/4-B, Sulikunte Village, Sarjapur Main Road, Dommasandra Post, Bengaluru – 562125, Karnataka, India.<br />Email: <a href="mailto:contact@mishtichaat.com">contact@mishtichaat.com</a></p>
+      <p>Malwa Namkeen House, No. 87/4-B, Sulikunte Village, Sarjapur Main Road, Dommasandra Post, Bengaluru – 562125, Karnataka, India.<br />Email: <a href="mailto:contact@mishtichaat.com">contact@mishtichaat.com</a></p>
     </LegalLayout>
   );
 }

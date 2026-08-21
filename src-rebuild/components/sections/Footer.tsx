@@ -1,9 +1,10 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BUSINESS } from '../../lib/business';
 import { NAV_LINKS } from '../../data/nav-links';
 
 const LEGAL_LINKS = [
+  { label: 'Frequently Asked Questions', href: '/faq' },
   { label: 'Privacy Policy',      href: '/privacy-policy'       },
   { label: 'Terms & Conditions',  href: '/terms-and-conditions' },
   { label: 'Cancellation Policy', href: '/cancellation-policy'  },
@@ -47,12 +48,27 @@ export default function Footer() {
 
   const handleNavigation = (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     event.preventDefault();
-    if (href.startsWith('/')) {
-      navigate(href);
-    } else if (location.pathname === '/') {
-      document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' });
+    const isHashLink = href.includes('#');
+    if (href === '/') {
+      if (location.pathname === '/') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        navigate('/');
+      }
+    } else if (isHashLink) {
+      if (location.pathname === '/') {
+        const cleanId = href.replace(/^(\/)?#/, '');
+        const target = document.getElementById(cleanId);
+        if (target) {
+          const topPos = target.getBoundingClientRect().top + window.scrollY - 68;
+          window.scrollTo({ top: Math.max(0, topPos), behavior: 'smooth' });
+          window.history.pushState(null, '', href);
+        }
+      } else {
+        navigate(href);
+      }
     } else {
-      navigate(`/${href}`);
+      navigate(href);
     }
   };
 

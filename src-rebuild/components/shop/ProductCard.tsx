@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { type Product, type ProductWeightOption } from '../../data/products';
 import { useCart } from '../../lib/cartContext';
+import { useWishlist } from '../../lib/wishlistContext';
+import { optimizeCloudinary } from '../../lib/cloudinary';
 
 interface ProductCardProps {
   product: Product;
@@ -8,8 +11,13 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, onQuickView }: ProductCardProps) {
+  const navigate = useNavigate();
   const { cart, addToCart, updateQuantity } = useCart();
-  const [selectedOption, setSelectedOption] = useState<ProductWeightOption>(product.options[0]);
+  const { isInWishlist, toggleWishlist } = useWishlist();
+  const isWishlisted = isInWishlist(product.id || (product as any)._id);
+  const [selectedOption, setSelectedOption] = useState<ProductWeightOption>(
+    product.options?.[0] || { weight: 'Standard', price: 150 }
+  );
   const [isAdding, setIsAdding] = useState(false);
 
   // Check if currently selected weight is in the cart
@@ -360,19 +368,57 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
       {/* Media & Badges */}
       <div
         className="shop-product-card__media"
-        onClick={() => onQuickView(product)}
+        onClick={() => navigate(`/product/${product.slug || product.id}`)}
         title={`View details for ${product.name}`}
       >
         <img
-          src={product.image}
+          src={optimizeCloudinary(product.image, { width: 520, quality: 'auto', format: 'auto' })}
           alt={product.name}
           className="shop-product-card__img"
           loading="lazy"
           decoding="async"
+          onError={e => {
+            const el = e.currentTarget;
+            if (!el.src.includes('/mishtichaat/chaat-plate.jpg')) {
+              el.src = '/mishtichaat/chaat-plate.jpg';
+            }
+          }}
         />
         {product.badge && (
           <span className="shop-product-card__badge-tag">{product.badge}</span>
         )}
+
+        {/* Wishlist Heart Button */}
+        <button
+          type="button"
+          onClick={e => {
+            e.stopPropagation();
+            toggleWishlist(product);
+          }}
+          aria-label={isWishlisted ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`}
+          style={{
+            position: 'absolute',
+            top: '12px',
+            right: '12px',
+            background: 'rgba(255, 255, 255, 0.92)',
+            border: '1px solid rgba(200, 154, 61, 0.3)',
+            borderRadius: '50%',
+            width: '32px',
+            height: '32px',
+            display: 'grid',
+            placeItems: 'center',
+            cursor: 'pointer',
+            zIndex: 3,
+            color: isWishlisted ? '#DC2626' : '#75645C',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            transition: 'transform 0.15s, color 0.15s',
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill={isWishlisted ? '#DC2626' : 'none'} stroke="currentColor" strokeWidth="2">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+          </svg>
+        </button>
+
         <button
           type="button"
           className="shop-product-card__quick-btn"
@@ -409,7 +455,11 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
         </div>
 
         <div className="shop-product-card__title-row">
-          <h3 className="shop-product-card__title">
+          <h3
+            className="shop-product-card__title"
+            style={{ cursor: 'pointer' }}
+            onClick={() => navigate(`/product/${product.slug || product.id}`)}
+          >
             {product.name}
             {product.hindiName && (
               <span className="shop-product-card__hindi">{product.hindiName}</span>

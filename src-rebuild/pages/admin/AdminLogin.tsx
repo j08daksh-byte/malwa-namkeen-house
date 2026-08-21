@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient.ts';
+import SEOHead from '../../components/seo/SEOHead.tsx';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -21,6 +22,30 @@ export default function AdminLogin() {
     setError('');
     setLoading(true);
     try {
+      // 1. Try MongoDB Admin Auth
+      const mongoRes = await fetch('/api/auth/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+        credentials: 'include',
+      });
+
+      if (mongoRes.ok) {
+        const data = await mongoRes.json();
+        if (data.success) {
+          if (data.token) localStorage.setItem('malwa_admin_token', data.token);
+          navigate('/admin/dashboard', { replace: true });
+          return;
+        }
+      } else {
+        const errData = await mongoRes.json().catch(() => ({}));
+        if (mongoRes.status === 403) {
+          setError(errData.message || 'Access denied. You do not have administrator permissions.');
+          return;
+        }
+      }
+
+      // 2. Fallback to Supabase Auth
       const { error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (authError) {
         setError('Invalid email or password. Please try again.');
@@ -46,10 +71,11 @@ export default function AdminLogin() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1A0A0F 0%, #2D0F1A 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <SEOHead title="Admin Portal Sign In" noIndex={true} />
       <div style={{ width: '100%', maxWidth: '400px' }}>
         {/* Logo area */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ color: '#F0C74E', fontSize: '22px', fontWeight: 800, letterSpacing: '0.04em' }}>MishtiChaat</div>
+          <div style={{ color: '#F0C74E', fontSize: '22px', fontWeight: 800, letterSpacing: '0.04em' }}>Malwa Namkeen House</div>
           <div style={{ color: 'rgba(255,248,236,0.45)', fontSize: '12px', marginTop: '4px', letterSpacing: '0.10em', textTransform: 'uppercase' }}>Admin Portal</div>
         </div>
 
@@ -67,7 +93,7 @@ export default function AdminLogin() {
             <input
               type="email" required autoFocus
               value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="admin@mishtichaat.com"
+              placeholder="admin@malwanamkeen.com"
               style={inputStyle}
             />
 

@@ -1,10 +1,5 @@
+import { Link } from 'react-router-dom';
 import { BUSINESS } from '../../lib/business';
-import type { MouseEvent } from 'react';
-
-function scrollToMenu(event: MouseEvent<HTMLAnchorElement>) {
-  event.preventDefault();
-  document.querySelector('#menu')?.scrollIntoView({ behavior: 'smooth' });
-}
 
 export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void }) {
   return (
@@ -69,8 +64,8 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          min-height: 47px;
-          padding: 0 23px;
+          min-height: 48px;
+          padding: 0 24px;
           border-radius: 999px;
           font-family: Inter, sans-serif;
           font-size: 11px;
@@ -148,17 +143,28 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
             Small-batch sev, chivda and mixtures fried the Malwa way — clove-warm masalas, groundnut oil, and recipes our family has kept unchanged for decades.
           </p>
           <div className="hero-editorial__actions">
-            <a className="hero-editorial__button hero-editorial__button--primary" href={`https://wa.me/${BUSINESS.whatsappNumber}`} target="_blank" rel="noopener noreferrer">
-              Order on WhatsApp
-            </a>
-            <a className="hero-editorial__button hero-editorial__button--secondary" href="#menu" onClick={scrollToMenu}>
-              Browse bestsellers
-            </a>
+            <Link className="hero-editorial__button hero-editorial__button--primary" to="/shop">
+              Explore The Shop
+            </Link>
+            <Link className="hero-editorial__button hero-editorial__button--secondary" to="/#story">
+              Our Heritage
+            </Link>
           </div>
         </div>
 
         <div className="hero-editorial__image-wrap">
-          <img className="hero-editorial__image" src="/mishtichaat/chaat-plate.jpg" alt="Assorted chaat topped with sev" fetchPriority="high" />
+          <img
+            className="hero-editorial__image"
+            src="/mishtichaat/chaat-plate.jpg"
+            alt="Artisanal Malwa Ratlami Sev and Namkeens"
+            fetchPriority="high"
+            onError={e => {
+              const el = e.currentTarget;
+              if (!el.src.includes('/mishtichaat/chaat-plate.jpg')) {
+                el.src = '/mishtichaat/chaat-plate.jpg';
+              }
+            }}
+          />
         </div>
       </div>
     </section>

@@ -1,6 +1,6 @@
 /**
- * MishtiChaat — Express server
- * Handles all API routes and serves the Vite SPA.
+ * Malwa Namkeen House — Express server
+ * Handles all API routes, sitemaps, robots.txt, and serves the Vite SPA.
  */
 
 import express from 'express';
@@ -13,18 +13,41 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
 import enquiryRoutes from './server/routes/enquiries.ts';
-import adminRoutes, { publicSettingsRoute } from './server/routes/admin.ts';
+import adminRoutes from './server/routes/admin.ts';
+import authRoutes from './server/routes/auth.ts';
+import uploadRoutes from './server/routes/uploads.ts';
+import adminProductRoutes from './server/routes/adminProducts.ts';
+import adminCategoryRoutes from './server/routes/adminCategories.ts';
+import adminOrderRoutes from './server/routes/adminOrders.ts';
+import adminCustomerRoutes from './server/routes/adminCustomers.ts';
+import adminDiscountRoutes from './server/routes/adminDiscounts.ts';
+import adminInquiryRoutes from './server/routes/adminInquiries.ts';
+import adminSettingsRoutes from './server/routes/adminSettings.ts';
+import adminDashboardRoutes from './server/routes/adminDashboard.ts';
+import publicCatalogRoutes from './server/routes/products.ts';
+import cartWishlistRoutes from './server/routes/cartWishlist.ts';
+import customerAccountRoutes from './server/routes/customerAccount.ts';
+import customerOrdersRoutes from './server/routes/customerOrders.ts';
+import sitemapRoutes from './server/routes/sitemap.ts';
 import { BUSINESS } from './server/config.ts';
+import { connectMongoDB, getMongoStatus } from './server/lib/mongodb.ts';
+import cookieParser from 'cookie-parser';
 
 dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true });
 
 // ── Environment validation ───────────────────────────────────────────────────
 
-const REQUIRED_ENV: string[] = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
-const OPTIONAL_WARNED: string[] = ['RESEND_API_KEY', 'GEMINI_API_KEY', 'SUPABASE_ANON_KEY'];
+const REQUIRED_ENV: string[] = ['MONGODB_URI', 'JWT_SECRET'];
+const OPTIONAL_WARNED: string[] = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET', 'RESEND_API_KEY', 'GEMINI_API_KEY'];
 
 function validateEnv() {
-  const missing = REQUIRED_ENV.filter(k => !process.env[k]);
+  const isProd = process.env.NODE_ENV === 'production';
+  const required = [...REQUIRED_ENV];
+  if (isProd) {
+    required.push('JWT_SECRET');
+  }
+  const missing = required.filter(k => !process.env[k]);
   if (missing.length) {
     console.error(`[Startup] Missing required env vars: ${missing.join(', ')}`);
     process.exit(1);
@@ -86,26 +109,28 @@ const MENU_CONTEXT_SUMMARY = `
 `;
 
 const INITIAL_CONCIERGE_PROMPT = `
-You are Mishti Concierge, the extremely warm, polite, and deeply cultured culinary concierge assistant at MishtiChaat, a premium heritage Indian café in Bengaluru.
-Your tone is welcoming, highly respectful, and warm (refer to guests as 'Aap' or 'Ji', start with 'Namaste' or 'Pranam', and use words reflecting hospitality). You are extremely passionate about Varanasi's culinary lineage and recipes.
-
-Available food items on our menu and prices are detailed below:
-${MENU_CONTEXT_SUMMARY}
+You are Malwa Concierge, the extremely warm, polite, and deeply knowledgeable culinary concierge at Malwa Namkeen House.
+Your tone is welcoming, highly respectful, and warm (refer to guests respectfully, start with 'Namaste', and reflect authentic Indian hospitality). You are passionate about Malwa and Ujjain's heritage savouries, Ratlami sev, and pure ghee sweets.
 
 Follow these strictly:
-1. Refer to yourself as "Mishti Concierge".
-2. Speak about Kashi and our café with real warmth and passion.
-3. If they chat in English or Hindi, respond naturally in a warm, friendly mix of both.
-4. Suggest amazing culinary pairings! Recommend Shahi Rabadi (₹100) WITH Desi Ghee Jalebi (₹80).
-5. Calculate estimated pricing for requested items if asked.
-6. Keep answers compact, conversational, maximum 3 short paragraphs.
-7. If they wish to reserve a spot or book catering, advise them to use the Reserve button or contact us on WhatsApp (+91 90350 56691).
+1. Refer to yourself as "Malwa Concierge".
+2. Speak about authentic Malwa namkeens, pure cold-pressed groundnut oil, and stone-ground spices with pride.
+3. If users chat in English or Hindi, respond naturally in a warm, polite blend of both.
+4. Suggest amazing namkeen pairings and packaging formats for festivals or daily snacking.
+5. If they wish to place bulk orders or gifting hampers, advise them to submit an inquiry through the website or message us on WhatsApp (+91 90350 56691).
 `;
 
 // ── Server bootstrap ─────────────────────────────────────────────────────────
 
 async function startServer() {
   validateEnv();
+
+  // ── MongoDB connection (non-blocking — server starts even if Mongo is unavailable)
+  try {
+    await connectMongoDB();
+  } catch {
+    console.warn('[Startup] MongoDB unavailable — server will start without it.');
+  }
 
   const app  = express();
   const PORT = Number(process.env.PORT ?? 3000);
@@ -138,12 +163,16 @@ async function startServer() {
     if (!origin || allowedOrigins.includes(origin)) {
       if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
     }
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.setHeader('Vary', 'Origin');
     if (req.method === 'OPTIONS') { res.sendStatus(204); return; }
     next();
   });
+
+  // Cookie parser
+  app.use(cookieParser());
 
   // JSON body — 100kb limit
   app.use(express.json({ limit: '100kb' }));
@@ -172,14 +201,66 @@ async function startServer() {
     },
   });
 
+  // ── SEO & Discoverability routes (sitemap.xml, robots.txt) ────────────────
+  app.use('/', sitemapRoutes);
+
   // ── API routes ────────────────────────────────────────────────────────────
 
   app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', time: new Date().toISOString(), service: BUSINESS.name });
+    const mongo = getMongoStatus();
+    res.json({ status: 'ok', time: new Date().toISOString(), service: BUSINESS.name, mongodb: mongo.state });
   });
 
-  // Public settings (menu PDF URL, Google Maps URL, etc.) — no auth required
-  publicSettingsRoute(app);
+  // Public customer storefront catalog (Products & Categories from MongoDB)
+  app.use('/api', publicCatalogRoutes);
+
+  // Customer Cart Revalidation & Wishlist
+  app.use('/api/cart', cartWishlistRoutes);
+  app.use('/api/customer', cartWishlistRoutes);
+  app.use('/api/customer', customerAccountRoutes);
+
+  // Customer Orders / Checkout
+  app.use('/api/orders', customerOrdersRoutes);
+
+  // Public customer store settings (MongoDB)
+  app.use('/api/settings', adminSettingsRoutes);
+
+  // Admin dashboard live analytics
+  app.use('/api/admin/dashboard', adminDashboardRoutes);
+
+  // Authentication routes (register, login, logout, me, admin verify)
+  app.use('/api/auth', authRoutes);
+
+  // Admin store settings routes (protected by requireAdmin)
+  app.use('/api/admin/settings', adminSettingsRoutes);
+
+  // Public customer inquiry submission
+  app.use('/api/inquiries', adminInquiryRoutes);
+  app.use('/api/contact', adminInquiryRoutes);
+
+  // Admin inquiry routes (protected by requireAdmin)
+  app.use('/api/admin/inquiries', adminInquiryRoutes);
+
+  // Customer discount validation
+  app.use('/api/discounts', adminDiscountRoutes);
+
+  // Admin discount routes (protected by requireAdmin)
+  app.use('/api/admin/discounts', adminDiscountRoutes);
+
+  // Admin customer routes (protected by requireAdmin)
+  app.use('/api/admin/customers', adminCustomerRoutes);
+
+  // Admin order routes (protected by requireAdmin)
+  app.use('/api/admin/orders', adminOrderRoutes);
+
+  // Admin category routes (protected by requireAdmin)
+  app.use('/api/admin/categories', adminCategoryRoutes);
+
+  // Admin product routes (protected by requireAdmin)
+  app.use('/api/admin/products', adminProductRoutes);
+
+  // Admin upload routes (protected by requireAdmin)
+  app.use('/api/admin/uploads', uploadRoutes);
 
   // Admin routes must be registered BEFORE app.use('/api', formLimiter, ...)
   // to prevent the form rate-limiter from intercepting admin requests.

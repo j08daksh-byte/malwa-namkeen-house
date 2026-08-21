@@ -13,8 +13,8 @@ export default function CancellationPolicy() {
       <h2>2. Catering and Event Cancellations</h2>
       <p>Cancellation terms for catering, bulk orders, and event bookings are agreed upon at the time of finalising the order and will be clearly communicated before any advance payment is requested. Please refer to your booking confirmation or contact our team for the specific terms applicable to your order.</p>
 
-      <h2>3. MishtiChaat-Initiated Cancellations</h2>
-      <p>In rare cases — due to unforeseen circumstances, operational issues, or events beyond our control — MishtiChaat may need to cancel a confirmed reservation or order. We will notify you promptly and work with you to find a suitable resolution, including a full refund of any advance payments made where applicable.</p>
+      <h2>3. Malwa Namkeen House-Initiated Cancellations</h2>
+      <p>In rare cases — due to unforeseen circumstances, operational issues, or events beyond our control — Malwa Namkeen House may need to cancel a confirmed order or bulk booking. We will notify you promptly and work with you to find a suitable resolution, including a full refund of any advance payments made where applicable.</p>
 
       <h2>4. How to Cancel</h2>
       <p>To cancel a reservation or enquiry, contact us via:</p>

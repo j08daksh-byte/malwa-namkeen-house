@@ -6,6 +6,8 @@
 import { supabase } from './supabaseClient.ts';
 
 async function getToken(): Promise<string | null> {
+  const local = localStorage.getItem('malwa_admin_token');
+  if (local) return local;
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
 }
