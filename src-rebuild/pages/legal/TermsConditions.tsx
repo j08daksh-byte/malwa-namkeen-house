@@ -26,7 +26,7 @@ export default function TermsConditions() {
       <p>We reserve the right to modify these Terms at any time. The "Last Updated" date reflects the most recent revision. Continued use of our website constitutes acceptance of any changes.</p>
 
       <h2>8. Contact</h2>
-      <p>For questions regarding these Terms, contact us at <a href="mailto:contact@malwanamkeen.com">contact@malwanamkeen.com</a>.</p>
+      <p>For questions regarding these Terms, contact us at <a href="mailto:malwanamkeenhouse@gmail.com">malwanamkeenhouse@gmail.com</a>.</p>
     </LegalLayout>
   );
 }

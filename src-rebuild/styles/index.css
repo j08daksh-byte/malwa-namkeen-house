@@ -52,29 +52,44 @@
   --nav-h:          68px;
   --container-max:  1240px;
   --container-px:   24px;
+  --safe-bottom:    env(safe-area-inset-bottom, 0px);
+  --safe-top:       env(safe-area-inset-top, 0px);
 }
 
 /* ── Global reset ───────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   scroll-padding-top: calc(var(--nav-h) + 12px);
+  overflow-x: clip;
 }
 body {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: var(--bg-parchment);
   color: var(--text-dark);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  overflow-x: hidden;
+  overflow-x: clip;
+  width: 100%;
 }
-img, video { display: block; max-width: 100%; }
+img, video {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
 
 h1, h2, h3, h4 {
   font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+  text-wrap: balance;
 }
 
 /* ── Layout helpers ─────────────────────────────────────────────────────── */
@@ -102,14 +117,30 @@ h1, h2, h3, h4 {
 ::-webkit-scrollbar-thumb { background: var(--border-soft); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--gold); }
 
-/* ── Forms ──────────────────────────────────────────────────────────────── */
-input, textarea, select { font-family: inherit; }
+/* ── Forms (Prevent iOS auto-zoom on mobile inputs) ─────────────────────── */
+input, textarea, select {
+  font-family: inherit;
+}
+@media (max-width: 768px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
 input::placeholder, textarea::placeholder { color: var(--text-light); }
 
 /* ── Focus visible ──────────────────────────────────────────────────────── */
 :focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 3px;
+}
+
+/* ── Touch targets ──────────────────────────────────────────────────────── */
+@media (pointer: coarse) {
+  button, a, [role="button"] {
+    min-height: 38px;
+  }
 }
 
 /* ── Image — load gracefully ────────────────────────────────────────────── */

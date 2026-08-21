@@ -563,12 +563,19 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
           .cart-panel { width: min(100%, 390px); }
         }
         @media (max-width: 420px) {
+          .nav-action { width: 32px; height: 40px; }
           .cart-panel__head { padding: 22px 18px 17px; }
           .cart-panel__body { padding: 20px 18px; }
           .cart-panel__footer { padding: 18px; }
           .search-shell { padding-inline: 16px; }
           .search-field input { font-size: 15px; }
           .search-result { padding: 13px; }
+        }
+        @media (max-width: 360px) {
+          .nav-action { width: 28px; height: 38px; }
+          .nav-action svg { width: 16px; height: 16px; }
+          .brand-logo__img { height: 30px !important; }
+          .nav-hamburger { padding: 6px !important; min-width: 38px !important; }
         }
       `}</style>
 
@@ -714,9 +721,10 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
           transform: open ? 'translateY(0)' : 'translateY(-110%)',
           opacity: open ? 1 : 0,
           transition: 'transform .28s ease, opacity .24s ease',
-          padding: '8px 18px 20px',
+          padding: '8px 18px calc(24px + env(safe-area-inset-bottom, 0px))',
           maxHeight: 'calc(100dvh - 68px)',
           overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
           pointerEvents: open ? 'auto' : 'none',
         }}
       >

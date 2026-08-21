@@ -510,6 +510,39 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           gap: 8px;
           box-shadow: 0 4px 12px rgba(37, 211, 102, 0.25);
         }
+
+        @media (max-width: 480px) {
+          .cart-drawer {
+            width: 100vw;
+          }
+          .cart-drawer__header {
+            padding: 16px 18px;
+          }
+          .cart-drawer__shipping-bar {
+            padding: 10px 18px;
+          }
+          .cart-drawer__items {
+            padding: 12px 16px;
+          }
+          .cart-item {
+            grid-template-columns: 54px minmax(0, 1fr) auto;
+            gap: 10px;
+            padding: 10px;
+          }
+          .cart-item__thumb {
+            width: 54px;
+            height: 54px;
+          }
+          .cart-item__name {
+            font-size: 15px;
+          }
+          .cart-item__price {
+            font-size: 16px;
+          }
+          .cart-drawer__footer {
+            padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+          }
+        }
       `}</style>
 
       <div className="cart-drawer" onClick={e => e.stopPropagation()}>

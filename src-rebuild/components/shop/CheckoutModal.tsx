@@ -415,6 +415,34 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
             gap: 20px;
           }
         }
+
+        @media (max-width: 480px) {
+          .checkout-overlay {
+            padding: 8px;
+          }
+          .checkout-dialog {
+            max-height: 96dvh;
+            border-radius: 16px;
+          }
+          .checkout-dialog__head {
+            padding: 16px 18px;
+          }
+          .checkout-dialog__title {
+            font-size: 20px;
+          }
+          .checkout-dialog__body {
+            padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+            gap: 16px;
+          }
+          .checkout-form-grid {
+            grid-template-columns: 1fr;
+            gap: 8px;
+          }
+          .btn-place-order {
+            height: 48px;
+            font-size: 11.5px;
+          }
+        }
       `}</style>
 
       <div className="checkout-dialog" onClick={e => e.stopPropagation()}>

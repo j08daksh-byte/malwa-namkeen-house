@@ -363,6 +363,78 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           min-width: 24px;
           text-align: center;
         }
+
+        @media (max-width: 640px) {
+          .shop-product-card {
+            border-radius: 14px;
+          }
+          .shop-product-card__body {
+            padding: 12px 13px 14px;
+          }
+          .shop-product-card__top-meta {
+            margin-bottom: 4px;
+          }
+          .shop-product-card__cat-label {
+            font-size: 9.5px;
+          }
+          .shop-product-card__spice-chip {
+            font-size: 9px;
+            padding: 1px 5px;
+          }
+          .shop-product-card__title {
+            font-size: 16.5px;
+            line-height: 1.15;
+          }
+          .shop-product-card__hindi {
+            display: none;
+          }
+          .shop-product-card__desc {
+            display: none;
+          }
+          .shop-product-card__tagline {
+            font-size: 10px;
+            margin-bottom: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .shop-product-card__weights {
+            margin-bottom: 10px;
+            gap: 4px;
+          }
+          .shop-product-card__weight-chip {
+            font-size: 9.5px;
+            padding: 3px 6px;
+          }
+          .shop-product-card__bottom {
+            padding-top: 10px;
+            gap: 8px;
+          }
+          .shop-product-card__price {
+            font-size: 18px;
+          }
+          .shop-product-card__add-btn {
+            height: 34px;
+            padding: 0 10px;
+            font-size: 9.5px;
+            gap: 4px;
+          }
+          .shop-product-card__stepper {
+            height: 34px;
+          }
+          .shop-product-card__step-btn {
+            width: 26px;
+            font-size: 13px;
+          }
+          .shop-product-card__step-val {
+            font-size: 11px;
+            padding: 0 4px;
+            min-width: 18px;
+          }
+          .shop-product-card__quick-btn {
+            display: none;
+          }
+        }
       `}</style>
 
       {/* Media & Badges */}

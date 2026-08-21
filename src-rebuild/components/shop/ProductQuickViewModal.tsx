@@ -382,11 +382,36 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
         @media (max-width: 768px) {
           .qv-modal {
             grid-template-columns: 1fr;
-            max-height: 85vh;
+            max-height: 88dvh;
           }
           .qv-media {
-            min-height: 240px;
-            max-height: 280px;
+            min-height: 220px;
+            max-height: 260px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .qv-overlay {
+            padding: 10px;
+          }
+          .qv-modal {
+            border-radius: 16px;
+          }
+          .qv-content {
+            padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+          }
+          .qv-title {
+            font-size: 22px;
+          }
+          .qv-actions-row {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .qv-stepper {
+            justify-content: center;
+          }
+          .qv-add-btn {
+            width: 100%;
           }
         }
       `}</style>

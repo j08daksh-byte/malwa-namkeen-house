@@ -86,7 +86,7 @@ const storeSettingsSchema = new Schema<IStoreSettings>(
     },
     contact: {
       phone: { type: String, default: '+91 7987732765', trim: true },
-      email: { type: String, default: 'contact@malwanamkeen.com', lowercase: true, trim: true },
+      email: { type: String, default: 'malwanamkeenhouse@gmail.com', lowercase: true, trim: true },
       whatsappNumber: { type: String, default: '917987732765', trim: true },
       address: {
         line1: { type: String, default: 'No. 87/4-B, Sulikunte Village', trim: true },

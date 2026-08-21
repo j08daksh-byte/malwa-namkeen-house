@@ -5,6 +5,7 @@ import SEOHead from './components/seo/SEOHead';
 import ScrollToTop from './components/layout/ScrollToTop';
 
 // Public site sections
+import BrandIntro           from './components/layout/BrandIntro';
 import Navbar               from './components/layout/Navbar';
 import { CartProvider }     from './lib/cartContext';
 import { CustomerSessionProvider } from './components/layout/CustomerSessionContext';
@@ -91,6 +92,7 @@ function PublicSite() {
         canonicalPath="/"
         structuredData={homeStructuredData}
       />
+      <BrandIntro />
       <Navbar onReserve={openReservation} />
       <main>
         <Hero onReserve={openReservation} />

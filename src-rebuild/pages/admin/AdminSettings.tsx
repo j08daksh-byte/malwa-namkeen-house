@@ -78,7 +78,7 @@ const DEFAULT_SETTINGS: StoreSettingsData = {
   fssaiNumber: '11225302002687',
   contact: {
     phone: '+91 7987732765',
-    email: 'contact@malwanamkeen.com',
+    email: 'malwanamkeenhouse@gmail.com',
     whatsappNumber: '917987732765',
     address: {
       line1: 'No. 87/4-B, Sulikunte Village',

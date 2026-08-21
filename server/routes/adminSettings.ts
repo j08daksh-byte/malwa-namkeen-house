@@ -26,7 +26,7 @@ const DEFAULT_PUBLIC_SETTINGS = {
   fssaiNumber: '11422850001234',
   contact: {
     phone: '+91 7987732765',
-    email: 'contact@malwanamkeen.com',
+    email: 'malwanamkeenhouse@gmail.com',
     whatsappNumber: '+91 7987732765',
     address: {
       line1: 'Near Mahakaleshwar Temple',

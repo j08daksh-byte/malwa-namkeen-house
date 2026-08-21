@@ -892,7 +892,7 @@ export default function ProductDetail() {
           right: 0;
           background: #FFFFFF;
           border-top: 1px solid rgba(200, 154, 61, 0.35);
-          padding: 12px 16px;
+          padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
           box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
           z-index: 100;
           align-items: center;
@@ -966,6 +966,7 @@ export default function ProductDetail() {
         @media (max-width: 960px) {
           .pdp-related-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
           }
         }
 
@@ -981,7 +982,7 @@ export default function ProductDetail() {
             display: flex;
           }
           .pdp-container {
-            padding-bottom: 110px;
+            padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
           }
           .pdp-trust-grid {
             grid-template-columns: 1fr;
@@ -989,9 +990,17 @@ export default function ProductDetail() {
           }
         }
 
-        @media (max-width: 520px) {
+        @media (max-width: 640px) {
+          .pdp-related-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+          }
+        }
+
+        @media (max-width: 359px) {
           .pdp-related-grid {
             grid-template-columns: 1fr;
+            gap: 14px;
           }
         }
       `}</style>

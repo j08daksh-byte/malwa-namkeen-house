@@ -259,13 +259,18 @@ router.get('/products', async (req: Request, res: Response) => {
     filtered.sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  const pageNum = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 12));
+  const skip = (pageNum - 1) * limitNum;
+  const paginated = filtered.slice(skip, skip + limitNum);
+
   res.json({
     success: true,
-    products: filtered,
+    products: paginated,
     categories: FALLBACK_CATEGORIES,
     total: filtered.length,
-    page: 1,
-    totalPages: 1,
+    page: pageNum,
+    totalPages: Math.ceil(filtered.length / limitNum) || 1,
   });
 });
 

@@ -29,15 +29,15 @@ export default function RefundPolicy() {
       <h2>5. How to Request a Refund</h2>
       <p>To initiate a refund request, contact us with your order reference number, proof of payment, and a brief description of the reason:</p>
       <ul>
-        <li>Email: <a href="mailto:contact@malwanamkeen.com">contact@malwanamkeen.com</a></li>
+        <li>Email: <a href="mailto:malwanamkeenhouse@gmail.com">malwanamkeenhouse@gmail.com</a></li>
         <li>WhatsApp: <a href="https://wa.me/917987732765" target="_blank" rel="noreferrer">+91 7987732765</a></li>
       </ul>
 
       <h2>6. Disputes</h2>
-      <p>If you believe a refund has been incorrectly denied, please raise the matter in writing to <a href="mailto:contact@malwanamkeen.com">contact@malwanamkeen.com</a>. We will review the case and respond as soon as possible.</p>
+      <p>If you believe a refund has been incorrectly denied, please raise the matter in writing to <a href="mailto:malwanamkeenhouse@gmail.com">malwanamkeenhouse@gmail.com</a>. We will review the case and respond as soon as possible.</p>
 
       <h2>7. Contact</h2>
-      <p>MALWA NAMKEEN HOUSE, Indore, Madhya Pradesh, India.<br />Email: <a href="mailto:contact@malwanamkeen.com">contact@malwanamkeen.com</a></p>
+      <p>MALWA NAMKEEN HOUSE, Indore, Madhya Pradesh, India.<br />Email: <a href="mailto:malwanamkeenhouse@gmail.com">malwanamkeenhouse@gmail.com</a></p>
     </LegalLayout>
   );
 }

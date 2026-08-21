@@ -34,13 +34,13 @@ export default function PrivacyPolicy() {
       <p>These services operate under their own privacy policies and data processing agreements.</p>
 
       <h2>7. Your Rights</h2>
-      <p>You have the right to request access to, correction of, or deletion of the personal data we hold about you. To exercise these rights, please contact us at <a href="mailto:contact@malwanamkeen.com">contact@malwanamkeen.com</a>.</p>
+      <p>You have the right to request access to, correction of, or deletion of the personal data we hold about you. To exercise these rights, please contact us at <a href="mailto:malwanamkeenhouse@gmail.com">malwanamkeenhouse@gmail.com</a>.</p>
 
       <h2>8. Changes to This Policy</h2>
       <p>We may update this Privacy Policy from time to time. The "Last Updated" date at the top of this page reflects the most recent revision. Continued use of our website after any changes constitutes acceptance of the revised policy.</p>
 
       <h2>9. Contact</h2>
-      <p>Malwa Namkeen House, Indore, Madhya Pradesh, India.<br />Email: <a href="mailto:contact@malwanamkeen.com">contact@malwanamkeen.com</a></p>
+      <p>MALWA NAMKEEN HOUSE, Indore, Madhya Pradesh, India.<br />Email: <a href="mailto:malwanamkeenhouse@gmail.com">malwanamkeenhouse@gmail.com</a></p>
     </LegalLayout>
   );
 }

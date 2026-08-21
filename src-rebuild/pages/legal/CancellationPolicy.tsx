@@ -4,7 +4,7 @@ export default function CancellationPolicy() {
   return (
     <LegalLayout title="Cancellation Policy" lastUpdated="June 2026">
       <h2>1. Reservation Cancellations</h2>
-      <p>We understand that plans can change. If you need to cancel or modify a reservation, please contact us as early as possible at <a href="mailto:contact@malwanamkeen.com">contact@malwanamkeen.com</a> or via WhatsApp so we can accommodate other guests.</p>
+      <p>We understand that plans can change. If you need to cancel or modify a reservation, please contact us as early as possible at <a href="mailto:malwanamkeenhouse@gmail.com">malwanamkeenhouse@gmail.com</a> or via WhatsApp so we can accommodate other guests.</p>
       <p>Cancellation terms for restaurant reservations — including any applicable charges for large-party bookings — will be communicated at the time of confirmation. We encourage you to contact us directly if you have questions before your visit.</p>
       <ul>
         <li><strong>No-shows:</strong> Guests who do not arrive and do not notify us may be marked as no-shows. Repeated no-shows may affect future reservation eligibility.</li>
@@ -19,7 +19,7 @@ export default function CancellationPolicy() {
       <h2>4. How to Cancel</h2>
       <p>To cancel a reservation or enquiry, contact us via:</p>
       <ul>
-        <li>Email: <a href="mailto:contact@malwanamkeen.com">contact@malwanamkeen.com</a></li>
+        <li>Email: <a href="mailto:malwanamkeenhouse@gmail.com">malwanamkeenhouse@gmail.com</a></li>
         <li>WhatsApp: <a href="https://wa.me/917987732765" target="_blank" rel="noreferrer">+91 7987732765</a></li>
       </ul>
       <p>Please include your name, reservation date, and reference number (if available) when contacting us.</p>
