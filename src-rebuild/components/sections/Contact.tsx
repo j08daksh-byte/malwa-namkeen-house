@@ -523,7 +523,7 @@ export default function Contact() {
               text="Tell us about birthdays, décor, gifting or catering requirements."
             />
 
-            <p className="ct-panel-footer">With love from Banaras</p>
+            <p className="ct-panel-footer">THE NAMKEEN & SNACKS HUB</p>
           </div>
 
           {/* Right — form card */}

@@ -191,7 +191,7 @@ export default function AdminLayout({ admin, children }: Props) {
         <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid rgba(240, 199, 78, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ color: '#F0C74E', fontWeight: 800, fontSize: '15px', letterSpacing: '0.04em', lineHeight: 1.2 }}>
-              MALWA NAMKEEN
+              MALWA NAMKEEN HOUSE
             </div>
             <div style={{ color: 'rgba(255, 248, 236, 0.50)', fontSize: '10.5px', marginTop: '3px', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
               Admin Portal

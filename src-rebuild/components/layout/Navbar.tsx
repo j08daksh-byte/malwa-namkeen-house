@@ -606,7 +606,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
           <a
             href="/"
             className="brand-logo"
-            aria-label="Malwa Namkeen House — return to top"
+            aria-label="MALWA NAMKEEN HOUSE — return to top"
             onClick={e => {
               e.preventDefault();
               navigate('/');
@@ -614,11 +614,10 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
             }}
           >
             <img
-              src="/mishtichaat/logo.svg"
-              alt="Malwa Namkeen House"
+              src="/logo-nav.png"
+              alt="MALWA NAMKEEN HOUSE"
               className="brand-logo__img"
-              width={160}
-              height={40}
+              style={{ height: '38px', width: 'auto', objectFit: 'contain' }}
             />
           </a>
 

@@ -57,12 +57,12 @@ const storeSettingsSchema = new Schema<IStoreSettings>(
   {
     storeName: {
       type: String,
-      default: 'Malwa Namkeen House',
+      default: 'MALWA NAMKEEN HOUSE',
       trim: true,
     },
     tagline: {
       type: String,
-      default: 'Authentic Malwa Namkeens, Sweets & Savouries',
+      default: 'THE NAMKEEN & SNACKS HUB',
       trim: true,
     },
     description: {
@@ -72,7 +72,7 @@ const storeSettingsSchema = new Schema<IStoreSettings>(
     },
     logo: {
       type: String,
-      default: '',
+      default: '/logo.png',
     },
     gstNumber: {
       type: String,
@@ -85,9 +85,9 @@ const storeSettingsSchema = new Schema<IStoreSettings>(
       trim: true,
     },
     contact: {
-      phone: { type: String, default: '+91 90350 56691', trim: true },
-      email: { type: String, default: 'contact@mishtichaat.com', lowercase: true, trim: true },
-      whatsappNumber: { type: String, default: '919035056691', trim: true },
+      phone: { type: String, default: '+91 7987732765', trim: true },
+      email: { type: String, default: 'contact@malwanamkeen.com', lowercase: true, trim: true },
+      whatsappNumber: { type: String, default: '917987732765', trim: true },
       address: {
         line1: { type: String, default: 'No. 87/4-B, Sulikunte Village', trim: true },
         line2: { type: String, default: 'Sarjapur Main Road, Dommasandra Post', trim: true },

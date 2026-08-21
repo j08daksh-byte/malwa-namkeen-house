@@ -62,16 +62,17 @@ function PublicSite() {
       {
         '@type': 'Organization',
         '@id': 'https://malwanamkeen.com/#organization',
-        name: 'Malwa Namkeen House',
+        name: 'MALWA NAMKEEN HOUSE',
         url: 'https://malwanamkeen.com',
-        logo: 'https://malwanamkeen.com/mishtichaat/logo.svg',
-        description: 'Authentic Malwa Ratlami Sev, artisanal namkeens, and festive gifting.',
+        logo: 'https://malwanamkeen.com/logo.png',
+        description: 'THE NAMKEEN & SNACKS HUB — Authentic Ratlami Sev, artisanal namkeens, and festive gifting.',
+        telephone: '+91 7987732765',
       },
       {
         '@type': 'WebSite',
         '@id': 'https://malwanamkeen.com/#website',
         url: 'https://malwanamkeen.com',
-        name: 'Malwa Namkeen House',
+        name: 'MALWA NAMKEEN HOUSE',
         publisher: { '@id': 'https://malwanamkeen.com/#organization' },
         potentialAction: {
           '@type': 'SearchAction',
@@ -85,7 +86,7 @@ function PublicSite() {
   return (
     <ErrorBoundary>
       <SEOHead
-        title="Artisanal Heritage Namkeens, Ratlami Sev & Delicacies"
+        title="THE NAMKEEN & SNACKS HUB"
         description="Authentic Malwa namkeens, small-batch Ratlami Sev, Ujjaini chivda, and festive gifting crafted with traditional spices and 100% pure cold-pressed groundnut oil."
         canonicalPath="/"
         structuredData={homeStructuredData}

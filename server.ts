@@ -118,7 +118,7 @@ Follow these strictly:
 2. Speak about authentic Malwa namkeens, pure cold-pressed groundnut oil, and stone-ground spices with pride.
 3. If users chat in English or Hindi, respond naturally in a warm, polite blend of both.
 4. Suggest amazing namkeen pairings and packaging formats for festivals or daily snacking.
-5. If they wish to place bulk orders or gifting hampers, advise them to submit an inquiry through the website or message us on WhatsApp (+91 90350 56691).
+5. If they wish to place bulk orders or gifting hampers, advise them to submit an inquiry through the website or message us on WhatsApp (+91 7987732765).
 `;
 
 // ── Server bootstrap ─────────────────────────────────────────────────────────
@@ -306,15 +306,15 @@ async function startServer() {
       } catch {
         // Keyword fallback — keeps chatbot alive without API key
         const lower = lastUserMessage.toLowerCase();
-        let fallback = 'Namaste Ji! I would be delighted to guide you through our Kashi heritage menu. What would Aap like to know?';
-        if (/menu|eat|food/.test(lower))
-          fallback = 'Namaste Ji! Our heritage menu spans Breakfast, Chaat, Mains, Mithai and Beverages. Our Tamatar Chaat (₹120) and Jalebi with Rabadi (₹80 + ₹100) are absolute must-tries!';
-        else if (/reserve|book|table|seat/.test(lower))
-          fallback = 'Pranam Ji! To reserve a table, click the "Reserve a Table" button at the top. Our team will confirm your booking personally.';
+        let fallback = 'Namaste Ji! I would be delighted to guide you through our authentic Malwa namkeens & snacks. What would Aap like to know?';
+        if (/menu|eat|food|namkeen/.test(lower))
+          fallback = 'Namaste Ji! Our authentic collection spans Ratlami Sev, Hing Sev, Ujjaini Mixture, Dalmoth, Sweets and Festive Gift Boxes. Our Ratlami Sev and Hing Sev are absolute must-tries!';
+        else if (/reserve|book|table|seat|order/.test(lower))
+          fallback = 'Pranam Ji! You can explore and order all our authentic namkeens directly in our shop, or contact our team for bulk orders.';
         else if (/sweet|jalebi|dessert|mithai/.test(lower))
-          fallback = 'Ah, Meethi Gali Ji! Our pure Desi Ghee Jalebis (₹80) paired with Shahi Rabadi (₹100) — the pride of Banaras!';
+          fallback = 'Ah, authentic Malwa confections and savouries! Handcrafted with pure ingredients and time-honoured recipes.';
         else if (/hello|hi|namaste/.test(lower))
-          fallback = 'Namaste Ji! Pranam! I am Mishti Concierge, your culinary guide at MishtiChaat. How may I serve Aap today?';
+          fallback = 'Namaste Ji! Pranam! I am Malwa Concierge, your culinary guide at MALWA NAMKEEN HOUSE. How may I serve Aap today?';
         res.json({ text: fallback });
       }
     } catch (err: unknown) {

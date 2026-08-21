@@ -44,7 +44,7 @@ function wrapEmailTemplate({
   contentHtml: string;
   storeContact?: { phone?: string; email?: string; address?: string };
 }): string {
-  const phone = storeContact?.phone || '+91 90350 56691';
+  const phone = storeContact?.phone || '+91 7987732765';
   const email = storeContact?.email || 'namkeenmalwa@gmail.com';
   const address = storeContact?.address || 'Near Mahakaleshwar Temple, Sarafa Bazaar, Ujjain, MP 456001';
 

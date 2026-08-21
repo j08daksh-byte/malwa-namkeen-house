@@ -102,10 +102,10 @@ export default function LegalHeader({ pageTitle }: Props) {
         <div className="lh-inner">
 
           {/* Logo + breadcrumb */}
-          <a href="/" className="lh-logo" aria-label="Malwa Namkeen House — back to website">
+          <a href="/" className="lh-logo" aria-label="MALWA NAMKEEN HOUSE — back to website">
             <img
-              src="/mishtichaat/logo.svg"
-              alt="Malwa Namkeen House"
+              src="/logo-nav-maroon.png"
+              alt="MALWA NAMKEEN HOUSE"
               onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
             />
             <span className="lh-sep" aria-hidden="true" />

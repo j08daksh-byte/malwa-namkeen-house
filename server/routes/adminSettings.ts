@@ -18,16 +18,16 @@ async function getOrCreateSingletonSettings(): Promise<IStoreSettings> {
 }
 
 const DEFAULT_PUBLIC_SETTINGS = {
-  storeName: 'Malwa Namkeen House',
-  tagline: 'Artisanal Ujjain Savouries & Heritage Namkeens Since 1954',
+  storeName: 'MALWA NAMKEEN HOUSE',
+  tagline: 'THE NAMKEEN & SNACKS HUB',
   description: 'Authentic Ratlami Sev, Hing Sev, Ujjaini Mixture, and Mathris crafted with cold-pressed groundnut oil and hand-ground spices.',
-  logo: '/mishtichaat/logo.png',
+  logo: '/logo.png',
   gstNumber: '23AAAAA0000A1Z5',
   fssaiNumber: '11422850001234',
   contact: {
-    phone: '+91 90350 56691',
-    email: 'namkeenmalwa@gmail.com',
-    whatsappNumber: '+91 90350 56691',
+    phone: '+91 7987732765',
+    email: 'contact@malwanamkeen.com',
+    whatsappNumber: '+91 7987732765',
     address: {
       line1: 'Near Mahakaleshwar Temple',
       line2: 'Sarafa Bazaar',

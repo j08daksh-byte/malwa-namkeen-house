@@ -125,7 +125,7 @@ export default function ResetPassword() {
             Set New Password
           </h1>
           <p style={{ fontSize: '13px', color: '#D4AF37', opacity: 0.8, margin: 0 }}>
-            Malwa Namkeen House Staff Portal
+            MALWA NAMKEEN HOUSE Staff Portal
           </p>
         </div>
 
