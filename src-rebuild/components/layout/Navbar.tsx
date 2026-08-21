@@ -99,8 +99,8 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
   const [query, setQuery] = useState('');
   const searchInput = useRef<HTMLInputElement>(null);
 
-  const navbarLinks = NAV_LINKS.map(l => l.label === 'Location' ? { label: 'Shop', href: '/shop' } : l);
-  const mobileLinks = MOBILE_LINKS.map(l => l.label === 'Location' ? { label: 'Shop', href: '/shop' } : l);
+  const navbarLinks = NAV_LINKS;
+  const mobileLinks = MOBILE_LINKS;
 
   const results = useMemo(() => {
     const term = query.trim().toLowerCase();

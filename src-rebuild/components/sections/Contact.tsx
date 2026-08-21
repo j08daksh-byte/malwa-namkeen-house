@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { submitContact } from '../../lib/api.ts';
 import { CATEGORY_WA_URLS, WA_URLS } from '../../lib/whatsapp.ts';
 import { BUSINESS } from '../../lib/business.ts';
@@ -677,7 +677,7 @@ export default function Contact() {
                       aria-describedby={fieldErrors.consent_accepted ? 'ct-consent-check-error' : undefined}
                     />
                     <span className="ct-consent-text">
-                      I agree that MishtiChaat may use the information I have provided to respond to my enquiry.
+                      I agree that Malwa Namkeen House may use the information I have provided to respond to my enquiry.
                       I have read and accept the{' '}
                       <a href="/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
                     </span>

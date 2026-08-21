@@ -180,13 +180,32 @@ export default function MenuSection() {
     setSpyCat(MENU_CATEGORIES[0]?.id ?? '');
   }, [isSearching]);
 
-  // ── Scroll active pill into view ──
+  // ── Scroll active pill into view (horizontal only within pills container) ──
+  const isFirstRender = useRef(true);
   useEffect(() => {
-    if (!pillsRef.current || isSearching) return;
-    const btn = pillsRef.current.querySelector(
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    const pillsEl = pillsRef.current;
+    if (!pillsEl || isSearching) return;
+    const wrap = pillsEl.parentElement;
+    if (!wrap) return;
+
+    const btn = pillsEl.querySelector(
       `[data-cat="${spyCat}"]`
     ) as HTMLElement | null;
-    btn?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+    if (!btn) return;
+
+    const wrapRect = wrap.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    const currentScroll = wrap.scrollLeft;
+    const targetScroll = currentScroll + (btnRect.left - wrapRect.left) - (wrap.clientWidth / 2) + (btn.offsetWidth / 2);
+
+    wrap.scrollTo({
+      left: Math.max(0, targetScroll),
+      behavior: 'smooth',
+    });
   }, [spyCat, isSearching]);
 
   // ── Reset panel scroll when query changes ──
@@ -677,11 +696,11 @@ export default function MenuSection() {
       <div className="mn-intro">
         <span className="mn-intro-eyebrow">Our Menu</span>
         <h2 className="mn-intro-h2">
-          From the Heart<br />of Banaras
+          From the Heart<br />of Malwa
         </h2>
         <p className="mn-intro-sub">
-          Every dish draws from the living culinary traditions of Kashi —
-          prepared with care and served with warmth.
+          Every specialty draws from the rich culinary traditions of Ujjain —
+          prepared with authentic spices and served with warmth.
         </p>
       </div>
 

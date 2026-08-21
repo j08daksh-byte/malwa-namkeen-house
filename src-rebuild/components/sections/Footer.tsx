@@ -301,13 +301,13 @@ export default function Footer() {
             <div style={{ marginBottom: '16px' }}>
               <img
                 src="/mishtichaat/logo.svg"
-                alt="MishtiChaat"
+                alt="Malwa Namkeen House"
                 style={{ height: '42px', width: 'auto', filter: 'brightness(0) invert(1)', opacity: 0.88 }}
                 onError={e => { e.currentTarget.style.display = 'none'; }}
               />
             </div>
             <p className="ft-brand-desc">
-              Banaras heritage on every plate — handcrafted mithai, authentic chaat and traditional flavours brought to Bengaluru.
+              Malwa heritage in every bite — artisanal Ratlami Sev, handcrafted mathris, and traditional namkeens crafted with 100% pure cold-pressed groundnut oil.
             </p>
             <div className="ft-contact-row">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
@@ -384,9 +384,9 @@ export default function Footer() {
         {/* ── Bottom bar ── */}
         <div className="ft-bottom">
           <p className="ft-bottom-copy">
-            © {new Date().getFullYear()} MishtiChaat. All rights reserved.
+            © {new Date().getFullYear()} Malwa Namkeen House. All rights reserved.
           </p>
-          <p className="ft-bottom-tagline">Made with heritage &amp; heart in Banaras.</p>
+          <p className="ft-bottom-tagline">Made with heritage &amp; heart in Malwa.</p>
         </div>
 
       </div>

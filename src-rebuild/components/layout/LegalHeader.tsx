@@ -1,4 +1,4 @@
-﻿interface Props {
+interface Props {
   pageTitle: string;
 }
 
@@ -102,10 +102,10 @@ export default function LegalHeader({ pageTitle }: Props) {
         <div className="lh-inner">
 
           {/* Logo + breadcrumb */}
-          <a href="/" className="lh-logo" aria-label="MishtiChaat — back to website">
+          <a href="/" className="lh-logo" aria-label="Malwa Namkeen House — back to website">
             <img
               src="/mishtichaat/logo.svg"
-              alt="MishtiChaat"
+              alt="Malwa Namkeen House"
               onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
             />
             <span className="lh-sep" aria-hidden="true" />

@@ -221,6 +221,6 @@ export function fmtDateTime(iso: string) {
 export function waLink(phone: string, name = '') {
   const clean = phone.replace(/\D/g, '');
   const num = clean.startsWith('91') ? clean : `91${clean}`;
-  const text = name ? `Hello ${name}, this is MishtiChaat reaching out.` : 'Hello, this is MishtiChaat.';
+  const text = name ? `Hello ${name}, this is Malwa Namkeen House reaching out.` : 'Hello, this is Malwa Namkeen House.';
   return `https://wa.me/${num}?text=${encodeURIComponent(text)}`;
 }

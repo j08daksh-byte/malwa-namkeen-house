@@ -516,7 +516,7 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
         {/* Header */}
         <div className="cart-drawer__header">
           <div className="cart-drawer__title-wrap">
-            <h2 className="cart-drawer__title">Your Pantry Basket</h2>
+            <h2 className="cart-drawer__title">Your Cart</h2>
             <span className="cart-drawer__count-badge">{totalItems}</span>
           </div>
           <button className="cart-drawer__close-btn" onClick={closeCart} aria-label="Close cart drawer">
@@ -564,9 +564,9 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
                 <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
               </svg>
             </div>
-            <h3 className="cart-drawer__empty-title">Your basket is empty</h3>
+            <h3 className="cart-drawer__empty-title">Your cart is empty</h3>
             <p className="cart-drawer__empty-sub">
-              Explore our small-batch Ratlami sev, signature mixtures, and pure ghee mithai.
+              Explore our small-batch Ratlami Sev, artisanal mixtures, and handcrafted mathris.
             </p>
             <button
               className="cart-drawer__browse-btn"
@@ -575,7 +575,7 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
                 navigate('/shop');
               }}
             >
-              Explore Delicacies
+              Explore The Shop
             </button>
           </div>
         ) : (

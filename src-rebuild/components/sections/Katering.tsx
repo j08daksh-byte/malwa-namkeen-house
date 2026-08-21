@@ -467,7 +467,7 @@ export default function Katering() {
         <div className="k-cta">
           <div className="k-cta-text">
             <h3>Still have a question?</h3>
-            <p>Talk directly to the Mishti Chaat team for orders, catering, gifting and reservations.</p>
+            <p>Talk directly to the Malwa Namkeen House team for orders, catering, gifting and reservations.</p>
           </div>
           <div className="k-cta-btns">
             <button

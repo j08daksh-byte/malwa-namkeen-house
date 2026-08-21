@@ -12,6 +12,12 @@ export default function ScrollToTop() {
   const { pathname, hash } = useLocation();
 
   useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+  }, []);
+
+  useEffect(() => {
     // If a specific section hash is requested (e.g. #story, #menu)
     if (hash) {
       const elementId = hash.replace(/^#/, '');

@@ -37,7 +37,7 @@ const FAQ_DATA: FAQItem[] = [
     category: 'Ordering & Packaging',
     question: 'Can I select custom packaging weights?',
     answer:
-      'Yes. Each delicacy offers dynamic packaging variants (such as 250g Pouches, 500g Boxes, or 1kg Family Packs). You can select your preferred variant directly on the product page before adding to your bag.',
+      'Yes. Each delicacy offers dynamic packaging variants (such as 250g Pouches, 500g Boxes, or 1kg Family Packs). You can select your preferred variant directly on the product page before adding to your cart.',
   },
   {
     id: 'qual-1',

@@ -172,7 +172,7 @@ export default function HeritageSpecialities() {
             <span className="heritage-editorial__eyebrow">Our Heritage</span>
             <h2>Flavours shaped by <em>tradition</em></h2>
           </div>
-          <Link className="heritage-editorial__view-all" to="/shop">View all flavours</Link>
+          <Link className="heritage-editorial__view-all" to="/shop">Explore The Shop →</Link>
         </header>
 
         <div className="heritage-editorial__grid">

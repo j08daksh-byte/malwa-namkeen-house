@@ -114,7 +114,7 @@ export const MENU_CATEGORIES: MenuCategory[] = [
   {
     id:       'snacks',
     label:    'Snacks Street',
-    subtitle: 'MishtiChaat originals',
+    subtitle: 'Malwa House originals',
     timing:   'Full Day',
   },
   {
@@ -577,12 +577,12 @@ export const MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'rice-special-pulao',
-    name: 'MishtiChaat Special Pulao',
+    name: 'Malwa Special Pulao',
     description: 'Our house special pulao — a signature blend of spices and fresh vegetables.',
     category: 'rice',
     price: 250,
     active: true,
-    keywords: ['pulao', 'rice', 'special', 'mishtichaat'],
+    keywords: ['pulao', 'rice', 'special', 'malwa'],
   },
 
   // ── Roti Comfort Combos ────────────────────────────────────────────

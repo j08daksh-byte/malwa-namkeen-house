@@ -1219,8 +1219,8 @@ export default function ProductDetail() {
                 {!isAvailable
                   ? 'Currently Sold Out'
                   : isAdding
-                  ? 'Adding to Bag…'
-                  : `Add to Bag • ₹${selectedOption.price * quantity}`}
+                  ? 'Adding to Cart…'
+                  : `Add to Cart • ₹${selectedOption.price * quantity}`}
               </button>
 
               {/* Wishlist Button */}
