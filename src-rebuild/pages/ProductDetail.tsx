@@ -33,6 +33,53 @@ import {
   Package,
 } from 'lucide-react';
 
+// Helper to reliably find product in fallback catalog by any slug or name permutation
+function findStaticProduct(slugOrId?: string): Product | null {
+  if (!slugOrId) return null;
+  const decoded = decodeURIComponent(slugOrId).trim().toLowerCase();
+  const normalized = decoded.replace(/[\s_]+/g, '-').replace(/[^a-z0-9-]/g, '');
+  const cleanAlphaNumeric = decoded.replace(/[^a-z0-9]/g, '');
+
+  const directMatch = FALLBACK_PRODUCTS.find(p => {
+    const pId = (p.id || '').toLowerCase();
+    const pSlug = (p.slug || '').toLowerCase();
+    const pName = (p.name || '').toLowerCase();
+    const pNameNorm = pName.replace(/[\s_]+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const pNameClean = pName.replace(/[^a-z0-9]/g, '');
+    const pIdClean = pId.replace(/[^a-z0-9]/g, '');
+
+    return (
+      pId === decoded ||
+      pId === normalized ||
+      pSlug === decoded ||
+      pSlug === normalized ||
+      pIdClean === cleanAlphaNumeric ||
+      pNameNorm === normalized ||
+      pNameClean === cleanAlphaNumeric
+    );
+  });
+
+  if (directMatch) return directMatch;
+
+  return (
+    FALLBACK_PRODUCTS.find(p => {
+      const pId = (p.id || '').toLowerCase();
+      const pName = (p.name || '').toLowerCase();
+      return pId.includes(normalized) || normalized.includes(pId) || pName.includes(decoded);
+    }) || null
+  );
+}
+
+function getStaticRelatedProducts(prod: Product): Product[] {
+  const sameCat = FALLBACK_PRODUCTS.filter(
+    p => (p.category === prod.category || p.categoryLabel === prod.categoryLabel) && p.id !== prod.id
+  );
+  if (sameCat.length > 0) {
+    return sameCat.slice(0, 4);
+  }
+  return FALLBACK_PRODUCTS.filter(p => p.id !== prod.id).slice(0, 4);
+}
+
 export default function ProductDetail() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
@@ -40,66 +87,92 @@ export default function ProductDetail() {
   const { addToCart, openCart, toastMessage, dismissToast } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
 
-  const [product, setProduct] = useState<Product | null>(null);
-  const [selectedOption, setSelectedOption] = useState<ProductWeightOption | null>(null);
+  const initialStaticProduct = useMemo(() => findStaticProduct(slug), [slug]);
+
+  const [product, setProduct] = useState<Product | null>(() => initialStaticProduct);
+  const [selectedOption, setSelectedOption] = useState<ProductWeightOption | null>(
+    () => initialStaticProduct?.options?.[0] || null
+  );
   const [selectedImageIdx, setSelectedImageIdx] = useState<number>(0);
   const [quantity, setQuantity] = useState<number>(1);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(() => !initialStaticProduct);
   const [apiError, setApiError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState<boolean>(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
 
   // Related products state
-  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>(() =>
+    initialStaticProduct ? getStaticRelatedProducts(initialStaticProduct) : []
+  );
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
 
-  // 1. Fetch Product by Slug or ID
+  // 1. Fetch Product by Slug or ID with fallback
   const fetchProduct = useCallback(async () => {
     if (!slug) return;
-    setLoading(true);
-    setApiError(null);
+    const staticProd = findStaticProduct(slug);
+
+    if (staticProd) {
+      setProduct(prev => prev || staticProd);
+      setSelectedOption(prev => prev || staticProd.options?.[0] || { weight: 'Standard', price: 150 });
+      setRelatedProducts(prev => (prev.length > 0 ? prev : getStaticRelatedProducts(staticProd)));
+    }
+
     try {
       const res = await fetch(`/api/products/${encodeURIComponent(slug)}`);
-      if (res.status === 404) {
-        setProduct(null);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.product) {
+          const prod: Product = data.product;
+          setProduct(prod);
+          setSelectedImageIdx(0);
+          setQuantity(1);
+
+          // Select first active variant
+          const firstOpt = prod.options?.[0] || { weight: 'Standard', price: 150 };
+          setSelectedOption(firstOpt);
+
+          // Fetch related products from category
+          if (prod.category || (prod as any).categoryId) {
+            const catId = (prod as any).categoryId || prod.category;
+            fetch(`/api/products?category=${encodeURIComponent(catId)}&limit=5`)
+              .then(r => (r.ok ? r.json() : null))
+              .then(relData => {
+                if (relData?.success && Array.isArray(relData.products)) {
+                  setRelatedProducts(
+                    relData.products.filter((p: Product) => p.id !== prod.id && (p as any)._id !== prod.id).slice(0, 4)
+                  );
+                }
+              })
+              .catch(() => {});
+          }
+          setApiError(null);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // If API returned 404 or empty, but static item exists
+      if (staticProd) {
+        setProduct(staticProd);
+        setSelectedOption(staticProd.options?.[0] || { weight: 'Standard', price: 150 });
+        setRelatedProducts(getStaticRelatedProducts(staticProd));
+        setApiError(null);
         setLoading(false);
         return;
       }
-      if (!res.ok) {
-        throw new Error('Failed to retrieve product details.');
-      }
-      const data = await res.json();
-      if (data.success && data.product) {
-        const prod: Product = data.product;
-        setProduct(prod);
-        setSelectedImageIdx(0);
-        setQuantity(1);
 
-        // Select first active variant
-        const firstOpt = prod.options?.[0] || { weight: 'Standard', price: 150 };
-        setSelectedOption(firstOpt);
-
-        // Fetch related products from category
-        if (prod.category || (prod as any).categoryId) {
-          const catId = (prod as any).categoryId || prod.category;
-          fetch(`/api/products?category=${encodeURIComponent(catId)}&limit=5`)
-            .then(r => r.ok ? r.json() : null)
-            .then(relData => {
-              if (relData?.success && Array.isArray(relData.products)) {
-                setRelatedProducts(
-                  relData.products.filter((p: Product) => p.id !== prod.id && (p as any)._id !== prod.id).slice(0, 4)
-                );
-              }
-            })
-            .catch(() => {});
-        }
+      setProduct(null);
+    } catch (_err: unknown) {
+      if (staticProd) {
+        setProduct(staticProd);
+        setSelectedOption(staticProd.options?.[0] || { weight: 'Standard', price: 150 });
+        setRelatedProducts(getStaticRelatedProducts(staticProd));
+        setApiError(null);
       } else {
         setProduct(null);
       }
-    } catch (err: unknown) {
-      setApiError(err instanceof Error ? err.message : 'Network error loading product.');
     } finally {
       setLoading(false);
     }

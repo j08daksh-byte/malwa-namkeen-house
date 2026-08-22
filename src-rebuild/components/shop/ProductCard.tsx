@@ -254,23 +254,20 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 10px;
-          padding-top: 12px;
+          gap: 12px;
+          padding-top: 14px;
           border-top: 1px solid rgba(200, 154, 61, 0.18);
-          margin-top: auto;
         }
 
         .shop-product-card__pricing {
           display: flex;
           flex-direction: column;
-          min-width: 0;
-          flex-shrink: 0;
         }
 
         .shop-product-card__price-row {
           display: flex;
           align-items: baseline;
-          gap: 5px;
+          gap: 6px;
         }
 
         .shop-product-card__price {
@@ -317,7 +314,6 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
           box-shadow: 0 4px 12px rgba(85, 0, 10, 0.15);
           white-space: nowrap;
-          flex-shrink: 0;
         }
 
         .shop-product-card__add-btn:hover {
@@ -336,7 +332,6 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           border: 1px solid #55000A;
           overflow: hidden;
           box-shadow: 0 4px 12px rgba(85, 0, 10, 0.15);
-          flex-shrink: 0;
         }
 
         .shop-product-card__step-btn {
@@ -371,30 +366,24 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
 
         @media (max-width: 640px) {
           .shop-product-card {
-            border-radius: 16px;
+            border-radius: 14px;
           }
           .shop-product-card__body {
-            padding: 12px 12px 14px;
+            padding: 12px 13px 14px;
           }
           .shop-product-card__top-meta {
             margin-bottom: 4px;
           }
           .shop-product-card__cat-label {
-            font-size: 9px;
-            letter-spacing: 0.10em;
+            font-size: 9.5px;
           }
           .shop-product-card__spice-chip {
-            font-size: 8.5px;
+            font-size: 9px;
             padding: 1px 5px;
           }
           .shop-product-card__title {
-            font-size: 15px;
-            line-height: 1.22;
-            min-height: 2.44em;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
+            font-size: 16.5px;
+            line-height: 1.15;
           }
           .shop-product-card__hindi {
             display: none;
@@ -404,59 +393,43 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           }
           .shop-product-card__tagline {
             font-size: 10px;
-            min-height: 1.3em;
             margin-bottom: 6px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
           }
           .shop-product-card__weights {
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             gap: 4px;
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            scrollbar-width: none;
-          }
-          .shop-product-card__weights::-webkit-scrollbar {
-            display: none;
           }
           .shop-product-card__weight-chip {
-            font-size: 9px;
+            font-size: 9.5px;
             padding: 3px 6px;
-            flex-shrink: 0;
-            border-radius: 5px;
-          }
-          .shop-product-card__oil-note {
-            display: none;
           }
           .shop-product-card__bottom {
-            padding-top: 8px;
-            gap: 6px;
+            padding-top: 10px;
+            gap: 8px;
           }
           .shop-product-card__price {
             font-size: 18px;
           }
-          .shop-product-card__original-price {
-            font-size: 11px;
-          }
           .shop-product-card__add-btn {
-            height: 32px;
-            padding: 0 9px;
+            height: 34px;
+            padding: 0 10px;
             font-size: 9.5px;
-            letter-spacing: 0.05em;
-            gap: 3px;
+            gap: 4px;
           }
           .shop-product-card__stepper {
-            height: 32px;
+            height: 34px;
           }
           .shop-product-card__step-btn {
-            width: 24px;
+            width: 26px;
             font-size: 13px;
           }
           .shop-product-card__step-val {
             font-size: 11px;
             padding: 0 4px;
-            min-width: 16px;
+            min-width: 18px;
           }
           .shop-product-card__quick-btn {
             display: none;
@@ -465,13 +438,13 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
 
         @media (max-width: 380px) {
           .shop-product-card__body {
-            padding: 10px 9px 12px;
+            padding: 10px;
           }
           .shop-product-card__price {
             font-size: 16px;
           }
           .shop-product-card__add-btn {
-            padding: 0 7px;
+            padding: 0 8px;
             font-size: 9px;
           }
         }
