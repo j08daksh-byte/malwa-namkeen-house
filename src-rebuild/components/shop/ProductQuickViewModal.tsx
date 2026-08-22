@@ -80,8 +80,9 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
           border-radius: 24px;
           max-width: 860px;
           width: 100%;
-          max-height: 90vh;
+          max-height: 90dvh;
           overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
           box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
           position: relative;
           display: grid;
@@ -91,19 +92,20 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
 
         .qv-close-btn {
           position: absolute;
-          top: 16px;
-          right: 16px;
-          width: 36px;
-          height: 36px;
+          top: 14px;
+          right: 14px;
+          width: 38px;
+          height: 38px;
           border-radius: 50%;
-          background: rgba(85, 0, 10, 0.08);
-          border: 1px solid rgba(85, 0, 10, 0.15);
+          background: rgba(255, 253, 248, 0.85);
+          border: 1px solid rgba(85, 0, 10, 0.2);
           color: #55000A;
           display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
           z-index: 10;
+          backdrop-filter: blur(4px);
           transition: background 0.18s, color 0.18s;
         }
 
@@ -160,11 +162,11 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
 
         .qv-title {
           font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(26px, 2.5vw, 34px);
+          font-size: clamp(24px, 2.5vw, 34px);
           font-weight: 700;
           color: #34211D;
           margin: 0 0 4px;
-          line-height: 1.1;
+          line-height: 1.15;
           letter-spacing: -0.015em;
         }
 
@@ -292,7 +294,7 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
         .qv-actions-row {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 10px;
           margin-top: auto;
           flex-wrap: wrap;
         }
@@ -382,36 +384,50 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
         @media (max-width: 768px) {
           .qv-modal {
             grid-template-columns: 1fr;
-            max-height: 88dvh;
+            max-height: 90dvh;
           }
           .qv-media {
-            min-height: 220px;
-            max-height: 260px;
+            min-height: 200px;
+            max-height: 240px;
           }
         }
 
         @media (max-width: 480px) {
           .qv-overlay {
-            padding: 10px;
+            padding: 8px;
           }
           .qv-modal {
             border-radius: 16px;
           }
           .qv-content {
-            padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+            padding: 16px 14px calc(18px + env(safe-area-inset-bottom, 0px));
           }
           .qv-title {
-            font-size: 22px;
+            font-size: 21px;
           }
           .qv-actions-row {
-            flex-direction: column;
-            align-items: stretch;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 8px;
           }
           .qv-stepper {
-            justify-content: center;
+            height: 42px;
+          }
+          .qv-step-btn {
+            width: 32px;
+          }
+          .qv-step-val {
+            width: 24px;
           }
           .qv-add-btn {
-            width: 100%;
+            height: 42px;
+            min-width: 0;
+            font-size: 11px;
+            padding: 0 10px;
+          }
+          .qv-wa-btn {
+            width: 42px;
+            height: 42px;
           }
         }
       `}</style>

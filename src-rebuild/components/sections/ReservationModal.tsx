@@ -155,17 +155,18 @@ export default function ReservationModal({ open, onClose }: Props) {
           background: rgba(30,5,12,0.72);
           backdrop-filter: blur(6px);
           display: flex; align-items: center; justify-content: center;
-          padding: 16px;
+          padding: clamp(8px, 3vw, 16px);
           animation: rm-fade-in 0.22s ease;
         }
         @keyframes rm-fade-in { from { opacity: 0; } to { opacity: 1; } }
 
         .rm-panel {
           background: #FFFDF8;
-          border-radius: 24px;
+          border-radius: 20px;
           width: 100%; max-width: 560px;
-          max-height: calc(100dvh - 32px);
+          max-height: calc(100dvh - 24px);
           overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
           box-shadow: 0 32px 80px rgba(30,5,12,0.36);
           animation: rm-slide-up 0.26s cubic-bezier(0.34,1.56,0.64,1);
           position: relative;
@@ -176,48 +177,49 @@ export default function ReservationModal({ open, onClose }: Props) {
         }
 
         .rm-header {
-          background: #55000A; border-radius: 24px 24px 0 0;
-          padding: 28px 32px 24px; position: relative;
+          background: #55000A; border-radius: 20px 20px 0 0;
+          padding: 24px 28px 20px; position: relative;
         }
         .rm-header-title {
           font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 26px; font-weight: 700;
-          color: #FFF8EC; margin: 0 0 6px; line-height: 1.1;
+          font-size: clamp(22px, 5vw, 26px); font-weight: 700;
+          color: #FFF8EC; margin: 0 0 6px; line-height: 1.15;
+          padding-right: 36px;
         }
         .rm-header-sub {
           font-family: Inter, sans-serif;
-          font-size: 13px; color: rgba(255,248,236,0.65);
+          font-size: 13px; color: rgba(255,248,236,0.75);
           margin: 0; line-height: 1.5;
         }
         .rm-close {
           position: absolute; top: 16px; right: 16px;
-          background: rgba(255,248,236,0.10); border: none;
+          background: rgba(255,248,236,0.12); border: none;
           border-radius: 8px; width: 34px; height: 34px;
           display: grid; place-items: center;
-          cursor: pointer; color: rgba(255,248,236,0.70);
+          cursor: pointer; color: rgba(255,248,236,0.85);
           transition: background 0.18s, color 0.18s;
         }
-        .rm-close:hover { background: rgba(255,248,236,0.18); color: #FFF8EC; }
+        .rm-close:hover { background: rgba(255,248,236,0.22); color: #FFF8EC; }
 
         .rm-notice {
           background: rgba(200,154,61,0.10);
           border: 1px solid rgba(200,154,61,0.35);
-          border-radius: 10px; padding: 11px 15px;
+          border-radius: 10px; padding: 11px 14px;
           font-family: Inter, sans-serif;
           font-size: 12px; color: #75645C; line-height: 1.55;
-          margin-bottom: 20px;
+          margin-bottom: 16px;
         }
         .rm-notice strong { color: #55000A; }
 
-        .rm-body { padding: 28px 32px 32px; }
-        .rm-form { display: flex; flex-direction: column; gap: 16px; }
+        .rm-body { padding: 22px 28px 28px; }
+        .rm-form { display: flex; flex-direction: column; gap: 14px; }
         .rm-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
         .rm-label {
           display: block; margin-bottom: 5px;
           font-family: Inter, sans-serif;
           font-size: 11px; font-weight: 700;
-          letter-spacing: 0.09em; text-transform: uppercase;
+          letter-spacing: 0.08em; text-transform: uppercase;
           color: #55000A;
         }
         .rm-input, .rm-select, .rm-textarea {
@@ -247,7 +249,7 @@ export default function ReservationModal({ open, onClose }: Props) {
           transform: translateY(-50%); pointer-events: none;
           color: #C99A32;
         }
-        .rm-textarea { min-height: 90px; resize: vertical; line-height: 1.55; }
+        .rm-textarea { min-height: 85px; resize: vertical; line-height: 1.55; }
 
         .rm-field-error {
           display: block; color: #C0392B;
@@ -277,13 +279,14 @@ export default function ReservationModal({ open, onClose }: Props) {
         .rm-submit {
           background: #55000A; color: #FFF8EC;
           border: none; border-radius: 999px;
-          height: 50px; padding: 0 28px;
+          min-height: 48px; padding: 12px 20px;
           font-family: Inter, sans-serif;
           font-size: 12px; font-weight: 700;
-          letter-spacing: 0.10em; text-transform: uppercase;
+          letter-spacing: 0.08em; text-transform: uppercase;
           cursor: pointer; width: 100%;
           transition: background 0.22s, transform 0.22s, opacity 0.22s;
           display: flex; align-items: center; justify-content: center;
+          text-align: center;
         }
         .rm-submit:hover:not(:disabled) {
           background: #C99A32; transform: translateY(-2px);
@@ -297,7 +300,7 @@ export default function ReservationModal({ open, onClose }: Props) {
           display: inline-flex; align-items: center; gap: 8px;
           background: #25D366; color: #fff;
           text-decoration: none; border-radius: 999px;
-          padding: 0 22px; height: 44px; width: 100%;
+          padding: 0 20px; height: 44px; width: 100%;
           justify-content: center;
           font-family: Inter, sans-serif;
           font-size: 12px; font-weight: 700;
@@ -307,10 +310,9 @@ export default function ReservationModal({ open, onClose }: Props) {
         }
         .rm-wa-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(37,211,102,0.26); }
 
-        @media (max-width: 480px) {
-          .rm-panel { border-radius: 20px; }
-          .rm-header { padding: 22px 20px 18px; border-radius: 20px 20px 0 0; }
-          .rm-body   { padding: 20px 20px 24px; }
+        @media (max-width: 540px) {
+          .rm-header { padding: 20px 18px 16px; }
+          .rm-body   { padding: 18px 16px calc(20px + env(safe-area-inset-bottom, 0px)); }
           .rm-row    { grid-template-columns: 1fr; }
         }
       `}</style>

@@ -973,20 +973,29 @@ export default function ProductDetail() {
         @media (max-width: 768px) {
           .pdp-hero-grid {
             grid-template-columns: 1fr;
-            gap: 28px;
+            gap: 24px;
           }
           .pdp-gallery-card {
             position: static;
+            padding: 12px;
+            border-radius: 16px;
+          }
+          .pdp-thumb-btn {
+            width: 56px;
+            height: 56px;
           }
           .pdp-mobile-bar {
             display: flex;
           }
           .pdp-container {
-            padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+            padding: 16px 14px calc(96px + env(safe-area-inset-bottom, 0px));
           }
           .pdp-trust-grid {
             grid-template-columns: 1fr;
             gap: 8px;
+          }
+          .shop-floating-cart {
+            bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
           }
         }
 
@@ -995,9 +1004,23 @@ export default function ProductDetail() {
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 10px;
           }
+          .pdp-details-section {
+            padding: 20px 16px;
+            border-radius: 16px;
+            margin-top: 36px;
+          }
+          .pdp-related-section {
+            margin-top: 40px;
+          }
         }
 
-        @media (max-width: 359px) {
+        @media (max-width: 380px) {
+          .pdp-title {
+            font-size: 28px;
+          }
+          .pdp-hindi-title {
+            font-size: 18px;
+          }
           .pdp-related-grid {
             grid-template-columns: 1fr;
             gap: 14px;

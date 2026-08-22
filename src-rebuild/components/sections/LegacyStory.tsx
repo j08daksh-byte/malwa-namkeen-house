@@ -196,39 +196,47 @@ export default function LegacyStory() {
           #story .ls-card-wrap { max-width: none; margin-left: 0; }
         }
 
-        /* ── Mobile < 768px ──────────────────────────────────────── */
+        /* ── Mobile < 768px ──────────────────────────── */
         @media (max-width: 767px) {
-          #story { padding: 52px 18px 56px; }
+          #story { padding: 44px 16px 48px; }
           #story .ls-grid {
             grid-template-columns: 1fr;
-            gap: 34px;
+            gap: 28px;
           }
           #story .ls-text { max-width: 100%; }
           #story .ls-card-wrap { max-width: none; width: 100%; margin-left: 0; }
-          #story .ls-eyebrow-text { font-size: 12px; }
-          #story .ls-h2   { font-size: clamp(32px, 9vw, 46px); }
+          #story .ls-eyebrow-text { font-size: 11px; }
+          #story .ls-h2   { font-size: clamp(30px, 8.5vw, 42px); margin-bottom: 16px; }
+          #story .ls-body { font-size: 14px; line-height: 1.68; margin-bottom: 14px; }
+          #story .ls-body-muted { font-size: 14px; line-height: 1.68; }
+          #story .ls-tags { margin-top: 18px; margin-bottom: 22px; gap: 8px; }
           #story .ls-postcard { max-width: none; width: 100%; }
           #story .ls-postcard-border {
-            padding: 8px;
-            border: none;
-            border-radius: 16px;
-            overflow: visible;
-            height: auto;
+            background: #FFF9EF;
+            border: 6px solid #FFF9EF;
+            border-bottom: 38px solid #FFF9EF;
+            border-radius: 14px;
+            overflow: hidden;
+            position: relative;
           }
           #story .ls-postcard-img {
             width: 100%;
             height: auto;
-            aspect-ratio: auto;
-            object-fit: contain;
+            aspect-ratio: 1.2 / 1;
+            object-fit: cover;
             object-position: center;
             display: block;
           }
-          #story .ls-since { left: -6px; bottom: 50px; }
+          #story .ls-postcard-caption {
+            height: 38px;
+          }
+          #story .ls-since { left: 8px; bottom: 44px; font-size: 7.5px; padding: 5px 11px; }
           #story .ls-cta { width: 100%; justify-content: center; }
+          #story .ls-flourish { display: none; }
         }
 
         @media (max-width: 359px) {
-          #story .ls-h2 { font-size: 29px; }
+          #story .ls-h2 { font-size: 26px; }
         }
       `}</style>
 

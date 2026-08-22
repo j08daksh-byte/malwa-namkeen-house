@@ -14,7 +14,25 @@ export default function NotFound() {
         noIndex={true}
       />
       <Navbar />
-      <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', textAlign: 'center' }}>
+      <style>{`
+        .notfound-btn-group {
+          display: flex;
+          gap: 12px;
+          justify-content: center;
+          flex-wrap: wrap;
+        }
+        @media (max-width: 480px) {
+          .notfound-btn-group {
+            flex-direction: column;
+            width: 100%;
+          }
+          .notfound-btn-group a {
+            width: 100%;
+            justify-content: center;
+          }
+        }
+      `}</style>
+      <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(40px, 8vw, 80px) 20px', textAlign: 'center' }}>
         <div style={{ maxWidth: '500px', width: '100%' }}>
           <div style={{
             fontFamily: "'Cormorant Garamond', Georgia, serif",
@@ -29,7 +47,7 @@ export default function NotFound() {
           </div>
           <h1 style={{
             fontFamily: "'Cormorant Garamond', Georgia, serif",
-            fontSize: '32px',
+            fontSize: 'clamp(26px, 5vw, 32px)',
             color: '#3C0815',
             margin: '0 0 12px',
           }}>
@@ -44,7 +62,7 @@ export default function NotFound() {
           }}>
             The page you are looking for might have been moved or does not exist. Explore our fresh heritage savouries and artisanal namkeens in the shop.
           </p>
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <div className="notfound-btn-group">
             <Link
               to="/"
               style={{

@@ -223,14 +223,30 @@ export default function ShopHero() {
 
         @media (max-width: 540px) {
           .shop-hero {
-            padding: 28px 16px 36px;
+            padding: 24px 16px 32px;
           }
           .shop-hero__title {
-            font-size: clamp(34px, 10vw, 44px);
+            font-size: clamp(32px, 9vw, 42px);
+          }
+          .shop-hero__callout {
+            padding: 12px 16px;
+            gap: 12px;
           }
           .shop-hero__badges {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px 10px;
+          }
+          .shop-hero__badge-label {
+            font-size: 11px;
+          }
+          .shop-hero__badge-sub {
+            font-size: 9.5px;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .shop-hero__badges {
             grid-template-columns: 1fr;
-            gap: 12px;
           }
         }
       `}</style>

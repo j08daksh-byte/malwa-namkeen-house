@@ -292,6 +292,7 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         .checkout-dialog__body {
           flex: 1;
           overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
           padding: 24px 28px;
           display: grid;
           grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.95fr);
@@ -346,7 +347,7 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         }
 
         .checkout-field input, .checkout-field select, .checkout-field textarea {
-          padding: 8px 12px;
+          padding: 9px 12px;
           border-radius: 6px;
           border: 1px solid rgba(200, 154, 61, 0.35);
           background: #FFFFFF;
@@ -354,6 +355,7 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
           font-size: 13px;
           color: #34211D;
           outline: none;
+          min-height: 42px;
         }
 
         .checkout-field input:focus, .checkout-field select:focus {
@@ -377,7 +379,7 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
 
         .btn-place-order {
           width: 100%;
-          height: 48px;
+          min-height: 48px;
           background: #3C0815;
           color: #FFF8EC;
           border: none;
@@ -395,6 +397,7 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
           justify-content: center;
           gap: 8px;
           margin-top: 14px;
+          padding: 10px 16px;
         }
 
         .btn-place-order:hover {
@@ -418,20 +421,20 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
 
         @media (max-width: 480px) {
           .checkout-overlay {
-            padding: 8px;
+            padding: 6px;
           }
           .checkout-dialog {
             max-height: 96dvh;
             border-radius: 16px;
           }
           .checkout-dialog__head {
-            padding: 16px 18px;
+            padding: 14px 16px;
           }
           .checkout-dialog__title {
-            font-size: 20px;
+            font-size: 19px;
           }
           .checkout-dialog__body {
-            padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+            padding: 14px 14px calc(20px + env(safe-area-inset-bottom, 0px));
             gap: 16px;
           }
           .checkout-form-grid {
@@ -439,7 +442,7 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
             gap: 8px;
           }
           .btn-place-order {
-            height: 48px;
+            min-height: 48px;
             font-size: 11.5px;
           }
         }

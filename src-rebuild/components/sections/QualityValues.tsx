@@ -268,32 +268,40 @@ export default function QualityValues() {
         /* ── Mobile < 768px ───────────────────────────────────────── */
         @media (max-width: 767px) {
           #quality {
-            padding: 58px 16px 64px;
+            padding: 44px 16px 48px;
+          }
+          #quality .qv-header {
+            margin-bottom: 28px;
           }
           #quality .qv-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 12px;
+            gap: 10px;
           }
           #quality .qv-card {
-            padding: 22px 16px 20px;
+            padding: 18px 12px 16px;
+            border-radius: 16px;
             min-height: 0;
           }
           #quality .qv-badge {
-            width: 46px; height: 46px;
+            width: 44px; height: 44px;
+            margin-top: 4px;
           }
           #quality .qv-h2 {
-            font-size: 40px;
+            font-size: clamp(32px, 8vw, 42px);
             line-height: 0.98;
+            margin-bottom: 14px;
           }
           #quality .qv-sub {
-            font-size: 14px;
-            line-height: 1.6;
+            font-size: 13.5px;
+            line-height: 1.55;
           }
           #quality .qv-title {
-            font-size: 19px;
+            font-size: 16.5px;
+            margin: 12px 0 6px;
           }
           #quality .qv-desc {
-            font-size: 13px;
+            font-size: 12px;
+            line-height: 1.5;
             max-width: none;
           }
         }
@@ -303,7 +311,7 @@ export default function QualityValues() {
           #quality .qv-grid {
             grid-template-columns: 1fr;
           }
-          #quality .qv-h2 { font-size: 34px; }
+          #quality .qv-h2 { font-size: 28px; }
         }
       `}</style>
 

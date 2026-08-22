@@ -400,26 +400,33 @@ export default function Katering() {
         /* ── Mobile < 768px ───────────────────────────────────────── */
         @media (max-width: 767px) {
           #katering {
-            padding: 58px 16px 64px;
+            padding: 44px 16px 50px;
           }
           #katering .k-grid {
             grid-template-columns: 1fr;
-            gap: 12px;
+            gap: 10px;
           }
-          #katering .k-header { margin-bottom: 32px; }
-          #katering .k-h2     { font-size: clamp(38px, 9vw, 46px); }
-          #katering .k-sub    { font-size: 14px; }
-          #katering .ki-q     { font-size: 17px; }
+          #katering .k-header { margin-bottom: 26px; }
+          #katering .k-h2     { font-size: clamp(34px, 8.5vw, 44px); margin-bottom: 14px; }
+          #katering .k-sub    { font-size: 13.5px; }
+          #katering .ki-btn   { padding: 16px 18px; min-height: 60px; }
+          #katering .ki-q     { font-size: 16.5px; }
+          #katering .ki-body-inner { margin: 0 18px; padding: 12px 0 18px; }
           #katering .ki-a     { font-size: 13.5px; line-height: 1.65; }
           #katering .k-cta {
             display: block;
             text-align: center;
-            padding: 24px 20px;
+            padding: 22px 18px;
+            border-radius: 16px;
+            margin-top: 28px;
+          }
+          #katering .k-cta-text h3 {
+            font-size: 24px;
           }
           #katering .k-cta-btns {
             width: 100%;
             justify-content: center;
-            margin-top: 18px;
+            margin-top: 16px;
           }
           #katering .k-wa-btn,
           #katering .k-enquire-btn {
@@ -428,9 +435,19 @@ export default function Katering() {
           }
         }
 
-        /* ── Very small < 360px ───────────────────────────────────── */
+        /* ── Very small < 480px ───────────────────────────────────── */
+        @media (max-width: 480px) {
+          #katering .k-cta-btns {
+            flex-direction: column;
+          }
+          #katering .k-wa-btn,
+          #katering .k-enquire-btn {
+            width: 100%;
+          }
+        }
+
         @media (max-width: 359px) {
-          #katering .k-h2 { font-size: 34px; }
+          #katering .k-h2 { font-size: 30px; }
         }
       `}</style>
 

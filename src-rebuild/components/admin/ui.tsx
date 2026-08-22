@@ -132,8 +132,8 @@ export function Btn({
 
 export function Table({ children }: { children: ReactNode }) {
   return (
-    <div style={{ overflowX: 'auto', borderRadius: '12px', border: '1px solid #E8ECF2' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', background: '#fff' }}>
+    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', borderRadius: '12px', border: '1px solid #E8ECF2' }}>
+      <table style={{ width: '100%', minWidth: '580px', borderCollapse: 'collapse', fontSize: '13px', background: '#fff' }}>
         {children}
       </table>
     </div>
@@ -185,11 +185,11 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
   if (!open) return null;
   return (
     <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200 }} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 201, background: '#fff', borderRadius: '16px', padding: '28px', width: 'min(560px, calc(100vw - 32px))', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,0.18)' }}>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, backdropFilter: 'blur(2px)' }} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 201, background: '#fff', borderRadius: '16px', padding: 'clamp(18px, 4vw, 28px)', width: 'min(560px, calc(100vw - 24px))', maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto', WebkitOverflowScrolling: 'touch', boxShadow: '0 24px 60px rgba(0,0,0,0.22)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
           <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#1A0A0F' }}>{title}</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: '#9CA3AF', lineHeight: 1 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '22px', color: '#9CA3AF', lineHeight: 1, padding: '4px' }}>×</button>
         </div>
         {children}
       </div>

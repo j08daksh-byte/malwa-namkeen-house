@@ -435,6 +435,19 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
             display: none;
           }
         }
+
+        @media (max-width: 380px) {
+          .shop-product-card__body {
+            padding: 10px;
+          }
+          .shop-product-card__price {
+            font-size: 16px;
+          }
+          .shop-product-card__add-btn {
+            padding: 0 8px;
+            font-size: 9px;
+          }
+        }
       `}</style>
 
       {/* Media & Badges */}

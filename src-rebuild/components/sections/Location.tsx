@@ -237,7 +237,7 @@ export default function Location() {
         ═══════════════════════════════════════════════════ */
         @media (max-width: 599px) {
           #locations {
-            padding: 40px 20px;
+            padding: 36px 16px;
           }
           #locations .lc-row {
             flex-direction: column;

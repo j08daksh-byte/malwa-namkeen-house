@@ -252,6 +252,20 @@ export default function BrandIntro() {
           animation: introTaglineEntry 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.85s both;
         }
 
+        @media (max-width: 380px) {
+          .intro-brand-name {
+            font-size: 20px;
+            letter-spacing: 0.08em;
+          }
+          .intro-tagline {
+            font-size: 9.5px;
+            letter-spacing: 0.16em;
+          }
+          .intro-logo-img {
+            height: 76px;
+          }
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .intro-logo-wrap,
           .intro-brand-name,

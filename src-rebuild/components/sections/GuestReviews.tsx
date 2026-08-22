@@ -154,25 +154,26 @@ export default function GuestReviews() {
           #reviews .guest-reviews__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
         @media (max-width: 767px) {
-          #reviews { padding: 40px 18px 48px; }
+          #reviews { padding: 40px 16px 44px; }
           #reviews .guest-reviews__head { margin-bottom: 22px; }
-          #reviews .guest-reviews__head p { margin-top: 6px; font-size: 13px; }
-          #reviews .guest-reviews__grid { grid-template-columns: 1fr; gap: 10px; }
-          .guest-review { min-height: 168px; padding: 14px 15px 12px; }
-          .guest-review__avatar { width: 32px; height: 32px; font-size: 16px; }
-          .guest-review__source { font-size: 8px; padding: 5px 6px; }
-          .guest-review__stars { margin-top: 10px; font-size: 14px; }
+          #reviews .guest-reviews__head h2 { font-size: clamp(34px, 8.5vw, 44px); }
+          #reviews .guest-reviews__head p { margin-top: 6px; font-size: 13.5px; }
+          #reviews .guest-reviews__grid { grid-template-columns: 1fr; gap: 12px; }
+          .guest-review { min-height: 0; padding: 18px 16px 14px; border-radius: 16px !important; }
+          .guest-review__avatar { width: 36px; height: 36px; font-size: 17px; }
+          .guest-review__source { font-size: 8.5px; padding: 4px 8px; }
+          .guest-review__stars { margin-top: 10px; font-size: 15px; }
           .guest-review__text {
             display: -webkit-box;
             margin-top: 8px;
             overflow: hidden;
             color: #4A3830;
-            font-size: 11px;
-            line-height: 1.45;
+            font-size: 13px;
+            line-height: 1.6;
             -webkit-box-orient: vertical;
-            -webkit-line-clamp: 3;
+            -webkit-line-clamp: 4;
           }
-          .guest-review__google { padding-top: 7px; }
+          .guest-review__google { padding-top: 8px; }
         }
       `}</style>
 

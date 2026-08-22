@@ -5,7 +5,7 @@ import Footer from '../components/sections/Footer';
 import ReservationModal from '../components/sections/ReservationModal';
 import ShopHero from '../components/shop/ShopHero';
 import ShopFilters from '../components/shop/ShopFilters';
-import VirtualProductCard from '../components/shop/VirtualProductCard';
+import ProductCard from '../components/shop/ProductCard';
 import ProductQuickViewModal from '../components/shop/ProductQuickViewModal';
 import CartDrawer from '../components/shop/CartDrawer';
 import CheckoutModal from '../components/shop/CheckoutModal';
@@ -18,14 +18,14 @@ const PAGE_SIZE = 9; // Clean multiple for 3-col, 2-col, and 1-col grids
 export default function Shop() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Dynamic pagination & catalog state
-  const [products, setProducts] = useState<Product[]>([]);
+  // Dynamic pagination & catalog state — initialized with local catalog for instant zero-latency loading
+  const [products, setProducts] = useState<Product[]>(() => FALLBACK_PRODUCTS.slice(0, PAGE_SIZE));
   const [categories, setCategories] = useState<ShopCategory[]>(FALLBACK_CATEGORIES);
-  const [initialLoading, setInitialLoading] = useState<boolean>(true);
+  const [initialLoading, setInitialLoading] = useState<boolean>(false);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [hasMore, setHasMore] = useState<boolean>(true);
   const [page, setPage] = useState<number>(1);
-  const [totalCount, setTotalCount] = useState<number>(0);
+  const [totalCount, setTotalCount] = useState<number>(FALLBACK_PRODUCTS.length);
   const [apiError, setApiError] = useState<string | null>(null);
 
   // Filter criteria states
@@ -116,6 +116,7 @@ export default function Shop() {
         if (res.ok) {
           const data = await res.json();
           if (data.success && Array.isArray(data.categories) && data.categories.length > 0) {
+            const rawWithoutAll = data.categories.filter((c: any) => (c.slug || c.id) !== 'all');
             const formatted: ShopCategory[] = [
               {
                 id: 'all',
@@ -123,7 +124,7 @@ export default function Shop() {
                 shortLabel: 'All',
                 description: 'Explore our complete heritage collection of small-batch savouries, sweets, and curated gift boxes.',
               },
-              ...data.categories.map((c: any) => ({
+              ...rawWithoutAll.map((c: any) => ({
                 id: c.slug || c.id,
                 label: c.name || c.label,
                 shortLabel: c.shortLabel || c.name,
@@ -203,7 +204,7 @@ export default function Shop() {
       abortControllerRef.current = controller;
 
       if (isReset) {
-        setInitialLoading(true);
+        setProducts(prev => (prev.length === 0 ? FALLBACK_PRODUCTS.slice(0, PAGE_SIZE) : prev));
         setApiError(null);
       } else {
         setLoadingMore(true);
@@ -219,15 +220,21 @@ export default function Shop() {
           sortBy: sortBy,
         });
 
-        const res = await fetch(`/api/products?${queryParams.toString()}`, {
+        const timeoutPromise = new Promise<Response>((_, reject) =>
+          setTimeout(() => reject(new Error('Fetch timeout')), 2500)
+        );
+
+        const fetchPromise = fetch(`/api/products?${queryParams.toString()}`, {
           signal: controller.signal,
         });
+
+        const res = await Promise.race([fetchPromise, timeoutPromise]);
 
         if (!isMountedRef.current) return;
 
         if (res.ok) {
           const data = await res.json();
-          if (data.success && Array.isArray(data.products)) {
+          if (data.success && Array.isArray(data.products) && data.products.length > 0) {
             setTotalCount(data.total ?? data.products.length);
             setHasMore(Boolean(data.page < data.totalPages));
             setPage(pageToFetch);
@@ -246,7 +253,7 @@ export default function Shop() {
             return;
           }
         }
-        throw new Error('API request unsuccessful');
+        throw new Error('API request returned empty or invalid');
       } catch (err: any) {
         if (err.name === 'AbortError') return; // Cancelled intentionally
 
@@ -311,14 +318,16 @@ export default function Shop() {
     };
   }, [hasMore, initialLoading, loadingMore, page, fetchProductsBatch]);
 
-  // Compute category counts for filter tabs
+  // Compute category counts for filter tabs from complete catalog
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: totalCount || products.length };
-    for (const p of products) {
-      counts[p.category] = (counts[p.category] ?? 0) + 1;
+    const counts: Record<string, number> = { all: Math.max(FALLBACK_PRODUCTS.length, totalCount) };
+    for (const p of FALLBACK_PRODUCTS) {
+      if (p.category) {
+        counts[p.category] = (counts[p.category] ?? 0) + 1;
+      }
     }
     return counts;
-  }, [products, totalCount]);
+  }, [totalCount]);
 
   const handleResetFilters = () => {
     setSelectedCategory('all');
@@ -356,7 +365,7 @@ export default function Shop() {
 
         .shop-main-content {
           flex: 1;
-          padding: clamp(32px, 4vw, 56px) clamp(16px, 3vw, 48px) clamp(64px, 8vw, 96px);
+          padding: clamp(20px, 3vw, 48px) clamp(12px, 3vw, 48px) clamp(48px, 6vw, 96px);
         }
 
         .shop-content-inner {
@@ -369,7 +378,7 @@ export default function Shop() {
         .shop-grid {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: clamp(20px, 2.5vw, 32px);
+          gap: clamp(16px, 2.5vw, 32px);
         }
 
         /* ── Luxury Skeleton Loading Cards ────────────────────── */
@@ -628,11 +637,11 @@ export default function Shop() {
               </button>
             </div>
           ) : (
-            /* Virtualized Product Grid with Infinite Scroll */
+            /* Product Grid with Infinite Scroll */
             <>
               <div className="shop-grid" role="list" aria-label="Available delicacies">
                 {products.map(product => (
-                  <VirtualProductCard
+                  <ProductCard
                     key={product.id || (product as any)._id || product.slug}
                     product={product}
                     onQuickView={setQuickViewProduct}

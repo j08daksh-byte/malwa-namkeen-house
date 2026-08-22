@@ -125,12 +125,12 @@ export default function ShopToast() {
 
         @media (max-width: 540px) {
           .shop-floating-cart {
-            bottom: 18px;
+            bottom: calc(18px + env(safe-area-inset-bottom, 0px));
             right: 16px;
             padding: 8px 14px 8px 12px;
           }
           .shop-toast {
-            bottom: 74px;
+            bottom: calc(74px + env(safe-area-inset-bottom, 0px));
             right: 16px;
             left: 16px;
             max-width: none;

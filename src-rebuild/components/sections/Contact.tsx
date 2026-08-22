@@ -441,22 +441,22 @@ export default function Contact() {
 
         /* ── Mobile < 768px ───────────────────────────────────────── */
         @media (max-width: 767px) {
-          #contact { padding: 56px 16px; }
-          #contact .ct-h2 { font-size: 38px; }
-          #contact .ct-panel { padding: 26px 22px; gap: 22px; }
-          #contact .ct-card  { padding: 22px; }
+          #contact { padding: 44px 16px 48px; }
+          #contact .ct-h2 { font-size: clamp(32px, 8.5vw, 44px); }
+          #contact .ct-panel { padding: 22px 18px; gap: 18px; border-radius: 16px; }
+          #contact .ct-card  { padding: 20px 16px; border-radius: 16px; }
           #contact .ct-row   { grid-template-columns: 1fr; }
           #contact .ct-input, #contact .ct-textarea,
-          #contact .ct-select { min-height: 50px; font-size: 14px; }
+          #contact .ct-select { min-height: 48px; font-size: 16px; }
           #contact .ct-submit {
             width: 100%; justify-content: center; align-self: stretch;
           }
         }
 
         @media (max-width: 360px) {
-          #contact .ct-h2  { font-size: 32px; }
-          #contact .ct-panel { padding: 20px 16px; }
-          #contact .ct-card  { padding: 18px 14px; }
+          #contact .ct-h2  { font-size: 28px; }
+          #contact .ct-panel { padding: 18px 14px; }
+          #contact .ct-card  { padding: 16px 12px; }
         }
       `}</style>
 

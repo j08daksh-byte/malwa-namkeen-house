@@ -174,13 +174,21 @@ export default function AdminLayout({ admin, children }: Props) {
             justify-content: center;
           }
           .adm-topbar {
-            padding: 0 16px;
+            padding: 0 14px;
           }
           .adm-content {
-            padding: 18px 16px;
+            padding: 16px 12px;
           }
           .adm-overlay {
             display: block !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .adm-topbar-role {
+            display: none !important;
+          }
+          .adm-topbar-title {
+            font-size: 16px !important;
           }
         }
       `}</style>
@@ -312,7 +320,7 @@ export default function AdminLayout({ admin, children }: Props) {
               <Menu size={22} />
             </button>
             <div>
-              <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#2D0813', letterSpacing: '-0.02em' }}>
+              <h1 className="adm-topbar-title" style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#2D0813', letterSpacing: '-0.02em' }}>
                 {currentTitle}
               </h1>
             </div>
@@ -320,7 +328,7 @@ export default function AdminLayout({ admin, children }: Props) {
 
           {/* Right Header Identity */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#F4F1EA', padding: '5px 10px', borderRadius: '999px', fontSize: '12px', color: '#55000A', fontWeight: 600 }}>
+            <div className="adm-topbar-role" style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#F4F1EA', padding: '5px 10px', borderRadius: '999px', fontSize: '12px', color: '#55000A', fontWeight: 600 }}>
               <ShieldCheck size={14} color="#D4AA45" />
               <span>{roleLabel}</span>
             </div>

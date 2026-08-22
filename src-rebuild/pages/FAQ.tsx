@@ -218,12 +218,18 @@ export default function FAQ() {
 
         .faq-cat-bar {
           display: flex;
-          gap: 10px;
+          gap: 8px;
           overflow-x: auto;
-          padding-bottom: 12px;
-          margin-bottom: 36px;
-          justify-content: center;
-          flex-wrap: wrap;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          padding-bottom: 8px;
+          margin-bottom: 28px;
+          justify-content: flex-start;
+          flex-wrap: nowrap;
+        }
+
+        .faq-cat-bar::-webkit-scrollbar {
+          display: none;
         }
 
         .faq-cat-pill {
@@ -237,6 +243,7 @@ export default function FAQ() {
           border-radius: 999px;
           cursor: pointer;
           white-space: nowrap;
+          flex-shrink: 0;
           transition: background 0.15s, color 0.15s, border-color 0.15s;
         }
 
@@ -253,11 +260,15 @@ export default function FAQ() {
         .faq-accordion-group {
           display: grid;
           grid-template-columns: 1fr;
-          gap: 18px;
+          gap: 14px;
           align-items: start;
         }
 
         @media (min-width: 860px) {
+          .faq-cat-bar {
+            justify-content: center;
+            flex-wrap: wrap;
+          }
           .faq-accordion-group {
             grid-template-columns: 1fr 1fr;
             gap: 20px;
@@ -281,37 +292,62 @@ export default function FAQ() {
           width: 100%;
           background: transparent;
           border: none;
-          padding: 18px 22px;
+          padding: 16px 18px;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 16px;
+          gap: 14px;
           text-align: left;
           cursor: pointer;
           color: #3C0815;
           font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(18px, 2vw, 21px);
+          font-size: clamp(17px, 2vw, 21px);
           font-weight: 700;
+          line-height: 1.25;
         }
 
         .faq-answer-pane {
-          padding: 0 22px 18px;
+          padding: 0 18px 16px;
           font-family: Inter, sans-serif;
-          font-size: 14px;
-          line-height: 1.7;
+          font-size: 13.5px;
+          line-height: 1.68;
           color: #4A3530;
           border-top: 1px solid rgba(200, 154, 61, 0.15);
-          padding-top: 14px;
+          padding-top: 12px;
         }
 
         .faq-contact-card {
-          margin-top: 56px;
+          margin-top: 48px;
           background: linear-gradient(135deg, #3C0815 0%, #55000A 100%);
           color: #FFF8EC;
           border-radius: 20px;
-          padding: clamp(28px, 5vw, 40px);
+          padding: clamp(24px, 5vw, 40px) clamp(16px, 4vw, 36px);
           text-align: center;
           border: 1px solid rgba(200, 154, 61, 0.4);
+        }
+
+        .faq-cta-btn-group {
+          display: flex;
+          gap: 12px;
+          justify-content: center;
+          flex-wrap: wrap;
+        }
+
+        @media (max-width: 480px) {
+          .faq-hero {
+            padding: 40px 16px 32px;
+          }
+          .faq-search-wrap {
+            margin-top: 20px;
+          }
+          .faq-cta-btn-group {
+            flex-direction: column;
+            width: 100%;
+          }
+          .faq-cta-btn-group a {
+            width: 100%;
+            justify-content: center;
+          }
         }
       `}</style>
 
@@ -418,7 +454,7 @@ export default function FAQ() {
           <p style={{ fontSize: '14px', color: 'rgba(255, 248, 236, 0.85)', margin: '0 auto 24px', maxWidth: '520px', lineHeight: 1.6 }}>
             Our culinary and customer experience team is always happy to assist with orders, bulk inquiries, or flavour recommendations.
           </p>
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <div className="faq-cta-btn-group">
             <Link
               to="/contact"
               style={{

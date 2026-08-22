@@ -22,7 +22,7 @@ export default function AboutUs() {
       <main style={{ flex: 1 }}>
         <section style={{
           position: 'relative',
-          padding: 'clamp(80px, 12vw, 130px) clamp(20px, 4vw, 48px) clamp(50px, 8vw, 80px)',
+          padding: 'clamp(48px, 8vw, 110px) clamp(16px, 4vw, 48px) clamp(36px, 6vw, 70px)',
           background: 'linear-gradient(180deg, #3C0815 0%, #2A0005 100%)',
           color: '#FFF8EC',
           textAlign: 'center',

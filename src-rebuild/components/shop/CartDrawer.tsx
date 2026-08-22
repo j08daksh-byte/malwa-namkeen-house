@@ -274,10 +274,11 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           font-weight: 700;
           color: #3C0815;
           margin: 0;
-          line-height: 1.2;
+          line-height: 1.25;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
           overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
         }
 
         .cart-item__meta {
@@ -541,6 +542,24 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           }
           .cart-drawer__footer {
             padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+          }
+        }
+
+        @media (max-width: 360px) {
+          .cart-item {
+            grid-template-columns: 46px minmax(0, 1fr) auto;
+            gap: 8px;
+            padding: 8px;
+          }
+          .cart-item__thumb {
+            width: 46px;
+            height: 46px;
+          }
+          .cart-item__name {
+            font-size: 14px;
+          }
+          .cart-item__price {
+            font-size: 15px;
           }
         }
       `}</style>

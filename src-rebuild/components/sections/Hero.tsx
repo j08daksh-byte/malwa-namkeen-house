@@ -325,30 +325,30 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
         @media (max-width: 767px) {
           .hero-editorial {
             min-height: auto;
-            padding: 36px 18px 36px;
+            padding: 28px 16px 32px;
             display: block;
           }
           .hero-editorial__inner {
             grid-template-columns: 1fr;
-            gap: 28px;
+            gap: 24px;
           }
           .hero-editorial__copy {
             max-width: 100%;
           }
           .hero-editorial__eyebrow-row {
-            margin-bottom: 12px;
+            margin-bottom: 10px;
           }
           .hero-editorial__title {
-            font-size: clamp(38px, 10.5vw, 52px);
+            font-size: clamp(34px, 10vw, 48px);
             line-height: 0.96;
           }
           .hero-editorial__description {
-            margin-top: 15px;
+            margin-top: 14px;
             font-size: 13.5px;
             line-height: 1.62;
           }
           .hero-editorial__actions {
-            margin-top: 22px;
+            margin-top: 20px;
             gap: 10px;
           }
           .hero-editorial__btn {
@@ -357,15 +357,15 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
             font-size: 11px;
           }
           .hero-editorial__trust-strip {
-            margin-top: 20px;
-            padding-top: 14px;
+            margin-top: 18px;
+            padding-top: 12px;
             gap: 6px 10px;
           }
           .hero-editorial__trust-item {
             font-size: 11px;
           }
           .hero-editorial__image-section {
-            margin-top: 4px;
+            margin-top: 8px;
           }
           .hero-editorial__image-frame {
             border-radius: 18px;
@@ -376,20 +376,20 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
             aspect-ratio: 1.28 / 1;
           }
           .hero-editorial__badge {
-            bottom: 12px;
-            left: 12px;
+            bottom: 10px;
+            left: 10px;
             padding: 6px 12px;
           }
           .hero-editorial__badge-text {
-            font-size: 10px;
+            font-size: 9.5px;
           }
           .hero-editorial__scroll-cue {
             display: none;
           }
         }
 
-        /* ── Very Small Mobile < 360px ────────────────────────── */
-        @media (max-width: 359px) {
+        /* ── Very Small Mobile < 480px ────────────────────────── */
+        @media (max-width: 480px) {
           .hero-editorial__actions {
             display: flex;
             flex-direction: column;

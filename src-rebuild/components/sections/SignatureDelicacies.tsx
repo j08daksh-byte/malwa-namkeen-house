@@ -249,15 +249,15 @@ export default function SignatureDelicacies() {
         /* ── Mobile < 768px ────────────────────────────────────── */
         @media (max-width: 767px) {
           #sweets {
-            padding: 48px 18px;
+            padding: 40px 16px 44px;
           }
           #sweets .sd-inner {
             grid-template-columns: 1fr;
-            gap: 24px;
+            gap: 20px;
           }
           #sweets .sd-text { max-width: 100%; }
-          #sweets .sd-heading { font-size: clamp(38px, 10vw, 50px); line-height: 1.0; }
-          #sweets .sd-desc { font-size: 14px; max-width: 100%; }
+          #sweets .sd-heading { font-size: clamp(34px, 8.5vw, 44px); line-height: 1.0; margin-bottom: 12px; }
+          #sweets .sd-desc { font-size: 14px; max-width: 100%; margin-bottom: 20px; }
           #sweets .sd-cards {
             display: flex;
             gap: 12px;
@@ -266,19 +266,28 @@ export default function SignatureDelicacies() {
             -webkit-overflow-scrolling: touch;
             scrollbar-width: none;
             -ms-overflow-style: none;
+            padding-bottom: 6px;
           }
           #sweets .sd-cards::-webkit-scrollbar { display: none; }
           #sweets .sd-card {
-            flex: 0 0 72vw;
-            max-width: 250px;
+            flex: 0 0 68vw;
+            max-width: 240px;
             aspect-ratio: 0.78 / 1;
             scroll-snap-align: start;
+            border-radius: 14px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          #sweets .sd-btn {
+            width: 100%;
+            justify-content: center;
           }
         }
 
         @media (max-width: 360px) {
-          #sweets .sd-card { flex: 0 0 78vw; }
-          #sweets .sd-heading { font-size: 36px; }
+          #sweets .sd-card { flex: 0 0 76vw; }
+          #sweets .sd-heading { font-size: 32px; }
         }
       `}</style>
 

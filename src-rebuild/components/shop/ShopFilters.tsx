@@ -63,8 +63,11 @@ export default function ShopFilters({
         /* ── Search Bar ────────────────────────────────────────── */
         .shop-filters__search-wrap {
           position: relative;
+          display: flex;
+          align-items: center;
           flex: 1 1 280px;
-          max-width: 420px;
+          max-width: 440px;
+          min-width: 0;
         }
 
         .shop-filters__search-icon {
@@ -74,18 +77,25 @@ export default function ShopFilters({
           transform: translateY(-50%);
           color: #C99A32;
           pointer-events: none;
-          display: flex;
+          display: inline-flex;
           align-items: center;
+          justify-content: center;
+          width: 16px;
+          height: 16px;
+          line-height: 0;
+          z-index: 2;
         }
 
         .shop-filters__search-input {
           width: 100%;
+          height: 44px;
+          box-sizing: border-box;
           background: #FFFDF8;
           border: 1.5px solid rgba(201, 154, 50, 0.35);
           border-radius: 999px;
-          padding: 10px 38px 10px 40px;
+          padding: 0 38px 0 42px;
           font-family: Inter, sans-serif;
-          font-size: 13.5px;
+          font-size: 14px;
           color: #34211D;
           outline: none;
           transition: border-color 0.2s, box-shadow 0.2s;
@@ -110,8 +120,10 @@ export default function ShopFilters({
           color: #A38C82;
           cursor: pointer;
           padding: 4px;
-          display: flex;
+          display: inline-flex;
           align-items: center;
+          justify-content: center;
+          z-index: 2;
           transition: color 0.15s;
         }
 
@@ -124,6 +136,7 @@ export default function ShopFilters({
           display: flex;
           align-items: center;
           gap: 14px;
+          flex-shrink: 0;
         }
 
         .shop-filters__sort-wrap {
@@ -146,7 +159,8 @@ export default function ShopFilters({
           background: #FFFDF8;
           border: 1.5px solid rgba(201, 154, 50, 0.35);
           border-radius: 999px;
-          padding: 8px 32px 8px 14px;
+          height: 40px;
+          padding: 0 32px 0 14px;
           font-family: Inter, sans-serif;
           font-size: 12.5px;
           font-weight: 600;
@@ -167,10 +181,11 @@ export default function ShopFilters({
         /* ── Category Pills Row ────────────────────────────────── */
         .shop-filters__categories-scroll {
           overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
           scrollbar-width: none;
           -ms-overflow-style: none;
-          padding-bottom: 12px;
-          margin-bottom: 12px;
+          padding-bottom: 8px;
+          margin-bottom: 10px;
         }
 
         .shop-filters__categories-scroll::-webkit-scrollbar {
@@ -235,7 +250,7 @@ export default function ShopFilters({
           align-items: center;
           gap: 12px;
           flex-wrap: wrap;
-          padding-top: 10px;
+          padding-top: 8px;
         }
 
         .shop-filters__tags-label {
@@ -281,15 +296,15 @@ export default function ShopFilters({
 
         /* ── Active Category Info Banner ───────────────────────── */
         .shop-filters__desc-strip {
-          margin-top: 18px;
-          padding: 12px 18px;
+          margin-top: 16px;
+          padding: 12px 16px;
           background: rgba(201, 154, 50, 0.08);
           border-left: 3px solid #C99A32;
           border-radius: 0 10px 10px 0;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 16px;
+          gap: 14px;
           flex-wrap: wrap;
         }
 
@@ -316,16 +331,28 @@ export default function ShopFilters({
         }
 
         @media (max-width: 768px) {
+          .shop-filters-container {
+            padding: 16px 14px 18px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+          }
           .shop-filters__top-row {
             flex-direction: column;
             align-items: stretch;
             gap: 12px;
+            margin-bottom: 14px;
+            padding-bottom: 14px;
           }
           .shop-filters__search-wrap {
             max-width: 100%;
           }
           .shop-filters__controls-right {
             justify-content: space-between;
+          }
+          .shop-filters__desc-strip {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
           }
         }
       `}</style>

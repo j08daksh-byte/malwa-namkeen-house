@@ -1,8 +1,12 @@
+import { useNavigate } from 'react-router-dom';
+
 interface Props {
   pageTitle: string;
 }
 
 export default function LegalHeader({ pageTitle }: Props) {
+  const navigate = useNavigate();
+
   return (
     <>
       <style>{`
@@ -20,12 +24,12 @@ export default function LegalHeader({ pageTitle }: Props) {
         .lh-inner {
           max-width: 1240px;
           margin: 0 auto;
-          padding: 0 clamp(16px, 3vw, 48px);
+          padding: 0 clamp(12px, 3vw, 48px);
           width: 100%;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 12px;
+          gap: 10px;
           box-sizing: border-box;
         }
         .lh-logo {
@@ -34,11 +38,12 @@ export default function LegalHeader({ pageTitle }: Props) {
           text-decoration: none;
           flex-shrink: 0;
           gap: 12px;
+          cursor: pointer;
         }
         .lh-logo img {
-          height: 40px;
+          height: 38px;
           width: auto;
-          max-width: 175px;
+          max-width: 150px;
           object-fit: contain;
           flex-shrink: 0;
         }
@@ -62,20 +67,22 @@ export default function LegalHeader({ pageTitle }: Props) {
         .lh-back {
           display: inline-flex;
           align-items: center;
-          gap: 7px;
+          gap: 6px;
           font-family: Inter, sans-serif;
           font-size: 12px;
           font-weight: 700;
-          letter-spacing: 0.06em;
+          letter-spacing: 0.04em;
           text-transform: uppercase;
           text-decoration: none;
-          color: rgba(255,249,239,0.70);
+          color: rgba(255,249,239,0.85);
           height: 36px;
-          padding: 0 16px;
+          padding: 0 14px;
           border-radius: 999px;
           border: 1px solid rgba(200,154,61,0.30);
           white-space: nowrap;
           flex-shrink: 0;
+          background: transparent;
+          cursor: pointer;
           transition: color 0.18s, border-color 0.18s, background 0.18s;
         }
         .lh-back:hover {
@@ -86,15 +93,24 @@ export default function LegalHeader({ pageTitle }: Props) {
         .lh-back svg {
           flex-shrink: 0;
         }
+        .lh-back-text-short {
+          display: none;
+        }
 
-        /* Mobile ≤ 520px: hide separator + page name to avoid overflow */
-        @media (max-width: 520px) {
+        /* Mobile ≤ 540px: hide separator + page name to avoid overflow */
+        @media (max-width: 540px) {
           .lh-sep, .lh-page-name { display: none; }
+          .lh-logo img { height: 34px; max-width: 130px; }
           .lh-back {
             font-size: 11px;
-            padding: 0 12px;
-            letter-spacing: 0.04em;
+            padding: 0 10px;
+            height: 34px;
           }
+        }
+        @media (max-width: 380px) {
+          .lh-back-text-full { display: none; }
+          .lh-back-text-short { display: inline; }
+          .lh-logo img { height: 30px; max-width: 110px; }
         }
       `}</style>
 
@@ -102,7 +118,16 @@ export default function LegalHeader({ pageTitle }: Props) {
         <div className="lh-inner">
 
           {/* Logo + breadcrumb */}
-          <a href="/" className="lh-logo" aria-label="MALWA NAMKEEN HOUSE — back to website">
+          <div
+            className="lh-logo"
+            onClick={() => {
+              navigate('/');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            role="button"
+            tabIndex={0}
+            aria-label="MALWA NAMKEEN HOUSE — back to home"
+          >
             <img
               src="/logo-nav-maroon.png"
               alt="MALWA NAMKEEN HOUSE"
@@ -110,15 +135,24 @@ export default function LegalHeader({ pageTitle }: Props) {
             />
             <span className="lh-sep" aria-hidden="true" />
             <span className="lh-page-name">{pageTitle}</span>
-          </a>
+          </div>
 
-          {/* Back link */}
-          <a href="/" className="lh-back">
+          {/* Back button */}
+          <button
+            type="button"
+            className="lh-back"
+            onClick={() => {
+              navigate('/');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            aria-label="Back to Website"
+          >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
               <path d="M8 2L4 6l4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-            Back to Website
-          </a>
+            <span className="lh-back-text-full">Back to Website</span>
+            <span className="lh-back-text-short">Back</span>
+          </button>
 
         </div>
       </header>

@@ -654,8 +654,18 @@ export default function MenuSection() {
             margin-bottom: 10px;
           }
           #menu .mn-search-wrap { flex: none; width: 100%; }
-          #menu .mn-result-info { font-size: 12px; }
-
+          #menu .mn-search {
+            font-size: 16px;
+            padding: 10px 38px 10px 38px;
+          }
+          #menu .mn-pills {
+            gap: 6px;
+            padding-bottom: 2px;
+          }
+          .mn-pill {
+            padding: 7px 15px;
+            font-size: 12px;
+          }
           #menu .mn-scroll {
             height: clamp(380px, 66vh, 580px);
             padding: 16px 14px 16px;

@@ -270,6 +270,9 @@ export default function Footer() {
 
         /* ── Mobile ≤ 767px ────────────────────────────────── */
         @media (max-width: 767px) {
+          #footer-section {
+            padding: 44px 0 0;
+          }
           #footer-section .ft-grid {
             grid-template-columns: 1fr 1fr;
             gap: 28px 20px;
@@ -277,11 +280,15 @@ export default function Footer() {
           #footer-section .ft-col-brand {
             grid-column: 1 / -1;
           }
+          #footer-section .ft-col-hours {
+            grid-column: 1 / -1;
+          }
           #footer-section .ft-brand-desc { max-width: 100%; }
           #footer-section .ft-bottom {
             flex-direction: column;
             text-align: center;
-            gap: 6px;
+            gap: 8px;
+            padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
           }
         }
 
@@ -289,6 +296,13 @@ export default function Footer() {
         @media (max-width: 430px) {
           #footer-section .ft-grid {
             grid-template-columns: 1fr;
+            gap: 26px;
+          }
+          #footer-section .ft-col-hours {
+            grid-column: auto;
+          }
+          #footer-section .ft-col-head {
+            margin-bottom: 14px;
           }
         }
       `}</style>
@@ -302,7 +316,7 @@ export default function Footer() {
               <img
                 src="/logo-gold.png"
                 alt="MALWA NAMKEEN HOUSE"
-                style={{ height: '48px', width: 'auto', opacity: 0.92 }}
+                style={{ height: '44px', width: 'auto', opacity: 0.92 }}
                 onError={e => { e.currentTarget.style.display = 'none'; }}
               />
             </div>
@@ -350,14 +364,23 @@ export default function Footer() {
             <ul className="ft-legal-links">
               {LEGAL_LINKS.map(l => (
                 <li key={l.href}>
-                  <a href={l.href}>{l.label}</a>
+                  <a
+                    href={l.href}
+                    onClick={e => {
+                      e.preventDefault();
+                      navigate(l.href);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  >
+                    {l.label}
+                  </a>
                 </li>
               ))}
             </ul>
           </div>
 
-          {/* ── Column 3: Hours + Address ── */}
-          <div>
+          {/* ── Column 4: Hours + Address ── */}
+          <div className="ft-col-hours">
             <p className="ft-col-head">Opening Hours</p>
             <div className="ft-hours">
               {BUSINESS.hours.map(h => (

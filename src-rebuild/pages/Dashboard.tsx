@@ -809,40 +809,100 @@ export default function Dashboard() {
             color: #991B1B;
           }
 
+          .customer-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 24px;
+            gap: 16px;
+          }
+
           @media (max-width: 850px) {
+            .customer-dashboard {
+              padding: 18px 14px 60px;
+            }
             .customer-shell {
               grid-template-columns: 1fr;
+              gap: 20px;
             }
             .customer-sidebar {
               position: sticky;
-              top: 78px;
-              z-index: 2;
+              top: 70px;
+              z-index: 20;
               display: flex;
               align-items: center;
-              padding: 10px;
+              justify-content: space-between;
+              padding: 8px 12px;
               overflow-x: auto;
+              -webkit-overflow-scrolling: touch;
+              scrollbar-width: none;
+              gap: 8px;
+            }
+            .customer-sidebar::-webkit-scrollbar {
+              display: none;
             }
             .customer-sidebar__brand {
               display: none;
             }
             .customer-nav {
               display: flex;
+              align-items: center;
+              gap: 6px;
               padding-top: 0;
             }
             .customer-nav button {
               white-space: nowrap;
+              padding: 8px 12px;
+              font-size: 12px;
+            }
+            .customer-logout {
+              margin: 0 0 0 6px;
+              padding: 0 0 0 10px;
+              border-top: 0;
+              border-left: 1px solid rgba(200, 154, 61, 0.22);
+              width: auto;
+              white-space: nowrap;
+              flex-shrink: 0;
             }
           }
 
           @media (max-width: 580px) {
+            .customer-section-header {
+              flex-direction: column;
+              align-items: stretch;
+              gap: 14px;
+            }
+            .customer-section-header button {
+              width: 100%;
+            }
             .address-grid, .customer-overview {
               grid-template-columns: 1fr;
+              gap: 12px;
+            }
+            .order-item-card {
+              flex-direction: column;
+              align-items: flex-start;
+              gap: 10px;
+              padding: 16px 18px;
+            }
+            .order-item-card > div:last-child {
+              width: 100%;
+              justify-content: space-between;
+              border-top: 1px solid rgba(200, 154, 61, 0.15);
+              padding-top: 8px;
+            }
+            .address-dialog {
+              padding: 20px 16px;
+              border-radius: 16px;
             }
             .profile-form {
               grid-template-columns: 1fr;
             }
             .profile-field--wide {
               grid-column: auto;
+            }
+            .customer-title {
+              font-size: clamp(30px, 7vw, 40px);
             }
           }
         `}</style>
@@ -1071,7 +1131,7 @@ export default function Dashboard() {
             {/* Saved Addresses Section */}
             {section === 'addresses' && (
               <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+                <div className="customer-section-header">
                   <div>
                     <p className="customer-eyebrow">Delivery Details</p>
                     <h1 className="customer-title">Saved Address Book</h1>

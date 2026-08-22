@@ -149,12 +149,15 @@ router.get('/products', async (req: Request, res: Response) => {
         if (mongoose.Types.ObjectId.isValid(category)) {
           filter.category = new mongoose.Types.ObjectId(category);
         } else {
-          const catDoc = await Category.findOne({ slug: category.toLowerCase(), active: true }).lean();
+          const catDoc = await Category.findOne({ slug: category.toLowerCase(), active: true }).maxTimeMS(2000).lean();
           if (catDoc) {
             filter.category = catDoc._id;
           } else {
-            res.json({ success: true, products: [], total: 0 });
-            return;
+            const hasAnyCat = await Category.countDocuments().maxTimeMS(2000);
+            if (hasAnyCat > 0) {
+              res.json({ success: true, products: [], total: 0 });
+              return;
+            }
           }
         }
       }
@@ -196,14 +199,15 @@ router.get('/products', async (req: Request, res: Response) => {
       const skip = (pageNum - 1) * limitNum;
 
       const [total, rawProducts, allCategories] = await Promise.all([
-        Product.countDocuments(filter),
+        Product.countDocuments(filter).maxTimeMS(2000),
         Product.find(filter)
           .populate({ path: 'category', select: 'name slug image', strictPopulate: false })
           .sort(sortObj)
           .skip(skip)
           .limit(limitNum)
+          .maxTimeMS(2000)
           .lean(),
-        Category.find({ active: true }).sort({ sortOrder: 1 }).lean(),
+        Category.find({ active: true }).sort({ sortOrder: 1 }).maxTimeMS(2000).lean(),
       ]);
 
       if (total > 0 || rawProducts.length > 0) {

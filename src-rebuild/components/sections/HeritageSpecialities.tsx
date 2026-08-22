@@ -151,14 +151,14 @@ export default function HeritageSpecialities() {
         }
 
         @media (max-width: 520px) {
-          .heritage-editorial { padding: 64px 16px 76px; }
-          .heritage-editorial__head h2 { font-size: clamp(38px, 12vw, 52px); }
-          .heritage-editorial__grid { display: flex; flex-direction: column; gap: 13px; }
-          .heritage-editorial__card { height: 250px; flex: 0 0 250px; border-radius: 15px; }
-          .heritage-editorial__feature { height: 360px; flex-basis: 360px; }
-          .heritage-editorial__feature .heritage-editorial__card-copy h3 { font-size: 42px; }
-          .heritage-editorial__card-copy h3 { font-size: 30px; }
-          .heritage-editorial__card-copy p { font-size: 11px; }
+          .heritage-editorial { padding: 48px 16px 56px; }
+          .heritage-editorial__head h2 { font-size: clamp(34px, 9vw, 44px); }
+          .heritage-editorial__grid { display: flex; flex-direction: column; gap: 12px; }
+          .heritage-editorial__card { height: 220px; flex: 0 0 220px; border-radius: 14px; }
+          .heritage-editorial__feature { height: 300px; flex-basis: 300px; }
+          .heritage-editorial__feature .heritage-editorial__card-copy h3 { font-size: clamp(28px, 8vw, 36px); }
+          .heritage-editorial__card-copy h3 { font-size: clamp(22px, 6vw, 28px); }
+          .heritage-editorial__card-copy p { font-size: 12px; line-height: 1.5; }
         }
 
         @media (hover: none) {
