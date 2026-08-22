@@ -7,7 +7,7 @@ import ProductQuickViewModal from '../components/shop/ProductQuickViewModal';
 import CartDrawer from '../components/shop/CartDrawer';
 import CheckoutModal from '../components/shop/CheckoutModal';
 import ShopToast from '../components/shop/ShopToast';
-import { type Product, type ProductWeightOption } from '../data/products';
+import { PRODUCTS as FALLBACK_PRODUCTS, type Product, type ProductWeightOption } from '../data/products';
 import { useCart } from '../lib/cartContext';
 import { useWishlist } from '../lib/wishlistContext';
 import { BUSINESS } from '../lib/business';
