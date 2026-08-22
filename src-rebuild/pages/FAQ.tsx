@@ -209,19 +209,21 @@ export default function FAQ() {
         }
 
         .faq-content-area {
-          max-width: 900px;
+          max-width: 1240px;
           margin: 0 auto;
           width: 100%;
-          padding: clamp(32px, 5vw, 60px) clamp(16px, 3vw, 40px) clamp(64px, 8vw, 96px);
+          padding: clamp(32px, 5vw, 60px) clamp(16px, 4vw, 48px) clamp(64px, 8vw, 96px);
           flex: 1;
         }
 
         .faq-cat-bar {
           display: flex;
-          gap: 8px;
+          gap: 10px;
           overflow-x: auto;
           padding-bottom: 12px;
-          margin-bottom: 32px;
+          margin-bottom: 36px;
+          justify-content: center;
+          flex-wrap: wrap;
         }
 
         .faq-cat-pill {
@@ -249,9 +251,17 @@ export default function FAQ() {
         }
 
         .faq-accordion-group {
-          display: flex;
-          flex-direction: column;
-          gap: 14px;
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 18px;
+          align-items: start;
+        }
+
+        @media (min-width: 860px) {
+          .faq-accordion-group {
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+          }
         }
 
         .faq-item-card {

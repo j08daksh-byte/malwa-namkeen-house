@@ -21,12 +21,28 @@ const FAQS = [
     a: 'Yes, we curate custom gift boxes containing signature Ratlami sev, artisanal mathris, and pure sweets with personalized corporate branding and nationwide delivery.',
   },
   {
+    q: 'What cooking oil is used for frying?',
+    a: 'All our authentic namkeens are prepared strictly in 100% pure cold-pressed groundnut oil. We never use palm oil, hydrogenated fats, or chemical preservatives.',
+  },
+  {
+    q: 'What gives Ratlami Sev its signature spice aroma?',
+    a: 'Our authentic Ratlami Sev is stone-ground with whole cloves (Laung), black pepper (Kali Mirch), and hing (asafoetida) using time-honoured Malwa culinary proportions.',
+  },
+  {
     q: 'Are your products prepared fresh for bulk orders?',
     a: 'Yes, all bulk order batches are fried fresh in 100% pure cold-pressed groundnut oil and packed in airtight aroma-seal packaging to ensure maximum shelf life and crunch.',
   },
   {
+    q: 'What is the shelf life of the namkeens?',
+    a: 'Our savouries and sevs stay fresh and crisp for up to 90 days from the packaging date when stored unopened in a cool, dry place away from direct sunlight.',
+  },
+  {
     q: 'What is the minimum quantity for custom gift hampers?',
     a: 'We accommodate custom gifting starting from 25 hampers up to large festive consignments. Contact our gifting team for tailored catalog options.',
+  },
+  {
+    q: 'Do you deliver across India?',
+    a: 'Yes, we provide prompt nationwide delivery with multi-layered protective transit packaging to ensure crunch, aroma, and zero breakage at your doorstep.',
   },
 ];
 
@@ -78,8 +94,8 @@ export default function Katering() {
     setOpenIdx(prev => (prev === i ? -1 : i));
   }
 
-  const col1 = FAQS.slice(0, 4);
-  const col2 = FAQS.slice(4, 8);
+  const col1 = FAQS.filter((_, i) => i % 2 === 0);
+  const col2 = FAQS.filter((_, i) => i % 2 === 1);
 
   return (
     <section id="katering" aria-label="Frequently Asked Questions">
@@ -93,7 +109,7 @@ export default function Katering() {
           overflow-x: hidden;
         }
         #katering .k-inner {
-          max-width: 1120px;
+          max-width: 1200px;
           margin-inline: auto;
         }
 
@@ -442,24 +458,30 @@ export default function Katering() {
         {/* ── Two-column accordion ──────────────────────────────── */}
         <div className="k-grid">
           <div className="k-col">
-            {col1.map((faq, i) => (
-              <FaqItem
-                key={faq.q}
-                faq={faq}
-                open={openIdx === i}
-                onToggle={() => toggle(i)}
-              />
-            ))}
+            {col1.map((faq, i) => {
+              const idx = i * 2;
+              return (
+                <FaqItem
+                  key={faq.q}
+                  faq={faq}
+                  open={openIdx === idx}
+                  onToggle={() => toggle(idx)}
+                />
+              );
+            })}
           </div>
           <div className="k-col">
-            {col2.map((faq, i) => (
-              <FaqItem
-                key={faq.q}
-                faq={faq}
-                open={openIdx === i + 4}
-                onToggle={() => toggle(i + 4)}
-              />
-            ))}
+            {col2.map((faq, i) => {
+              const idx = i * 2 + 1;
+              return (
+                <FaqItem
+                  key={faq.q}
+                  faq={faq}
+                  open={openIdx === idx}
+                  onToggle={() => toggle(idx)}
+                />
+              );
+            })}
           </div>
         </div>
 
