@@ -332,27 +332,37 @@ export default function ShopFilters({
 
         @media (max-width: 768px) {
           .shop-filters-container {
-            padding: 16px 14px 18px;
+            padding: 14px 12px 16px;
             border-radius: 16px;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
           }
           .shop-filters__top-row {
             flex-direction: column;
             align-items: stretch;
-            gap: 12px;
-            margin-bottom: 14px;
-            padding-bottom: 14px;
+            gap: 10px;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
           }
           .shop-filters__search-wrap {
             max-width: 100%;
           }
+          .shop-filters__search-input {
+            height: 42px;
+            font-size: 14px;
+          }
           .shop-filters__controls-right {
             justify-content: space-between;
           }
+          .shop-filters__sort-select {
+            height: 36px;
+            font-size: 12px;
+          }
           .shop-filters__desc-strip {
+            margin-top: 12px;
+            padding: 10px 12px;
             flex-direction: column;
             align-items: flex-start;
-            gap: 6px;
+            gap: 4px;
           }
         }
       `}</style>
