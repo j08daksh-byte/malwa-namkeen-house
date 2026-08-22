@@ -94,9 +94,6 @@ export default function Katering() {
     setOpenIdx(prev => (prev === i ? -1 : i));
   }
 
-  const col1 = FAQS.filter((_, i) => i % 2 === 0);
-  const col2 = FAQS.filter((_, i) => i % 2 === 1);
-
   return (
     <section id="katering" aria-label="Frequently Asked Questions">
       <style>{`
@@ -170,12 +167,7 @@ export default function Katering() {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 16px 20px;
-          align-items: start;
-        }
-        #katering .k-col {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
+          align-items: stretch;
         }
 
         /* ── Accordion item ───────────────────────────────────────── */
@@ -185,6 +177,9 @@ export default function Katering() {
           border: 1px solid rgba(200,154,61,0.24);
           border-radius: 18px;
           overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          height: 100%;
           box-shadow:
             0 4px 16px rgba(74,31,25,0.05),
             inset 0 1px 0 rgba(255,255,255,0.90);
@@ -225,12 +220,13 @@ export default function Katering() {
         /* ── Question button ──────────────────────────────────────── */
         #katering .ki-btn {
           width: 100%;
+          flex: 1;
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 18px;
-          padding: 20px 22px 20px 26px;
-          min-height: 68px;
+          padding: 18px 22px 18px 26px;
+          min-height: 72px;
           background: none;
           border: none;
           cursor: pointer;
@@ -243,11 +239,13 @@ export default function Katering() {
         }
         #katering .ki-q {
           font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 21px;
+          font-size: 20px;
           font-weight: 700;
           line-height: 1.22;
           color: #55000A;
           letter-spacing: -0.01em;
+          transition: color 200ms ease;
+        }
           transition: color 200ms ease;
         }
         #katering .ki-item--open .ki-q {
@@ -472,34 +470,16 @@ export default function Katering() {
           </p>
         </div>
 
-        {/* ── Two-column accordion ──────────────────────────────── */}
+        {/* ── Two-column accordion grid ─────────────────────────── */}
         <div className="k-grid">
-          <div className="k-col">
-            {col1.map((faq, i) => {
-              const idx = i * 2;
-              return (
-                <FaqItem
-                  key={faq.q}
-                  faq={faq}
-                  open={openIdx === idx}
-                  onToggle={() => toggle(idx)}
-                />
-              );
-            })}
-          </div>
-          <div className="k-col">
-            {col2.map((faq, i) => {
-              const idx = i * 2 + 1;
-              return (
-                <FaqItem
-                  key={faq.q}
-                  faq={faq}
-                  open={openIdx === idx}
-                  onToggle={() => toggle(idx)}
-                />
-              );
-            })}
-          </div>
+          {FAQS.map((faq, idx) => (
+            <FaqItem
+              key={faq.q}
+              faq={faq}
+              open={openIdx === idx}
+              onToggle={() => toggle(idx)}
+            />
+          ))}
         </div>
 
         {/* ── WhatsApp CTA ──────────────────────────────────────── */}
