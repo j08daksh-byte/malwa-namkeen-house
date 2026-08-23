@@ -57,7 +57,7 @@ app.use(async (_req: Request, _res: Response, next: NextFunction) => {
 });
 
 // Health check
-app.get('/api/health', (_req: Request, res: Response) => {
+app.get(['/health', '/api/health'], (_req: Request, res: Response) => {
   const mongo = getMongoStatus();
   res.json({
     status: 'ok',
@@ -67,29 +67,41 @@ app.get('/api/health', (_req: Request, res: Response) => {
   });
 });
 
-// Mount all API routes
-app.use('/api', publicCatalogRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/auth', authRecoveryRoutes);
-app.use('/api/cart', cartWishlistRoutes);
-app.use('/api/customer', cartWishlistRoutes);
-app.use('/api/customer', customerAccountRoutes);
-app.use('/api/orders', customerOrdersRoutes);
-app.use('/api/settings', publicSettingsRouter);
-app.use('/api/inquiries', adminInquiryRoutes);
-app.use('/api/contact', adminInquiryRoutes);
-app.use('/api/discounts', adminDiscountRoutes);
-app.use('/api/admin/dashboard', adminDashboardRoutes);
-app.use('/api/admin/staff', adminStaffRoutes);
-app.use('/api/admin/settings', adminSettingsRoutes);
-app.use('/api/admin/inquiries', adminInquiryRoutes);
-app.use('/api/admin/discounts', adminDiscountRoutes);
-app.use('/api/admin/customers', adminCustomerRoutes);
-app.use('/api/admin/orders', adminOrderRoutes);
-app.use('/api/admin/categories', adminCategoryRoutes);
-app.use('/api/admin/products', adminProductRoutes);
-app.use('/api/admin/uploads', uploadRoutes);
-app.use('/api', enquiryRoutes);
+// Mount all API routes with and without '/api' prefix for robust Vercel serverless routing
+const routeConfigs = [
+  { path: '/auth', router: authRoutes },
+  { path: '/auth', router: authRecoveryRoutes },
+  { path: '/cart', router: cartWishlistRoutes },
+  { path: '/customer', router: cartWishlistRoutes },
+  { path: '/customer', router: customerAccountRoutes },
+  { path: '/orders', router: customerOrdersRoutes },
+  { path: '/settings', router: publicSettingsRouter },
+  { path: '/inquiries', router: adminInquiryRoutes },
+  { path: '/contact', router: adminInquiryRoutes },
+  { path: '/discounts', router: adminDiscountRoutes },
+  { path: '/admin/dashboard', router: adminDashboardRoutes },
+  { path: '/admin/staff', router: adminStaffRoutes },
+  { path: '/admin/settings', router: adminSettingsRoutes },
+  { path: '/admin/inquiries', router: adminInquiryRoutes },
+  { path: '/admin/discounts', router: adminDiscountRoutes },
+  { path: '/admin/customers', router: adminCustomerRoutes },
+  { path: '/admin/orders', router: adminOrderRoutes },
+  { path: '/admin/categories', router: adminCategoryRoutes },
+  { path: '/admin/products', router: adminProductRoutes },
+  { path: '/admin/uploads', router: uploadRoutes },
+  { path: '/', router: publicCatalogRoutes },
+  { path: '/', router: enquiryRoutes },
+];
+
+for (const config of routeConfigs) {
+  if (config.path === '/') {
+    app.use('/', config.router);
+    app.use('/api', config.router);
+  } else {
+    app.use(config.path, config.router);
+    app.use(`/api${config.path}`, config.router);
+  }
+}
 
 // Global Error Handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
