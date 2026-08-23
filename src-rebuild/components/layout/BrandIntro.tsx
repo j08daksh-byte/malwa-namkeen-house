@@ -205,37 +205,37 @@ export default function BrandIntro() {
 
         .intro-brand-name {
           font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(23px, 4.4vw, 38px);
+          font-size: clamp(28px, 5.2vw, 46px);
           font-weight: 700;
-          line-height: 1.15;
+          line-height: 1.12;
           color: #55000A;
           text-transform: uppercase;
-          letter-spacing: 0.12em;
-          margin: 0 0 10px;
-          animation: introTitleEntry 1.3s cubic-bezier(0.16, 1, 0.3, 1) 0.45s both;
-          text-shadow: 0 2px 8px rgba(85, 0, 10, 0.08);
+          letter-spacing: 0.16em;
+          margin: 0 0 14px;
+          animation: introTitleEntry 1.3s cubic-bezier(0.16, 1, 0.3, 1) 0.25s both;
+          text-shadow: 0 2px 10px rgba(85, 0, 10, 0.07);
         }
 
         .intro-divider-wrap {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 14px;
+          gap: 16px;
           width: 100%;
-          max-width: 320px;
-          margin: 4px 0 10px;
-          animation: introTaglineEntry 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.75s both;
+          max-width: 360px;
+          margin: 0 0 14px;
+          animation: introTaglineEntry 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.55s both;
         }
 
         .intro-line {
           height: 1px;
           flex: 1;
-          background: linear-gradient(90deg, transparent, rgba(201, 154, 50, 0.55), transparent);
+          background: linear-gradient(90deg, transparent, rgba(201, 154, 50, 0.65), transparent);
         }
 
         .intro-diamond {
-          width: 5px;
-          height: 5px;
+          width: 6px;
+          height: 6px;
           background-color: #C99A32;
           transform: rotate(45deg);
           box-shadow: 0 0 6px rgba(201, 154, 50, 0.6);
@@ -243,31 +243,27 @@ export default function BrandIntro() {
 
         .intro-tagline {
           font-family: 'Inter', system-ui, sans-serif;
-          font-size: clamp(10px, 1.8vw, 12.5px);
+          font-size: clamp(11px, 2vw, 13.5px);
           font-weight: 800;
           color: #C99A32;
           text-transform: uppercase;
-          letter-spacing: 0.26em;
+          letter-spacing: 0.30em;
           margin: 0;
-          animation: introTaglineEntry 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.85s both;
+          animation: introTaglineEntry 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.65s both;
         }
 
         @media (max-width: 380px) {
           .intro-brand-name {
-            font-size: 20px;
-            letter-spacing: 0.08em;
+            font-size: 22px;
+            letter-spacing: 0.10em;
           }
           .intro-tagline {
-            font-size: 9.5px;
-            letter-spacing: 0.16em;
-          }
-          .intro-logo-img {
-            height: 76px;
+            font-size: 10px;
+            letter-spacing: 0.20em;
           }
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .intro-logo-wrap,
           .intro-brand-name,
           .intro-divider-wrap,
           .intro-tagline,
@@ -296,14 +292,6 @@ export default function BrandIntro() {
 
       {/* Center Cinematic Brand Element */}
       <div className="intro-content">
-        <div className="intro-logo-wrap">
-          <img
-            src="/logo.png"
-            alt="MALWA NAMKEEN HOUSE"
-            className="intro-logo-img"
-          />
-        </div>
-
         <h1 className="intro-brand-name">
           MALWA NAMKEEN HOUSE
         </h1>
