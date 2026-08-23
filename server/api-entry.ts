@@ -1,27 +1,27 @@
 import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
-import { connectMongoDB, getMongoStatus } from '../server/lib/mongodb.ts';
-import { BUSINESS } from '../server/config.ts';
+import { connectMongoDB, getMongoStatus } from './lib/mongodb.ts';
+import { BUSINESS } from './config.ts';
 
 // Routes
-import authRoutes from '../server/routes/auth.ts';
-import authRecoveryRoutes from '../server/routes/authRecovery.ts';
-import publicCatalogRoutes from '../server/routes/products.ts';
-import cartWishlistRoutes from '../server/routes/cartWishlist.ts';
-import customerAccountRoutes from '../server/routes/customerAccount.ts';
-import customerOrdersRoutes from '../server/routes/customerOrders.ts';
-import adminProductRoutes from '../server/routes/adminProducts.ts';
-import adminCategoryRoutes from '../server/routes/adminCategories.ts';
-import adminOrderRoutes from '../server/routes/adminOrders.ts';
-import adminCustomerRoutes from '../server/routes/adminCustomers.ts';
-import adminDiscountRoutes from '../server/routes/adminDiscounts.ts';
-import adminInquiryRoutes from '../server/routes/adminInquiries.ts';
-import adminStaffRoutes from '../server/routes/adminStaff.ts';
-import adminSettingsRoutes, { publicSettingsRouter } from '../server/routes/adminSettings.ts';
-import adminDashboardRoutes from '../server/routes/adminDashboard.ts';
-import uploadRoutes from '../server/routes/uploads.ts';
-import enquiryRoutes from '../server/routes/enquiries.ts';
+import authRoutes from './routes/auth.ts';
+import authRecoveryRoutes from './routes/authRecovery.ts';
+import publicCatalogRoutes from './routes/products.ts';
+import cartWishlistRoutes from './routes/cartWishlist.ts';
+import customerAccountRoutes from './routes/customerAccount.ts';
+import customerOrdersRoutes from './routes/customerOrders.ts';
+import adminProductRoutes from './routes/adminProducts.ts';
+import adminCategoryRoutes from './routes/adminCategories.ts';
+import adminOrderRoutes from './routes/adminOrders.ts';
+import adminCustomerRoutes from './routes/adminCustomers.ts';
+import adminDiscountRoutes from './routes/adminDiscounts.ts';
+import adminInquiryRoutes from './routes/adminInquiries.ts';
+import adminStaffRoutes from './routes/adminStaff.ts';
+import adminSettingsRoutes, { publicSettingsRouter } from './routes/adminSettings.ts';
+import adminDashboardRoutes from './routes/adminDashboard.ts';
+import uploadRoutes from './routes/uploads.ts';
+import enquiryRoutes from './routes/enquiries.ts';
 
 const app = express();
 
