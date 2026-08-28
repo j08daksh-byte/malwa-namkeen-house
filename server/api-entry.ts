@@ -22,20 +22,40 @@ import adminSettingsRoutes, { publicSettingsRouter } from './routes/adminSetting
 import adminDashboardRoutes from './routes/adminDashboard.ts';
 import uploadRoutes from './routes/uploads.ts';
 import enquiryRoutes from './routes/enquiries.ts';
+import adminBannerRoutes from './routes/adminBanners.ts';
+import publicBannerRoutes from './routes/banners.ts';
+import sitemapRoutes from './routes/sitemap.ts';
 
 const app = express();
+const isProd = process.env.NODE_ENV === 'production';
+
+// Strict CORS configuration
+const allowedOrigins = (() => {
+  const configured = process.env.ALLOWED_ORIGINS ?? '';
+  const base = configured
+    ? configured.split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean)
+    : [];
+  if (!isProd) {
+    base.push('http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://localhost:3000');
+  }
+  const appUrl = process.env.APP_URL;
+  if (appUrl) base.push(appUrl.trim().replace(/\/+$/, ''));
+  return base;
+})();
 
 // CORS middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
   const origin = req.headers.origin;
-  if (origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+  const normalizedOrigin = origin ? origin.replace(/\/+$/, '') : null;
+  if (!normalizedOrigin || allowedOrigins.includes(normalizedOrigin)) {
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
   }
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Vary', 'Origin');
   if (req.method === 'OPTIONS') {
     res.sendStatus(204);
     return;
@@ -55,6 +75,9 @@ app.use(async (_req: Request, _res: Response, next: NextFunction) => {
   }
   next();
 });
+
+// Sitemaps & robots.txt
+app.use('/', sitemapRoutes);
 
 // Health check
 app.get(['/health', '/api/health'], (_req: Request, res: Response) => {
@@ -88,6 +111,8 @@ const routeConfigs = [
   { path: '/admin/orders', router: adminOrderRoutes },
   { path: '/admin/categories', router: adminCategoryRoutes },
   { path: '/admin/products', router: adminProductRoutes },
+  { path: '/admin/banners', router: adminBannerRoutes },
+  { path: '/banners', router: publicBannerRoutes },
   { path: '/admin/uploads', router: uploadRoutes },
   { path: '/', router: publicCatalogRoutes },
   { path: '/', router: enquiryRoutes },
@@ -106,7 +131,8 @@ for (const config of routeConfigs) {
 // Global Error Handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error('[API Error]:', err.message);
-  res.status(500).json({ success: false, message: err.message || 'Internal server error.' });
+  const message = isProd ? 'Internal server error.' : err.message || 'Internal server error.';
+  res.status(500).json({ success: false, message });
 });
 
 export default app;

@@ -68,22 +68,22 @@ export default function Location() {
         }
         #locations .lc-eyebrow {
           display: block;
-          font-family: Inter, sans-serif;
-          font-size: 10.5px; font-weight: 800;
-          letter-spacing: 0.34em; text-transform: uppercase;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 11px; font-weight: 700;
+          letter-spacing: 0.20em; text-transform: uppercase;
           color: #C99A32;
           margin-bottom: 10px;
         }
         #locations .lc-h2 {
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(30px, 3.6vw, 48px);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(28px, 3.4vw, 42px);
           font-weight: 700; line-height: 1.08;
           color: #2A1A16;
           margin: 0 0 10px;
-          letter-spacing: -0.015em;
+          letter-spacing: -0.02em;
         }
         #locations .lc-sub {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: clamp(13px, 1vw, 15px);
           color: #8A7060; line-height: 1.6;
           margin: 0; max-width: 480px;
@@ -135,9 +135,9 @@ export default function Location() {
         /* Status badge */
         #locations .lc-badge {
           display: inline-flex; align-items: center; gap: 5px;
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 9.5px; font-weight: 700;
-          letter-spacing: 0.16em; text-transform: uppercase;
+          letter-spacing: 0.12em; text-transform: uppercase;
           padding: 3px 10px;
           border-radius: 999px;
           border: 1px solid;
@@ -161,14 +161,14 @@ export default function Location() {
           background: rgba(138,112,96,0.07);
         }
 
-        /* Location name — the big serif */
+        /* Location name */
         #locations .lc-name {
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(22px, 2.8vw, 34px);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(20px, 2.2vw, 26px);
           font-weight: 700;
           color: #55000A;
-          line-height: 1.05;
-          letter-spacing: -0.01em;
+          line-height: 1.1;
+          letter-spacing: -0.015em;
           margin: 0;
         }
         #locations .lc-block--soon .lc-name {

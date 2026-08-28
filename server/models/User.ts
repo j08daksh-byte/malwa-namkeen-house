@@ -20,6 +20,8 @@ export interface IUser extends Document {
   email: string;
   phone?: string;
   password?: string;
+  googleId?: string;
+  avatar?: string;
   role: UserRole;
   active: boolean;
   addresses?: IUserAddress[];
@@ -71,11 +73,20 @@ const userSchema = new Schema<IUser>(
       trim: true,
       default: '',
     },
+    googleId: {
+      type: String,
+      sparse: true,
+      index: true,
+    },
+    avatar: {
+      type: String,
+      default: '',
+    },
     password: {
       type: String,
       required: function (this: any) {
-        // Password is required unless user has pending invitation
-        return !this.invitationTokenHash;
+        // Password is required unless user logged in with Google or has pending invitation
+        return !this.invitationTokenHash && !this.googleId;
       },
       select: false, // Never return password hash in queries by default
     },

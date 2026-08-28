@@ -68,10 +68,11 @@ function formatPublicProduct(p: any) {
     categoryLabel: p.category?.name || 'Heritage Namkeens',
     images: Array.isArray(p.images) && p.images.length > 0 ? p.images : [primaryImage],
     image: primaryImage,
-    badge: p.badge || (p.featured ? 'Signature' : undefined),
+    badge: p.badge || (p.isBestSeller ? 'Best Seller' : p.featured ? 'Signature' : undefined),
     rating: typeof p.rating === 'number' ? p.rating : 4.9,
     reviewCount: typeof p.reviewCount === 'number' ? p.reviewCount : 124,
     featured: Boolean(p.featured),
+    isBestSeller: Boolean(p.isBestSeller),
     options,
   };
 }
@@ -122,6 +123,58 @@ router.get('/categories', async (_req: Request, res: Response) => {
       description: c.description,
       image: '',
     })),
+  });
+});
+
+/**
+ * GET /api/products/best-sellers
+ * Returns strictly the top 4 Best Seller products for the homepage section.
+ */
+router.get('/products/best-sellers', async (_req: Request, res: Response) => {
+  try {
+    if (mongoose.connection.readyState === 1) {
+      // Find products explicitly marked as Best Seller (ordered by bestSellerAt desc)
+      let bestSellers = await Product.find({ active: true, isBestSeller: true })
+        .populate({ path: 'category', select: 'name slug image', strictPopulate: false })
+        .sort({ bestSellerAt: -1, updatedAt: -1, createdAt: -1 })
+        .limit(4)
+        .lean();
+
+      // If fewer than 4 marked, backfill with featured or top-rated products so 4 slots are always populated
+      if (bestSellers.length < 4) {
+        const existingIds = bestSellers.map(p => p._id);
+        const backfill = await Product.find({
+          active: true,
+          _id: { $nin: existingIds },
+        })
+          .populate({ path: 'category', select: 'name slug image', strictPopulate: false })
+          .sort({ featured: -1, rating: -1, createdAt: -1 })
+          .limit(4 - bestSellers.length)
+          .lean();
+
+        bestSellers = [...bestSellers, ...backfill];
+      }
+
+      if (bestSellers.length > 0) {
+        res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+        res.json({
+          success: true,
+          count: bestSellers.length,
+          products: bestSellers.map(formatPublicProduct),
+        });
+        return;
+      }
+    }
+  } catch (err: unknown) {
+    console.warn('[Public Best Sellers Error]', err);
+  }
+
+  // Fallback to top 4 products from static catalog
+  const fallback = FALLBACK_PRODUCTS.slice(0, 4);
+  res.json({
+    success: true,
+    count: fallback.length,
+    products: fallback,
   });
 });
 

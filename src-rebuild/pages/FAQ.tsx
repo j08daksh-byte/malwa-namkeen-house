@@ -44,7 +44,7 @@ const FAQ_DATA: FAQItem[] = [
     category: 'Ingredients & Purity',
     question: 'What cooking oil is used in preparing the namkeens?',
     answer:
-      'We use 100% pure cold-pressed groundnut oil for our traditional frying process. We never use palm oil, hydrogenated fats, or artificial preservatives.',
+      'We use 100% pure soya oil for our traditional frying process. We never use palm oil, hydrogenated fats, or artificial preservatives.',
   },
   {
     id: 'qual-2',
@@ -79,35 +79,35 @@ const FAQ_DATA: FAQItem[] = [
     category: 'Delivery & Shipping',
     question: 'What are the delivery charges?',
     answer:
-      'We offer complimentary standard shipping on all orders above ₹499. For orders below this threshold, a flat nominal delivery fee of ₹49 applies.',
+      'We offer FREE Delivery on all orders above ₹499 across India. For orders below ₹499, a flat nominal delivery charge of ₹49 applies.',
   },
   {
     id: 'ship-2',
     category: 'Delivery & Shipping',
-    question: 'How can I track my order?',
+    question: 'How long does delivery take?',
     answer:
-      'Once your order is confirmed, you can track its progress under your Customer Dashboard at /dashboard. You will also receive email updates as your order transitions from processing to dispatch.',
+      'Orders are freshly dispatched within 24 to 48 hours. Transit generally takes 2–4 business days for major metropolitan hubs and 4–6 business days for other regional areas.',
   },
   {
-    id: 'ret-1',
-    category: 'Returns & Cancellations',
-    question: 'Can I cancel or modify my order?',
+    id: 'ship-3',
+    category: 'Delivery & Shipping',
+    question: 'Do you provide order tracking updates?',
     answer:
-      'Orders can be cancelled before dispatch by contacting our customer support team or reaching out via WhatsApp with your order reference number. Once an order is handed to the courier, cancellations cannot be processed.',
+      'Yes! As soon as your consignment is dispatched, you will receive an SMS and WhatsApp notification containing your live courier tracking link.',
   },
   {
-    id: 'ret-2',
-    category: 'Returns & Cancellations',
-    question: 'What happens if my order arrives damaged?',
+    id: 'pay-1',
+    category: 'Payment & Gifting',
+    question: 'What payment modes are supported?',
     answer:
-      'If your parcel arrives damaged or with broken packaging seals, please share photographs with our support team within 24 hours of delivery. We will issue a replacement or refund promptly.',
+      'We support UPI (GPay, PhonePe, Paytm), Credit/Debit Cards, Net Banking, and Cash on Delivery (COD) on eligible pin codes.',
   },
   {
-    id: 'bulk-1',
-    category: 'Bulk Orders & Festive Gifting',
-    question: 'Do you offer corporate gifting and wedding bulk orders?',
+    id: 'pay-2',
+    category: 'Payment & Gifting',
+    question: 'Can I place bulk orders for weddings and corporate gifting?',
     answer:
-      'Yes, we curate custom gift boxes, wedding return hampers, and corporate assortments with personalized branding. Submit an inquiry through our Contact page or WhatsApp us directly for custom quotations.',
+      'Absolutely. We provide customized gift hampers, festive gift boxes, and special bulk pricing for weddings, corporate events, and parties. Contact our gifting desk or reach out via WhatsApp.',
   },
 ];
 
@@ -117,34 +117,26 @@ const CATEGORIES = [
   'Ingredients & Purity',
   'Shelf Life & Storage',
   'Delivery & Shipping',
-  'Returns & Cancellations',
-  'Bulk Orders & Festive Gifting',
+  'Payment & Gifting',
 ];
 
 export default function FAQ() {
-  const [selectedCat, setSelectedCat] = useState('All');
   const [search, setSearch] = useState('');
-  const [openItems, setOpenItems] = useState<Record<string, boolean>>({ 'ord-1': true, 'qual-1': true });
-
-  const faqStructuredData = {
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: FAQ_DATA.map(item => ({
-      '@type': 'Question',
-      name: item.question,
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: item.answer,
-      },
-    })),
-  };
+  const [selectedCat, setSelectedCat] = useState('All');
+  const [openItems, setOpenItems] = useState<Record<string, boolean>>({
+    'ord-1': true,
+    'qual-1': true,
+  });
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, []);
 
   const toggleItem = (id: string) => {
-    setOpenItems(prev => ({ ...prev, [id]: !prev[id] }));
+    setOpenItems(prev => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
   };
 
   const filteredFaqs = useMemo(() => {
@@ -184,7 +176,7 @@ export default function FAQ() {
           background: rgba(255, 255, 255, 0.1);
           color: #FFF8EC;
           padding: 0 24px 0 48px;
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 14px;
           outline: none;
           backdrop-filter: blur(8px);
@@ -236,7 +228,7 @@ export default function FAQ() {
           background: #FFFDF8;
           border: 1px solid rgba(200, 154, 61, 0.3);
           color: #55000A;
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 12px;
           font-weight: 700;
           padding: 8px 16px;
@@ -278,76 +270,114 @@ export default function FAQ() {
         .faq-item-card {
           background: #FFFDF8;
           border: 1px solid rgba(200, 154, 61, 0.28);
-          border-radius: 14px;
+          border-radius: 16px;
           overflow: hidden;
-          box-shadow: 0 4px 16px rgba(85, 0, 10, 0.03);
-          transition: border-color 0.18s;
+          box-shadow: 0 4px 14px rgba(85, 0, 10, 0.04);
+          transition: border-color 0.18s, box-shadow 0.18s;
         }
 
         .faq-item-card:hover {
-          border-color: rgba(201, 154, 50, 0.55);
+          border-color: rgba(200, 154, 61, 0.55);
+          box-shadow: 0 8px 22px rgba(85, 0, 10, 0.08);
         }
 
-        .faq-question-btn {
+        .faq-btn-trigger {
           width: 100%;
-          background: transparent;
+          background: none;
           border: none;
-          padding: 16px 18px;
+          padding: 20px 22px;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 14px;
-          text-align: left;
+          gap: 16px;
           cursor: pointer;
-          color: #3C0815;
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(17px, 2vw, 21px);
+          text-align: left;
+        }
+
+        .faq-question-title {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 15.5px;
           font-weight: 700;
-          line-height: 1.25;
+          color: #3C0815;
+          line-height: 1.35;
+          letter-spacing: -0.01em;
+          margin: 0;
         }
 
-        .faq-answer-pane {
-          padding: 0 18px 16px;
-          font-family: Inter, sans-serif;
-          font-size: 13.5px;
-          line-height: 1.68;
-          color: #4A3530;
+        .faq-chevron {
+          color: #D4AA45;
+          flex-shrink: 0;
+          transition: transform 0.22s ease;
+        }
+
+        .faq-chevron--open {
+          transform: rotate(180deg);
+        }
+
+        .faq-answer-panel {
+          padding: 0 22px 20px;
           border-top: 1px solid rgba(200, 154, 61, 0.15);
-          padding-top: 12px;
+          padding-top: 14px;
         }
 
-        .faq-contact-card {
-          margin-top: 48px;
+        .faq-answer-text {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 14px;
+          line-height: 1.65;
+          color: #5E4940;
+          margin: 0;
+        }
+
+        /* ── Support Help Box ─────────────────────────────────────── */
+        .faq-help-box {
           background: linear-gradient(135deg, #3C0815 0%, #55000A 100%);
-          color: #FFF8EC;
           border-radius: 20px;
-          padding: clamp(24px, 5vw, 40px) clamp(16px, 4vw, 36px);
-          text-align: center;
-          border: 1px solid rgba(200, 154, 61, 0.4);
-        }
-
-        .faq-cta-btn-group {
+          padding: 32px;
+          margin-top: 48px;
+          color: #FFF8EC;
           display: flex;
-          gap: 12px;
-          justify-content: center;
+          align-items: center;
+          justify-content: space-between;
+          gap: 24px;
           flex-wrap: wrap;
+          border: 1px solid rgba(200, 154, 61, 0.35);
         }
 
-        @media (max-width: 480px) {
-          .faq-hero {
-            padding: 40px 16px 32px;
-          }
-          .faq-search-wrap {
-            margin-top: 20px;
-          }
-          .faq-cta-btn-group {
-            flex-direction: column;
-            width: 100%;
-          }
-          .faq-cta-btn-group a {
-            width: 100%;
-            justify-content: center;
-          }
+        .faq-help-left h3 {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 22px;
+          font-weight: 700;
+          margin: 0 0 6px;
+          letter-spacing: -0.015em;
+        }
+
+        .faq-help-left p {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 14px;
+          color: rgba(255, 248, 236, 0.85);
+          margin: 0;
+        }
+
+        .faq-help-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          background: #D4AA45;
+          color: #3C0815;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          padding: 13px 24px;
+          border-radius: 999px;
+          text-decoration: none;
+          transition: background 0.18s, transform 0.18s;
+        }
+
+        .faq-help-btn:hover {
+          background: #E5BE5C;
+          transform: translateY(-2px);
         }
       `}</style>
 
@@ -355,18 +385,17 @@ export default function FAQ() {
         title="Frequently Asked Questions (FAQ)"
         description="Everything you need to know about our authentic Malwa namkeens, packaging integrity, dietary purity, and nationwide delivery."
         canonicalPath="/faq"
-        structuredData={faqStructuredData}
       />
       <Navbar />
 
       <section className="faq-hero">
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '11px', fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--gold-pale, #F0DFA0)', marginBottom: '12px' }}>
+        <p style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '11px', fontWeight: 700, letterSpacing: '0.20em', textTransform: 'uppercase', color: 'var(--gold-pale, #F0DFA0)', marginBottom: '12px' }}>
           Customer Guidance & Help
         </p>
-        <h1 style={{ fontFamily: "'Cormorant Garamond', 'Playfair Display', Georgia, serif", fontSize: 'clamp(36px, 5.5vw, 60px)', fontWeight: 600, margin: '0 0 16px', letterSpacing: '-0.03em' }}>
+        <h1 style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: 'clamp(32px, 4.8vw, 52px)', fontWeight: 700, margin: '0 0 16px', letterSpacing: '-0.025em' }}>
           Frequently Asked Questions
         </h1>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '15px', color: 'rgba(255, 248, 236, 0.85)', maxWidth: '580px', margin: '0 auto', lineHeight: 1.6 }}>
+        <p style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '15px', color: 'rgba(255, 248, 236, 0.85)', maxWidth: '580px', margin: '0 auto', lineHeight: 1.6 }}>
           Everything you need to know about our authentic Malwa namkeens, freshness-sealed packaging, dietary purity, and nationwide delivery.
         </p>
 
@@ -437,7 +466,7 @@ export default function FAQ() {
         ) : (
           <div style={{ textAlign: 'center', padding: '48px 24px', background: '#FFFDF8', borderRadius: '16px', border: '1px solid rgba(200,154,61,0.25)' }}>
             <HelpCircle size={36} color="#D4AA45" style={{ margin: '0 auto 12px' }} />
-            <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: '22px', margin: '0 0 8px', color: '#3C0815' }}>
+            <h3 style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '18px', fontWeight: 700, margin: '0 0 8px', color: '#3C0815' }}>
               No matching questions found
             </h3>
             <p style={{ fontSize: '13.5px', color: '#75645C', margin: 0 }}>
@@ -448,7 +477,7 @@ export default function FAQ() {
 
         {/* Contact Assistance Callout */}
         <div className="faq-contact-card">
-          <h3 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: 'clamp(26px, 3.5vw, 34px)', margin: '0 0 10px', color: '#FFF8EC' }}>
+          <h3 style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: 'clamp(22px, 3vw, 28px)', fontWeight: 700, margin: '0 0 10px', color: '#FFF8EC' }}>
             Still have questions?
           </h3>
           <p style={{ fontSize: '14px', color: 'rgba(255, 248, 236, 0.85)', margin: '0 auto 24px', maxWidth: '520px', lineHeight: 1.6 }}>

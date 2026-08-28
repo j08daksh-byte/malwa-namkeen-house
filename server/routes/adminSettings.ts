@@ -58,32 +58,19 @@ const DEFAULT_PUBLIC_SETTINGS = {
   },
 };
 
-/**
- * Public storefront settings endpoint (accessible without authentication)
- * GET /api/settings or /api/settings/public
- */
 const handlePublicSettings = async (_req: Request, res: Response) => {
   try {
-    if (mongoose.connection.readyState !== 1) {
-      res.json({ success: true, settings: DEFAULT_PUBLIC_SETTINGS });
-      return;
+    let settings = null;
+    if (mongoose.connection.readyState === 1) {
+      settings = await StoreSettings.findOne().lean();
     }
-    const settings = await getOrCreateSingletonSettings();
+    if (!settings) {
+      settings = await getOrCreateSingletonSettings();
+    }
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
     res.json({
       success: true,
-      settings: {
-        storeName: settings.storeName,
-        tagline: settings.tagline,
-        description: settings.description,
-        logo: settings.logo,
-        gstNumber: settings.gstNumber,
-        fssaiNumber: settings.fssaiNumber,
-        contact: settings.contact,
-        businessHours: settings.businessHours,
-        deliverySettings: settings.deliverySettings,
-        socialLinks: settings.socialLinks,
-        policies: settings.policies,
-      },
+      settings,
     });
   } catch (_err: unknown) {
     res.json({ success: true, settings: DEFAULT_PUBLIC_SETTINGS });
@@ -121,12 +108,9 @@ router.get('/', async (_req: AuthenticatedRequest, res: Response) => {
 router.put('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const payload = req.body;
-    let settings = await StoreSettings.findOne();
+    const settings = await getOrCreateSingletonSettings();
 
-    if (!settings) {
-      settings = new StoreSettings(payload);
-    } else {
-      if (payload.storeName) settings.storeName = String(payload.storeName).trim();
+    if (payload.storeName) settings.storeName = String(payload.storeName).trim();
       if (payload.tagline !== undefined) settings.tagline = String(payload.tagline).trim();
       if (payload.description !== undefined) settings.description = String(payload.description).trim();
       if (payload.logo !== undefined) settings.logo = String(payload.logo).trim();
@@ -200,7 +184,6 @@ router.put('/', async (req: AuthenticatedRequest, res: Response) => {
           shippingPolicy: payload.policies.shippingPolicy ?? settings.policies?.shippingPolicy,
         };
       }
-    }
 
     await settings.save();
 

@@ -213,6 +213,174 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/auth/google/config
+ * Returns configured Google OAuth Client ID for frontend GSI button
+ */
+router.get('/google/config', (_req: Request, res: Response) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '';
+  res.json({
+    success: true,
+    clientId,
+    isConfigured: Boolean(clientId),
+  });
+});
+
+/**
+ * Helper to securely verify Google Credential JWT with Google's OAuth2 tokeninfo endpoint
+ */
+async function verifyGoogleToken(credential: string): Promise<{
+  sub: string;
+  email: string;
+  name: string;
+  picture?: string;
+  email_verified?: boolean;
+} | null> {
+  if (!credential || typeof credential !== 'string' || credential.trim().length < 10) {
+    return null;
+  }
+
+  try {
+    const configuredClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '';
+    const response = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential.trim())}`
+    );
+
+    if (!response.ok) {
+      console.warn('[Google Auth Error] Token verification failed with status:', response.status);
+      return null;
+    }
+
+    const payload = (await response.json()) as Record<string, any>;
+    if (!payload || !payload.email || !payload.sub) {
+      return null;
+    }
+
+    // Verify issuer
+    const validIssuers = ['accounts.google.com', 'https://accounts.google.com'];
+    if (payload.iss && !validIssuers.includes(payload.iss)) {
+      console.warn('[Google Auth Error] Invalid token issuer:', payload.iss);
+      return null;
+    }
+
+    // Verify audience if GOOGLE_CLIENT_ID is configured
+    if (configuredClientId && payload.aud && payload.aud !== configuredClientId) {
+      console.warn('[Google Auth Error] Audience mismatch. Expected:', configuredClientId, 'Got:', payload.aud);
+      return null;
+    }
+
+    // Verify email verification flag
+    const isEmailVerified = payload.email_verified === 'true' || payload.email_verified === true;
+    if (!isEmailVerified) {
+      console.warn('[Google Auth Error] Google email is not verified.');
+      return null;
+    }
+
+    return {
+      sub: payload.sub,
+      email: String(payload.email).toLowerCase().trim(),
+      name: payload.name || payload.given_name || String(payload.email).split('@')[0],
+      picture: payload.picture || '',
+      email_verified: true,
+    };
+  } catch (err) {
+    console.error('[Google Auth Verification Exception]:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+/**
+ * POST /api/auth/google
+ * Sign in or Register customer seamlessly with cryptographically verified Google OAuth
+ */
+router.post('/google', loginLimiter, async (req: Request, res: Response) => {
+  try {
+    const { credential, idToken } = req.body;
+    const tokenToVerify = credential || idToken;
+
+    if (!tokenToVerify || typeof tokenToVerify !== 'string') {
+      res.status(400).json({
+        success: false,
+        message: 'Google credential token is required.',
+      });
+      return;
+    }
+
+    const googleUser = await verifyGoogleToken(tokenToVerify);
+
+    if (!googleUser || !googleUser.email) {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid or expired Google authentication token. Please try again.',
+      });
+      return;
+    }
+
+    const cleanEmail = googleUser.email.trim().toLowerCase();
+
+    // Check if user already exists in MongoDB
+    let user = await User.findOne({
+      $or: [{ email: cleanEmail }, { googleId: googleUser.sub }],
+    });
+
+    if (user) {
+      if (!user.active) {
+        res.status(403).json({
+          success: false,
+          message: 'Your account is currently inactive. Please contact support.',
+        });
+        return;
+      }
+
+      // Update googleId, avatar, and lastLogin
+      if (!user.googleId) user.googleId = googleUser.sub;
+      if (googleUser.picture && !user.avatar) user.avatar = googleUser.picture;
+      user.lastLoginAt = new Date();
+      if (!user.emailVerifiedAt) user.emailVerifiedAt = new Date();
+      await user.save();
+    } else {
+      // Create new customer user
+      user = await User.create({
+        name: googleUser.name.trim(),
+        email: cleanEmail,
+        googleId: googleUser.sub,
+        avatar: googleUser.picture || '',
+        role: 'customer',
+        active: true,
+        lastLoginAt: new Date(),
+        emailVerifiedAt: new Date(),
+      });
+    }
+
+    const token = generateToken({
+      userId: user._id.toString(),
+      email: user.email,
+      role: user.role,
+    });
+    setAuthCookie(res, token);
+
+    res.json({
+      success: true,
+      message: 'Google Sign-In successful.',
+      token,
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        avatar: user.avatar || '',
+        role: user.role,
+      },
+    });
+  } catch (err: unknown) {
+    console.error('[Google Auth Error]', err);
+    res.status(500).json({
+      success: false,
+      message: 'Google authentication failed. Please try again or use email sign in.',
+    });
+  }
+});
+
+/**
  * POST /api/auth/admin/login
  * Admin login endpoint verifying server-side role === 'admin'.
  */

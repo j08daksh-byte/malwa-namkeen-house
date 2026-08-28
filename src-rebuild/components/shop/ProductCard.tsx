@@ -26,85 +26,152 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
   );
   const quantityInCart = cartItem?.quantity ?? 0;
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setIsAdding(true);
     addToCart(product, selectedOption, 1);
-    setTimeout(() => setIsAdding(false), 400);
+    setTimeout(() => setIsAdding(false), 500);
   };
 
-  const discountPercent = selectedOption.originalPrice
-    ? Math.round(((selectedOption.originalPrice - selectedOption.price) / selectedOption.originalPrice) * 100)
-    : 0;
+  // Determine badge text: use existing badge or fallback based on rating/category
+  const badgeText = product.badge || (product.rating >= 4.9 ? 'BESTSELLER' : undefined);
+
+  // Oil / Purity feature tag (like Eat Better's "No Palm Oil" tag)
+  const oilBadgeText = product.oilUsed?.includes('Desi Cow Ghee') || product.oilUsed?.includes('Ghee')
+    ? 'Pure Desi Ghee'
+    : 'No Palm Oil • Groundnut Oil';
+
+  const productUrl = `/product/${product.slug || product.id}`;
 
   return (
-    <article className="shop-product-card" aria-label={product.name}>
+    <article className="eb-product-card" aria-label={product.name}>
       <style>{`
-        .shop-product-card {
-          background: #FFFDF8;
-          border: 1px solid rgba(200, 154, 61, 0.28);
+        .eb-product-card {
+          background: #FFFFFF;
+          border: 1.5px solid rgba(200, 154, 61, 0.22);
           border-radius: 18px;
           overflow: hidden;
           display: flex;
           flex-direction: column;
-          box-shadow: 0 4px 20px rgba(85, 0, 10, 0.04);
-          transition: transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease;
+          box-shadow: 0 4px 18px rgba(85, 0, 10, 0.04);
+          transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease, border-color 0.28s ease;
           position: relative;
         }
 
-        .shop-product-card:hover {
+        .eb-product-card:hover {
           transform: translateY(-4px);
-          box-shadow: 0 16px 36px rgba(85, 0, 10, 0.09);
-          border-color: rgba(201, 154, 50, 0.55);
+          box-shadow: 0 16px 36px rgba(85, 0, 10, 0.10);
+          border-color: rgba(201, 154, 50, 0.6);
         }
 
-        /* ── Image & Badges ─────────────────────────────────── */
-        .shop-product-card__media {
+        /* ── Image & Badges Media Container ────────────────── */
+        .eb-product-card__media {
           position: relative;
           width: 100%;
-          aspect-ratio: 1.22 / 1;
+          aspect-ratio: 1.15 / 1;
+          background: #F8F4EE;
           overflow: hidden;
-          background: #55000A;
           cursor: pointer;
         }
 
-        .shop-product-card__img {
+        .eb-product-card__img {
           width: 100%;
           height: 100%;
           object-fit: cover;
           display: block;
-          transition: transform 0.5s ease;
+          transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        .shop-product-card:hover .shop-product-card__img {
+        .eb-product-card:hover .eb-product-card__img {
           transform: scale(1.06);
         }
 
-        .shop-product-card__badge-tag {
+        /* Top Left Highlight Tag (e.g. UNIQUE FLAVOUR / BESTSELLER / NEW) */
+        .eb-product-card__badge-tag {
           position: absolute;
           top: 12px;
           left: 12px;
-          background: #55000A;
-          color: #D4AA45;
-          border: 1px solid rgba(212, 170, 69, 0.40);
-          font-family: Inter, sans-serif;
+          background: #FFD43B;
+          color: #1A1A1A;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 0.10em;
+          font-weight: 700;
+          letter-spacing: 0.08em;
           text-transform: uppercase;
-          padding: 4px 10px;
-          border-radius: 999px;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.20);
-          z-index: 2;
+          padding: 4px 9px;
+          border-radius: 6px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+          z-index: 3;
+          border: 1px solid rgba(0, 0, 0, 0.06);
         }
 
-        .shop-product-card__quick-btn {
+        /* Bottom Left Rating Pill (like Eat Better ★ 4.9) */
+        .eb-product-card__rating-pill {
+          position: absolute;
+          bottom: 12px;
+          left: 12px;
+          background: rgba(255, 255, 255, 0.95);
+          border: 1px solid rgba(200, 154, 61, 0.35);
+          border-radius: 6px;
+          padding: 3px 8px;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 11px;
+          font-weight: 700;
+          color: #2D231E;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
+          z-index: 3;
+          backdrop-filter: blur(4px);
+        }
+
+        .eb-product-card__rating-star {
+          color: #E5A100;
+          font-size: 12px;
+          line-height: 1;
+        }
+
+        /* Top Right Wishlist Button */
+        .eb-product-card__wish-btn {
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          background: rgba(255, 255, 255, 0.92);
+          border: 1px solid rgba(200, 154, 61, 0.28);
+          border-radius: 50%;
+          width: 34px;
+          height: 34px;
+          display: grid;
+          place-items: center;
+          cursor: pointer;
+          z-index: 4;
+          color: #75645C;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+          transition: transform 0.18s ease, color 0.18s ease, background 0.18s;
+          backdrop-filter: blur(4px);
+        }
+
+        .eb-product-card__wish-btn:hover {
+          transform: scale(1.12);
+          background: #FFFFFF;
+        }
+
+        .eb-product-card__wish-btn--active {
+          color: #DC2626 !important;
+          background: #FFF5F5 !important;
+          border-color: rgba(220, 38, 38, 0.3) !important;
+        }
+
+        /* Quick View Button on Image Hover */
+        .eb-product-card__quick-btn {
           position: absolute;
           bottom: 12px;
           right: 12px;
-          background: rgba(255, 253, 248, 0.92);
-          color: #55000A;
-          border: 1px solid rgba(200, 154, 61, 0.35);
-          font-family: Inter, sans-serif;
+          background: rgba(85, 0, 10, 0.90);
+          color: #FFF8EC;
+          border: 1px solid rgba(200, 154, 61, 0.4);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 10.5px;
           font-weight: 700;
           letter-spacing: 0.04em;
@@ -117,232 +184,221 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           backdrop-filter: blur(4px);
           display: inline-flex;
           align-items: center;
-          gap: 4px;
-          z-index: 2;
+          gap: 5px;
+          z-index: 3;
         }
 
-        .shop-product-card:hover .shop-product-card__quick-btn,
-        .shop-product-card__quick-btn:focus-visible {
+        .eb-product-card:hover .eb-product-card__quick-btn,
+        .eb-product-card__quick-btn:focus-visible {
           opacity: 1;
           transform: translateY(0);
         }
 
-        .shop-product-card__quick-btn:hover {
-          background: #55000A;
-          color: #FFF8EC;
-          border-color: #55000A;
+        .eb-product-card__quick-btn:hover {
+          background: #6B000D;
+          color: #FFFDF8;
         }
 
-        /* ── Content Body ───────────────────────────────────── */
-        .shop-product-card__body {
-          padding: 18px 20px 20px;
+        /* ── Card Content Body ─────────────────────────────── */
+        .eb-product-card__body {
+          padding: 16px 18px 18px;
           display: flex;
           flex-direction: column;
           flex: 1;
+          background: #FFFFFF;
         }
 
-        .shop-product-card__top-meta {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-          margin-bottom: 6px;
-        }
-
-        .shop-product-card__cat-label {
-          font-family: Inter, sans-serif;
-          font-size: 10.5px;
-          font-weight: 800;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          color: #C99A32;
-        }
-
-        .shop-product-card__spice-chip {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          font-family: Inter, sans-serif;
+        /* Dark Tag Chip (No Palm Oil) */
+        .eb-product-card__oil-pill {
+          display: inline-block;
+          align-self: flex-start;
+          background: #2B211E;
+          color: #F8F3EA;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 10px;
           font-weight: 600;
-          color: #75645C;
-          background: rgba(200, 154, 61, 0.12);
-          padding: 2px 7px;
-          border-radius: 999px;
+          letter-spacing: 0.04em;
+          padding: 3px 8px;
+          border-radius: 4px;
+          margin-bottom: 10px;
         }
 
-        .shop-product-card__title-row {
-          margin-bottom: 6px;
+        /* Title & Hindi Name */
+        .eb-product-card__title-wrap {
+          margin-bottom: 4px;
         }
 
-        .shop-product-card__title {
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(19px, 1.6vw, 22px);
+        .eb-product-card__title {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 14.5px;
           font-weight: 700;
-          line-height: 1.15;
-          color: #34211D;
+          letter-spacing: 0.02em;
+          text-transform: uppercase;
+          color: #2D231E;
           margin: 0;
-          letter-spacing: -0.01em;
+          line-height: 1.25;
+          cursor: pointer;
+          transition: color 0.18s ease;
         }
 
-        .shop-product-card__hindi {
-          font-family: 'Playfair Display', serif;
-          font-size: 12.5px;
+        .eb-product-card__title:hover {
+          color: #55000A;
+        }
+
+        .eb-product-card__hindi {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 12px;
           color: #8C756B;
-          margin-left: 6px;
           font-weight: 500;
+          margin-left: 6px;
+          text-transform: none;
         }
 
-        .shop-product-card__tagline {
-          font-family: Inter, sans-serif;
-          font-size: 11.5px;
-          font-style: italic;
-          color: #C99A32;
-          margin: 0 0 8px;
-        }
-
-        .shop-product-card__desc {
-          font-family: Inter, sans-serif;
-          font-size: 12.5px;
-          line-height: 1.55;
-          color: #6B5248;
-          margin: 0 0 16px;
+        /* Subtitle / Short Description */
+        .eb-product-card__sub {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 12px;
+          font-weight: 400;
+          color: #7A6961;
+          margin: 0 0 12px;
+          line-height: 1.5;
           display: -webkit-box;
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
           overflow: hidden;
           text-overflow: ellipsis;
-          flex-grow: 1;
+          min-height: 35px;
         }
 
-        /* ── Weight Options Selector ────────────────────────── */
-        .shop-product-card__weights {
+        /* Weight Selector Chips */
+        .eb-product-card__weights {
           display: flex;
           align-items: center;
           gap: 6px;
-          margin-bottom: 16px;
+          margin-bottom: 14px;
           flex-wrap: wrap;
         }
 
-        .shop-product-card__weight-chip {
-          font-family: Inter, sans-serif;
+        .eb-product-card__weight-btn {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 11px;
-          font-weight: 700;
-          padding: 4px 10px;
+          font-weight: 600;
+          padding: 3px 9px;
           border-radius: 6px;
           border: 1px solid rgba(200, 154, 61, 0.32);
-          background: #FAF5ED;
+          background: #FAF6F0;
           color: #55000A;
           cursor: pointer;
           transition: all 0.15s ease;
+          outline: none;
         }
 
-        .shop-product-card__weight-chip:hover {
+        .eb-product-card__weight-btn:hover {
           border-color: #C99A32;
-          background: #F5EAD8;
+          background: #F3EBDD;
         }
 
-        .shop-product-card__weight-chip--selected {
-          background: #55000A;
-          color: #FFF8EC;
-          border-color: #55000A;
-          box-shadow: 0 2px 8px rgba(85, 0, 10, 0.18);
+        .eb-product-card__weight-btn--active {
+          background: #55000A !important;
+          color: #FFF8EC !important;
+          border-color: #55000A !important;
+          box-shadow: 0 2px 6px rgba(85, 0, 10, 0.2);
         }
 
-        /* ── Price & CTA Bottom Bar ─────────────────────────── */
-        .shop-product-card__bottom {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          padding-top: 14px;
-          border-top: 1px solid rgba(200, 154, 61, 0.18);
-        }
-
-        .shop-product-card__pricing {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .shop-product-card__price-row {
+        /* Pricing Section */
+        .eb-product-card__price-row {
           display: flex;
           align-items: baseline;
-          gap: 6px;
+          gap: 8px;
+          margin-bottom: 14px;
+          margin-top: auto;
         }
 
-        .shop-product-card__price {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 24px;
+        .eb-product-card__price {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 19px;
           font-weight: 700;
-          color: #55000A;
+          color: #2D231E;
+          letter-spacing: -0.01em;
           line-height: 1;
         }
 
-        .shop-product-card__original-price {
-          font-family: Inter, sans-serif;
-          font-size: 12px;
-          color: #9E8C82;
+        .eb-product-card__original-price {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 13px;
+          font-weight: 500;
+          color: #A39188;
           text-decoration: line-through;
         }
 
-        .shop-product-card__oil-note {
-          font-family: Inter, sans-serif;
+        .eb-product-card__discount-tag {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 10px;
-          color: #8C756B;
-          letter-spacing: 0.02em;
-          margin-top: 2px;
+          font-weight: 700;
+          color: #15803D;
+          background: #DCFCE7;
+          padding: 2px 6px;
+          border-radius: 4px;
         }
 
-        /* ── Add to Cart & Stepper ──────────────────────────── */
-        .shop-product-card__add-btn {
-          display: inline-flex;
+        /* ── Quick Add / Add to Cart CTA Button ──────────────── */
+        .eb-product-card__cta-btn {
+          width: 100%;
+          height: 42px;
+          border-radius: 10px;
+          background: #55000A;
+          color: #FFF8EC;
+          border: 1.5px solid #55000A;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          cursor: pointer;
+          display: flex;
           align-items: center;
           justify-content: center;
           gap: 6px;
-          height: 38px;
-          padding: 0 16px;
-          border-radius: 999px;
-          font-family: Inter, sans-serif;
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          background: #55000A;
-          color: #FFF8EC;
-          border: 1px solid #55000A;
-          cursor: pointer;
-          transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
-          box-shadow: 0 4px 12px rgba(85, 0, 10, 0.15);
-          white-space: nowrap;
+          box-shadow: 0 4px 14px rgba(85, 0, 10, 0.18);
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+          outline: none;
         }
 
-        .shop-product-card__add-btn:hover {
+        .eb-product-card__cta-btn:hover {
           background: #6B000D;
           border-color: #6B000D;
+          box-shadow: 0 6px 18px rgba(85, 0, 10, 0.26);
           transform: translateY(-1px);
-          box-shadow: 0 6px 16px rgba(85, 0, 10, 0.22);
         }
 
-        .shop-product-card__stepper {
-          display: inline-flex;
-          align-items: center;
-          height: 38px;
-          border-radius: 999px;
+        .eb-product-card__cta-btn:active {
+          transform: translateY(0);
+        }
+
+        /* Stepper when item is already in cart */
+        .eb-product-card__stepper {
+          width: 100%;
+          height: 42px;
+          border-radius: 10px;
           background: #55000A;
-          border: 1px solid #55000A;
-          overflow: hidden;
-          box-shadow: 0 4px 12px rgba(85, 0, 10, 0.15);
+          border: 1.5px solid #55000A;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 8px;
+          box-shadow: 0 4px 14px rgba(85, 0, 10, 0.18);
         }
 
-        .shop-product-card__step-btn {
-          width: 32px;
-          height: 100%;
-          background: transparent;
+        .eb-product-card__step-btn {
+          width: 34px;
+          height: 32px;
+          border-radius: 6px;
+          background: rgba(255, 248, 236, 0.15);
           border: none;
-          color: #D4AA45;
-          font-family: Inter, sans-serif;
-          font-size: 14px;
-          font-weight: 800;
+          color: #FFF8EC;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 16px;
+          font-weight: 700;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -350,116 +406,79 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           transition: background 0.15s;
         }
 
-        .shop-product-card__step-btn:hover {
-          background: rgba(212, 170, 69, 0.15);
+        .eb-product-card__step-btn:hover {
+          background: rgba(255, 248, 236, 0.30);
+          color: #D4AA45;
         }
 
-        .shop-product-card__step-val {
-          font-family: Inter, sans-serif;
-          font-size: 12px;
-          font-weight: 800;
+        .eb-product-card__step-val {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 13px;
+          font-weight: 700;
           color: #FFF8EC;
-          padding: 0 8px;
-          min-width: 24px;
-          text-align: center;
+          letter-spacing: 0.02em;
         }
 
-        @media (max-width: 640px) {
-          .shop-product-card {
+        @media (max-width: 768px) {
+          .eb-product-card {
             border-radius: 14px;
           }
-          .shop-product-card__body {
-            padding: 12px 13px 14px;
+          .eb-product-card__body {
+            padding: 12px 14px 14px;
           }
-          .shop-product-card__top-meta {
-            margin-bottom: 4px;
+          .eb-product-card__title {
+            font-size: 13px;
           }
-          .shop-product-card__cat-label {
-            font-size: 9.5px;
-          }
-          .shop-product-card__spice-chip {
-            font-size: 9px;
-            padding: 1px 5px;
-          }
-          .shop-product-card__title {
-            font-size: 16.5px;
-            line-height: 1.15;
-          }
-          .shop-product-card__hindi {
+          .eb-product-card__hindi {
             display: none;
           }
-          .shop-product-card__desc {
-            display: none;
+          .eb-product-card__sub {
+            font-size: 11px;
+            min-height: auto;
+            margin-bottom: 8px;
+            -webkit-line-clamp: 1;
           }
-          .shop-product-card__tagline {
-            font-size: 10px;
-            margin-bottom: 6px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-          }
-          .shop-product-card__weights {
+          .eb-product-card__weights {
             margin-bottom: 10px;
             gap: 4px;
           }
-          .shop-product-card__weight-chip {
+          .eb-product-card__weight-btn {
             font-size: 9.5px;
-            padding: 3px 6px;
+            padding: 2px 6px;
           }
-          .shop-product-card__bottom {
-            padding-top: 10px;
-            gap: 8px;
-          }
-          .shop-product-card__price {
-            font-size: 18px;
-          }
-          .shop-product-card__add-btn {
-            height: 34px;
-            padding: 0 10px;
-            font-size: 9.5px;
-            gap: 4px;
-          }
-          .shop-product-card__stepper {
-            height: 34px;
-          }
-          .shop-product-card__step-btn {
-            width: 26px;
-            font-size: 13px;
-          }
-          .shop-product-card__step-val {
-            font-size: 11px;
-            padding: 0 4px;
-            min-width: 18px;
-          }
-          .shop-product-card__quick-btn {
-            display: none;
-          }
-        }
-
-        @media (max-width: 380px) {
-          .shop-product-card__body {
-            padding: 10px;
-          }
-          .shop-product-card__price {
+          .eb-product-card__price {
             font-size: 16px;
           }
-          .shop-product-card__add-btn {
-            padding: 0 8px;
-            font-size: 9px;
+          .eb-product-card__cta-btn {
+            height: 36px;
+            font-size: 10.5px;
+            border-radius: 8px;
+          }
+          .eb-product-card__stepper {
+            height: 36px;
+            border-radius: 8px;
+          }
+          .eb-product-card__step-btn {
+            width: 30px;
+            height: 28px;
+            font-size: 14px;
+          }
+          .eb-product-card__quick-btn {
+            display: none;
           }
         }
       `}</style>
 
-      {/* Media & Badges */}
+      {/* Media: Large Image + Badges */}
       <div
-        className="shop-product-card__media"
-        onClick={() => navigate(`/product/${product.slug || product.id}`)}
+        className="eb-product-card__media"
+        onClick={() => navigate(productUrl)}
         title={`View details for ${product.name}`}
       >
         <img
           src={optimizeCloudinary(product.image, { width: 520, quality: 'auto', format: 'auto' })}
           alt={product.name}
-          className="shop-product-card__img"
+          className="eb-product-card__img"
           loading="lazy"
           decoding="async"
           onError={e => {
@@ -469,49 +488,51 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
             }
           }}
         />
-        {product.badge && (
-          <span className="shop-product-card__badge-tag">{product.badge}</span>
+
+        {/* Top-Left Tag Badge */}
+        {badgeText && (
+          <span className="eb-product-card__badge-tag">{badgeText}</span>
         )}
 
-        {/* Wishlist Heart Button */}
+        {/* Bottom-Left Rating Pill */}
+        <div className="eb-product-card__rating-pill">
+          <span className="eb-product-card__rating-star" aria-hidden="true">★</span>
+          <span>{product.rating ? product.rating.toFixed(1) : '4.8'}</span>
+        </div>
+
+        {/* Top-Right Wishlist Heart Button */}
         <button
           type="button"
           onClick={e => {
             e.stopPropagation();
             toggleWishlist(product);
           }}
+          className={`eb-product-card__wish-btn ${isWishlisted ? 'eb-product-card__wish-btn--active' : ''}`}
           aria-label={isWishlisted ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`}
-          style={{
-            position: 'absolute',
-            top: '12px',
-            right: '12px',
-            background: 'rgba(255, 255, 255, 0.92)',
-            border: '1px solid rgba(200, 154, 61, 0.3)',
-            borderRadius: '50%',
-            width: '32px',
-            height: '32px',
-            display: 'grid',
-            placeItems: 'center',
-            cursor: 'pointer',
-            zIndex: 3,
-            color: isWishlisted ? '#DC2626' : '#75645C',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            transition: 'transform 0.15s, color 0.15s',
-          }}
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill={isWishlisted ? '#DC2626' : 'none'} stroke="currentColor" strokeWidth="2">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill={isWishlisted ? '#DC2626' : 'none'}
+            stroke={isWishlisted ? '#DC2626' : 'currentColor'}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
           </svg>
         </button>
 
+        {/* Quick View Button on Desktop Hover */}
         <button
           type="button"
-          className="shop-product-card__quick-btn"
+          className="eb-product-card__quick-btn"
           onClick={e => {
             e.stopPropagation();
             onQuickView(product);
           }}
-          aria-label={`Quick view details for ${product.name}`}
+          aria-label={`Quick view ${product.name}`}
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -521,106 +542,104 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
         </button>
       </div>
 
-      {/* Body Content */}
-      <div className="shop-product-card__body">
-        <div className="shop-product-card__top-meta">
-          <span className="shop-product-card__cat-label">{product.categoryLabel}</span>
-          <span className="shop-product-card__spice-chip">
-            <span
-              style={{
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                backgroundColor: product.spiceLevel === 'Clove Hot' ? '#C0392B' : '#C99A32',
-                display: 'inline-block',
-              }}
-            />
-            {product.spiceLevel}
-          </span>
-        </div>
+      {/* Card Body */}
+      <div className="eb-product-card__body">
+        {/* Dark Characteristic Pill (e.g. No Palm Oil) */}
+        <span className="eb-product-card__oil-pill">{oilBadgeText}</span>
 
-        <div className="shop-product-card__title-row">
+        {/* Product Title */}
+        <div className="eb-product-card__title-wrap">
           <h3
-            className="shop-product-card__title"
-            style={{ cursor: 'pointer' }}
-            onClick={() => navigate(`/product/${product.slug || product.id}`)}
+            className="eb-product-card__title"
+            onClick={() => navigate(productUrl)}
           >
             {product.name}
             {product.hindiName && (
-              <span className="shop-product-card__hindi">{product.hindiName}</span>
+              <span className="eb-product-card__hindi">{product.hindiName}</span>
             )}
           </h3>
         </div>
 
-        <p className="shop-product-card__tagline">{product.tagline}</p>
-        <p className="shop-product-card__desc">{product.description}</p>
+        {/* Subtitle / Tagline */}
+        <p className="eb-product-card__sub">
+          {product.tagline || product.description}
+        </p>
 
-        {/* Weight options */}
-        <div className="shop-product-card__weights" role="group" aria-label="Pack size options">
-          {product.options.map(opt => {
-            const isSelected = selectedOption.weight === opt.weight;
-            return (
-              <button
-                key={opt.weight}
-                type="button"
-                className={`shop-product-card__weight-chip ${isSelected ? 'shop-product-card__weight-chip--selected' : ''}`}
-                onClick={() => setSelectedOption(opt)}
-                aria-pressed={isSelected}
-              >
-                {opt.weight}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Bottom bar with price & cart button */}
-        <div className="shop-product-card__bottom">
-          <div className="shop-product-card__pricing">
-            <div className="shop-product-card__price-row">
-              <span className="shop-product-card__price">₹{selectedOption.price}</span>
-              {selectedOption.originalPrice && (
-                <span className="shop-product-card__original-price">₹{selectedOption.originalPrice}</span>
-              )}
-            </div>
-            <span className="shop-product-card__oil-note">{product.oilUsed}</span>
+        {/* Weight Selector */}
+        {product.options && product.options.length > 0 && (
+          <div className="eb-product-card__weights" role="group" aria-label="Available pack sizes">
+            {product.options.map(opt => {
+              const isSelected = selectedOption.weight === opt.weight;
+              return (
+                <button
+                  key={opt.weight}
+                  type="button"
+                  className={`eb-product-card__weight-btn ${isSelected ? 'eb-product-card__weight-btn--active' : ''}`}
+                  onClick={() => setSelectedOption(opt)}
+                  aria-pressed={isSelected}
+                >
+                  {opt.weight}
+                </button>
+              );
+            })}
           </div>
+        )}
 
-          {quantityInCart > 0 ? (
-            <div className="shop-product-card__stepper" aria-label={`Quantity in cart for ${product.name}`}>
-              <button
-                type="button"
-                className="shop-product-card__step-btn"
-                onClick={() => updateQuantity(product.id, selectedOption.weight, quantityInCart - 1)}
-                aria-label="Decrease quantity"
-              >
-                −
-              </button>
-              <span className="shop-product-card__step-val">{quantityInCart}</span>
-              <button
-                type="button"
-                className="shop-product-card__step-btn"
-                onClick={() => updateQuantity(product.id, selectedOption.weight, quantityInCart + 1)}
-                aria-label="Increase quantity"
-              >
-                +
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              className="shop-product-card__add-btn"
-              onClick={handleAddToCart}
-              aria-label={`Add ${product.name} ${selectedOption.weight} to cart`}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                <circle cx="9" cy="21" r="1" />
-                <circle cx="20" cy="21" r="1" />
-                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-              </svg>
-              {isAdding ? 'Adding...' : 'Add to Cart'}
-            </button>
+        {/* Price Row */}
+        <div className="eb-product-card__price-row">
+          <span className="eb-product-card__price">₹{selectedOption.price}</span>
+          {selectedOption.originalPrice && selectedOption.originalPrice > selectedOption.price && (
+            <>
+              <span className="eb-product-card__original-price">₹{selectedOption.originalPrice}</span>
+              <span className="eb-product-card__discount-tag">
+                {Math.round(((selectedOption.originalPrice - selectedOption.price) / selectedOption.originalPrice) * 100)}% OFF
+              </span>
+            </>
           )}
         </div>
+
+        {/* Add to Cart / Quick Add Button or Stepper */}
+        {quantityInCart > 0 ? (
+          <div className="eb-product-card__stepper" aria-label={`Quantity of ${product.name} in cart`}>
+            <button
+              type="button"
+              className="eb-product-card__step-btn"
+              onClick={e => {
+                e.stopPropagation();
+                updateQuantity(product.id, selectedOption.weight, quantityInCart - 1);
+              }}
+              aria-label="Decrease quantity"
+            >
+              −
+            </button>
+            <span className="eb-product-card__step-val">{quantityInCart} in Cart</span>
+            <button
+              type="button"
+              className="eb-product-card__step-btn"
+              onClick={e => {
+                e.stopPropagation();
+                updateQuantity(product.id, selectedOption.weight, quantityInCart + 1);
+              }}
+              aria-label="Increase quantity"
+            >
+              +
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="eb-product-card__cta-btn"
+            onClick={handleAddToCart}
+            aria-label={`Add ${product.name} ${selectedOption.weight} to cart`}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <circle cx="9" cy="21" r="1" />
+              <circle cx="20" cy="21" r="1" />
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+            </svg>
+            {isAdding ? 'ADDING...' : 'QUICK ADD'}
+          </button>
+        )}
       </div>
     </article>
   );

@@ -34,41 +34,43 @@ export default function LegacyStory() {
           margin-bottom: 22px;
         }
         #story .ls-eyebrow-text {
-          font-family: Inter, sans-serif;
-          font-size: 13px; font-weight: 800;
-          letter-spacing: 0.24em; text-transform: uppercase;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 11px; font-weight: 700;
+          letter-spacing: 0.20em; text-transform: uppercase;
           color: #C99A32;
           line-height: 1;
         }
 
         #story .ls-h2 {
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(36px, 4.4vw, 58px);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(34px, 4.4vw, 54px);
           font-weight: 700;
           color: #2B211D;
-          line-height: 1.06;
-          letter-spacing: -0.02em;
-          margin: 0 0 24px;
+          line-height: 1.05;
+          letter-spacing: -0.025em;
+          margin: 0 0 22px;
         }
         #story .ls-h2 em {
           display: block;
-          font-style: italic;
+          font-style: normal;
           color: #55000A;
-          font-weight: 600;
+          font-weight: 700;
         }
 
         #story .ls-body {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 15px;
+          font-weight: 400;
           color: #4A3830;
-          line-height: 1.76;
-          margin-bottom: 18px;
+          line-height: 1.65;
+          margin-bottom: 16px;
         }
         #story .ls-body-muted {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 15px;
+          font-weight: 400;
           color: #75645C;
-          line-height: 1.76;
+          line-height: 1.65;
           margin-bottom: 0;
         }
 
@@ -77,17 +79,17 @@ export default function LegacyStory() {
           display: flex;
           flex-wrap: wrap;
           gap: 10px;
-          margin-top: 24px;
-          margin-bottom: 28px;
+          margin-top: 22px;
+          margin-bottom: 26px;
         }
         #story .ls-tag {
-          font-family: Inter, sans-serif;
-          font-size: 11px; font-weight: 700;
-          letter-spacing: 0.09em;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 11px; font-weight: 600;
+          letter-spacing: 0.04em;
           color: #55000A;
           background: rgba(85,0,10,0.07);
           border: 1px solid rgba(85,0,10,0.22);
-          padding: 7px 16px;
+          padding: 6px 14px;
           border-radius: 999px;
           white-space: nowrap;
         }
@@ -97,12 +99,12 @@ export default function LegacyStory() {
           display: inline-flex;
           align-items: center;
           gap: 10px;
-          font-family: Inter, sans-serif;
-          font-size: 11px; font-weight: 800;
-          letter-spacing: 0.12em; text-transform: uppercase;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 12px; font-weight: 700;
+          letter-spacing: 0.06em; text-transform: uppercase;
           text-decoration: none;
-          height: 50px;
-          padding: 0 28px;
+          height: 48px;
+          padding: 0 26px;
           border-radius: 999px;
           border: 1.5px solid #55000A;
           transition: background 0.22s, color 0.22s, transform 0.22s, box-shadow 0.22s;
@@ -157,9 +159,9 @@ export default function LegacyStory() {
           gap: 8px;
         }
         #story .ls-postcard-caption-text {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 13px;
-          font-style: italic;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 12px;
+          font-style: normal;
           color: #74645B;
         }
         /* Since badge */
@@ -168,10 +170,10 @@ export default function LegacyStory() {
           bottom: 60px; left: -14px;
           background: #55000A;
           color: #FFF9EF;
-          font-family: Inter, sans-serif;
-          font-size: 8px; font-weight: 800;
-          letter-spacing: 0.18em; text-transform: uppercase;
-          padding: 7px 14px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 9px; font-weight: 700;
+          letter-spacing: 0.12em; text-transform: uppercase;
+          padding: 6px 12px;
           border-radius: 999px;
           transform: rotate(-2deg);
           box-shadow: 2px 4px 14px rgba(35,0,5,0.32);

@@ -220,8 +220,11 @@ const orderSchema = new Schema<IOrder>(
   }
 );
 
-// Compound index for fast retrieval of customer order history
+// Compound indexes for fast retrieval of customer order history & status tracking
 orderSchema.index({ customer: 1, createdAt: -1 });
+orderSchema.index({ 'customerInfo.email': 1, createdAt: -1 });
+orderSchema.index({ orderStatus: 1, createdAt: -1 });
+orderSchema.index({ paymentStatus: 1, createdAt: -1 });
 
 export const Order: Model<IOrder> =
   mongoose.models.Order || mongoose.model<IOrder>('Order', orderSchema);

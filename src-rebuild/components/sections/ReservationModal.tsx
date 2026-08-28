@@ -181,13 +181,14 @@ export default function ReservationModal({ open, onClose }: Props) {
           padding: 24px 28px 20px; position: relative;
         }
         .rm-header-title {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: clamp(22px, 5vw, 26px); font-weight: 700;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(19px, 4.5vw, 22px); font-weight: 700;
+          letter-spacing: -0.015em;
           color: #FFF8EC; margin: 0 0 6px; line-height: 1.15;
           padding-right: 36px;
         }
         .rm-header-sub {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 13px; color: rgba(255,248,236,0.75);
           margin: 0; line-height: 1.5;
         }
@@ -205,7 +206,7 @@ export default function ReservationModal({ open, onClose }: Props) {
           background: rgba(200,154,61,0.10);
           border: 1px solid rgba(200,154,61,0.35);
           border-radius: 10px; padding: 11px 14px;
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 12px; color: #75645C; line-height: 1.55;
           margin-bottom: 16px;
         }
@@ -217,9 +218,9 @@ export default function ReservationModal({ open, onClose }: Props) {
 
         .rm-label {
           display: block; margin-bottom: 5px;
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 11px; font-weight: 700;
-          letter-spacing: 0.08em; text-transform: uppercase;
+          letter-spacing: 0.06em; text-transform: uppercase;
           color: #55000A;
         }
         .rm-input, .rm-select, .rm-textarea {
@@ -228,7 +229,7 @@ export default function ReservationModal({ open, onClose }: Props) {
           border: 1px solid rgba(200,154,61,0.35);
           border-radius: 10px;
           padding: 11px 13px;
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 14px; color: #3D2A25;
           outline: none;
           transition: border-color 0.20s, box-shadow 0.20s;
@@ -342,7 +343,7 @@ export default function ReservationModal({ open, onClose }: Props) {
                   <circle cx="24" cy="24" r="22" stroke="#C99A32" strokeWidth="1.5" fill="none"/>
                   <path d="M14 24l7 7 13-14" stroke="#55000A" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                <p style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: '22px', fontWeight: 700, color: '#55000A', margin: '0 0 10px' }}>
+                <p style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '20px', fontWeight: 700, letterSpacing: '-0.015em', color: '#55000A', margin: '0 0 10px' }}>
                   Enquiry received!
                 </p>
                 <div className="rm-notice" style={{ textAlign: 'left' }}>
@@ -350,7 +351,7 @@ export default function ReservationModal({ open, onClose }: Props) {
                   {' '}Our team will contact you shortly with customized quotations.
                 </div>
                 {success.referenceId && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', color: '#A08D82', margin: '0 0 4px' }}>
+                  <p style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '12px', color: '#A08D82', margin: '0 0 4px' }}>
                     Reference: <strong style={{ color: '#55000A' }}>{success.referenceId}</strong>
                   </p>
                 )}

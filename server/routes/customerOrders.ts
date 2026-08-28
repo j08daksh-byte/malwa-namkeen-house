@@ -5,6 +5,7 @@ import { User, type IUserAddress } from '../models/User.ts';
 import { Product } from '../models/Product.ts';
 import { Order, type IOrderItem, type IShippingAddress } from '../models/Order.ts';
 import { Discount } from '../models/Discount.ts';
+import { StoreSettings } from '../models/StoreSettings.ts';
 import { validateAndCalculateDiscount } from '../lib/discounts.ts';
 import { requireAuth, type AuthenticatedRequest } from '../lib/auth.ts';
 import { sendCustomerOrderConfirmation, sendNewOrderAdminAlert } from '../lib/emailService.ts';
@@ -26,6 +27,9 @@ function generateOrderNumber(): string {
  * Validates inventory, prices, discounts, and shipping server-side.
  */
 router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  let appliedDiscountCode = '';
+  const reservedStockUpdates: Array<{ productId: any; variantId: any; decrement: number }> = [];
+
   try {
     const {
       items = [],
@@ -113,7 +117,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
     const productMap = new Map<string, any>(products.map(p => [String(p._id), p]));
 
     const orderItems: IOrderItem[] = [];
-    const stockUpdates: Array<{ productId: any; variantId: any; decrement: number }> = [];
+    const stockUpdates: Array<{ productId: any; variantId: any; decrement: number; productName: string; variantLabel: string }> = [];
 
     for (const item of items) {
       const product = productMap.get(String(item.productId));
@@ -177,10 +181,12 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
         product.image ||
         '/mishtichaat/chaat-plate.jpg';
 
+      const variantLabel = variant.label || `${variant.value || ''} ${variant.unit || ''}`.trim() || 'Standard';
+
       orderItems.push({
         productId: product._id,
         productName: product.name,
-        variantLabel: variant.label || `${variant.value || ''} ${variant.unit || ''}`.trim() || 'Standard',
+        variantLabel,
         sku: variant.sku || '',
         price: unitPrice,
         quantity: qty,
@@ -192,15 +198,30 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
         productId: product._id,
         variantId: variant._id,
         decrement: qty,
+        productName: product.name,
+        variantLabel,
       });
     }
 
-    // 5. Calculate Subtotal, Shipping, and Coupon Discount
+    // 5. Calculate Subtotal, Dynamic Shipping, and Coupon Discount
     const subtotal = Math.round(orderItems.reduce((sum, it) => sum + it.itemTotal, 0) * 100) / 100;
-    const shipping = subtotal >= 499 ? 0 : 49;
+
+    // Load store delivery settings
+    const storeSettings = await StoreSettings.findOne().lean();
+    const minOrder = storeSettings?.deliverySettings?.minOrderValue ?? 0;
+    if (minOrder > 0 && subtotal < minOrder) {
+      res.status(400).json({
+        success: false,
+        message: `Minimum order subtotal for delivery is ₹${minOrder}.`,
+      });
+      return;
+    }
+
+    const freeThreshold = storeSettings?.deliverySettings?.freeShippingThreshold ?? 499;
+    const standardFee = storeSettings?.deliverySettings?.standardShippingFee ?? 49;
+    const shipping = subtotal >= freeThreshold ? 0 : standardFee;
 
     let discountAmount = 0;
-    let appliedDiscountCode = '';
 
     if (couponCode && typeof couponCode === 'string' && couponCode.trim()) {
       const discountCalc = await validateAndCalculateDiscount(couponCode.trim(), subtotal);
@@ -280,40 +301,106 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
       }
     }
 
-    // 9. Decrement Inventory Stock
-    for (const update of stockUpdates) {
+    // 9. Atomic Inventory Stock Reservation (guarantees stock >= decrement)
+    let stockFailure = false;
+    let failedItemName = '';
+
+    for (let i = 0; i < stockUpdates.length; i++) {
+      const update = stockUpdates[i];
       if (update.variantId) {
-        await Product.updateOne(
-          { _id: update.productId, 'variants._id': update.variantId },
+        const updateResult = await Product.updateOne(
+          {
+            _id: update.productId,
+            variants: {
+              $elemMatch: {
+                _id: update.variantId,
+                stock: { $gte: update.decrement },
+              },
+            },
+          },
           { $inc: { 'variants.$.stock': -update.decrement } }
         );
+
+        if (updateResult.matchedCount === 0 || updateResult.modifiedCount === 0) {
+          stockFailure = true;
+          failedItemName = `${update.productName} (${update.variantLabel})`;
+          break;
+        }
+
+        reservedStockUpdates.push({
+          productId: update.productId,
+          variantId: update.variantId,
+          decrement: update.decrement,
+        });
       }
     }
 
+    if (stockFailure) {
+      // Rollback any successfully decremented stocks
+      for (const resv of reservedStockUpdates) {
+        await Product.updateOne(
+          { _id: resv.productId, 'variants._id': resv.variantId },
+          { $inc: { 'variants.$.stock': resv.decrement } }
+        );
+      }
+
+      // Rollback coupon if incremented
+      if (appliedDiscountCode) {
+        await Discount.updateOne(
+          { code: appliedDiscountCode },
+          { $inc: { usedCount: -1 } }
+        );
+      }
+
+      res.status(400).json({
+        success: false,
+        message: `Insufficient stock for "${failedItemName}". It may have just been ordered by another customer.`,
+      });
+      return;
+    }
+
     // 10. Create Order in MongoDB
-    const newOrder = await Order.create({
-      orderNumber,
-      customer: user._id,
-      customerInfo: {
-        name: user.name || cleanShippingAddress.name,
-        email: user.email,
-        phone: cleanShippingAddress.phone || user.phone || '',
-      },
-      items: orderItems,
-      subtotal,
-      discount: discountAmount,
-      discountCode: appliedDiscountCode,
-      shipping,
-      total: finalTotal,
-      shippingAddress: cleanShippingAddress,
-      orderStatus: 'pending',
-      paymentStatus: 'pending',
-      paymentMethod: ['cod', 'online', 'upi', 'card'].includes(paymentMethod)
-        ? paymentMethod
-        : 'cod',
-      shipmentStatus: 'unfulfilled',
-      notes: typeof notes === 'string' ? notes.trim() : '',
-    });
+    let newOrder;
+    try {
+      newOrder = await Order.create({
+        orderNumber,
+        customer: user._id,
+        customerInfo: {
+          name: user.name || cleanShippingAddress.name,
+          email: user.email,
+          phone: cleanShippingAddress.phone || user.phone || '',
+        },
+        items: orderItems,
+        subtotal,
+        discount: discountAmount,
+        discountCode: appliedDiscountCode,
+        shipping,
+        total: finalTotal,
+        shippingAddress: cleanShippingAddress,
+        orderStatus: 'pending',
+        paymentStatus: 'pending',
+        paymentMethod: ['cod', 'online', 'upi', 'card'].includes(paymentMethod)
+          ? paymentMethod
+          : 'cod',
+        shipmentStatus: 'unfulfilled',
+        notes: typeof notes === 'string' ? notes.trim() : '',
+      });
+    } catch (orderCreateErr) {
+      // Rollback stocks and coupon
+      for (const resv of reservedStockUpdates) {
+        await Product.updateOne(
+          { _id: resv.productId, 'variants._id': resv.variantId },
+          { $inc: { 'variants.$.stock': resv.decrement } }
+        );
+      }
+      if (appliedDiscountCode) {
+        await Discount.updateOne(
+          { code: appliedDiscountCode },
+          { $inc: { usedCount: -1 } }
+        );
+      }
+      throw orderCreateErr;
+    }
 
     // Record submission key in idempotency cache
     if (idempotencyKey) {
@@ -366,6 +453,26 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
     });
   } catch (err: unknown) {
     console.error('[Create Order Error]', err);
+
+    // Rollback any reserved stock updates if not already handled
+    for (const resv of reservedStockUpdates) {
+      try {
+        await Product.updateOne(
+          { _id: resv.productId, 'variants._id': resv.variantId },
+          { $inc: { 'variants.$.stock': resv.decrement } }
+        );
+      } catch {}
+    }
+
+    if (appliedDiscountCode) {
+      try {
+        await Discount.updateOne(
+          { code: appliedDiscountCode },
+          { $inc: { usedCount: -1 } }
+        );
+      } catch {}
+    }
+
     res.status(500).json({
       success: false,
       message: 'Failed to process order. Please try again.',

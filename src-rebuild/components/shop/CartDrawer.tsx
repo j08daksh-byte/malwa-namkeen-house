@@ -156,20 +156,20 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
         }
 
         .cart-drawer__title {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 24px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 19px;
           font-weight: 700;
           color: #FFF8EC;
           margin: 0;
-          letter-spacing: -0.02em;
+          letter-spacing: -0.015em;
         }
 
         .cart-drawer__count-badge {
           background: #D4AA45;
           color: #3C0815;
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 11px;
-          font-weight: 800;
+          font-weight: 700;
           padding: 2px 7px;
           border-radius: 999px;
         }
@@ -199,7 +199,7 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
         }
 
         .cart-drawer__shipping-text {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 12px;
           color: #55000A;
           margin: 0 0 6px;
@@ -269,12 +269,12 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
         }
 
         .cart-item__name {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 16px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 14px;
           font-weight: 700;
           color: #3C0815;
           margin: 0;
-          line-height: 1.25;
+          line-height: 1.3;
           display: -webkit-box;
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
@@ -282,7 +282,7 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
         }
 
         .cart-item__meta {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 12px;
           color: #75645C;
           margin: 0;
@@ -328,8 +328,8 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
         }
 
         .cart-item__price {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 18px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 15px;
           font-weight: 700;
           color: #3C0815;
         }
@@ -383,6 +383,7 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           border: none;
           border-radius: 6px;
           padding: 7px 12px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 11.5px;
           font-weight: 700;
           cursor: pointer;
@@ -413,15 +414,16 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
         }
 
         .cart-drawer__empty-title {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 22px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 18px;
           font-weight: 700;
+          letter-spacing: -0.015em;
           color: #3C0815;
           margin: 0 0 6px;
         }
 
         .cart-drawer__empty-sub {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 13px;
           color: #75645C;
           max-width: 260px;
@@ -436,9 +438,9 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           background: #3C0815;
           color: #FFF8EC;
           border: none;
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 11px;
-          font-weight: 800;
+          font-weight: 700;
           letter-spacing: 0.08em;
           text-transform: uppercase;
           cursor: pointer;
@@ -459,15 +461,16 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           display: flex;
           justify-content: space-between;
           align-items: baseline;
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 13px;
           color: #75645C;
         }
 
         .cart-drawer__summary-total {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 24px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 20px;
           font-weight: 700;
+          letter-spacing: -0.02em;
           color: #3C0815;
         }
 

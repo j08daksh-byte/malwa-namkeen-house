@@ -12,6 +12,34 @@ const router = Router();
 router.use(requireAdmin);
 
 /**
+ * Helper to ensure at most 4 products are marked as Best Seller.
+ * When a new product is added/marked as Best Seller, the oldest one is automatically demoted.
+ */
+async function enforceMaxBestSellers(currentProductId?: any) {
+  try {
+    const filter: Record<string, unknown> = { isBestSeller: true };
+    if (currentProductId) {
+      filter._id = { $ne: currentProductId };
+    }
+    const existingBestSellers = await Product.find(filter)
+      .sort({ bestSellerAt: -1, updatedAt: -1, createdAt: -1 });
+
+    if (existingBestSellers.length >= 4) {
+      const toDemote = existingBestSellers.slice(3); // Keep only top 3 so adding 1 makes exactly 4
+      if (toDemote.length > 0) {
+        const demoteIds = toDemote.map(p => p._id);
+        await Product.updateMany(
+          { _id: { $in: demoteIds } },
+          { $set: { isBestSeller: false } }
+        );
+      }
+    }
+  } catch (err) {
+    console.warn('[BestSellers] Warning while enforcing max 4:', err);
+  }
+}
+
+/**
  * Helper to ensure starter categories and products are seeded if the database is fresh.
  */
 async function ensureInitialSeed() {
@@ -48,8 +76,10 @@ async function ensureInitialSeed() {
         isVegetarian: p.isVegetarian ?? true,
         category: catId,
         images: [p.image],
-        badge: p.badge || (idx < 2 ? 'Best Seller' : ''),
+        badge: p.badge || (idx < 4 ? 'Best Seller' : ''),
         featured: idx < 4,
+        isBestSeller: idx < 4,
+        bestSellerAt: idx < 4 ? new Date(Date.now() - idx * 1000) : null,
         active: p.isAvailable ?? true,
         rating: p.rating || 4.9,
         reviewCount: p.reviewCount || 42,
@@ -233,9 +263,14 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       images = [],
       variants = [],
       featured = false,
+      isBestSeller = false,
       active = true,
       badge = '',
     } = req.body;
+
+    if (isBestSeller) {
+      await enforceMaxBestSellers();
+    }
 
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
       res.status(400).json({ success: false, message: 'Product name is required (min 2 characters).' });
@@ -323,8 +358,10 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       images: Array.isArray(images) ? images.filter(Boolean) : [],
       variants: cleanedVariants,
       featured: Boolean(featured),
+      isBestSeller: Boolean(isBestSeller),
+      bestSellerAt: isBestSeller ? new Date() : null,
       active: Boolean(active),
-      badge: badge ? String(badge).trim() : '',
+      badge: badge ? String(badge).trim() : (isBestSeller ? 'Best Seller' : ''),
       rating: 5.0,
       reviewCount: 0,
     });
@@ -370,6 +407,7 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
       images,
       variants,
       featured,
+      isBestSeller,
       active,
       badge,
     } = req.body;
@@ -393,6 +431,18 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
     if (featured !== undefined) existingProduct.featured = Boolean(featured);
     if (active !== undefined) existingProduct.active = Boolean(active);
     if (badge !== undefined) existingProduct.badge = String(badge).trim();
+
+    if (isBestSeller !== undefined) {
+      const willBeBestSeller = Boolean(isBestSeller);
+      if (willBeBestSeller && !existingProduct.isBestSeller) {
+        await enforceMaxBestSellers(existingProduct._id);
+        existingProduct.isBestSeller = true;
+        existingProduct.bestSellerAt = new Date();
+      } else if (!willBeBestSeller) {
+        existingProduct.isBestSeller = false;
+        existingProduct.bestSellerAt = undefined;
+      }
+    }
 
     if (category) {
       if (mongoose.Types.ObjectId.isValid(category)) {
@@ -479,6 +529,48 @@ router.patch('/:id/toggle', async (req: AuthenticatedRequest, res: Response) => 
     });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: 'Failed to toggle product status.' });
+  }
+});
+
+/**
+ * PATCH /api/admin/products/:id/toggle-bestseller
+ */
+router.patch('/:id/toggle-bestseller', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(400).json({ success: false, message: 'Invalid product ID.' });
+      return;
+    }
+
+    const product = await Product.findById(id);
+    if (!product) {
+      res.status(404).json({ success: false, message: 'Product not found.' });
+      return;
+    }
+
+    const nextState = !product.isBestSeller;
+    if (nextState) {
+      await enforceMaxBestSellers(product._id);
+      product.isBestSeller = true;
+      product.bestSellerAt = new Date();
+      if (!product.badge) product.badge = 'Best Seller';
+    } else {
+      product.isBestSeller = false;
+      product.bestSellerAt = undefined;
+      if (product.badge === 'Best Seller') product.badge = '';
+    }
+
+    await product.save();
+
+    res.json({
+      success: true,
+      message: `Product is ${product.isBestSeller ? 'now marked as Best Seller' : 'removed from Best Sellers'}.`,
+      isBestSeller: product.isBestSeller,
+      product,
+    });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, message: 'Failed to toggle best seller status.' });
   }
 });
 

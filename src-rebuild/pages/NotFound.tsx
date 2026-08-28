@@ -35,26 +35,28 @@ export default function NotFound() {
       <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(40px, 8vw, 80px) 20px', textAlign: 'center' }}>
         <div style={{ maxWidth: '500px', width: '100%' }}>
           <div style={{
-            fontFamily: "'Cormorant Garamond', Georgia, serif",
-            fontSize: 'clamp(80px, 12vw, 130px)',
-            fontWeight: 700,
+            fontFamily: "var(--font-primary, 'DM Sans', sans-serif)",
+            fontSize: 'clamp(64px, 10vw, 96px)',
+            fontWeight: 800,
             color: '#3C0815',
-            lineHeight: 0.9,
+            lineHeight: 0.95,
             marginBottom: '16px',
             letterSpacing: '-0.04em',
           }}>
             404
           </div>
           <h1 style={{
-            fontFamily: "'Cormorant Garamond', Georgia, serif",
-            fontSize: 'clamp(26px, 5vw, 32px)',
+            fontFamily: "var(--font-primary, 'DM Sans', sans-serif)",
+            fontSize: 'clamp(24px, 4vw, 30px)',
+            fontWeight: 700,
             color: '#3C0815',
+            letterSpacing: '-0.02em',
             margin: '0 0 12px',
           }}>
             Page Not Found
           </h1>
           <p style={{
-            fontFamily: 'Inter, sans-serif',
+            fontFamily: "var(--font-primary, 'DM Sans', sans-serif)",
             fontSize: '14.5px',
             lineHeight: 1.6,
             color: '#75645C',

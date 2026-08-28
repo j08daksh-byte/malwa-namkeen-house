@@ -40,10 +40,19 @@ var userSchema = new Schema(
       trim: true,
       default: ""
     },
+    googleId: {
+      type: String,
+      sparse: true,
+      index: true
+    },
+    avatar: {
+      type: String,
+      default: ""
+    },
     password: {
       type: String,
       required: function() {
-        return !this.invitationTokenHash;
+        return !this.invitationTokenHash && !this.googleId;
       },
       select: false
       // Never return password hash in queries by default
@@ -221,8 +230,8 @@ dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local"), override: true });
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
-  const isProd = process.env.NODE_ENV === "production";
-  if (isProd) {
+  const isProd2 = process.env.NODE_ENV === "production";
+  if (isProd2) {
     if (!secret || secret.trim().length < 32) {
       throw new Error("[Security Error] Production JWT_SECRET is required and must be at least 32 characters long.");
     }
@@ -260,10 +269,10 @@ function extractToken(req) {
   return null;
 }
 function setAuthCookie(res, token) {
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd2 = process.env.NODE_ENV === "production";
   res.cookie(AUTH_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: isProd,
+    secure: isProd2,
     sameSite: "lax",
     maxAge: 7 * 24 * 60 * 60 * 1e3,
     // 7 days
@@ -271,8 +280,10 @@ function setAuthCookie(res, token) {
   });
 }
 function clearAuthCookie(res) {
+  const isProd2 = process.env.NODE_ENV === "production";
   res.clearCookie(AUTH_COOKIE_NAME, {
     httpOnly: true,
+    secure: isProd2,
     sameSite: "lax",
     path: "/"
   });
@@ -517,6 +528,132 @@ router.post("/login", loginLimiter, async (req, res) => {
     });
   }
 });
+router.get("/google/config", (_req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
+  res.json({
+    success: true,
+    clientId,
+    isConfigured: Boolean(clientId)
+  });
+});
+async function verifyGoogleToken(credential) {
+  if (!credential || typeof credential !== "string" || credential.trim().length < 10) {
+    return null;
+  }
+  try {
+    const configuredClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
+    const response = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential.trim())}`
+    );
+    if (!response.ok) {
+      console.warn("[Google Auth Error] Token verification failed with status:", response.status);
+      return null;
+    }
+    const payload = await response.json();
+    if (!payload || !payload.email || !payload.sub) {
+      return null;
+    }
+    const validIssuers = ["accounts.google.com", "https://accounts.google.com"];
+    if (payload.iss && !validIssuers.includes(payload.iss)) {
+      console.warn("[Google Auth Error] Invalid token issuer:", payload.iss);
+      return null;
+    }
+    if (configuredClientId && payload.aud && payload.aud !== configuredClientId) {
+      console.warn("[Google Auth Error] Audience mismatch. Expected:", configuredClientId, "Got:", payload.aud);
+      return null;
+    }
+    const isEmailVerified = payload.email_verified === "true" || payload.email_verified === true;
+    if (!isEmailVerified) {
+      console.warn("[Google Auth Error] Google email is not verified.");
+      return null;
+    }
+    return {
+      sub: payload.sub,
+      email: String(payload.email).toLowerCase().trim(),
+      name: payload.name || payload.given_name || String(payload.email).split("@")[0],
+      picture: payload.picture || "",
+      email_verified: true
+    };
+  } catch (err) {
+    console.error("[Google Auth Verification Exception]:", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+router.post("/google", loginLimiter, async (req, res) => {
+  try {
+    const { credential, idToken } = req.body;
+    const tokenToVerify = credential || idToken;
+    if (!tokenToVerify || typeof tokenToVerify !== "string") {
+      res.status(400).json({
+        success: false,
+        message: "Google credential token is required."
+      });
+      return;
+    }
+    const googleUser = await verifyGoogleToken(tokenToVerify);
+    if (!googleUser || !googleUser.email) {
+      res.status(401).json({
+        success: false,
+        message: "Invalid or expired Google authentication token. Please try again."
+      });
+      return;
+    }
+    const cleanEmail = googleUser.email.trim().toLowerCase();
+    let user = await User.findOne({
+      $or: [{ email: cleanEmail }, { googleId: googleUser.sub }]
+    });
+    if (user) {
+      if (!user.active) {
+        res.status(403).json({
+          success: false,
+          message: "Your account is currently inactive. Please contact support."
+        });
+        return;
+      }
+      if (!user.googleId) user.googleId = googleUser.sub;
+      if (googleUser.picture && !user.avatar) user.avatar = googleUser.picture;
+      user.lastLoginAt = /* @__PURE__ */ new Date();
+      if (!user.emailVerifiedAt) user.emailVerifiedAt = /* @__PURE__ */ new Date();
+      await user.save();
+    } else {
+      user = await User.create({
+        name: googleUser.name.trim(),
+        email: cleanEmail,
+        googleId: googleUser.sub,
+        avatar: googleUser.picture || "",
+        role: "customer",
+        active: true,
+        lastLoginAt: /* @__PURE__ */ new Date(),
+        emailVerifiedAt: /* @__PURE__ */ new Date()
+      });
+    }
+    const token = generateToken({
+      userId: user._id.toString(),
+      email: user.email,
+      role: user.role
+    });
+    setAuthCookie(res, token);
+    res.json({
+      success: true,
+      message: "Google Sign-In successful.",
+      token,
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        phone: user.phone || "",
+        avatar: user.avatar || "",
+        role: user.role
+      }
+    });
+  } catch (err) {
+    console.error("[Google Auth Error]", err);
+    res.status(500).json({
+      success: false,
+      message: "Google authentication failed. Please try again or use email sign in."
+    });
+  }
+});
 router.post("/admin/login", adminLoginLimiter, async (req, res) => {
   try {
     const { email: email2, password } = req.body;
@@ -715,11 +852,12 @@ var EmailLog = mongoose3.models.EmailLog || mongoose3.model("EmailLog", emailLog
 
 // server/lib/emailService.ts
 function getEmailConfig() {
+  const rawBaseUrl = process.env.APP_URL || process.env.APP_BASE_URL || "http://localhost:3000";
   return {
     provider: process.env.EMAIL_PROVIDER || (process.env.RESEND_API_KEY ? "resend" : "simulated"),
     resendApiKey: process.env.RESEND_API_KEY || "",
-    emailFrom: process.env.EMAIL_FROM || "Malwa Namkeen House <orders@malwanamkeen.com>",
-    appBaseUrl: process.env.APP_BASE_URL || "http://localhost:3000"
+    emailFrom: process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || "Malwa Namkeen House <orders@malwanamkeen.com>",
+    appBaseUrl: rawBaseUrl.replace(/\/+$/, "")
   };
 }
 var resendClient = null;
@@ -794,7 +932,7 @@ async function sendEmail({
   relatedId
 }) {
   const config = getEmailConfig();
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd2 = process.env.NODE_ENV === "production";
   const cleanTo = to.trim().toLowerCase();
   if (!cleanTo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanTo)) {
     return { success: false, provider: "none", error: "Invalid recipient email address." };
@@ -820,7 +958,7 @@ async function sendEmail({
       const msg = err instanceof Error ? err.message : String(err);
       result = { success: false, provider: "resend", error: msg };
     }
-  } else if (isProd) {
+  } else if (isProd2) {
     console.warn(`[Email Service] Production email provider unconfigured. Message to <${cleanTo}> safely dropped.`);
     result = { success: false, provider: "unconfigured", error: "Email provider unconfigured." };
   } else {
@@ -1593,6 +1731,15 @@ var productSchema = new Schema3(
       default: false,
       index: true
     },
+    isBestSeller: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+    bestSellerAt: {
+      type: Date,
+      default: null
+    },
     active: {
       type: Boolean,
       default: true,
@@ -1618,6 +1765,10 @@ var productSchema = new Schema3(
     timestamps: true
   }
 );
+productSchema.index({ active: 1, category: 1, createdAt: -1 });
+productSchema.index({ active: 1, isBestSeller: 1, bestSellerAt: -1 });
+productSchema.index({ active: 1, featured: 1, createdAt: -1 });
+productSchema.index({ "variants.sku": 1 });
 var Product = mongoose5.models.Product || mongoose5.model("Product", productSchema);
 
 // server/models/Category.ts
@@ -2091,10 +2242,11 @@ function formatPublicProduct(p) {
     categoryLabel: p.category?.name || "Heritage Namkeens",
     images: Array.isArray(p.images) && p.images.length > 0 ? p.images : [primaryImage],
     image: primaryImage,
-    badge: p.badge || (p.featured ? "Signature" : void 0),
+    badge: p.badge || (p.isBestSeller ? "Best Seller" : p.featured ? "Signature" : void 0),
     rating: typeof p.rating === "number" ? p.rating : 4.9,
     reviewCount: typeof p.reviewCount === "number" ? p.reviewCount : 124,
     featured: Boolean(p.featured),
+    isBestSeller: Boolean(p.isBestSeller),
     options
   };
 }
@@ -2134,6 +2286,38 @@ router3.get("/categories", async (_req, res) => {
       description: c.description,
       image: ""
     }))
+  });
+});
+router3.get("/products/best-sellers", async (_req, res) => {
+  try {
+    if (mongoose7.connection.readyState === 1) {
+      let bestSellers = await Product.find({ active: true, isBestSeller: true }).populate({ path: "category", select: "name slug image", strictPopulate: false }).sort({ bestSellerAt: -1, updatedAt: -1, createdAt: -1 }).limit(4).lean();
+      if (bestSellers.length < 4) {
+        const existingIds = bestSellers.map((p) => p._id);
+        const backfill = await Product.find({
+          active: true,
+          _id: { $nin: existingIds }
+        }).populate({ path: "category", select: "name slug image", strictPopulate: false }).sort({ featured: -1, rating: -1, createdAt: -1 }).limit(4 - bestSellers.length).lean();
+        bestSellers = [...bestSellers, ...backfill];
+      }
+      if (bestSellers.length > 0) {
+        res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
+        res.json({
+          success: true,
+          count: bestSellers.length,
+          products: bestSellers.map(formatPublicProduct)
+        });
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn("[Public Best Sellers Error]", err);
+  }
+  const fallback = PRODUCTS.slice(0, 4);
+  res.json({
+    success: true,
+    count: fallback.length,
+    products: fallback
   });
 });
 router3.get("/products", async (req, res) => {
@@ -2797,6 +2981,9 @@ var orderSchema = new Schema6(
   }
 );
 orderSchema.index({ customer: 1, createdAt: -1 });
+orderSchema.index({ "customerInfo.email": 1, createdAt: -1 });
+orderSchema.index({ orderStatus: 1, createdAt: -1 });
+orderSchema.index({ paymentStatus: 1, createdAt: -1 });
 var Order = mongoose10.models.Order || mongoose10.model("Order", orderSchema);
 
 // server/routes/customerAccount.ts
@@ -3153,7 +3340,98 @@ var customerAccount_default = router5;
 
 // server/routes/customerOrders.ts
 import { Router as Router6 } from "express";
-import mongoose12 from "mongoose";
+import mongoose13 from "mongoose";
+
+// server/models/StoreSettings.ts
+import mongoose12, { Schema as Schema7 } from "mongoose";
+var storeSettingsSchema = new Schema7(
+  {
+    storeName: {
+      type: String,
+      default: "MALWA NAMKEEN HOUSE",
+      trim: true
+    },
+    tagline: {
+      type: String,
+      default: "THE NAMKEEN & SNACKS HUB",
+      trim: true
+    },
+    description: {
+      type: String,
+      default: "Heritage artisanal namkeens, sweets and chivdas extruded by hand and fried in pure cold-pressed groundnut oil.",
+      trim: true
+    },
+    logo: {
+      type: String,
+      default: "/logo.png"
+    },
+    gstNumber: {
+      type: String,
+      default: "29AQWPP5638F2ZO",
+      trim: true
+    },
+    fssaiNumber: {
+      type: String,
+      default: "11225302002687",
+      trim: true
+    },
+    contact: {
+      phone: { type: String, default: "+91 7987732765", trim: true },
+      email: { type: String, default: "malwanamkeenhouse@gmail.com", lowercase: true, trim: true },
+      whatsappNumber: { type: String, default: "917987732765", trim: true },
+      address: {
+        line1: { type: String, default: "No. 87/4-B, Sulikunte Village", trim: true },
+        line2: { type: String, default: "Sarjapur Main Road, Dommasandra Post", trim: true },
+        city: { type: String, default: "Bengaluru", trim: true },
+        state: { type: String, default: "Karnataka", trim: true },
+        postalCode: { type: String, default: "562125", trim: true },
+        country: { type: String, default: "India", trim: true },
+        full: { type: String, default: "No. 87/4-B, Sulikunte Village, Sarjapur Main Road, Dommasandra Post, Bengaluru \u2013 562125, Karnataka, India", trim: true }
+      }
+    },
+    businessHours: {
+      type: [
+        {
+          days: { type: String, required: true },
+          open: { type: String, required: true },
+          close: { type: String, required: true }
+        }
+      ],
+      default: [
+        { days: "Monday \u2013 Thursday", open: "9:00 AM", close: "10:30 PM" },
+        { days: "Friday", open: "9:00 AM", close: "11:00 PM" },
+        { days: "Saturday \u2013 Sunday", open: "8:30 AM", close: "11:00 PM" }
+      ]
+    },
+    deliverySettings: {
+      freeShippingThreshold: { type: Number, default: 499, min: 0 },
+      standardShippingFee: { type: Number, default: 49, min: 0 },
+      estimatedDeliveryDays: { type: String, default: "2\u20134 Business Days" },
+      codEnabled: { type: Boolean, default: true },
+      minOrderValue: { type: Number, default: 99, min: 0 }
+    },
+    socialLinks: {
+      instagram: { type: String, default: "" },
+      facebook: { type: String, default: "" },
+      youtube: { type: String, default: "" },
+      twitter: { type: String, default: "" },
+      googleMapsUrl: { type: String, default: "" }
+    },
+    policies: {
+      privacyPolicy: { type: String, default: "" },
+      termsConditions: { type: String, default: "" },
+      cancellationPolicy: { type: String, default: "" },
+      refundPolicy: { type: String, default: "" },
+      shippingPolicy: { type: String, default: "" }
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+var StoreSettings = mongoose12.models.StoreSettings || mongoose12.model("StoreSettings", storeSettingsSchema);
+
+// server/routes/customerOrders.ts
 var router6 = Router6();
 var recentSubmissions = /* @__PURE__ */ new Map();
 function generateOrderNumber() {
@@ -3162,6 +3440,8 @@ function generateOrderNumber() {
   return `MN-${dateStr}-${randomSuffix}`;
 }
 router6.post("/", requireAuth, async (req, res) => {
+  let appliedDiscountCode = "";
+  const reservedStockUpdates = [];
   try {
     const {
       items = [],
@@ -3217,7 +3497,7 @@ router6.post("/", requireAuth, async (req, res) => {
     }
     const productIds = [
       ...new Set(
-        items.map((it) => it.productId).filter((id) => mongoose12.Types.ObjectId.isValid(id))
+        items.map((it) => it.productId).filter((id) => mongoose13.Types.ObjectId.isValid(id))
       )
     ];
     const products = await Product.find({
@@ -3273,10 +3553,11 @@ router6.post("/", requireAuth, async (req, res) => {
       }
       const unitPrice = typeof variant.salePrice === "number" && variant.salePrice > 0 ? variant.salePrice : variant.price;
       const primaryImage = Array.isArray(product.images) && product.images[0] || product.image || "/mishtichaat/chaat-plate.jpg";
+      const variantLabel = variant.label || `${variant.value || ""} ${variant.unit || ""}`.trim() || "Standard";
       orderItems.push({
         productId: product._id,
         productName: product.name,
-        variantLabel: variant.label || `${variant.value || ""} ${variant.unit || ""}`.trim() || "Standard",
+        variantLabel,
         sku: variant.sku || "",
         price: unitPrice,
         quantity: qty,
@@ -3286,13 +3567,25 @@ router6.post("/", requireAuth, async (req, res) => {
       stockUpdates.push({
         productId: product._id,
         variantId: variant._id,
-        decrement: qty
+        decrement: qty,
+        productName: product.name,
+        variantLabel
       });
     }
     const subtotal = Math.round(orderItems.reduce((sum, it) => sum + it.itemTotal, 0) * 100) / 100;
-    const shipping = subtotal >= 499 ? 0 : 49;
+    const storeSettings = await StoreSettings.findOne().lean();
+    const minOrder = storeSettings?.deliverySettings?.minOrderValue ?? 0;
+    if (minOrder > 0 && subtotal < minOrder) {
+      res.status(400).json({
+        success: false,
+        message: `Minimum order subtotal for delivery is \u20B9${minOrder}.`
+      });
+      return;
+    }
+    const freeThreshold = storeSettings?.deliverySettings?.freeShippingThreshold ?? 499;
+    const standardFee = storeSettings?.deliverySettings?.standardShippingFee ?? 49;
+    const shipping = subtotal >= freeThreshold ? 0 : standardFee;
     let discountAmount = 0;
-    let appliedDiscountCode = "";
     if (couponCode && typeof couponCode === "string" && couponCode.trim()) {
       const discountCalc = await validateAndCalculateDiscount(couponCode.trim(), subtotal);
       if (!discountCalc.valid || !discountCalc.discount) {
@@ -3357,35 +3650,92 @@ router6.post("/", requireAuth, async (req, res) => {
         await user.save();
       }
     }
-    for (const update of stockUpdates) {
+    let stockFailure = false;
+    let failedItemName = "";
+    for (let i = 0; i < stockUpdates.length; i++) {
+      const update = stockUpdates[i];
       if (update.variantId) {
-        await Product.updateOne(
-          { _id: update.productId, "variants._id": update.variantId },
+        const updateResult = await Product.updateOne(
+          {
+            _id: update.productId,
+            variants: {
+              $elemMatch: {
+                _id: update.variantId,
+                stock: { $gte: update.decrement }
+              }
+            }
+          },
           { $inc: { "variants.$.stock": -update.decrement } }
         );
+        if (updateResult.matchedCount === 0 || updateResult.modifiedCount === 0) {
+          stockFailure = true;
+          failedItemName = `${update.productName} (${update.variantLabel})`;
+          break;
+        }
+        reservedStockUpdates.push({
+          productId: update.productId,
+          variantId: update.variantId,
+          decrement: update.decrement
+        });
       }
     }
-    const newOrder = await Order.create({
-      orderNumber,
-      customer: user._id,
-      customerInfo: {
-        name: user.name || cleanShippingAddress.name,
-        email: user.email,
-        phone: cleanShippingAddress.phone || user.phone || ""
-      },
-      items: orderItems,
-      subtotal,
-      discount: discountAmount,
-      discountCode: appliedDiscountCode,
-      shipping,
-      total: finalTotal,
-      shippingAddress: cleanShippingAddress,
-      orderStatus: "pending",
-      paymentStatus: "pending",
-      paymentMethod: ["cod", "online", "upi", "card"].includes(paymentMethod) ? paymentMethod : "cod",
-      shipmentStatus: "unfulfilled",
-      notes: typeof notes === "string" ? notes.trim() : ""
-    });
+    if (stockFailure) {
+      for (const resv of reservedStockUpdates) {
+        await Product.updateOne(
+          { _id: resv.productId, "variants._id": resv.variantId },
+          { $inc: { "variants.$.stock": resv.decrement } }
+        );
+      }
+      if (appliedDiscountCode) {
+        await Discount.updateOne(
+          { code: appliedDiscountCode },
+          { $inc: { usedCount: -1 } }
+        );
+      }
+      res.status(400).json({
+        success: false,
+        message: `Insufficient stock for "${failedItemName}". It may have just been ordered by another customer.`
+      });
+      return;
+    }
+    let newOrder;
+    try {
+      newOrder = await Order.create({
+        orderNumber,
+        customer: user._id,
+        customerInfo: {
+          name: user.name || cleanShippingAddress.name,
+          email: user.email,
+          phone: cleanShippingAddress.phone || user.phone || ""
+        },
+        items: orderItems,
+        subtotal,
+        discount: discountAmount,
+        discountCode: appliedDiscountCode,
+        shipping,
+        total: finalTotal,
+        shippingAddress: cleanShippingAddress,
+        orderStatus: "pending",
+        paymentStatus: "pending",
+        paymentMethod: ["cod", "online", "upi", "card"].includes(paymentMethod) ? paymentMethod : "cod",
+        shipmentStatus: "unfulfilled",
+        notes: typeof notes === "string" ? notes.trim() : ""
+      });
+    } catch (orderCreateErr) {
+      for (const resv of reservedStockUpdates) {
+        await Product.updateOne(
+          { _id: resv.productId, "variants._id": resv.variantId },
+          { $inc: { "variants.$.stock": resv.decrement } }
+        );
+      }
+      if (appliedDiscountCode) {
+        await Discount.updateOne(
+          { code: appliedDiscountCode },
+          { $inc: { usedCount: -1 } }
+        );
+      }
+      throw orderCreateErr;
+    }
     if (idempotencyKey) {
       recentSubmissions.set(idempotencyKey, {
         timestamp: Date.now(),
@@ -3429,6 +3779,24 @@ router6.post("/", requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error("[Create Order Error]", err);
+    for (const resv of reservedStockUpdates) {
+      try {
+        await Product.updateOne(
+          { _id: resv.productId, "variants._id": resv.variantId },
+          { $inc: { "variants.$.stock": resv.decrement } }
+        );
+      } catch {
+      }
+    }
+    if (appliedDiscountCode) {
+      try {
+        await Discount.updateOne(
+          { code: appliedDiscountCode },
+          { $inc: { usedCount: -1 } }
+        );
+      } catch {
+      }
+    }
     res.status(500).json({
       success: false,
       message: "Failed to process order. Please try again."
@@ -3439,9 +3807,30 @@ var customerOrders_default = router6;
 
 // server/routes/adminProducts.ts
 import { Router as Router7 } from "express";
-import mongoose13 from "mongoose";
+import mongoose14 from "mongoose";
 var router7 = Router7();
 router7.use(requireAdmin);
+async function enforceMaxBestSellers(currentProductId) {
+  try {
+    const filter = { isBestSeller: true };
+    if (currentProductId) {
+      filter._id = { $ne: currentProductId };
+    }
+    const existingBestSellers = await Product.find(filter).sort({ bestSellerAt: -1, updatedAt: -1, createdAt: -1 });
+    if (existingBestSellers.length >= 4) {
+      const toDemote = existingBestSellers.slice(3);
+      if (toDemote.length > 0) {
+        const demoteIds = toDemote.map((p) => p._id);
+        await Product.updateMany(
+          { _id: { $in: demoteIds } },
+          { $set: { isBestSeller: false } }
+        );
+      }
+    }
+  } catch (err) {
+    console.warn("[BestSellers] Warning while enforcing max 4:", err);
+  }
+}
 async function ensureInitialSeed() {
   const catCount = await Category.countDocuments();
   if (catCount === 0) {
@@ -3474,8 +3863,10 @@ async function ensureInitialSeed() {
         isVegetarian: p.isVegetarian ?? true,
         category: catId,
         images: [p.image],
-        badge: p.badge || (idx < 2 ? "Best Seller" : ""),
+        badge: p.badge || (idx < 4 ? "Best Seller" : ""),
         featured: idx < 4,
+        isBestSeller: idx < 4,
+        bestSellerAt: idx < 4 ? new Date(Date.now() - idx * 1e3) : null,
         active: p.isAvailable ?? true,
         rating: p.rating || 4.9,
         reviewCount: p.reviewCount || 42,
@@ -3533,8 +3924,8 @@ router7.get("/", async (req, res) => {
       ];
     }
     if (category && category !== "all") {
-      if (mongoose13.Types.ObjectId.isValid(category)) {
-        filter.category = new mongoose13.Types.ObjectId(category);
+      if (mongoose14.Types.ObjectId.isValid(category)) {
+        filter.category = new mongoose14.Types.ObjectId(category);
       } else {
         const cat = await Category.findOne({ slug: category });
         if (cat) filter.category = cat._id;
@@ -3577,7 +3968,7 @@ router7.get("/", async (req, res) => {
 router7.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose13.Types.ObjectId.isValid(id)) {
+    if (!mongoose14.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID format." });
       return;
     }
@@ -3613,9 +4004,13 @@ router7.post("/", async (req, res) => {
       images = [],
       variants = [],
       featured = false,
+      isBestSeller = false,
       active = true,
       badge = ""
     } = req.body;
+    if (isBestSeller) {
+      await enforceMaxBestSellers();
+    }
     if (!name2 || typeof name2 !== "string" || name2.trim().length < 2) {
       res.status(400).json({ success: false, message: "Product name is required (min 2 characters)." });
       return;
@@ -3629,7 +4024,7 @@ router7.post("/", async (req, res) => {
       return;
     }
     let categoryId = category;
-    if (!mongoose13.Types.ObjectId.isValid(category)) {
+    if (!mongoose14.Types.ObjectId.isValid(category)) {
       const cat = await Category.findOne({ slug: category });
       if (!cat) {
         res.status(400).json({ success: false, message: "Invalid category specified." });
@@ -3683,8 +4078,10 @@ router7.post("/", async (req, res) => {
       images: Array.isArray(images) ? images.filter(Boolean) : [],
       variants: cleanedVariants,
       featured: Boolean(featured),
+      isBestSeller: Boolean(isBestSeller),
+      bestSellerAt: isBestSeller ? /* @__PURE__ */ new Date() : null,
       active: Boolean(active),
-      badge: badge ? String(badge).trim() : "",
+      badge: badge ? String(badge).trim() : isBestSeller ? "Best Seller" : "",
       rating: 5,
       reviewCount: 0
     });
@@ -3703,7 +4100,7 @@ router7.post("/", async (req, res) => {
 router7.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose13.Types.ObjectId.isValid(id)) {
+    if (!mongoose14.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID format." });
       return;
     }
@@ -3723,6 +4120,7 @@ router7.put("/:id", async (req, res) => {
       images,
       variants,
       featured,
+      isBestSeller,
       active,
       badge
     } = req.body;
@@ -3744,9 +4142,20 @@ router7.put("/:id", async (req, res) => {
     if (featured !== void 0) existingProduct.featured = Boolean(featured);
     if (active !== void 0) existingProduct.active = Boolean(active);
     if (badge !== void 0) existingProduct.badge = String(badge).trim();
+    if (isBestSeller !== void 0) {
+      const willBeBestSeller = Boolean(isBestSeller);
+      if (willBeBestSeller && !existingProduct.isBestSeller) {
+        await enforceMaxBestSellers(existingProduct._id);
+        existingProduct.isBestSeller = true;
+        existingProduct.bestSellerAt = /* @__PURE__ */ new Date();
+      } else if (!willBeBestSeller) {
+        existingProduct.isBestSeller = false;
+        existingProduct.bestSellerAt = void 0;
+      }
+    }
     if (category) {
-      if (mongoose13.Types.ObjectId.isValid(category)) {
-        existingProduct.category = new mongoose13.Types.ObjectId(category);
+      if (mongoose14.Types.ObjectId.isValid(category)) {
+        existingProduct.category = new mongoose14.Types.ObjectId(category);
       } else {
         const cat = await Category.findOne({ slug: category });
         if (cat) existingProduct.category = cat._id;
@@ -3797,7 +4206,7 @@ router7.put("/:id", async (req, res) => {
 router7.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose13.Types.ObjectId.isValid(id)) {
+    if (!mongoose14.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -3817,10 +4226,44 @@ router7.patch("/:id/toggle", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to toggle product status." });
   }
 });
+router7.patch("/:id/toggle-bestseller", async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose14.Types.ObjectId.isValid(id)) {
+      res.status(400).json({ success: false, message: "Invalid product ID." });
+      return;
+    }
+    const product = await Product.findById(id);
+    if (!product) {
+      res.status(404).json({ success: false, message: "Product not found." });
+      return;
+    }
+    const nextState = !product.isBestSeller;
+    if (nextState) {
+      await enforceMaxBestSellers(product._id);
+      product.isBestSeller = true;
+      product.bestSellerAt = /* @__PURE__ */ new Date();
+      if (!product.badge) product.badge = "Best Seller";
+    } else {
+      product.isBestSeller = false;
+      product.bestSellerAt = void 0;
+      if (product.badge === "Best Seller") product.badge = "";
+    }
+    await product.save();
+    res.json({
+      success: true,
+      message: `Product is ${product.isBestSeller ? "now marked as Best Seller" : "removed from Best Sellers"}.`,
+      isBestSeller: product.isBestSeller,
+      product
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Failed to toggle best seller status." });
+  }
+});
 router7.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose13.Types.ObjectId.isValid(id)) {
+    if (!mongoose14.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -3841,7 +4284,7 @@ var adminProducts_default = router7;
 
 // server/routes/adminCategories.ts
 import { Router as Router8 } from "express";
-import mongoose14 from "mongoose";
+import mongoose15 from "mongoose";
 var router8 = Router8();
 router8.use(requireAdmin);
 async function ensureCategoriesSeeded() {
@@ -3907,7 +4350,7 @@ router8.get("/", async (req, res) => {
 router8.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose14.Types.ObjectId.isValid(id)) {
+    if (!mongoose15.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -3970,7 +4413,7 @@ router8.post("/", async (req, res) => {
 router8.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose14.Types.ObjectId.isValid(id)) {
+    if (!mongoose15.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -4013,7 +4456,7 @@ router8.put("/:id", async (req, res) => {
 router8.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose14.Types.ObjectId.isValid(id)) {
+    if (!mongoose15.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID." });
       return;
     }
@@ -4036,7 +4479,7 @@ router8.patch("/:id/toggle", async (req, res) => {
 router8.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose14.Types.ObjectId.isValid(id)) {
+    if (!mongoose15.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -4072,7 +4515,7 @@ var adminCategories_default = router8;
 
 // server/routes/adminOrders.ts
 import { Router as Router9 } from "express";
-import mongoose15 from "mongoose";
+import mongoose16 from "mongoose";
 var router9 = Router9();
 router9.use(requireAdmin);
 router9.get("/", async (req, res) => {
@@ -4171,7 +4614,7 @@ router9.get("/", async (req, res) => {
 router9.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose15.Types.ObjectId.isValid(id)) {
+    if (!mongoose16.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -4188,7 +4631,7 @@ router9.get("/:id", async (req, res) => {
 router9.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose15.Types.ObjectId.isValid(id)) {
+    if (!mongoose16.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID." });
       return;
     }
@@ -4286,7 +4729,7 @@ router9.put("/:id", async (req, res) => {
 router9.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose15.Types.ObjectId.isValid(id)) {
+    if (!mongoose16.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID." });
       return;
     }
@@ -4307,7 +4750,7 @@ var adminOrders_default = router9;
 
 // server/routes/adminCustomers.ts
 import { Router as Router10 } from "express";
-import mongoose16 from "mongoose";
+import mongoose17 from "mongoose";
 var router10 = Router10();
 router10.use(requireAdmin);
 router10.get("/", async (req, res) => {
@@ -4423,7 +4866,7 @@ router10.get("/", async (req, res) => {
 router10.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose16.Types.ObjectId.isValid(id)) {
+    if (!mongoose17.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -4453,7 +4896,7 @@ router10.get("/:id", async (req, res) => {
 router10.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose16.Types.ObjectId.isValid(id)) {
+    if (!mongoose17.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -4476,7 +4919,7 @@ router10.patch("/:id/toggle", async (req, res) => {
 router10.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose16.Types.ObjectId.isValid(id)) {
+    if (!mongoose17.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -4514,7 +4957,7 @@ var adminCustomers_default = router10;
 
 // server/routes/adminDiscounts.ts
 import { Router as Router11 } from "express";
-import mongoose17 from "mongoose";
+import mongoose18 from "mongoose";
 var router11 = Router11();
 router11.post("/validate", async (req, res) => {
   try {
@@ -4586,7 +5029,7 @@ router11.get("/", async (req, res) => {
 router11.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose17.Types.ObjectId.isValid(id)) {
+    if (!mongoose18.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -4663,7 +5106,7 @@ router11.post("/", async (req, res) => {
 router11.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose17.Types.ObjectId.isValid(id)) {
+    if (!mongoose18.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -4737,7 +5180,7 @@ router11.put("/:id", async (req, res) => {
 router11.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose17.Types.ObjectId.isValid(id)) {
+    if (!mongoose18.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -4760,7 +5203,7 @@ router11.patch("/:id/toggle", async (req, res) => {
 router11.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose17.Types.ObjectId.isValid(id)) {
+    if (!mongoose18.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -4781,11 +5224,11 @@ var adminDiscounts_default = router11;
 
 // server/routes/adminInquiries.ts
 import { Router as Router12 } from "express";
-import mongoose19 from "mongoose";
+import mongoose20 from "mongoose";
 
 // server/models/Inquiry.ts
-import mongoose18, { Schema as Schema7 } from "mongoose";
-var inquirySchema = new Schema7(
+import mongoose19, { Schema as Schema8 } from "mongoose";
+var inquirySchema = new Schema8(
   {
     name: {
       type: String,
@@ -4830,7 +5273,7 @@ var inquirySchema = new Schema7(
     timestamps: true
   }
 );
-var Inquiry = mongoose18.models.Inquiry || mongoose18.model("Inquiry", inquirySchema);
+var Inquiry = mongoose19.models.Inquiry || mongoose19.model("Inquiry", inquirySchema);
 
 // server/routes/adminInquiries.ts
 var router12 = Router12();
@@ -4849,9 +5292,9 @@ var handlePublicInquiry = async (req, res) => {
       res.status(400).json({ success: false, message: "Please provide a descriptive inquiry message." });
       return;
     }
-    if (mongoose19.connection.readyState !== 1) {
+    if (mongoose20.connection.readyState !== 1) {
       const fallbackInquiry = {
-        _id: new mongoose19.Types.ObjectId(),
+        _id: new mongoose20.Types.ObjectId(),
         name: name2.trim(),
         email: email2.trim().toLowerCase(),
         phone: phone2 ? String(phone2).trim() : "",
@@ -4992,7 +5435,7 @@ router12.get("/", async (req, res) => {
 router12.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose20.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -5009,7 +5452,7 @@ router12.get("/:id", async (req, res) => {
 router12.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose20.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -5040,7 +5483,7 @@ router12.put("/:id", async (req, res) => {
 router12.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose20.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -5062,7 +5505,7 @@ var adminInquiries_default = router12;
 // server/routes/adminStaff.ts
 import { Router as Router13 } from "express";
 import crypto2 from "crypto";
-import mongoose20 from "mongoose";
+import mongoose21 from "mongoose";
 var router13 = Router13();
 router13.use(requireSuperAdmin);
 var EMAIL_REGEX2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -5133,7 +5576,7 @@ router13.post("/invite", async (req, res) => {
       active: true,
       invitationTokenHash: tokenHash,
       invitationExpiresAt: expiresAt,
-      invitedBy: req.user?.userId ? new mongoose20.Types.ObjectId(req.user.userId) : void 0,
+      invitedBy: req.user?.userId ? new mongoose21.Types.ObjectId(req.user.userId) : void 0,
       invitedAt: /* @__PURE__ */ new Date()
     });
     const emailResult = await sendAdminInvitationEmail({
@@ -5166,7 +5609,7 @@ router13.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const { name: name2, role, active } = req.body;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid staff ID." });
       return;
     }
@@ -5214,7 +5657,7 @@ router13.patch("/:id", async (req, res) => {
 router13.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid staff ID." });
       return;
     }
@@ -5255,97 +5698,6 @@ var adminStaff_default = router13;
 // server/routes/adminSettings.ts
 import { Router as Router14 } from "express";
 import mongoose22 from "mongoose";
-
-// server/models/StoreSettings.ts
-import mongoose21, { Schema as Schema8 } from "mongoose";
-var storeSettingsSchema = new Schema8(
-  {
-    storeName: {
-      type: String,
-      default: "MALWA NAMKEEN HOUSE",
-      trim: true
-    },
-    tagline: {
-      type: String,
-      default: "THE NAMKEEN & SNACKS HUB",
-      trim: true
-    },
-    description: {
-      type: String,
-      default: "Heritage artisanal namkeens, sweets and chivdas extruded by hand and fried in pure cold-pressed groundnut oil.",
-      trim: true
-    },
-    logo: {
-      type: String,
-      default: "/logo.png"
-    },
-    gstNumber: {
-      type: String,
-      default: "29AQWPP5638F2ZO",
-      trim: true
-    },
-    fssaiNumber: {
-      type: String,
-      default: "11225302002687",
-      trim: true
-    },
-    contact: {
-      phone: { type: String, default: "+91 7987732765", trim: true },
-      email: { type: String, default: "malwanamkeenhouse@gmail.com", lowercase: true, trim: true },
-      whatsappNumber: { type: String, default: "917987732765", trim: true },
-      address: {
-        line1: { type: String, default: "No. 87/4-B, Sulikunte Village", trim: true },
-        line2: { type: String, default: "Sarjapur Main Road, Dommasandra Post", trim: true },
-        city: { type: String, default: "Bengaluru", trim: true },
-        state: { type: String, default: "Karnataka", trim: true },
-        postalCode: { type: String, default: "562125", trim: true },
-        country: { type: String, default: "India", trim: true },
-        full: { type: String, default: "No. 87/4-B, Sulikunte Village, Sarjapur Main Road, Dommasandra Post, Bengaluru \u2013 562125, Karnataka, India", trim: true }
-      }
-    },
-    businessHours: {
-      type: [
-        {
-          days: { type: String, required: true },
-          open: { type: String, required: true },
-          close: { type: String, required: true }
-        }
-      ],
-      default: [
-        { days: "Monday \u2013 Thursday", open: "9:00 AM", close: "10:30 PM" },
-        { days: "Friday", open: "9:00 AM", close: "11:00 PM" },
-        { days: "Saturday \u2013 Sunday", open: "8:30 AM", close: "11:00 PM" }
-      ]
-    },
-    deliverySettings: {
-      freeShippingThreshold: { type: Number, default: 499, min: 0 },
-      standardShippingFee: { type: Number, default: 49, min: 0 },
-      estimatedDeliveryDays: { type: String, default: "2\u20134 Business Days" },
-      codEnabled: { type: Boolean, default: true },
-      minOrderValue: { type: Number, default: 99, min: 0 }
-    },
-    socialLinks: {
-      instagram: { type: String, default: "" },
-      facebook: { type: String, default: "" },
-      youtube: { type: String, default: "" },
-      twitter: { type: String, default: "" },
-      googleMapsUrl: { type: String, default: "" }
-    },
-    policies: {
-      privacyPolicy: { type: String, default: "" },
-      termsConditions: { type: String, default: "" },
-      cancellationPolicy: { type: String, default: "" },
-      refundPolicy: { type: String, default: "" },
-      shippingPolicy: { type: String, default: "" }
-    }
-  },
-  {
-    timestamps: true
-  }
-);
-var StoreSettings = mongoose21.models.StoreSettings || mongoose21.model("StoreSettings", storeSettingsSchema);
-
-// server/routes/adminSettings.ts
 var router14 = Router14();
 async function getOrCreateSingletonSettings() {
   let settings = await StoreSettings.findOne();
@@ -5396,26 +5748,17 @@ var DEFAULT_PUBLIC_SETTINGS = {
 };
 var handlePublicSettings = async (_req, res) => {
   try {
-    if (mongoose22.connection.readyState !== 1) {
-      res.json({ success: true, settings: DEFAULT_PUBLIC_SETTINGS });
-      return;
+    let settings = null;
+    if (mongoose22.connection.readyState === 1) {
+      settings = await StoreSettings.findOne().lean();
     }
-    const settings = await getOrCreateSingletonSettings();
+    if (!settings) {
+      settings = await getOrCreateSingletonSettings();
+    }
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
     res.json({
       success: true,
-      settings: {
-        storeName: settings.storeName,
-        tagline: settings.tagline,
-        description: settings.description,
-        logo: settings.logo,
-        gstNumber: settings.gstNumber,
-        fssaiNumber: settings.fssaiNumber,
-        contact: settings.contact,
-        businessHours: settings.businessHours,
-        deliverySettings: settings.deliverySettings,
-        socialLinks: settings.socialLinks,
-        policies: settings.policies
-      }
+      settings
     });
   } catch (_err) {
     res.json({ success: true, settings: DEFAULT_PUBLIC_SETTINGS });
@@ -5440,62 +5783,58 @@ router14.get("/", async (_req, res) => {
 router14.put("/", async (req, res) => {
   try {
     const payload = req.body;
-    let settings = await StoreSettings.findOne();
-    if (!settings) {
-      settings = new StoreSettings(payload);
-    } else {
-      if (payload.storeName) settings.storeName = String(payload.storeName).trim();
-      if (payload.tagline !== void 0) settings.tagline = String(payload.tagline).trim();
-      if (payload.description !== void 0) settings.description = String(payload.description).trim();
-      if (payload.logo !== void 0) settings.logo = String(payload.logo).trim();
-      if (payload.gstNumber !== void 0) settings.gstNumber = String(payload.gstNumber).trim();
-      if (payload.fssaiNumber !== void 0) settings.fssaiNumber = String(payload.fssaiNumber).trim();
-      if (payload.contact && typeof payload.contact === "object") {
-        settings.contact = {
-          phone: payload.contact.phone ? String(payload.contact.phone).trim() : settings.contact.phone,
-          email: payload.contact.email ? String(payload.contact.email).trim().toLowerCase() : settings.contact.email,
-          whatsappNumber: payload.contact.whatsappNumber ? String(payload.contact.whatsappNumber).trim() : settings.contact.whatsappNumber,
-          address: {
-            line1: payload.contact.address?.line1 ?? settings.contact.address.line1,
-            line2: payload.contact.address?.line2 ?? settings.contact.address.line2,
-            city: payload.contact.address?.city ?? settings.contact.address.city,
-            state: payload.contact.address?.state ?? settings.contact.address.state,
-            postalCode: payload.contact.address?.postalCode ?? settings.contact.address.postalCode,
-            country: payload.contact.address?.country ?? settings.contact.address.country,
-            full: payload.contact.address?.full ?? settings.contact.address.full
-          }
-        };
-      }
-      if (Array.isArray(payload.businessHours)) {
-        settings.businessHours = payload.businessHours;
-      }
-      if (payload.deliverySettings && typeof payload.deliverySettings === "object") {
-        settings.deliverySettings = {
-          freeShippingThreshold: payload.deliverySettings.freeShippingThreshold !== void 0 ? Number(payload.deliverySettings.freeShippingThreshold) : settings.deliverySettings.freeShippingThreshold,
-          standardShippingFee: payload.deliverySettings.standardShippingFee !== void 0 ? Number(payload.deliverySettings.standardShippingFee) : settings.deliverySettings.standardShippingFee,
-          estimatedDeliveryDays: payload.deliverySettings.estimatedDeliveryDays !== void 0 ? String(payload.deliverySettings.estimatedDeliveryDays).trim() : settings.deliverySettings.estimatedDeliveryDays,
-          codEnabled: payload.deliverySettings.codEnabled !== void 0 ? Boolean(payload.deliverySettings.codEnabled) : settings.deliverySettings.codEnabled,
-          minOrderValue: payload.deliverySettings.minOrderValue !== void 0 ? Number(payload.deliverySettings.minOrderValue) : settings.deliverySettings.minOrderValue
-        };
-      }
-      if (payload.socialLinks && typeof payload.socialLinks === "object") {
-        settings.socialLinks = {
-          instagram: payload.socialLinks.instagram ?? settings.socialLinks.instagram,
-          facebook: payload.socialLinks.facebook ?? settings.socialLinks.facebook,
-          youtube: payload.socialLinks.youtube ?? settings.socialLinks.youtube,
-          twitter: payload.socialLinks.twitter ?? settings.socialLinks.twitter,
-          googleMapsUrl: payload.socialLinks.googleMapsUrl ?? settings.socialLinks.googleMapsUrl
-        };
-      }
-      if (payload.policies && typeof payload.policies === "object") {
-        settings.policies = {
-          privacyPolicy: payload.policies.privacyPolicy ?? settings.policies?.privacyPolicy,
-          termsConditions: payload.policies.termsConditions ?? settings.policies?.termsConditions,
-          cancellationPolicy: payload.policies.cancellationPolicy ?? settings.policies?.cancellationPolicy,
-          refundPolicy: payload.policies.refundPolicy ?? settings.policies?.refundPolicy,
-          shippingPolicy: payload.policies.shippingPolicy ?? settings.policies?.shippingPolicy
-        };
-      }
+    const settings = await getOrCreateSingletonSettings();
+    if (payload.storeName) settings.storeName = String(payload.storeName).trim();
+    if (payload.tagline !== void 0) settings.tagline = String(payload.tagline).trim();
+    if (payload.description !== void 0) settings.description = String(payload.description).trim();
+    if (payload.logo !== void 0) settings.logo = String(payload.logo).trim();
+    if (payload.gstNumber !== void 0) settings.gstNumber = String(payload.gstNumber).trim();
+    if (payload.fssaiNumber !== void 0) settings.fssaiNumber = String(payload.fssaiNumber).trim();
+    if (payload.contact && typeof payload.contact === "object") {
+      settings.contact = {
+        phone: payload.contact.phone ? String(payload.contact.phone).trim() : settings.contact.phone,
+        email: payload.contact.email ? String(payload.contact.email).trim().toLowerCase() : settings.contact.email,
+        whatsappNumber: payload.contact.whatsappNumber ? String(payload.contact.whatsappNumber).trim() : settings.contact.whatsappNumber,
+        address: {
+          line1: payload.contact.address?.line1 ?? settings.contact.address.line1,
+          line2: payload.contact.address?.line2 ?? settings.contact.address.line2,
+          city: payload.contact.address?.city ?? settings.contact.address.city,
+          state: payload.contact.address?.state ?? settings.contact.address.state,
+          postalCode: payload.contact.address?.postalCode ?? settings.contact.address.postalCode,
+          country: payload.contact.address?.country ?? settings.contact.address.country,
+          full: payload.contact.address?.full ?? settings.contact.address.full
+        }
+      };
+    }
+    if (Array.isArray(payload.businessHours)) {
+      settings.businessHours = payload.businessHours;
+    }
+    if (payload.deliverySettings && typeof payload.deliverySettings === "object") {
+      settings.deliverySettings = {
+        freeShippingThreshold: payload.deliverySettings.freeShippingThreshold !== void 0 ? Number(payload.deliverySettings.freeShippingThreshold) : settings.deliverySettings.freeShippingThreshold,
+        standardShippingFee: payload.deliverySettings.standardShippingFee !== void 0 ? Number(payload.deliverySettings.standardShippingFee) : settings.deliverySettings.standardShippingFee,
+        estimatedDeliveryDays: payload.deliverySettings.estimatedDeliveryDays !== void 0 ? String(payload.deliverySettings.estimatedDeliveryDays).trim() : settings.deliverySettings.estimatedDeliveryDays,
+        codEnabled: payload.deliverySettings.codEnabled !== void 0 ? Boolean(payload.deliverySettings.codEnabled) : settings.deliverySettings.codEnabled,
+        minOrderValue: payload.deliverySettings.minOrderValue !== void 0 ? Number(payload.deliverySettings.minOrderValue) : settings.deliverySettings.minOrderValue
+      };
+    }
+    if (payload.socialLinks && typeof payload.socialLinks === "object") {
+      settings.socialLinks = {
+        instagram: payload.socialLinks.instagram ?? settings.socialLinks.instagram,
+        facebook: payload.socialLinks.facebook ?? settings.socialLinks.facebook,
+        youtube: payload.socialLinks.youtube ?? settings.socialLinks.youtube,
+        twitter: payload.socialLinks.twitter ?? settings.socialLinks.twitter,
+        googleMapsUrl: payload.socialLinks.googleMapsUrl ?? settings.socialLinks.googleMapsUrl
+      };
+    }
+    if (payload.policies && typeof payload.policies === "object") {
+      settings.policies = {
+        privacyPolicy: payload.policies.privacyPolicy ?? settings.policies?.privacyPolicy,
+        termsConditions: payload.policies.termsConditions ?? settings.policies?.termsConditions,
+        cancellationPolicy: payload.policies.cancellationPolicy ?? settings.policies?.cancellationPolicy,
+        refundPolicy: payload.policies.refundPolicy ?? settings.policies?.refundPolicy,
+        shippingPolicy: payload.policies.shippingPolicy ?? settings.policies?.shippingPolicy
+      };
     }
     await settings.save();
     res.json({
@@ -6435,18 +6774,437 @@ router17.post("/gifting", async (req, res) => {
 });
 var enquiries_default = router17;
 
+// server/routes/adminBanners.ts
+import { Router as Router18 } from "express";
+
+// server/models/Banner.ts
+import mongoose24, { Schema as Schema9 } from "mongoose";
+var bannerSchema = new Schema9(
+  {
+    title: {
+      type: String,
+      required: [true, "Banner title is required"],
+      trim: true,
+      maxlength: [200, "Title cannot exceed 200 characters"]
+    },
+    alt: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+    image: {
+      type: String,
+      required: [true, "Banner image URL is required"],
+      trim: true
+    },
+    mobileImage: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+    link: {
+      type: String,
+      trim: true,
+      default: "/shop"
+    },
+    badge: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+    active: {
+      type: Boolean,
+      default: true
+    },
+    sortOrder: {
+      type: Number,
+      default: 0
+    },
+    startDate: {
+      type: Date,
+      default: null
+    },
+    endDate: {
+      type: Date,
+      default: null
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+bannerSchema.index({ active: 1, sortOrder: 1 });
+bannerSchema.index({ sortOrder: 1 });
+var Banner = mongoose24.models.Banner || mongoose24.model("Banner", bannerSchema);
+
+// server/routes/adminBanners.ts
+var router18 = Router18();
+var DEFAULT_BANNERS = [
+  {
+    title: "Pure Malwa Heritage in Every Crunchy Bite",
+    alt: "Pure Malwa Heritage in Every Crunchy Bite - Special Ratlami Sev & Artisanal Namkeens",
+    image: "/hero-banner-1.png",
+    link: "/shop",
+    active: true,
+    sortOrder: 0
+  },
+  {
+    title: "Add the Malwa Crunch: Complete Your Snack Time",
+    alt: "Add the Malwa Crunch: Complete Your Snack Time - Roasted Not Fried, No Palm Oil",
+    image: "/hero-banner-2.png",
+    link: "/shop",
+    active: true,
+    sortOrder: 1
+  }
+];
+async function ensureInitialBanners() {
+  try {
+    const count = await Banner.countDocuments();
+    if (count === 0) {
+      await Banner.insertMany(DEFAULT_BANNERS);
+    }
+  } catch (err) {
+    console.warn("[Banners] Seed check warning:", err instanceof Error ? err.message : err);
+  }
+}
+router18.use(requireAdmin);
+router18.get("/", async (req, res) => {
+  try {
+    await ensureInitialBanners();
+    const { search, status, sortBy } = req.query;
+    const filter = {};
+    if (search && typeof search === "string" && search.trim()) {
+      filter.$or = [
+        { title: { $regex: search.trim(), $options: "i" } },
+        { alt: { $regex: search.trim(), $options: "i" } },
+        { link: { $regex: search.trim(), $options: "i" } }
+      ];
+    }
+    if (status === "active") {
+      filter.active = true;
+    } else if (status === "inactive") {
+      filter.active = false;
+    }
+    let sort = { sortOrder: 1, createdAt: -1 };
+    if (sortBy === "newest") {
+      sort = { createdAt: -1 };
+    } else if (sortBy === "title") {
+      sort = { title: 1 };
+    }
+    const banners = await Banner.find(filter).sort(sort);
+    res.json({
+      success: true,
+      count: banners.length,
+      banners
+    });
+  } catch (err) {
+    console.error("[Admin Banners GET Error]:", err);
+    res.status(500).json({
+      success: false,
+      message: err instanceof Error ? err.message : "Failed to retrieve banners."
+    });
+  }
+});
+router18.post("/", async (req, res) => {
+  try {
+    const { title, alt, image, mobileImage, link, badge, active, sortOrder } = req.body;
+    if (!title || typeof title !== "string" || !title.trim()) {
+      res.status(400).json({ success: false, message: "Banner title is required." });
+      return;
+    }
+    if (!image || typeof image !== "string" || !image.trim()) {
+      res.status(400).json({ success: false, message: "Banner image is required." });
+      return;
+    }
+    let calculatedOrder = typeof sortOrder === "number" ? sortOrder : 0;
+    if (typeof sortOrder !== "number") {
+      const highest = await Banner.findOne().sort({ sortOrder: -1 }).select("sortOrder");
+      calculatedOrder = highest && typeof highest.sortOrder === "number" ? highest.sortOrder + 1 : 0;
+    }
+    const newBanner = await Banner.create({
+      title: title.trim(),
+      alt: alt && typeof alt === "string" ? alt.trim() : title.trim(),
+      image: image.trim(),
+      mobileImage: mobileImage && typeof mobileImage === "string" ? mobileImage.trim() : "",
+      link: link && typeof link === "string" && link.trim() ? link.trim() : "/shop",
+      badge: badge && typeof badge === "string" ? badge.trim() : "",
+      active: typeof active === "boolean" ? active : true,
+      sortOrder: calculatedOrder
+    });
+    res.status(201).json({
+      success: true,
+      message: "Banner created successfully.",
+      banner: newBanner
+    });
+  } catch (err) {
+    console.error("[Admin Banners POST Error]:", err);
+    res.status(400).json({
+      success: false,
+      message: err instanceof Error ? err.message : "Failed to create banner."
+    });
+  }
+});
+router18.put("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, alt, image, mobileImage, link, badge, active, sortOrder } = req.body;
+    const banner = await Banner.findById(id);
+    if (!banner) {
+      res.status(404).json({ success: false, message: "Banner not found." });
+      return;
+    }
+    if (title !== void 0) banner.title = title.trim();
+    if (alt !== void 0) banner.alt = alt.trim();
+    if (image !== void 0) banner.image = image.trim();
+    if (mobileImage !== void 0) banner.mobileImage = mobileImage.trim();
+    if (link !== void 0) banner.link = link.trim() || "/shop";
+    if (badge !== void 0) banner.badge = badge.trim();
+    if (active !== void 0) banner.active = Boolean(active);
+    if (typeof sortOrder === "number") banner.sortOrder = sortOrder;
+    await banner.save();
+    res.json({
+      success: true,
+      message: "Banner updated successfully.",
+      banner
+    });
+  } catch (err) {
+    console.error("[Admin Banners PUT Error]:", err);
+    res.status(400).json({
+      success: false,
+      message: err instanceof Error ? err.message : "Failed to update banner."
+    });
+  }
+});
+router18.patch("/:id/toggle", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const banner = await Banner.findById(id);
+    if (!banner) {
+      res.status(404).json({ success: false, message: "Banner not found." });
+      return;
+    }
+    banner.active = !banner.active;
+    await banner.save();
+    res.json({
+      success: true,
+      message: `Banner is now ${banner.active ? "active" : "inactive"}.`,
+      active: banner.active,
+      banner
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err instanceof Error ? err.message : "Failed to toggle banner status."
+    });
+  }
+});
+router18.patch("/reorder", async (req, res) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds)) {
+      res.status(400).json({ success: false, message: "orderedIds must be an array of Banner IDs." });
+      return;
+    }
+    const updates = orderedIds.map(
+      (id, index) => Banner.findByIdAndUpdate(id, { sortOrder: index })
+    );
+    await Promise.all(updates);
+    const banners = await Banner.find().sort({ sortOrder: 1 });
+    res.json({
+      success: true,
+      message: "Banner ordering updated successfully.",
+      banners
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err instanceof Error ? err.message : "Failed to reorder banners."
+    });
+  }
+});
+router18.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const banner = await Banner.findByIdAndDelete(id);
+    if (!banner) {
+      res.status(404).json({ success: false, message: "Banner not found." });
+      return;
+    }
+    res.json({
+      success: true,
+      message: "Banner deleted successfully."
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err instanceof Error ? err.message : "Failed to delete banner."
+    });
+  }
+});
+var adminBanners_default = router18;
+
+// server/routes/banners.ts
+import { Router as Router19 } from "express";
+var router19 = Router19();
+router19.get("/", async (_req, res) => {
+  try {
+    await ensureInitialBanners();
+    const banners = await Banner.find({ active: true }).sort({ sortOrder: 1, createdAt: -1 });
+    if (banners && banners.length > 0) {
+      res.json({
+        success: true,
+        count: banners.length,
+        banners: banners.map((b) => ({
+          id: b._id.toString(),
+          title: b.title,
+          alt: b.alt || b.title,
+          image: b.image,
+          mobileImage: b.mobileImage,
+          link: b.link || "/shop",
+          badge: b.badge,
+          sortOrder: b.sortOrder
+        }))
+      });
+      return;
+    }
+    res.json({
+      success: true,
+      count: DEFAULT_BANNERS.length,
+      banners: DEFAULT_BANNERS.map((b, i) => ({
+        id: `default-${i + 1}`,
+        title: b.title,
+        alt: b.alt,
+        image: b.image,
+        link: b.link,
+        sortOrder: b.sortOrder
+      }))
+    });
+  } catch (err) {
+    console.warn("[Public Banners] DB retrieval failed, returning default fallback:", err);
+    res.json({
+      success: true,
+      count: DEFAULT_BANNERS.length,
+      banners: DEFAULT_BANNERS.map((b, i) => ({
+        id: `default-${i + 1}`,
+        title: b.title,
+        alt: b.alt,
+        image: b.image,
+        link: b.link,
+        sortOrder: b.sortOrder
+      }))
+    });
+  }
+});
+var banners_default = router19;
+
+// server/routes/sitemap.ts
+import { Router as Router20 } from "express";
+var router20 = Router20();
+router20.get("/sitemap.xml", async (req, res) => {
+  try {
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+    const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost:3000";
+    const baseUrl = `${protocol}://${host}`;
+    const staticRoutes = [
+      { loc: "/", changefreq: "daily", priority: "1.0" },
+      { loc: "/shop", changefreq: "daily", priority: "0.9" },
+      { loc: "/about-us", changefreq: "weekly", priority: "0.8" },
+      { loc: "/faq", changefreq: "weekly", priority: "0.8" },
+      { loc: "/contact", changefreq: "monthly", priority: "0.7" },
+      { loc: "/privacy-policy", changefreq: "monthly", priority: "0.5" },
+      { loc: "/terms-and-conditions", changefreq: "monthly", priority: "0.5" },
+      { loc: "/cancellation-policy", changefreq: "monthly", priority: "0.5" },
+      { loc: "/refund-policy", changefreq: "monthly", priority: "0.5" }
+    ];
+    const activeProducts = await Product.find({ isAvailable: { $ne: false } }).select("slug updatedAt").lean().catch(() => []);
+    const productRoutes = activeProducts.map((p) => ({
+      loc: `/product/${p.slug}`,
+      lastmod: p.updatedAt ? new Date(p.updatedAt).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
+      changefreq: "weekly",
+      priority: "0.85"
+    }));
+    const allUrls = [...staticRoutes, ...productRoutes];
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${allUrls.map(
+      (item) => `  <url>
+    <loc>${baseUrl}${item.loc}</loc>
+    ${item.lastmod ? `<lastmod>${item.lastmod}</lastmod>` : `<lastmod>${(/* @__PURE__ */ new Date()).toISOString()}</lastmod>`}
+    <changefreq>${item.changefreq}</changefreq>
+    <priority>${item.priority}</priority>
+  </url>`
+    ).join("\n")}
+</urlset>`;
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=7200");
+    res.status(200).send(xml);
+  } catch (err) {
+    console.error("[Sitemap Error]", err);
+    res.status(500).send("Error generating sitemap");
+  }
+});
+router20.get("/robots.txt", (req, res) => {
+  const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+  const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost:3000";
+  const baseUrl = `${protocol}://${host}`;
+  const content = `# Robots.txt for Malwa Namkeen House
+User-agent: *
+Allow: /
+Allow: /shop
+Allow: /product/
+Allow: /about-us
+Allow: /faq
+Allow: /contact
+Allow: /privacy-policy
+Allow: /terms-and-conditions
+Allow: /cancellation-policy
+Allow: /refund-policy
+
+# Protect internal/authenticated/admin routes
+Disallow: /admin/
+Disallow: /admin/*
+Disallow: /dashboard
+Disallow: /dashboard/*
+Disallow: /account
+Disallow: /account/*
+Disallow: /login
+Disallow: /api/
+Disallow: /api/*
+
+# Sitemap Reference
+Sitemap: ${baseUrl}/sitemap.xml
+`;
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=86400");
+  res.status(200).send(content);
+});
+var sitemap_default = router20;
+
 // server/api-entry.ts
 var app = express();
+var isProd = process.env.NODE_ENV === "production";
+var allowedOrigins = (() => {
+  const configured = process.env.ALLOWED_ORIGINS ?? "";
+  const base = configured ? configured.split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean) : [];
+  if (!isProd) {
+    base.push("http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://localhost:3000");
+  }
+  const appUrl = process.env.APP_URL;
+  if (appUrl) base.push(appUrl.trim().replace(/\/+$/, ""));
+  return base;
+})();
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  } else {
-    res.setHeader("Access-Control-Allow-Origin", "*");
+  const normalizedOrigin = origin ? origin.replace(/\/+$/, "") : null;
+  if (!normalizedOrigin || allowedOrigins.includes(normalizedOrigin)) {
+    if (origin) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+    }
   }
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+  res.setHeader("Vary", "Origin");
   if (req.method === "OPTIONS") {
     res.sendStatus(204);
     return;
@@ -6463,6 +7221,7 @@ app.use(async (_req, _res, next) => {
   }
   next();
 });
+app.use("/", sitemap_default);
 app.get(["/health", "/api/health"], (_req, res) => {
   const mongo = getMongoStatus();
   res.json({
@@ -6492,6 +7251,8 @@ var routeConfigs = [
   { path: "/admin/orders", router: adminOrders_default },
   { path: "/admin/categories", router: adminCategories_default },
   { path: "/admin/products", router: adminProducts_default },
+  { path: "/admin/banners", router: adminBanners_default },
+  { path: "/banners", router: banners_default },
   { path: "/admin/uploads", router: uploads_default },
   { path: "/", router: products_default },
   { path: "/", router: enquiries_default }
@@ -6507,7 +7268,8 @@ for (const config of routeConfigs) {
 }
 app.use((err, _req, res, _next) => {
   console.error("[API Error]:", err.message);
-  res.status(500).json({ success: false, message: err.message || "Internal server error." });
+  const message2 = isProd ? "Internal server error." : err.message || "Internal server error.";
+  res.status(500).json({ success: false, message: message2 });
 });
 var api_entry_default = app;
 export {

@@ -229,10 +229,10 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
           display: none !important;
         }
         .nav-link {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 14px;
           font-weight: 500;
-          letter-spacing: .03em;
+          letter-spacing: .01em;
           white-space: nowrap;
           color: rgba(255, 249, 239, .8);
           text-decoration: none;
@@ -275,7 +275,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
           border-radius: 50%;
           background: #D4AA45;
           color: #3D0007;
-          font: 800 9px/1 Inter, sans-serif;
+          font: 700 9px/1 var(--font-primary, 'DM Sans', sans-serif);
         }
         .shop-overlay {
           position: fixed;
@@ -316,11 +316,11 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
         }
         .cart-panel__title {
           color: var(--brand-maroon);
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: 38px;
-          font-weight: 600;
-          line-height: 1;
-          letter-spacing: -.03em;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 26px;
+          font-weight: 700;
+          line-height: 1.1;
+          letter-spacing: -.02em;
         }
         .panel-close {
           width: 36px;
@@ -359,9 +359,10 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
         .cart-empty h3 {
           margin: 0 0 7px;
           color: var(--brand-maroon);
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: 30px;
-          font-weight: 600;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 22px;
+          font-weight: 700;
+          letter-spacing: -.01em;
         }
         .cart-empty p {
           max-width: 230px;
@@ -378,18 +379,24 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
         }
         .cart-line__name {
           color: var(--text-dark);
-          font: 600 16px/1.2 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 15px;
+          font-weight: 600;
+          line-height: 1.25;
         }
         .cart-line__meta {
           margin-top: 5px;
           color: var(--text-muted);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 11px;
-          letter-spacing: .05em;
+          letter-spacing: .04em;
           text-transform: uppercase;
         }
         .cart-line__price {
           color: var(--brand-maroon);
-          font: 700 14px Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 14px;
+          font-weight: 700;
           text-align: right;
         }
         .quantity-control {
@@ -419,7 +426,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
           min-width: 18px;
           text-align: center;
           color: var(--text-dark);
-          font: 700 12px Inter, sans-serif;
+          font: 700 12px var(--font-primary, 'DM Sans', sans-serif);
         }
         .cart-panel__footer {
           padding: 20px 24px 25px;
@@ -431,7 +438,9 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
           justify-content: space-between;
           margin-bottom: 16px;
           color: var(--brand-maroon);
-          font: 700 14px Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 14px;
+          font-weight: 700;
         }
         .checkout-btn {
           width: 100%;
@@ -440,8 +449,10 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
           border-radius: 999px;
           background: var(--brand-maroon);
           color: var(--text-on-dark);
-          font: 800 11px Inter, sans-serif;
-          letter-spacing: .12em;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: .06em;
           text-transform: uppercase;
           cursor: pointer;
           transition: background .18s, transform .18s;
@@ -556,17 +567,23 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
         .search-result__name {
           display: block;
           color: var(--brand-maroon);
-          font: 600 17px/1.2 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 14.5px;
+          font-weight: 700;
+          line-height: 1.25;
         }
         .search-result__info {
           display: block;
           margin-top: 4px;
           color: var(--text-muted);
-          font-size: 11px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 11.5px;
         }
         .search-result__price {
           color: var(--gold);
-          font: 800 12px Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 13px;
+          font-weight: 700;
           white-space: nowrap;
         }
         .search-status {

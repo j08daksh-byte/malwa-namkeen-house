@@ -1,15 +1,17 @@
 /* ─────────────────────────────────────────────────────────────────────────
-   MALWA NAMKEEN HOUSE Design System — v3
-   Heritage-warm · Malwa-inspired · Premium editorial
+   MALWA NAMKEEN HOUSE Typography & Design System — v4
+   Modern D2C Food Brand Typography · Clean · Premium · Food-Focused
    ───────────────────────────────────────────────────────────────────────── */
 
-/* Faster font load: preconnect is in index.html; this import is the fallback */
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400;1,600;1,700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&family=Inter:wght@300;400;500;600;700;800&display=swap');
-
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..800;1,9..40,400..700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap');
 @import "tailwindcss";
 
 /* ── Brand tokens ───────────────────────────────────────────────────────── */
 :root {
+  /* Typography System */
+  --font-primary: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-accent:  'Playfair Display', Georgia, serif;
+
   /* Backgrounds */
   --bg-parchment:   #F6EFE3;
   --bg-ivory:       #FFFDF8;
@@ -25,7 +27,6 @@
   --maroon-section: #6B000D;   /* slightly lighter — section BG gradient start */
   --maroon-hover:   #6B000D;   /* hover state on dark surfaces */
   --maroon-light:   rgba(85,0,10,0.08);
-  /* Shared nav/footer/intro surface — single source of truth */
   --brand-nav:      #55000A;
 
   /* Gold spectrum — antique, no neon */
@@ -71,15 +72,16 @@ html {
   overflow-x: clip;
 }
 body {
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-primary);
   background-color: var(--bg-parchment);
   color: var(--text-dark);
-  line-height: 1.6;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   overflow-x: clip;
   width: 100%;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
 }
 img, video {
   display: block;
@@ -87,9 +89,139 @@ img, video {
   height: auto;
 }
 
-h1, h2, h3, h4 {
-  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+/* ── Unified Heading Typography Scale ───────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-primary);
+  color: var(--text-dark);
+  font-feature-settings: 'kern' 1, 'liga' 1;
   text-wrap: balance;
+}
+
+h1 {
+  font-size: clamp(38px, 4.8vw, 68px);
+  font-weight: 700;
+  line-height: 1.0;
+  letter-spacing: -0.03em;
+}
+
+h2 {
+  font-size: clamp(30px, 3.8vw, 48px);
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: -0.025em;
+}
+
+h3 {
+  font-size: clamp(22px, 2.4vw, 32px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+}
+
+h4 {
+  font-size: clamp(17px, 1.6vw, 22px);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+p {
+  font-family: var(--font-primary);
+  line-height: 1.6;
+  letter-spacing: normal;
+}
+
+/* ── Reusable Typography Utility Classes ────────────────────────────────── */
+.font-display {
+  font-family: var(--font-primary);
+  font-size: clamp(42px, 5.2vw, 72px);
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+}
+
+.font-heading-lg {
+  font-family: var(--font-primary);
+  font-size: clamp(32px, 4.0vw, 52px);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+}
+
+.font-heading-md {
+  font-family: var(--font-primary);
+  font-size: clamp(24px, 2.6vw, 36px);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+}
+
+.font-heading-sm {
+  font-family: var(--font-primary);
+  font-size: clamp(18px, 1.8vw, 24px);
+  font-weight: 600;
+  line-height: 1.22;
+  letter-spacing: -0.01em;
+}
+
+.font-body-lg {
+  font-family: var(--font-primary);
+  font-size: clamp(16px, 1.15vw, 18px);
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.font-body-md {
+  font-family: var(--font-primary);
+  font-size: clamp(14px, 1.0vw, 15.5px);
+  font-weight: 400;
+  line-height: 1.55;
+}
+
+.font-body-sm {
+  font-family: var(--font-primary);
+  font-size: clamp(12.5px, 0.9vw, 13.5px);
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.font-btn {
+  font-family: var(--font-primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.font-badge {
+  font-family: var(--font-primary);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.font-micro {
+  font-family: var(--font-primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.font-price {
+  font-family: var(--font-primary);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.eyebrow {
+  font-family: var(--font-primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: var(--gold);
 }
 
 /* ── Layout helpers ─────────────────────────────────────────────────────── */
@@ -102,24 +234,15 @@ h1, h2, h3, h4 {
 @media (min-width: 640px)  { .container { padding-inline: 32px; } }
 @media (min-width: 1024px) { .container { padding-inline: 48px; } }
 
-/* ── Typography helpers ─────────────────────────────────────────────────── */
-.font-sans { font-family: 'Inter', system-ui, sans-serif; }
-.eyebrow {
-  font-family: 'Inter', sans-serif;
-  font-size: 11px; font-weight: 800;
-  letter-spacing: 0.24em; text-transform: uppercase;
-  color: var(--gold);
-}
-
 /* ── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: var(--bg-warm-beige); }
 ::-webkit-scrollbar-thumb { background: var(--border-soft); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--gold); }
 
-/* ── Forms (Prevent iOS auto-zoom on mobile inputs) ─────────────────────── */
-input, textarea, select {
-  font-family: inherit;
+/* ── Forms ──────────────────────────────────────────────────────────────── */
+input, textarea, select, button {
+  font-family: var(--font-primary);
 }
 @media (max-width: 768px) {
   input:not([type="checkbox"]):not([type="radio"]),

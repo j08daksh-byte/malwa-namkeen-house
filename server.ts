@@ -25,6 +25,8 @@ import adminStaffRoutes from './server/routes/adminStaff.ts';
 import authRecoveryRoutes from './server/routes/authRecovery.ts';
 import adminSettingsRoutes, { publicSettingsRouter } from './server/routes/adminSettings.ts';
 import adminDashboardRoutes from './server/routes/adminDashboard.ts';
+import adminBannerRoutes from './server/routes/adminBanners.ts';
+import publicBannerRoutes from './server/routes/banners.ts';
 import publicCatalogRoutes from './server/routes/products.ts';
 import cartWishlistRoutes from './server/routes/cartWishlist.ts';
 import customerAccountRoutes from './server/routes/customerAccount.ts';
@@ -40,19 +42,31 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true 
 // ── Environment validation ───────────────────────────────────────────────────
 
 const REQUIRED_ENV: string[] = ['MONGODB_URI', 'JWT_SECRET'];
+const PRODUCTION_RECOMMENDED: string[] = ['APP_URL', 'ADMIN_EMAIL'];
 const OPTIONAL_WARNED: string[] = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET', 'RESEND_API_KEY', 'GEMINI_API_KEY'];
 
 function validateEnv() {
   const isProd = process.env.NODE_ENV === 'production';
   const required = [...REQUIRED_ENV];
-  if (isProd) {
-    required.push('JWT_SECRET');
-  }
   const missing = required.filter(k => !process.env[k]);
   if (missing.length) {
     console.error(`[Startup] Missing required env vars: ${missing.join(', ')}`);
     process.exit(1);
   }
+
+  if (isProd) {
+    const jwtSecret = process.env.JWT_SECRET || '';
+    if (jwtSecret.length < 32) {
+      console.error('[Startup Security Error] Production JWT_SECRET must be at least 32 characters long.');
+      process.exit(1);
+    }
+    for (const k of PRODUCTION_RECOMMENDED) {
+      if (!process.env[k]) {
+        console.warn(`[Startup Warning] Recommended production env var ${k} not set.`);
+      }
+    }
+  }
+
   for (const k of OPTIONAL_WARNED) {
     if (!process.env[k]) {
       console.warn(`[Startup] Optional env var ${k} not set — related features will be degraded.`);
@@ -148,25 +162,26 @@ async function startServer() {
   const allowedOrigins = (() => {
     const configured = process.env.ALLOWED_ORIGINS ?? '';
     const base = configured
-      ? configured.split(',').map(s => s.trim()).filter(Boolean)
+      ? configured.split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean)
       : [];
     // Always allow localhost in dev
     if (!isProd) {
-      base.push('http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173');
+      base.push('http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://localhost:3000');
     }
     const appUrl = process.env.APP_URL;
-    if (appUrl) base.push(appUrl);
+    if (appUrl) base.push(appUrl.trim().replace(/\/+$/, ''));
     return base;
   })();
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     const origin = req.headers.origin;
-    if (!origin || allowedOrigins.includes(origin)) {
+    const normalizedOrigin = origin ? origin.replace(/\/+$/, '') : null;
+    if (!normalizedOrigin || allowedOrigins.includes(normalizedOrigin)) {
       if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
     }
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
     res.setHeader('Vary', 'Origin');
     if (req.method === 'OPTIONS') { res.sendStatus(204); return; }
     next();
@@ -175,8 +190,9 @@ async function startServer() {
   // Cookie parser
   app.use(cookieParser());
 
-  // JSON body — 100kb limit
-  app.use(express.json({ limit: '100kb' }));
+  // JSON & URL-encoded body — 10MB limit for image uploads and base64 payloads
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // ── Rate limits ───────────────────────────────────────────────────────────
 
@@ -239,6 +255,9 @@ async function startServer() {
   // Admin store settings routes (protected by requireAdmin)
   app.use('/api/admin/settings', adminSettingsRoutes);
 
+  // Public customer store settings (store details, address, contact, GST, policies)
+  app.use('/api/settings', publicSettingsRouter);
+
   // Public customer inquiry submission
   app.use('/api/inquiries', adminInquiryRoutes);
   app.use('/api/contact', adminInquiryRoutes);
@@ -260,6 +279,12 @@ async function startServer() {
 
   // Admin category routes (protected by requireAdmin)
   app.use('/api/admin/categories', adminCategoryRoutes);
+
+  // Admin banner routes (protected by requireAdmin)
+  app.use('/api/admin/banners', adminBannerRoutes);
+
+  // Public customer hero banners
+  app.use('/api/banners', publicBannerRoutes);
 
   // Admin product routes (protected by requireAdmin)
   app.use('/api/admin/products', adminProductRoutes);

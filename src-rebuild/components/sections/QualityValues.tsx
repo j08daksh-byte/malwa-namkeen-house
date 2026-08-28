@@ -1,7 +1,7 @@
 const CARDS = [
   {
-    title: 'Pure Groundnut Oil',
-    desc: 'Prepared exclusively in 100% pure cold-pressed groundnut oil — zero palm oil, zero trans fats.',
+    title: 'Pure Soya Oil',
+    desc: 'Prepared exclusively in 100% pure soya oil — zero palm oil, zero trans fats.',
     icon: (
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M12 2C9 7 5 8.5 5 13a7 7 0 0014 0c0-4.5-4-6-7-11z" stroke="#B77F22" strokeWidth="1.6" strokeLinejoin="round" fill="rgba(183,127,34,0.14)"/>
@@ -101,33 +101,33 @@ export default function QualityValues() {
           position: relative;
         }
         #quality .qv-eyebrow {
-          font-family: Inter, sans-serif;
-          font-size: 13px;
-          font-weight: 800;
-          letter-spacing: 0.26em;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.20em;
           text-transform: uppercase;
           color: #B77F22;
         }
         #quality .qv-h2 {
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(50px, 5vw, 72px);
-          line-height: 0.95;
-          font-weight: 650;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(34px, 4.4vw, 54px);
+          line-height: 1.04;
+          font-weight: 700;
           color: #3A211D;
-          letter-spacing: -0.02em;
-          margin: 0 0 22px;
+          letter-spacing: -0.025em;
+          margin: 0 0 18px;
         }
         #quality .qv-h2 em {
           color: #55000A;
-          font-style: italic;
-          font-weight: 600;
+          font-style: normal;
+          font-weight: 700;
         }
         #quality .qv-divider {
           display: flex;
           align-items: center;
           justify-content: center;
           gap: 10px;
-          margin-bottom: 20px;
+          margin-bottom: 18px;
         }
         #quality .qv-dbar {
           width: clamp(28px, 3vw, 48px);
@@ -135,10 +135,10 @@ export default function QualityValues() {
           background: rgba(200,154,61,0.55);
         }
         #quality .qv-sub {
-          font-family: Inter, sans-serif;
-          font-size: 16px;
-          font-weight: 500;
-          line-height: 1.65;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(14px, 1.1vw, 16px);
+          font-weight: 400;
+          line-height: 1.55;
           color: #5E4940;
           max-width: 720px;
           margin: 0 auto;
@@ -240,18 +240,19 @@ export default function QualityValues() {
 
         /* ── Card typography ──────────────────────────────────────── */
         #quality .qv-title {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 24px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 18px;
           font-weight: 700;
-          line-height: 1.15;
+          letter-spacing: -0.015em;
+          line-height: 1.2;
           color: #55000A;
-          margin: 18px 0 10px;
+          margin: 18px 0 8px;
         }
         #quality .qv-desc {
-          font-family: Inter, Arial, sans-serif;
-          font-size: 14.5px;
-          font-weight: 500;
-          line-height: 1.65;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 13.5px;
+          font-weight: 400;
+          line-height: 1.55;
           color: #5A463E;
           max-width: 250px;
           margin: 0 auto;

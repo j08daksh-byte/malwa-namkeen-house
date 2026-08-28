@@ -1,29 +1,129 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
-type HeritageCardProps = {
-  className: string;
-  image: string;
+interface HeritageBlock {
+  slug: string;
+  name: string;
   eyebrow: string;
-  title: string;
   description?: string;
+  image: string;
   position?: string;
-};
-
-function HeritageCard({ className, image, eyebrow, title, description, position = 'center' }: HeritageCardProps) {
-  return (
-    <article className={`heritage-editorial__card ${className}`}>
-      <img src={image} alt="" className="heritage-editorial__image" style={{ objectPosition: position }} loading="lazy" decoding="async" />
-      <div className="heritage-editorial__shade" />
-      <div className="heritage-editorial__card-copy">
-        <span>{eyebrow}</span>
-        <h3>{title}</h3>
-        {description && <p>{description}</p>}
-      </div>
-    </article>
-  );
 }
 
+const DEFAULT_HERITAGE_BLOCKS: HeritageBlock[] = [
+  {
+    slug: 'all',
+    name: 'Crafted for the shared table',
+    eyebrow: 'The Malwa table',
+    description: 'Bold, bright and generously layered — every handful carries the warmth of a family recipe.',
+    image: '/mishtichaat/chaat-plate.jpg',
+    position: 'center',
+  },
+  {
+    slug: 'sev-namkeen',
+    name: 'Crisp by tradition',
+    eyebrow: 'Handcrafted',
+    image: '/mishtichaat/dahi-puri.png',
+    position: 'center',
+  },
+  {
+    slug: 'mithai-sweets',
+    name: 'Made with patience',
+    eyebrow: 'Old city rituals',
+    image: '/mishtichaat/jalebi.jpg',
+    position: 'center',
+  },
+  {
+    slug: 'mixtures-chivda',
+    name: 'Generations of flavour',
+    eyebrow: 'Celebration',
+    image: '/mishtichaat/dahi-bhalla.jpg',
+    position: 'center 55%',
+  },
+  {
+    slug: 'khasta-mathri',
+    name: 'Malwa, in every bite',
+    eyebrow: 'The everyday feast',
+    image: '/mishtichaat/kachori.jpg',
+    position: 'center',
+  },
+  {
+    slug: 'gift-hampers',
+    name: 'Time-honoured craft',
+    eyebrow: 'From our kitchen',
+    image: '/mishtichaat/hero-food.jpg',
+    position: 'center 70%',
+  },
+];
+
+const SLOT_CLASSES = [
+  'heritage-editorial__feature',
+  'heritage-editorial__side-one',
+  'heritage-editorial__side-two',
+  'heritage-editorial__bottom',
+  'heritage-editorial__bottom',
+  'heritage-editorial__bottom',
+];
+
+const EYEBROW_PRESETS = [
+  'The Malwa table',
+  'Handcrafted',
+  'Old city rituals',
+  'Celebration',
+  'The everyday feast',
+  'From our kitchen',
+];
+
 export default function HeritageSpecialities() {
+  const [blocks, setBlocks] = useState<HeritageBlock[]>(DEFAULT_HERITAGE_BLOCKS);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchCategories() {
+      try {
+        const res = await fetch('/api/categories');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && Array.isArray(data.categories) && data.categories.length > 0) {
+          if (!isMounted) return;
+
+          // Filter out 'all' category if present in array
+          const rawCats = data.categories.filter((c: any) => c.slug !== 'all');
+
+          // Always construct exactly 6 blocks for the Bento grid layout
+          const newBlocks: HeritageBlock[] = [];
+          for (let i = 0; i < 6; i++) {
+            const cat = rawCats[i];
+            const fallback = DEFAULT_HERITAGE_BLOCKS[i];
+
+            if (cat) {
+              newBlocks.push({
+                slug: cat.slug || fallback.slug,
+                name: cat.name || fallback.name,
+                eyebrow: cat.shortLabel || EYEBROW_PRESETS[i] || 'Heritage Category',
+                description: i === 0 ? (cat.description || fallback.description) : undefined,
+                image: (cat.image && typeof cat.image === 'string' && cat.image.trim()) ? cat.image : fallback.image,
+                position: fallback.position || 'center',
+              });
+            } else {
+              // Fill remaining slots up to 6 with curated fallback blocks
+              newBlocks.push(fallback);
+            }
+          }
+
+          setBlocks(newBlocks);
+        }
+      } catch (err) {
+        console.warn('Could not load categories for heritage section, using defaults:', err);
+      }
+    }
+
+    fetchCategories();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <section id="heritage" className="heritage-editorial" aria-label="Our Heritage">
       <style>{`
@@ -44,10 +144,10 @@ export default function HeritageSpecialities() {
         .heritage-editorial__card-copy span {
           display: block;
           color: #C99A32;
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.18em;
+          font-weight: 700;
+          letter-spacing: 0.16em;
           line-height: 1.2;
           text-transform: uppercase;
         }
@@ -56,22 +156,22 @@ export default function HeritageSpecialities() {
           max-width: 670px;
           margin: 0;
           color: #55000A;
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(40px, 5vw, 67px);
-          font-weight: 600;
-          letter-spacing: -0.03em;
-          line-height: 0.98;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(34px, 4.4vw, 54px);
+          font-weight: 700;
+          letter-spacing: -0.025em;
+          line-height: 1.04;
         }
-        .heritage-editorial__head h2 em { color: #C99A32; font-style: italic; font-weight: 500; }
+        .heritage-editorial__head h2 em { color: #C99A32; font-style: normal; font-weight: 700; }
         .heritage-editorial__view-all {
           flex-shrink: 0;
           margin-bottom: 7px;
           border-bottom: 1px solid rgba(85, 0, 10, 0.45);
           color: #55000A;
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.14em;
+          font-weight: 700;
+          letter-spacing: 0.10em;
           line-height: 1.65;
           text-decoration: none;
           text-transform: uppercase;
@@ -92,6 +192,9 @@ export default function HeritageSpecialities() {
           border-radius: 18px;
           background: #55000A;
           isolation: isolate;
+          text-decoration: none;
+          display: block;
+          cursor: pointer;
         }
         .heritage-editorial__feature { grid-column: span 8; grid-row: span 2; }
         .heritage-editorial__side-one,
@@ -118,24 +221,28 @@ export default function HeritageSpecialities() {
           left: clamp(18px, 2.5vw, 30px);
           z-index: 1;
         }
-        .heritage-editorial__card-copy span { color: #E1B457; font-size: 9px; letter-spacing: 0.15em; }
+        .heritage-editorial__card-copy span { color: #E1B457; font-size: 9.5px; letter-spacing: 0.14em; }
         .heritage-editorial__card-copy h3 {
           margin: 7px 0 0;
           color: #FFF8EC;
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(25px, 2.6vw, 40px);
-          font-weight: 600;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(20px, 2.2vw, 30px);
+          font-weight: 700;
           letter-spacing: -0.02em;
-          line-height: 0.98;
+          line-height: 1.1;
+          transition: color 0.2s ease;
         }
-        .heritage-editorial__feature .heritage-editorial__card-copy h3 { font-size: clamp(36px, 4vw, 58px); }
+        .heritage-editorial__card:hover .heritage-editorial__card-copy h3 {
+          color: #F0C74E;
+        }
+        .heritage-editorial__feature .heritage-editorial__card-copy h3 { font-size: clamp(28px, 3.2vw, 42px); }
         .heritage-editorial__card-copy p {
           max-width: 350px;
           margin: 10px 0 0;
-          color: rgba(255, 248, 236, 0.82);
-          font-family: Inter, sans-serif;
-          font-size: 12px;
-          line-height: 1.55;
+          color: rgba(255, 248, 236, 0.85);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 13px;
+          line-height: 1.5;
         }
 
         @media (max-width: 820px) {
@@ -176,12 +283,34 @@ export default function HeritageSpecialities() {
         </header>
 
         <div className="heritage-editorial__grid">
-          <HeritageCard className="heritage-editorial__feature" image="/mishtichaat/chaat-plate.jpg" eyebrow="The Malwa table" title="Crafted for the shared table" description="Bold, bright and generously layered — every handful carries the warmth of a family recipe." />
-          <HeritageCard className="heritage-editorial__side-one" image="/mishtichaat/dahi-puri.png" eyebrow="Handcrafted" title="Crisp by tradition" />
-          <HeritageCard className="heritage-editorial__side-two" image="/mishtichaat/jalebi.jpg" eyebrow="Old city rituals" title="Made with patience" />
-          <HeritageCard className="heritage-editorial__bottom" image="/mishtichaat/dahi-bhalla.jpg" eyebrow="Celebration" title="Generations of flavour" position="center 55%" />
-          <HeritageCard className="heritage-editorial__bottom" image="/mishtichaat/kachori.jpg" eyebrow="The everyday feast" title="Malwa, in every bite" />
-          <HeritageCard className="heritage-editorial__bottom" image="/mishtichaat/hero-food.jpg" eyebrow="From our kitchen" title="Time-honoured craft" position="center 70%" />
+          {blocks.slice(0, 6).map((block, index) => {
+            const layoutClass = SLOT_CLASSES[index] || 'heritage-editorial__bottom';
+            const targetUrl = block.slug === 'all' ? '/shop' : `/shop?category=${encodeURIComponent(block.slug)}`;
+
+            return (
+              <Link
+                key={`heritage-${block.slug}-${index}`}
+                to={targetUrl}
+                className={`heritage-editorial__card ${layoutClass}`}
+                aria-label={`Shop ${block.name}`}
+              >
+                <img
+                  src={block.image}
+                  alt={block.name}
+                  className="heritage-editorial__image"
+                  style={{ objectPosition: block.position || 'center' }}
+                  loading={index < 2 ? 'eager' : 'lazy'}
+                  decoding="async"
+                />
+                <div className="heritage-editorial__shade" />
+                <div className="heritage-editorial__card-copy">
+                  <span>{block.eyebrow}</span>
+                  <h3>{block.name}</h3>
+                  {block.description && <p>{block.description}</p>}
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </div>
     </section>

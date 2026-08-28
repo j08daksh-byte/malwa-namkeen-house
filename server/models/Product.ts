@@ -29,6 +29,8 @@ export interface IProduct extends Document {
   images: string[];
   variants: IProductVariant[];
   featured: boolean;
+  isBestSeller?: boolean;
+  bestSellerAt?: Date;
   active: boolean;
   rating: number;
   reviewCount: number;
@@ -169,6 +171,15 @@ const productSchema = new Schema<IProduct>(
       default: false,
       index: true,
     },
+    isBestSeller: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    bestSellerAt: {
+      type: Date,
+      default: null,
+    },
     active: {
       type: Boolean,
       default: true,
@@ -184,16 +195,22 @@ const productSchema = new Schema<IProduct>(
       type: Number,
       default: 0,
     },
-    badge: {
-      type: String,
-      trim: true,
-      default: '',
+      badge: {
+        type: String,
+        trim: true,
+        default: '',
+      },
     },
-  },
-  {
-    timestamps: true,
-  }
-);
+    {
+      timestamps: true,
+    }
+  );
 
-export const Product: Model<IProduct> =
-  mongoose.models.Product || mongoose.model<IProduct>('Product', productSchema);
+  // Compound Indexes for fast storefront & shop filtering
+  productSchema.index({ active: 1, category: 1, createdAt: -1 });
+  productSchema.index({ active: 1, isBestSeller: 1, bestSellerAt: -1 });
+  productSchema.index({ active: 1, featured: 1, createdAt: -1 });
+  productSchema.index({ 'variants.sku': 1 });
+
+  export const Product: Model<IProduct> =
+    mongoose.models.Product || mongoose.model<IProduct>('Product', productSchema);

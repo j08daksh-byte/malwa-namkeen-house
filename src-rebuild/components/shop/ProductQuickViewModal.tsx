@@ -134,10 +134,10 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
           background: #55000A;
           color: #D4AA45;
           border: 1px solid rgba(212, 170, 69, 0.5);
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 0.14em;
+          font-weight: 700;
+          letter-spacing: 0.10em;
           text-transform: uppercase;
           padding: 4px 12px;
           border-radius: 999px;
@@ -151,29 +151,29 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
         }
 
         .qv-eyebrow {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.18em;
+          font-weight: 700;
+          letter-spacing: 0.14em;
           text-transform: uppercase;
           color: #C99A32;
           margin-bottom: 6px;
         }
 
         .qv-title {
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(24px, 2.5vw, 34px);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(22px, 2.4vw, 30px);
           font-weight: 700;
           color: #34211D;
           margin: 0 0 4px;
           line-height: 1.15;
-          letter-spacing: -0.015em;
+          letter-spacing: -0.02em;
         }
 
         .qv-tagline {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 13px;
-          font-style: italic;
+          font-style: normal;
           color: #8C756B;
           margin: 0 0 16px;
         }
@@ -188,34 +188,35 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
         }
 
         .qv-price {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 32px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 26px;
           font-weight: 700;
           color: #55000A;
+          letter-spacing: -0.02em;
           line-height: 1;
         }
 
         .qv-orig-price {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 14px;
           color: #9E8C82;
           text-decoration: line-through;
         }
 
         .qv-section-title {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.12em;
+          font-weight: 700;
+          letter-spacing: 0.08em;
           text-transform: uppercase;
           color: #55000A;
           margin: 0 0 8px;
         }
 
         .qv-story {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 13px;
-          line-height: 1.65;
+          line-height: 1.6;
           color: #5E4940;
           margin: 0 0 18px;
         }

@@ -56,6 +56,7 @@ interface ProductItem {
   images: string[];
   variants: VariantForm[];
   featured: boolean;
+  isBestSeller?: boolean;
   active: boolean;
   badge?: string;
   rating?: number;
@@ -109,6 +110,7 @@ export default function AdminProducts() {
   const [formBadge, setFormBadge] = useState('');
   const [formIsVeg, setFormIsVeg] = useState(true);
   const [formFeatured, setFormFeatured] = useState(false);
+  const [formIsBestSeller, setFormIsBestSeller] = useState(false);
   const [formActive, setFormActive] = useState(true);
   const [formImages, setFormImages] = useState<string[]>([]);
   const [formVariants, setFormVariants] = useState<VariantForm[]>([DEFAULT_VARIANT]);
@@ -216,6 +218,7 @@ export default function AdminProducts() {
     setFormBadge('');
     setFormIsVeg(true);
     setFormFeatured(false);
+    setFormIsBestSeller(false);
     setFormActive(true);
     setFormImages([]);
     setFormVariants([
@@ -244,6 +247,7 @@ export default function AdminProducts() {
     setFormBadge(p.badge || '');
     setFormIsVeg(p.isVegetarian ?? true);
     setFormFeatured(Boolean(p.featured));
+    setFormIsBestSeller(Boolean(p.isBestSeller));
     setFormActive(Boolean(p.active));
     setFormImages(p.images || []);
     setFormVariants(
@@ -378,6 +382,23 @@ export default function AdminProducts() {
     }
   };
 
+  // Toggle Best Seller Status (Enforces max 4 automatically)
+  const handleToggleBestSeller = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/products/${id}/toggle-bestseller`, {
+        method: 'PATCH',
+        headers: getAuthHeader(),
+        credentials: 'include',
+      });
+      if (res.ok) {
+        // Refresh products list so any rotated-out products update their UI badge immediately
+        fetchProducts();
+      }
+    } catch {
+      // Ignore
+    }
+  };
+
   // Delete Product
   const handleDeleteProduct = async (id: string) => {
     try {
@@ -446,6 +467,7 @@ export default function AdminProducts() {
       badge: formBadge.trim(),
       isVegetarian: formIsVeg,
       featured: formFeatured,
+      isBestSeller: formIsBestSeller,
       active: formActive,
       images: formImages.filter(Boolean),
       variants: formVariants.map((v, i) => ({
@@ -705,11 +727,35 @@ export default function AdminProducts() {
                               )}
                             </div>
                             {p.hindiName && <div style={{ fontSize: '11.5px', color: '#9CA3AF', marginTop: '1px' }}>{p.hindiName}</div>}
-                            {p.badge && (
-                              <span style={{ display: 'inline-block', marginTop: '4px', background: '#FEF3C7', color: '#92400E', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
-                                {p.badge}
-                              </span>
-                            )}
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '4px' }}>
+                              {p.isBestSeller && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleBestSeller(p._id)}
+                                  style={{
+                                    border: 'none',
+                                    background: '#FEF3C7',
+                                    color: '#92400E',
+                                    padding: '2px 7px',
+                                    borderRadius: '4px',
+                                    fontSize: '10.5px',
+                                    fontWeight: 800,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                  }}
+                                  title="Top 4 Best Seller. Click to toggle."
+                                >
+                                  <span>★ Top 4 Best Seller</span>
+                                </button>
+                              )}
+                              {p.badge && p.badge !== 'Best Seller' && (
+                                <span style={{ background: '#F3F4F6', color: '#374151', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
+                                  {p.badge}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -1001,7 +1047,7 @@ export default function AdminProducts() {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', paddingTop: '4px' }}>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', paddingTop: '4px' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
@@ -1018,7 +1064,7 @@ export default function AdminProducts() {
                       onChange={e => setFormFeatured(e.target.checked)}
                       style={{ accentColor: '#3C0815' }}
                     />
-                    <span>Featured Product (Showcase on Homepage)</span>
+                    <span>Featured Product</span>
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
                     <input
@@ -1028,6 +1074,42 @@ export default function AdminProducts() {
                       style={{ accentColor: '#3C0815' }}
                     />
                     <span>Active (Available for purchase)</span>
+                  </label>
+                </div>
+
+                {/* Best Seller Special Option (Homepage 4 Best Sellers) */}
+                <div
+                  style={{
+                    marginTop: '8px',
+                    padding: '12px 16px',
+                    borderRadius: '10px',
+                    background: formIsBestSeller ? '#FEF3C7' : '#FAF8F4',
+                    border: formIsBestSeller ? '1.5px solid #F59E0B' : '1px solid #EAE3D2',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={formIsBestSeller}
+                      onChange={e => setFormIsBestSeller(e.target.checked)}
+                      style={{ accentColor: '#D97706', width: '18px', height: '18px', marginTop: '2px', cursor: 'pointer' }}
+                    />
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: 800, fontSize: '13.5px', color: formIsBestSeller ? '#92400E' : '#3C0815' }}>
+                          ★ Best Seller (Show in Homepage Best Sellers Section)
+                        </span>
+                        {formIsBestSeller && (
+                          <span style={{ fontSize: '10px', fontWeight: 800, background: '#D97706', color: '#FFF', padding: '1px 6px', borderRadius: '999px' }}>
+                            LIVE IN TOP 4
+                          </span>
+                        )}
+                      </div>
+                      <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#78350F', lineHeight: 1.4 }}>
+                        Only <strong>4 products</strong> are shown in the homepage Best Sellers section. When you add a new one, the oldest Best Seller is automatically replaced.
+                      </p>
+                    </div>
                   </label>
                 </div>
               </div>

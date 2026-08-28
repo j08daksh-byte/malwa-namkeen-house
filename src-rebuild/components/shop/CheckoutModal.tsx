@@ -270,9 +270,10 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         }
 
         .checkout-dialog__title {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 26px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 20px;
           font-weight: 700;
+          letter-spacing: -0.015em;
           margin: 0;
           color: #FFF8EC;
         }
@@ -300,10 +301,11 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         }
 
         .checkout-section-title {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 20px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 16px;
           font-weight: 700;
           color: #3C0815;
+          letter-spacing: -0.01em;
           margin: 0 0 12px;
         }
 
@@ -465,7 +467,7 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
             <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(201,154,50,0.15)', color: '#D4AA45', display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}>
               <LockKeyhole size={26} />
             </div>
-            <h3 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '28px', color: '#3C0815', margin: '0 0 8px' }}>
+            <h3 style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '22px', fontWeight: 700, letterSpacing: '-0.015em', color: '#3C0815', margin: '0 0 8px' }}>
               Customer Sign In Required
             </h3>
             <p style={{ color: '#75645C', fontSize: '14px', maxWidth: '380px', margin: '0 auto 24px', lineHeight: 1.6 }}>
@@ -488,10 +490,10 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
             <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#D1FAE5', color: '#065F46', display: 'grid', placeItems: 'center', margin: '0 auto 14px' }}>
               <CheckCircle2 size={36} />
             </div>
-            <h3 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '32px', color: '#3C0815', margin: '0 0 6px' }}>
+            <h3 style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '24px', fontWeight: 700, letterSpacing: '-0.02em', color: '#3C0815', margin: '0 0 6px' }}>
               Thank You for Your Order!
             </h3>
-            <p style={{ color: '#881337', fontWeight: 700, fontFamily: 'monospace', fontSize: '15px', margin: '0 0 16px' }}>
+            <p style={{ color: '#881337', fontWeight: 700, fontFamily: 'monospace', fontSize: '14px', margin: '0 0 16px' }}>
               ORDER #{createdOrder.orderNumber}
             </p>
             <p style={{ color: '#75645C', fontSize: '13.5px', maxWidth: '460px', margin: '0 auto 24px', lineHeight: 1.6 }}>

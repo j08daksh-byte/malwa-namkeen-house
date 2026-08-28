@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   ExternalLink,
   UserCheck,
+  Image as ImageIcon,
 } from 'lucide-react';
 import type { AdminUser } from '../../lib/adminApi.ts';
 import SEOHead from '../seo/SEOHead.tsx';
@@ -23,6 +24,7 @@ const BASE_NAV_ITEMS = [
   { to: '/admin/dashboard',   label: 'Dashboard',       icon: LayoutDashboard },
   { to: '/admin/products',    label: 'Products',        icon: Package },
   { to: '/admin/categories',  label: 'Categories',      icon: FolderTree },
+  { to: '/admin/banners',     label: 'Hero Banners',    icon: ImageIcon },
   { to: '/admin/orders',      label: 'Orders',          icon: ShoppingBag },
   { to: '/admin/customers',   label: 'Customers',       icon: Users },
   { to: '/admin/discounts',   label: 'Discounts',       icon: Tag },
@@ -46,9 +48,9 @@ export default function AdminLayout({ admin, children }: Props) {
   const navItems = useMemo(() => {
     if (isSuperAdmin) {
       return [
-        ...BASE_NAV_ITEMS.slice(0, 7),
+        ...BASE_NAV_ITEMS.slice(0, BASE_NAV_ITEMS.length - 1),
         { to: '/admin/staff', label: 'Staff & Roles', icon: UserCheck },
-        BASE_NAV_ITEMS[7],
+        BASE_NAV_ITEMS[BASE_NAV_ITEMS.length - 1],
       ];
     }
     return BASE_NAV_ITEMS;

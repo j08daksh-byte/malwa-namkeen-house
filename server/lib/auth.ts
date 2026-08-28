@@ -98,8 +98,10 @@ export function setAuthCookie(res: Response, token: string): void {
  * Clear auth cookie on response.
  */
 export function clearAuthCookie(res: Response): void {
+  const isProd = process.env.NODE_ENV === 'production';
   res.clearCookie(AUTH_COOKIE_NAME, {
     httpOnly: true,
+    secure: isProd,
     sameSite: 'lax',
     path: '/',
   });

@@ -535,10 +535,10 @@ export default function ProductDetail() {
         }
 
         .pdp-category-tag {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.16em;
+          font-weight: 700;
+          letter-spacing: 0.12em;
           text-transform: uppercase;
           color: #D4AA45;
           display: inline-block;
@@ -553,27 +553,27 @@ export default function ProductDetail() {
         }
 
         .pdp-title {
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(34px, 4.2vw, 48px);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(30px, 3.8vw, 44px);
           font-weight: 700;
           color: #3C0815;
-          line-height: 1.08;
+          line-height: 1.05;
           margin: 0 0 6px;
-          letter-spacing: -0.02em;
+          letter-spacing: -0.025em;
         }
 
         .pdp-hindi-title {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: clamp(20px, 2.2vw, 26px);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(16px, 1.8vw, 20px);
           font-weight: 500;
           color: #75645C;
           margin: 0 0 12px;
         }
 
         .pdp-tagline {
-          font-family: Inter, sans-serif;
-          font-size: 14.5px;
-          font-style: italic;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 14px;
+          font-style: normal;
           color: #55000A;
           margin: 0 0 16px;
         }
@@ -590,6 +590,7 @@ export default function ProductDetail() {
           display: inline-flex;
           align-items: center;
           gap: 6px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 11px;
           font-weight: 700;
           color: #065F46;
@@ -610,6 +611,7 @@ export default function ProductDetail() {
           display: inline-flex;
           align-items: center;
           gap: 5px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 11px;
           font-weight: 700;
           color: #991B1B;
@@ -623,8 +625,9 @@ export default function ProductDetail() {
           display: inline-flex;
           align-items: center;
           gap: 4px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 11.5px;
-          font-weight: 800;
+          font-weight: 700;
           color: #3C0815;
           background: #FFF9EF;
           border: 1px solid rgba(200, 154, 61, 0.4);
@@ -649,24 +652,26 @@ export default function ProductDetail() {
         }
 
         .pdp-price-current {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 38px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 32px;
           font-weight: 700;
           color: #3C0815;
+          letter-spacing: -0.02em;
           line-height: 1;
         }
 
         .pdp-price-original {
-          font-family: Inter, sans-serif;
-          font-size: 18px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 16px;
+          font-weight: 500;
           color: #8C786E;
           text-decoration: line-through;
         }
 
         .pdp-price-save {
-          font-family: Inter, sans-serif;
-          font-size: 12px;
-          font-weight: 800;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 11.5px;
+          font-weight: 700;
           color: #059669;
           background: #D1FAE5;
           padding: 3px 8px;
@@ -881,9 +886,10 @@ export default function ProductDetail() {
         }
 
         .pdp-detail-card h3 {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 24px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 18px;
           font-weight: 700;
+          letter-spacing: -0.015em;
           color: #3C0815;
           margin: 0 0 12px;
         }
@@ -942,9 +948,10 @@ export default function ProductDetail() {
         }
 
         .pdp-related-heading {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: clamp(28px, 3.5vw, 38px);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(24px, 3vw, 32px);
           font-weight: 700;
+          letter-spacing: -0.02em;
           color: #3C0815;
           margin: 0 0 24px;
           text-align: center;

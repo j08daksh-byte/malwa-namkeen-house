@@ -154,10 +154,13 @@ export function Empty({ message }: { message: string }) {
 
 // ── Spinner ───────────────────────────────────────────────────────────────────
 
-export function Spinner() {
+export function Spinner({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' } = {}) {
+  const dims = size === 'sm' ? '18px' : size === 'lg' ? '40px' : '32px';
+  const pad = size === 'sm' ? '0' : size === 'lg' ? '60px' : '30px';
+  const borderWidth = size === 'sm' ? '2px' : '3px';
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '60px' }}>
-      <div style={{ width: '32px', height: '32px', border: '3px solid #E5E7EB', borderTopColor: '#3C0815', borderRadius: '50%', animation: 'adm-spin 0.7s linear infinite' }} />
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: pad }}>
+      <div style={{ width: dims, height: dims, border: `${borderWidth} solid rgba(229, 231, 235, 0.4)`, borderTopColor: 'currentColor', borderRadius: '50%', animation: 'adm-spin 0.7s linear infinite' }} />
       <style>{`@keyframes adm-spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );

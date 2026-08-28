@@ -291,14 +291,14 @@ export default function MenuSection() {
           color: #D4AA45; margin-bottom: 12px;
         }
         #menu .mn-intro-h2 {
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(34px, 4.2vw, 56px);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(30px, 3.8vw, 48px);
           font-weight: 700; line-height: 1.08;
           color: #FFF8EC; margin: 0 0 10px;
-          letter-spacing: -0.015em;
+          letter-spacing: -0.02em;
         }
         #menu .mn-intro-sub {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: clamp(13px, 1vw, 16px);
           color: rgba(255,248,236,0.62); line-height: 1.65;
           margin: 0 auto; max-width: 520px;
@@ -487,17 +487,17 @@ export default function MenuSection() {
         }
         .mn-chapter-left { flex: 1; min-width: 0; }
         .mn-chapter-eyebrow {
-          font-family: Inter, sans-serif;
-          font-size: 10px; font-weight: 800;
-          letter-spacing: 0.24em; text-transform: uppercase;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 10px; font-weight: 700;
+          letter-spacing: 0.20em; text-transform: uppercase;
           color: #C99A32; margin: 0 0 3px;
         }
         .mn-chapter-title {
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(20px, 2vw, 26px);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(18px, 1.8vw, 22px);
           font-weight: 700; line-height: 1.15;
           color: #34211D; margin: 0;
-          letter-spacing: -0.01em;
+          letter-spacing: -0.015em;
         }
         .mn-chapter-right {
           display: flex; flex-direction: column;
@@ -506,7 +506,7 @@ export default function MenuSection() {
         }
         .mn-chapter-timing {
           display: inline-flex; align-items: center; gap: 5px;
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 11px; font-weight: 600;
           color: #9A8078;
           background: rgba(201,154,50,0.09);
@@ -515,7 +515,7 @@ export default function MenuSection() {
           white-space: nowrap;
         }
         .mn-chapter-count {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 10.5px; color: #B09989;
           letter-spacing: 0.03em;
         }
@@ -539,22 +539,20 @@ export default function MenuSection() {
           border-bottom: 1px solid rgba(201,154,50,0.16);
         }
         .mn-dish--last { border-bottom: none; }
-        /* In 2-col grid, the last of left col may not be truly last,
-           so keep consistent border and just fade the final pair via chapter margin */
 
         .mn-dish-top {
           display: flex; align-items: baseline;
           gap: 8px; margin-bottom: 3px; flex-wrap: wrap;
         }
         .mn-dish-name {
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(15px, 1.4vw, 18px);
-          font-weight: 600; color: #2A1A16;
-          margin: 0; line-height: 1.2;
-          letter-spacing: -0.005em;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(14px, 1.3vw, 16.5px);
+          font-weight: 700; color: #2A1A16;
+          margin: 0; line-height: 1.25;
+          letter-spacing: -0.01em;
         }
         .mn-dish-serving {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 10.5px; font-weight: 600;
           color: #B09989;
           background: rgba(201,154,50,0.09);
@@ -563,7 +561,7 @@ export default function MenuSection() {
           letter-spacing: 0.02em;
         }
         .mn-dish-desc {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: clamp(12px, 0.95vw, 13.5px);
           line-height: 1.60; color: #6B5248; margin: 0;
         }
@@ -584,13 +582,14 @@ export default function MenuSection() {
           margin-bottom: 16px; opacity: 0.6;
         }
         .mn-empty-heading {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: clamp(22px, 2.2vw, 28px);
-          font-weight: 600; color: #55000A;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(20px, 2vw, 24px);
+          font-weight: 700; color: #55000A;
+          letter-spacing: -0.015em;
           margin: 0 0 6px;
         }
         .mn-empty-sub {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 13.5px; color: #9A8078; margin: 0 0 14px;
         }
         .mn-empty-btn {
@@ -598,6 +597,7 @@ export default function MenuSection() {
           height: 40px; padding: 0 22px;
           border: 1.5px solid #C99A32; border-radius: 999px;
           background: transparent; color: #55000A;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-family: Inter, sans-serif;
           font-size: 11.5px; font-weight: 700;
           letter-spacing: 0.08em; text-transform: uppercase;

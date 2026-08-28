@@ -230,19 +230,19 @@ export default function Contact() {
         #contact .ct-header { margin-bottom: 48px; }
         #contact .ct-eyebrow {
           display: block;
-          font-family: Inter, sans-serif;
-          font-size: 14px; font-weight: 800;
-          letter-spacing: 0.26em; text-transform: uppercase;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 11px; font-weight: 700;
+          letter-spacing: 0.20em; text-transform: uppercase;
           color: #C99A32; margin-bottom: 16px;
         }
         #contact .ct-h2 {
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(44px, 5vw, 68px);
-          line-height: 0.98; font-weight: 600;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(34px, 4.4vw, 54px);
+          line-height: 1.04; font-weight: 700;
           color: #55000A; margin: 0 0 16px;
-          letter-spacing: -0.01em;
+          letter-spacing: -0.025em;
         }
-        #contact .ct-h2 em { font-style: normal; font-weight: 600; color: #55000A; }
+        #contact .ct-h2 em { font-style: normal; font-weight: 700; color: #55000A; }
         #contact .ct-hdivider {
           display: flex; align-items: center;
           gap: 10px; margin-bottom: 14px;
@@ -252,9 +252,9 @@ export default function Contact() {
           background: rgba(200,154,61,0.50);
         }
         #contact .ct-sub {
-          font-family: Inter, sans-serif;
-          font-size: clamp(13px, 1.2vw, 15px);
-          line-height: 1.68; color: #75645C; margin: 0;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(14px, 1.1vw, 16px);
+          line-height: 1.55; color: #75645C; margin: 0;
           max-width: 520px;
         }
 
@@ -267,17 +267,18 @@ export default function Contact() {
           flex-direction: column; gap: 28px;
         }
         #contact .ct-panel-title {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: clamp(22px, 2.2vw, 28px);
-          font-weight: 600; line-height: 1.15;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(20px, 2.2vw, 26px);
+          font-weight: 700; line-height: 1.15;
+          letter-spacing: -0.02em;
           color: #FFF8EC; margin: 0;
         }
-        #contact .ct-panel-title em { font-style: italic; color: #D4AA45; }
+        #contact .ct-panel-title em { font-style: normal; color: #D4AA45; }
         #contact .ct-panel-footer {
           margin-top: auto; padding-top: 24px;
           border-top: 1px solid rgba(200,154,61,0.22);
-          font-family: Inter, sans-serif;
-          font-size: 14px; font-style: normal;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 13.5px; font-style: normal;
           color: rgba(240,199,78,0.85);
         }
 
@@ -294,9 +295,9 @@ export default function Contact() {
         #contact .ct-row  { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
         #contact .ct-label {
           display: block;
-          font-family: Inter, sans-serif;
-          font-size: 12px; font-weight: 700;
-          letter-spacing: 0.08em; text-transform: uppercase;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 11.5px; font-weight: 700;
+          letter-spacing: 0.06em; text-transform: uppercase;
           color: #55000A; margin-bottom: 6px;
         }
         #contact .ct-input,
@@ -307,8 +308,8 @@ export default function Contact() {
           border: 1px solid rgba(200,154,61,0.35);
           border-radius: 12px;
           padding: 13px 15px;
-          font-family: Inter, sans-serif;
-          font-size: 15px; color: #3D2A25;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 14.5px; color: #3D2A25;
           outline: none;
           transition: border-color 0.20s, box-shadow 0.20s;
           min-height: 50px;
@@ -534,14 +535,14 @@ export default function Contact() {
                   <circle cx="22" cy="22" r="20" stroke="#C99A32" strokeWidth="1.4" fill="none"/>
                   <path d="M13 22l6 6 12-12" stroke="#55000A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                <p style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: '22px', fontWeight: 600, color: '#55000A', margin: '0 0 8px' }}>
+                <p style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '20px', fontWeight: 700, letterSpacing: '-0.015em', color: '#55000A', margin: '0 0 8px' }}>
                   Enquiry received!
                 </p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#75645C', margin: '0 0 4px', lineHeight: 1.6 }}>
+                <p style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '14px', color: '#75645C', margin: '0 0 4px', lineHeight: 1.6 }}>
                   Your enquiry has been received. Our team will contact you shortly.
                 </p>
                 {success.referenceId && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', color: '#A08D82', margin: '8px 0 0' }}>
+                  <p style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '12px', color: '#A08D82', margin: '8px 0 0' }}>
                     Reference: <strong style={{ color: '#55000A' }}>{formatReferenceId(success.referenceId)}</strong>
                   </p>
                 )}

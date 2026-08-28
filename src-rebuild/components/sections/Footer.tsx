@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BUSINESS } from '../../lib/business';
+import { useStoreSettings } from '../../lib/storeSettingsContext';
 import { NAV_LINKS } from '../../data/nav-links';
 
 const LEGAL_LINKS = [
@@ -13,10 +13,12 @@ const LEGAL_LINKS = [
 
 function SocialBtn({ label, path, href }: { label: string; path: string; href?: string }) {
   const [hov, setHov] = useState(false);
-  const isPlaceholder = !href || href === '#';
+  const isPlaceholder = !href || href === '#' || href === '';
   return (
     <a
-      href={href ?? '#'}
+      href={isPlaceholder ? '#' : href}
+      target={isPlaceholder ? undefined : '_blank'}
+      rel={isPlaceholder ? undefined : 'noopener noreferrer'}
       aria-label={isPlaceholder ? `${label} (coming soon)` : label}
       aria-disabled={isPlaceholder}
       onMouseEnter={() => setHov(true)}
@@ -45,6 +47,7 @@ function SocialBtn({ label, path, href }: { label: string; path: string; href?: 
 export default function Footer() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { settings } = useStoreSettings();
 
   const handleNavigation = (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     event.preventDefault();
@@ -71,6 +74,8 @@ export default function Footer() {
       navigate(href);
     }
   };
+
+  const addr = settings.contact.address;
 
   return (
     <footer id="footer-section">
@@ -99,16 +104,16 @@ export default function Footer() {
         }
         #footer-section .ft-grid {
           display: grid;
-          grid-template-columns: 1.5fr 0.7fr 0.7fr 1.1fr;
+          grid-template-columns: 1.4fr 0.7fr 0.7fr 1.2fr;
           gap: clamp(28px, 3.5vw, 56px);
           padding-bottom: clamp(40px, 5vw, 60px);
           border-bottom: 1px solid rgba(200,154,61,0.14);
         }
         #footer-section .ft-col-head {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.22em;
+          font-weight: 700;
+          letter-spacing: 0.16em;
           text-transform: uppercase;
           color: #C99A32;
           margin-bottom: 22px;
@@ -125,10 +130,10 @@ export default function Footer() {
 
         /* ── Brand column ──────────────────────────────────── */
         #footer-section .ft-brand-desc {
-          font-family: Inter, sans-serif;
-          font-size: 14.5px;
-          font-weight: 500;
-          line-height: 1.78;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 14px;
+          font-weight: 400;
+          line-height: 1.7;
           max-width: 290px;
           margin-bottom: 22px;
           color: rgba(255,249,239,0.78);
@@ -137,9 +142,9 @@ export default function Footer() {
           display: flex;
           align-items: center;
           gap: 9px;
-          font-family: Inter, sans-serif;
-          font-size: 14px;
-          font-weight: 500;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 13.5px;
+          font-weight: 400;
           line-height: 1.6;
           color: rgba(255,249,239,0.82);
           margin-bottom: 10px;
@@ -165,8 +170,8 @@ export default function Footer() {
           padding: 0; margin: 0;
         }
         #footer-section .ft-nav-links a {
-          font-family: Inter, sans-serif;
-          font-size: 14.5px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 14px;
           font-weight: 500;
           color: rgba(255,249,239,0.82);
           text-decoration: none;
@@ -184,7 +189,7 @@ export default function Footer() {
           padding: 0; margin: 0;
         }
         #footer-section .ft-legal-links a {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 14px;
           font-weight: 500;
           color: rgba(255,249,239,0.80);
@@ -194,52 +199,29 @@ export default function Footer() {
         }
         #footer-section .ft-legal-links a:hover { color: #D4AA45; }
 
-        /* ── Hours & Address column ────────────────────────── */
-        #footer-section .ft-hours {
-          display: flex;
-          flex-direction: column;
-          gap: 0;
-          margin-bottom: 18px;
-        }
-        #footer-section .ft-hours-row {
-          display: flex;
-          justify-content: space-between;
-          gap: 12px;
-          padding: 9px 0;
-          border-bottom: 1px solid rgba(200,154,61,0.09);
-        }
-        #footer-section .ft-hours-row:last-child { border-bottom: none; }
-        #footer-section .ft-hours-day {
-          font-family: Inter, sans-serif;
-          font-size: 13px;
-          font-weight: 500;
-          color: rgba(255,249,239,0.75);
-        }
-        #footer-section .ft-hours-time {
-          font-family: Inter, sans-serif;
-          font-size: 13px;
-          font-weight: 600;
-          color: rgba(255,249,239,0.85);
-          white-space: nowrap;
-        }
+        /* ── Address & Registration column ─────────────────── */
         #footer-section .ft-address {
           font-style: normal;
-          font-family: Inter, sans-serif;
-          font-size: 13px;
-          line-height: 1.80;
-          font-weight: 500;
-          color: rgba(255,249,239,0.72);
-          padding-top: 14px;
-          border-top: 1px solid rgba(200,154,61,0.11);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 13.5px;
+          line-height: 1.8;
+          font-weight: 400;
+          color: rgba(255,249,239,0.80);
+          margin-bottom: 16px;
         }
         #footer-section .ft-reg {
-          margin-top: 12px;
-          font-family: Inter, sans-serif;
-          font-size: 11.5px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 12px;
           font-weight: 500;
           line-height: 2.0;
-          color: rgba(255,249,239,0.50);
-          letter-spacing: 0.01em;
+          color: rgba(255,249,239,0.60);
+          letter-spacing: 0.02em;
+          border-top: 1px solid rgba(200,154,61,0.14);
+          padding-top: 12px;
+        }
+        #footer-section .ft-reg span {
+          color: #D4AA45;
+          font-weight: 700;
         }
 
         /* ── Bottom bar ────────────────────────────────────── */
@@ -280,7 +262,7 @@ export default function Footer() {
           #footer-section .ft-col-brand {
             grid-column: 1 / -1;
           }
-          #footer-section .ft-col-hours {
+          #footer-section .ft-col-address {
             grid-column: 1 / -1;
           }
           #footer-section .ft-brand-desc { max-width: 100%; }
@@ -298,9 +280,6 @@ export default function Footer() {
             grid-template-columns: 1fr;
             gap: 26px;
           }
-          #footer-section .ft-col-hours {
-            grid-column: auto;
-          }
           #footer-section .ft-col-head {
             margin-bottom: 14px;
           }
@@ -314,30 +293,39 @@ export default function Footer() {
           <div className="ft-col-brand">
             <div style={{ marginBottom: '16px' }}>
               <img
-                src="/logo-gold.png"
-                alt="MALWA NAMKEEN HOUSE"
+                src={settings.logo || '/logo-gold.png'}
+                alt={settings.storeName}
                 style={{ height: '44px', width: 'auto', opacity: 0.92 }}
                 onError={e => { e.currentTarget.style.display = 'none'; }}
               />
             </div>
             <p className="ft-brand-desc">
-              Malwa heritage in every bite — artisanal Ratlami Sev, handcrafted mathris, and traditional namkeens crafted with 100% pure cold-pressed groundnut oil.
+              {settings.description || 'Malwa heritage in every bite — artisanal Ratlami Sev, handcrafted mathris, and traditional namkeens crafted with 100% pure cold-pressed groundnut oil.'}
             </p>
             <div className="ft-contact-row">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
                 <rect x="1" y="2.5" width="12" height="9" rx="1.5" stroke="rgba(200,154,61,0.55)" strokeWidth="1.1"/>
                 <path d="M1 5l6 3.5L13 5" stroke="rgba(200,154,61,0.55)" strokeWidth="1.1" strokeLinecap="round"/>
               </svg>
-              <a href={`mailto:${BUSINESS.email}`}>{BUSINESS.email}</a>
+              <a href={`mailto:${settings.contact.email}`}>{settings.contact.email}</a>
             </div>
             <div className="ft-contact-row">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
                 <path d="M2 2h2.5l1 2.5-1.5 1.5c.75 1.75 2 3 3.75 3.75l1.5-1.5L11.5 9.5V12C8 12.5 1.5 8.5 2 2z" stroke="rgba(200,154,61,0.55)" strokeWidth="1.1" strokeLinejoin="round"/>
               </svg>
-              <a href={`tel:${BUSINESS.whatsappNumber}`}>{BUSINESS.phone}</a>
+              <a href={`tel:${settings.contact.whatsappNumber || settings.contact.phone}`}>{settings.contact.phone}</a>
             </div>
             <div className="ft-socials">
-              <SocialBtn label="Instagram" path="M11 1H5a4 4 0 00-4 4v6a4 4 0 004 4h6a4 4 0 004-4V5a4 4 0 00-4-4zM8 11a3 3 0 110-6 3 3 0 010 6zm3.5-6.5a.75.75 0 110-1.5.75.75 0 010 1.5z" />
+              <SocialBtn
+                label="Instagram"
+                href={settings.socialLinks?.instagram}
+                path="M11 1H5a4 4 0 00-4 4v6a4 4 0 004 4h6a4 4 0 004-4V5a4 4 0 00-4-4zM8 11a3 3 0 110-6 3 3 0 010 6zm3.5-6.5a.75.75 0 110-1.5.75.75 0 010 1.5z"
+              />
+              <SocialBtn
+                label="Facebook"
+                href={settings.socialLinks?.facebook}
+                path="M13 1H3a2 2 0 00-2 2v10a2 2 0 002 2h5v-5H6.5V7.5H8V6c0-1.66 1.34-3 3-3h2v2.5h-1.5c-.28 0-.5.22-.5.5v1.5H13l-.5 2.5H11V15h2a2 2 0 002-2V3a2 2 0 00-2-2z"
+              />
             </div>
           </div>
 
@@ -379,26 +367,18 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* ── Column 4: Hours + Address ── */}
-          <div className="ft-col-hours">
-            <p className="ft-col-head">Opening Hours</p>
-            <div className="ft-hours">
-              {BUSINESS.hours.map(h => (
-                <div key={h.days} className="ft-hours-row">
-                  <span className="ft-hours-day">{h.days}</span>
-                  <span className="ft-hours-time">{h.open} – {h.close}</span>
-                </div>
-              ))}
-            </div>
+          {/* ── Column 4: Store & Dispatch Address (Opening hours removed) ── */}
+          <div className="ft-col-address">
+            <p className="ft-col-head">Store &amp; Dispatch</p>
             <address className="ft-address">
-              {BUSINESS.address.line1}<br />
-              {BUSINESS.address.line2}<br />
-              {BUSINESS.address.city} – {BUSINESS.address.postalCode}<br />
-              {BUSINESS.address.state}, {BUSINESS.address.country}
+              {addr.line1 && <div>{addr.line1}</div>}
+              {addr.line2 && <div>{addr.line2}</div>}
+              <div>{addr.city}{addr.postalCode ? ` – ${addr.postalCode}` : ''}</div>
+              <div>{addr.state}{addr.country ? `, ${addr.country}` : ''}</div>
             </address>
             <div className="ft-reg">
-              <div>GST: {BUSINESS.gstNumber}</div>
-              <div>FSSAI: {BUSINESS.fssaiNumber}</div>
+              {settings.gstNumber && <div>GSTIN: <span>{settings.gstNumber}</span></div>}
+              {settings.fssaiNumber && <div>FSSAI Lic: <span>{settings.fssaiNumber}</span></div>}
             </div>
           </div>
 
@@ -407,9 +387,9 @@ export default function Footer() {
         {/* ── Bottom bar ── */}
         <div className="ft-bottom">
           <p className="ft-bottom-copy">
-            © {new Date().getFullYear()} MALWA NAMKEEN HOUSE. All rights reserved.
+            © {new Date().getFullYear()} {settings.storeName || 'MALWA NAMKEEN HOUSE'}. All rights reserved.
           </p>
-          <p className="ft-bottom-tagline">THE NAMKEEN &amp; SNACKS HUB</p>
+          <p className="ft-bottom-tagline">{settings.tagline || 'THE NAMKEEN & SNACKS HUB'}</p>
         </div>
 
       </div>

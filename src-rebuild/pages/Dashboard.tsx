@@ -401,7 +401,9 @@ export default function Dashboard() {
           .customer-sidebar__brand {
             padding: 4px 10px 18px;
             color: #55000A;
-            font: 700 20px 'Cormorant Garamond', Georgia, serif;
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
+            font-size: 18px;
+            font-weight: 700;
             border-bottom: 1px solid rgba(200, 154, 61, 0.22);
           }
 
@@ -409,7 +411,9 @@ export default function Dashboard() {
             display: block;
             margin-top: 3px;
             color: #C99A32;
-            font: 800 9.5px Inter, sans-serif;
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
+            font-size: 9.5px;
+            font-weight: 700;
             letter-spacing: 0.15em;
             text-transform: uppercase;
           }
@@ -430,7 +434,9 @@ export default function Dashboard() {
             border-radius: 8px;
             background: transparent;
             color: #75645C;
-            font: 600 13px Inter, sans-serif;
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
+            font-size: 13px;
+            font-weight: 600;
             text-align: left;
             cursor: pointer;
             transition: all 0.18s;
@@ -457,8 +463,10 @@ export default function Dashboard() {
             border-top: 1px solid rgba(200, 154, 61, 0.22);
             background: transparent;
             color: #8C786E;
-            font: 700 11px Inter, sans-serif;
-            letter-spacing: 0.09em;
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
             text-transform: uppercase;
             cursor: pointer;
             transition: color 0.18s;
@@ -474,7 +482,9 @@ export default function Dashboard() {
 
           .customer-eyebrow {
             color: #C99A32;
-            font: 800 10.5px Inter, sans-serif;
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
+            font-size: 10.5px;
+            font-weight: 700;
             letter-spacing: 0.18em;
             text-transform: uppercase;
             margin-bottom: 6px;
@@ -483,13 +493,17 @@ export default function Dashboard() {
           .customer-title {
             margin: 0 0 10px;
             color: #55000A;
-            font: 600 clamp(36px, 4.5vw, 54px)/1 'Cormorant Garamond', Georgia, serif;
-            letter-spacing: -0.03em;
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
+            font-size: clamp(30px, 3.8vw, 44px);
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            line-height: 1.05;
           }
 
           .customer-lede {
             max-width: 620px;
             color: #75645C;
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
             font-size: 14px;
             line-height: 1.6;
             margin: 0 0 28px;
@@ -499,24 +513,22 @@ export default function Dashboard() {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 16px;
-            margin-top: 24px;
+            margin-bottom: 32px;
           }
 
           .overview-card {
             display: flex;
             align-items: center;
             gap: 16px;
-            padding: 22px;
+            padding: 20px 22px;
             border: 1px solid rgba(200, 154, 61, 0.28);
-            background: #FDFAF4;
             border-radius: 14px;
-            text-align: left;
+            background: #FDFAF4;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+            transition: all 0.18s;
           }
 
           .overview-card:hover {
-            transform: translateY(-2px);
             border-color: #C99A32;
             box-shadow: 0 10px 24px rgba(85, 0, 10, 0.06);
           }
@@ -535,12 +547,16 @@ export default function Dashboard() {
           .overview-card h3 {
             margin: 0;
             color: #55000A;
-            font: 700 20px 'Cormorant Garamond', Georgia, serif;
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
+            font-size: 16.5px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
           }
 
           .overview-card p {
             margin: 4px 0 0;
             color: #75645C;
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
             font-size: 12.5px;
             line-height: 1.4;
           }
@@ -572,8 +588,10 @@ export default function Dashboard() {
             margin-bottom: 12px;
             background: rgba(201, 154, 50, 0.15);
             color: #881337;
-            font: 800 9px Inter, sans-serif;
-            letter-spacing: 0.12em;
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.10em;
             text-transform: uppercase;
             padding: 3px 8px;
             border-radius: 999px;
@@ -582,12 +600,15 @@ export default function Dashboard() {
           .address-card h3 {
             margin: 0;
             color: #55000A;
-            font: 700 20px 'Cormorant Garamond', Georgia, serif;
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
+            font-size: 16.5px;
+            font-weight: 700;
           }
 
           .address-card p {
             margin: 8px 0 0;
             color: #75645C;
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
             font-size: 13px;
             line-height: 1.55;
           }
@@ -706,7 +727,10 @@ export default function Dashboard() {
           .dialog-heading h2 {
             margin: 0;
             color: #55000A;
-            font: 700 28px 'Cormorant Garamond', Georgia, serif;
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.015em;
           }
 
           .dialog-close {
@@ -1029,7 +1053,7 @@ export default function Dashboard() {
 
                 <div style={{ marginTop: '40px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px' }}>
-                    <h2 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '26px', color: '#55000A', margin: 0 }}>
+                    <h2 style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '20px', fontWeight: 700, letterSpacing: '-0.015em', color: '#55000A', margin: 0 }}>
                       Recent Orders
                     </h2>
                     {orders.length > 0 && (
@@ -1042,7 +1066,7 @@ export default function Dashboard() {
                   {orders.length === 0 ? (
                     <div style={{ background: '#FDFAF4', border: '1px solid rgba(200,154,61,0.28)', borderRadius: '14px', padding: '36px', textAlign: 'center' }}>
                       <Package size={32} style={{ color: '#C99A32', marginBottom: '12px' }} />
-                      <h3 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#55000A', fontSize: '22px', margin: '0 0 6px' }}>
+                      <h3 style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", color: '#55000A', fontSize: '18px', fontWeight: 700, margin: '0 0 6px' }}>
                         No orders yet
                       </h3>
                       <p style={{ color: '#75645C', fontSize: '13px', margin: '0 0 18px' }}>
@@ -1064,7 +1088,7 @@ export default function Dashboard() {
                             <span className={`order-status-badge status-${order.orderStatus}`}>
                               {order.orderStatus}
                             </span>
-                            <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '18px', fontWeight: 700, color: '#55000A' }}>
+                            <span style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '15px', fontWeight: 700, color: '#55000A' }}>
                               ₹{order.total}
                             </span>
                             <ChevronRight size={16} style={{ color: '#C99A32' }} />
@@ -1089,7 +1113,7 @@ export default function Dashboard() {
                 {orders.length === 0 ? (
                   <div style={{ background: '#FDFAF4', border: '1px solid rgba(200,154,61,0.28)', borderRadius: '14px', padding: '48px 24px', textAlign: 'center' }}>
                     <Package size={36} style={{ color: '#C99A32', marginBottom: '14px' }} />
-                    <h3 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#55000A', fontSize: '24px', margin: '0 0 6px' }}>
+                    <h3 style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", color: '#55000A', fontSize: '20px', fontWeight: 700, margin: '0 0 6px' }}>
                       No order history found
                     </h3>
                     <p style={{ color: '#75645C', fontSize: '13px', margin: '0 0 20px' }}>
@@ -1116,7 +1140,7 @@ export default function Dashboard() {
                           <span className={`order-status-badge status-${order.orderStatus}`}>
                             {order.orderStatus}
                           </span>
-                          <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '20px', fontWeight: 700, color: '#55000A' }}>
+                          <span style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '16px', fontWeight: 700, color: '#55000A' }}>
                             ₹{order.total}
                           </span>
                           <ChevronRight size={16} style={{ color: '#C99A32' }} />
@@ -1153,7 +1177,7 @@ export default function Dashboard() {
                 {addresses.length === 0 ? (
                   <div style={{ background: '#FDFAF4', border: '1px solid rgba(200,154,61,0.28)', borderRadius: '14px', padding: '48px 24px', textAlign: 'center' }}>
                     <MapPin size={36} style={{ color: '#C99A32', marginBottom: '14px' }} />
-                    <h3 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', color: '#55000A', fontSize: '24px', margin: '0 0 6px' }}>
+                    <h3 style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", color: '#55000A', fontSize: '20px', fontWeight: 700, margin: '0 0 6px' }}>
                       No saved addresses
                     </h3>
                     <p style={{ color: '#75645C', fontSize: '13px', margin: '0 0 20px' }}>
@@ -1166,7 +1190,7 @@ export default function Dashboard() {
                         setAddressError(null);
                       }}
                     >
-                      <Plus size={15} /> Add First Address
+                      <Plus size={15} /> Add Address
                     </button>
                   </div>
                 ) : (
@@ -1233,7 +1257,7 @@ export default function Dashboard() {
                 </p>
 
                 <div style={{ background: '#FDFAF4', border: '1px solid rgba(200,154,61,0.28)', borderRadius: '16px', padding: '28px', marginBottom: '28px' }}>
-                  <h3 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '24px', color: '#55000A', margin: '0 0 16px' }}>
+                  <h3 style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '18px', fontWeight: 700, color: '#55000A', margin: '0 0 16px' }}>
                     Contact Information
                   </h3>
                   <form className="profile-form" onSubmit={handleUpdateProfile}>
@@ -1258,7 +1282,7 @@ export default function Dashboard() {
                 </div>
 
                 <div style={{ background: '#FDFAF4', border: '1px solid rgba(200,154,61,0.28)', borderRadius: '16px', padding: '28px' }}>
-                  <h3 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: '24px', color: '#55000A', margin: '0 0 6px' }}>
+                  <h3 style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '18px', fontWeight: 700, color: '#55000A', margin: '0 0 6px' }}>
                     Change Password
                   </h3>
                   <p style={{ color: '#75645C', fontSize: '13px', margin: '0 0 20px' }}>
@@ -1382,7 +1406,7 @@ export default function Dashboard() {
             <div className="address-dialog" role="dialog" aria-modal="true" aria-label="Order Details">
               <div className="dialog-heading">
                 <div>
-                  <h2 style={{ fontSize: '24px' }}>Order #{selectedOrder.orderNumber}</h2>
+                  <h2 style={{ fontSize: '20px' }}>Order #{selectedOrder.orderNumber}</h2>
                   <div style={{ fontSize: '12px', color: '#8C786E', marginTop: '2px' }}>
                     Placed on {new Date(selectedOrder.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </div>
@@ -1407,7 +1431,7 @@ export default function Dashboard() {
 
               {/* Items List */}
               <div style={{ borderTop: '1px solid rgba(200,154,61,0.25)', paddingTop: '16px', marginBottom: '18px' }}>
-                <h4 style={{ fontFamily: 'Inter, sans-serif', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#C99A32', margin: '0 0 12px' }}>
+                <h4 style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#C99A32', margin: '0 0 12px' }}>
                   Ordered Delicacies
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1417,7 +1441,7 @@ export default function Dashboard() {
                         <strong>{item.productName}</strong> ({item.variantLabel}) × {item.quantity}
                         <div style={{ fontSize: '11px', color: '#8C786E' }}>₹{item.price} each</div>
                       </div>
-                      <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontWeight: 700, fontSize: '16px', color: '#55000A' }}>
+                      <div style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontWeight: 700, fontSize: '15px', color: '#55000A' }}>
                         ₹{item.itemTotal}
                       </div>
                     </div>

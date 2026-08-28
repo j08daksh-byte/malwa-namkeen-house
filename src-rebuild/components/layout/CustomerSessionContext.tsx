@@ -5,6 +5,7 @@ export interface CustomerProfile {
   name: string;
   email: string;
   phone?: string;
+  avatar?: string;
   role?: string;
 }
 
@@ -16,6 +17,7 @@ interface CustomerSession {
   updateProfile: (profile: CustomerProfile) => void;
   login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
   register: (data: { name: string; email: string; phone?: string; password: string }) => Promise<{ success: boolean; message?: string }>;
+  loginWithGoogle: (credential: string) => Promise<{ success: boolean; message?: string }>;
 }
 
 const CustomerSessionContext = createContext<CustomerSession | null>(null);
@@ -137,6 +139,30 @@ export function CustomerSessionProvider({ children }: { children: ReactNode }) {
     }
   }, [signIn]);
 
+  const loginWithGoogle = useCallback(async (credential: string) => {
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential }),
+        credentials: 'include',
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, message: data.message || 'Google Sign-In failed.' };
+      }
+
+      signIn(data.user, data.token);
+      return { success: true, user: data.user };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        message: 'Network error during Google Sign-In. Please check your connection.',
+      };
+    }
+  }, [signIn]);
+
   return (
     <CustomerSessionContext.Provider
       value={{
@@ -147,6 +173,7 @@ export function CustomerSessionProvider({ children }: { children: ReactNode }) {
         updateProfile,
         login,
         register,
+        loginWithGoogle,
       }}
     >
       {children}

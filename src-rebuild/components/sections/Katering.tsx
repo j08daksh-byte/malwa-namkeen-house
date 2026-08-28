@@ -118,27 +118,27 @@ export default function Katering() {
         }
         #katering .k-eyebrow {
           display: block;
-          font-family: Inter, sans-serif;
-          font-size: 13px;
-          font-weight: 800;
-          letter-spacing: 0.26em;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.20em;
           text-transform: uppercase;
           color: #C99A32;
           margin-bottom: 16px;
         }
         #katering .k-h2 {
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(46px, 5vw, 68px);
-          line-height: 0.98;
-          font-weight: 650;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(34px, 4.4vw, 54px);
+          line-height: 1.04;
+          font-weight: 700;
           color: #3A211D;
-          letter-spacing: -0.02em;
-          margin: 0 0 20px;
+          letter-spacing: -0.025em;
+          margin: 0 0 18px;
         }
         #katering .k-h2 em {
           color: #55000A;
-          font-style: italic;
-          font-weight: 600;
+          font-style: normal;
+          font-weight: 700;
         }
         #katering .k-divider {
           display: flex;
@@ -153,10 +153,10 @@ export default function Katering() {
           background: rgba(200,154,61,0.50);
         }
         #katering .k-sub {
-          font-family: Inter, sans-serif;
-          font-size: 15px;
-          font-weight: 500;
-          line-height: 1.65;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(14px, 1.1vw, 16px);
+          font-weight: 400;
+          line-height: 1.55;
           color: #5E4940;
           max-width: 680px;
           margin: 0 auto;
@@ -238,14 +238,12 @@ export default function Katering() {
           border-radius: 18px;
         }
         #katering .ki-q {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 20px;
-          font-weight: 700;
-          line-height: 1.22;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 16px;
+          font-weight: 600;
+          line-height: 1.35;
           color: #55000A;
           letter-spacing: -0.01em;
-          transition: color 200ms ease;
-        }
           transition: color 200ms ease;
         }
         #katering .ki-item--open .ki-q {
@@ -286,10 +284,10 @@ export default function Katering() {
           padding: 15px 0 22px;
         }
         #katering .ki-a {
-          font-family: Inter, Arial, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 14px;
-          font-weight: 500;
-          line-height: 1.74;
+          font-weight: 400;
+          line-height: 1.65;
           color: #5E4940;
           margin: 0;
         }
@@ -309,15 +307,16 @@ export default function Katering() {
           gap: 24px;
         }
         #katering .k-cta-text h3 {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 28px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 22px;
           font-weight: 700;
+          letter-spacing: -0.015em;
           color: #5A1022;
           margin: 0 0 6px;
-          line-height: 1.15;
+          line-height: 1.2;
         }
         #katering .k-cta-text p {
-          font-family: Inter, sans-serif;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 14px;
           line-height: 1.55;
           color: #5E4940;

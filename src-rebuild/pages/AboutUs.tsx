@@ -29,10 +29,10 @@ export default function AboutUs() {
         }}>
           <div style={{ maxWidth: '800px', margin: '0 auto' }}>
             <p style={{
-              fontFamily: 'Inter, sans-serif',
+              fontFamily: "var(--font-primary, 'DM Sans', sans-serif)",
               fontSize: '11px',
-              fontWeight: 800,
-              letterSpacing: '0.22em',
+              fontWeight: 700,
+              letterSpacing: '0.20em',
               textTransform: 'uppercase',
               color: 'var(--gold-pale, #F0DFA0)',
               marginBottom: '16px',
@@ -40,19 +40,19 @@ export default function AboutUs() {
               Est. 1954 · Malwa Heritage
             </p>
             <h1 style={{
-              fontFamily: "'Cormorant Garamond', 'Playfair Display', Georgia, serif",
-              fontSize: 'clamp(44px, 6vw, 76px)',
-              fontWeight: 600,
+              fontFamily: "var(--font-primary, 'DM Sans', sans-serif)",
+              fontSize: 'clamp(36px, 5.5vw, 64px)',
+              fontWeight: 700,
               lineHeight: 1.05,
               margin: '0 0 20px',
-              letterSpacing: '-0.03em',
+              letterSpacing: '-0.025em',
             }}>
               Our Heritage & Legacy
             </h1>
             <p style={{
-              fontFamily: 'Inter, sans-serif',
-              fontSize: 'clamp(15px, 2vw, 18px)',
-              lineHeight: 1.7,
+              fontFamily: "var(--font-primary, 'DM Sans', sans-serif)",
+              fontSize: 'clamp(15px, 1.5vw, 17px)',
+              lineHeight: 1.65,
               color: 'rgba(255, 248, 236, 0.85)',
               margin: '0 auto',
               maxWidth: '640px',

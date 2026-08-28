@@ -204,13 +204,13 @@ export default function BrandIntro() {
         }
 
         .intro-brand-name {
-          font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-          font-size: clamp(28px, 5.2vw, 46px);
-          font-weight: 700;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(24px, 4.5vw, 38px);
+          font-weight: 800;
           line-height: 1.12;
           color: #55000A;
           text-transform: uppercase;
-          letter-spacing: 0.16em;
+          letter-spacing: 0.12em;
           margin: 0 0 14px;
           animation: introTitleEntry 1.3s cubic-bezier(0.16, 1, 0.3, 1) 0.25s both;
           text-shadow: 0 2px 10px rgba(85, 0, 10, 0.07);
@@ -242,12 +242,12 @@ export default function BrandIntro() {
         }
 
         .intro-tagline {
-          font-family: 'Inter', system-ui, sans-serif;
-          font-size: clamp(11px, 2vw, 13.5px);
-          font-weight: 800;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(10.5px, 1.8vw, 12.5px);
+          font-weight: 700;
           color: #C99A32;
           text-transform: uppercase;
-          letter-spacing: 0.30em;
+          letter-spacing: 0.24em;
           margin: 0;
           animation: introTaglineEntry 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.65s both;
         }

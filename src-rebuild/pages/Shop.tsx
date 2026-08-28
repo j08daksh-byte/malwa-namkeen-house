@@ -4,6 +4,7 @@ import Navbar from '../components/layout/Navbar';
 import Footer from '../components/sections/Footer';
 import ReservationModal from '../components/sections/ReservationModal';
 import ShopHero from '../components/shop/ShopHero';
+import CategoryShortcutRow from '../components/shop/CategoryShortcutRow';
 import ShopFilters from '../components/shop/ShopFilters';
 import ProductCard from '../components/shop/ProductCard';
 import ProductQuickViewModal from '../components/shop/ProductQuickViewModal';
@@ -13,145 +14,37 @@ import ShopToast from '../components/shop/ShopToast';
 import SEOHead from '../components/seo/SEOHead';
 import { PRODUCTS as FALLBACK_PRODUCTS, SHOP_CATEGORIES as FALLBACK_CATEGORIES, type Product, type ShopCategory } from '../data/products';
 
-const PAGE_SIZE = 9; // Clean multiple for 3-col, 2-col, and 1-col grids
+const PAGE_SIZE = 9; // Clean 3x3 grid on desktop
 
 export default function Shop() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Dynamic pagination & catalog state — initialized with local catalog for instant zero-latency loading
-  const [products, setProducts] = useState<Product[]>(() => FALLBACK_PRODUCTS.slice(0, PAGE_SIZE));
-  const [categories, setCategories] = useState<ShopCategory[]>(FALLBACK_CATEGORIES);
-  const [initialLoading, setInitialLoading] = useState<boolean>(false);
-  const [loadingMore, setLoadingMore] = useState<boolean>(false);
-  const [hasMore, setHasMore] = useState<boolean>(true);
-  const [page, setPage] = useState<number>(1);
-  const [totalCount, setTotalCount] = useState<number>(FALLBACK_PRODUCTS.length);
-  const [apiError, setApiError] = useState<string | null>(null);
+  // SearchParams are Single Source of Truth to avoid state-sync re-render loops & race conditions
+  const selectedCategory = searchParams.get('category') || 'all';
+  const searchQuery = searchParams.get('q') || searchParams.get('search') || '';
+  const selectedSpice = searchParams.get('spice') || 'All';
+  const sortBy = searchParams.get('sort') || 'featured';
 
-  // Filter criteria states
-  const [selectedCategory, setSelectedCategory] = useState<string>(
-    () => searchParams.get('category') || 'all'
-  );
-  const [searchQuery, setSearchQuery] = useState<string>(
-    () => searchParams.get('q') || searchParams.get('search') || ''
-  );
-  const [selectedSpice, setSelectedSpice] = useState<string>(
-    () => searchParams.get('spice') || 'All'
-  );
-  const [sortBy, setSortBy] = useState<string>(
-    () => searchParams.get('sort') || 'featured'
-  );
-
-  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
-  const [reservationOpen, setReservationOpen] = useState<boolean>(false);
-
-  // References for tracking and aborting concurrent fetch requests
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  const isMountedRef = useRef<boolean>(true);
-
-  // Sync state changes to URL Search Params (replace: true prevents bloating history)
-  const syncToUrl = useCallback(
-    (cat: string, q: string, spice: string, sort: string) => {
-      const nextParams = new URLSearchParams();
-      if (cat && cat !== 'all') nextParams.set('category', cat);
-      if (q && q.trim()) nextParams.set('q', q.trim());
-      if (spice && spice !== 'All') nextParams.set('spice', spice);
-      if (sort && sort !== 'featured') nextParams.set('sort', sort);
-      setSearchParams(nextParams, { replace: true });
-    },
-    [setSearchParams]
-  );
-
-  // Handle URL change from browser navigation (Back / Forward)
-  useEffect(() => {
-    const cat = searchParams.get('category') || 'all';
-    const q = searchParams.get('q') || searchParams.get('search') || '';
-    const spice = searchParams.get('spice') || 'All';
-    const sort = searchParams.get('sort') || 'featured';
-
-    setSelectedCategory(prev => (prev !== cat ? cat : prev));
-    setSearchQuery(prev => (prev !== q ? q : prev));
-    setSelectedSpice(prev => (prev !== spice ? spice : prev));
-    setSortBy(prev => (prev !== sort ? sort : prev));
-  }, [searchParams]);
-
-  const handleCategoryChange = (cat: string) => {
-    setSelectedCategory(cat);
-    syncToUrl(cat, searchQuery, selectedSpice, sortBy);
-  };
-
-  const handleSearchChange = (q: string) => {
-    setSearchQuery(q);
-    syncToUrl(selectedCategory, q, selectedSpice, sortBy);
-  };
-
-  const handleSpiceChange = (spice: string) => {
-    setSelectedSpice(spice);
-    syncToUrl(selectedCategory, searchQuery, spice, sortBy);
-  };
-
-  const handleSortChange = (sort: string) => {
-    setSortBy(sort);
-    syncToUrl(selectedCategory, searchQuery, selectedSpice, sort);
-  };
-
-  // Scroll to top once on initial mount
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'instant' });
-    return () => {
-      isMountedRef.current = false;
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []);
-
-  // Fetch Categories once
-  useEffect(() => {
-    async function loadCategories() {
-      try {
-        const res = await fetch('/api/categories');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.categories) && data.categories.length > 0) {
-            const rawWithoutAll = data.categories.filter((c: any) => (c.slug || c.id) !== 'all');
-            const formatted: ShopCategory[] = [
-              {
-                id: 'all',
-                label: 'All Delicacies',
-                shortLabel: 'All',
-                description: 'Explore our complete heritage collection of small-batch savouries, sweets, and curated gift boxes.',
-              },
-              ...rawWithoutAll.map((c: any) => ({
-                id: c.slug || c.id,
-                label: c.name || c.label,
-                shortLabel: c.shortLabel || c.name,
-                description: c.description || 'Artisanal authentic recipe extruded and prepared in pure groundnut oil.',
-              })),
-            ];
-            setCategories(formatted);
-          }
-        }
-      } catch (err) {
-        console.warn('[Shop] Categories fallback active:', err);
-      }
-    }
-    loadCategories();
-  }, []);
-
-  // Client-side fallback filter helper (if offline or server unreachable)
+  // Client-side instant filter helper (zero latency)
   const filterStaticCatalog = useCallback(
     (pageNumber: number) => {
       let list = [...FALLBACK_PRODUCTS];
 
-      if (selectedCategory !== 'all') {
-        list = list.filter(p => p.category === selectedCategory || (p as any).categoryId === selectedCategory);
+      if (selectedCategory && selectedCategory !== 'all') {
+        const catLower = selectedCategory.toLowerCase();
+        list = list.filter(
+          p =>
+            p.category === catLower ||
+            (p as any).categoryId === catLower ||
+            (catLower === 'mixtures' && p.category === 'mixtures-chivda') ||
+            (catLower === 'sweets' && p.category === 'mithai-sweets') ||
+            (catLower === 'snacks' && p.category === 'khasta-mathri') ||
+            (catLower === 'hampers' && p.category === 'gift-hampers')
+        );
       }
 
-      if (selectedSpice !== 'All') {
-        list = list.filter(p => p.spiceLevel === selectedSpice);
+      if (selectedSpice && selectedSpice !== 'All') {
+        list = list.filter(p => p.spiceLevel.toLowerCase() === selectedSpice.toLowerCase());
       }
 
       if (searchQuery.trim()) {
@@ -193,19 +86,126 @@ export default function Shop() {
     [selectedCategory, selectedSpice, searchQuery, sortBy]
   );
 
+  // Initialized with immediate static data for instant render
+  const [products, setProducts] = useState<Product[]>(() => filterStaticCatalog(1).products);
+  const [categories, setCategories] = useState<ShopCategory[]>(FALLBACK_CATEGORIES);
+  const [initialLoading, setInitialLoading] = useState<boolean>(false);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [hasMore, setHasMore] = useState<boolean>(() => filterStaticCatalog(1).hasMore);
+  const [page, setPage] = useState<number>(1);
+  const [totalCount, setTotalCount] = useState<number>(() => filterStaticCatalog(1).total);
+
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
+  const [reservationOpen, setReservationOpen] = useState<boolean>(false);
+
+  // References for tracking and aborting concurrent fetch requests
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const isMountedRef = useRef<boolean>(true);
+
+  // Synchronous URL Parameter Updater
+  const updateFilters = useCallback(
+    (updates: { category?: string; q?: string; spice?: string; sort?: string }) => {
+      const nextParams = new URLSearchParams(searchParams);
+
+      if (updates.category !== undefined) {
+        if (updates.category === 'all') nextParams.delete('category');
+        else nextParams.set('category', updates.category);
+      }
+
+      if (updates.q !== undefined) {
+        if (!updates.q.trim()) {
+          nextParams.delete('q');
+          nextParams.delete('search');
+        } else {
+          nextParams.set('q', updates.q.trim());
+          nextParams.delete('search');
+        }
+      }
+
+      if (updates.spice !== undefined) {
+        if (updates.spice === 'All') nextParams.delete('spice');
+        else nextParams.set('spice', updates.spice);
+      }
+
+      if (updates.sort !== undefined) {
+        if (updates.sort === 'featured') nextParams.delete('sort');
+        else nextParams.set('sort', updates.sort);
+      }
+
+      setSearchParams(nextParams, { replace: true });
+    },
+    [searchParams, setSearchParams]
+  );
+
+  const handleCategoryChange = (cat: string) => updateFilters({ category: cat });
+  const handleSearchChange = (q: string) => updateFilters({ q });
+  const handleSpiceChange = (spice: string) => updateFilters({ spice });
+  const handleSortChange = (sort: string) => updateFilters({ sort });
+
+  // Scroll to top once on initial mount
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    return () => {
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  // Fetch Categories once on mount, merging with fallback
+  useEffect(() => {
+    async function loadCategories() {
+      try {
+        const res = await fetch('/api/categories');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.categories) && data.categories.length > 0) {
+            const apiCats = data.categories.filter((c: any) => (c.slug || c.id) !== 'all');
+            const mergedMap = new Map<string, ShopCategory>();
+
+            // Always preserve all default categories
+            FALLBACK_CATEGORIES.forEach(c => mergedMap.set(c.id, c));
+
+            // Merge any dynamic categories from API
+            apiCats.forEach((c: any) => {
+              const id = c.slug || c.id;
+              mergedMap.set(id, {
+                id,
+                label: c.name || c.label,
+                shortLabel: c.shortLabel || c.name,
+                description: c.description || 'Artisanal authentic recipe extruded and prepared in pure groundnut oil.',
+              });
+            });
+
+            setCategories(Array.from(mergedMap.values()));
+          }
+        }
+      } catch (err) {
+        console.warn('[Shop] Using default categories:', err);
+      }
+    }
+    loadCategories();
+  }, []);
+
   // Core product fetching function
   const fetchProductsBatch = useCallback(
     async (pageToFetch: number, isReset: boolean) => {
-      // Abort previous in-flight request to prevent race conditions
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
+      // Always apply instant static filtering for zero latency
+      const staticResult = filterStaticCatalog(pageToFetch);
       if (isReset) {
-        setProducts(prev => (prev.length === 0 ? FALLBACK_PRODUCTS.slice(0, PAGE_SIZE) : prev));
-        setApiError(null);
+        setProducts(staticResult.products);
+        setTotalCount(staticResult.total);
+        setHasMore(staticResult.hasMore);
+        setPage(pageToFetch);
       } else {
         setLoadingMore(true);
       }
@@ -221,7 +221,7 @@ export default function Shop() {
         });
 
         const timeoutPromise = new Promise<Response>((_, reject) =>
-          setTimeout(() => reject(new Error('Fetch timeout')), 2500)
+          setTimeout(() => reject(new Error('Fetch timeout')), 2000)
         );
 
         const fetchPromise = fetch(`/api/products?${queryParams.toString()}`, {
@@ -253,20 +253,11 @@ export default function Shop() {
             return;
           }
         }
-        throw new Error('API request returned empty or invalid');
       } catch (err: any) {
-        if (err.name === 'AbortError') return; // Cancelled intentionally
+        if (err.name === 'AbortError') return;
 
-        console.warn('[Shop] Falling back to client-filtered catalog:', err.message);
-        // Fallback gracefully to static dataset with incremental pagination
-        const staticResult = filterStaticCatalog(pageToFetch);
-        setTotalCount(staticResult.total);
-        setHasMore(staticResult.hasMore);
-        setPage(pageToFetch);
-
-        if (isReset) {
-          setProducts(staticResult.products);
-        } else {
+        // Fallback already rendered synchronously on reset; handle append case
+        if (!isReset) {
           setProducts(prev => {
             const existingIds = new Set(prev.map(p => p.id || (p as any)._id));
             const newItems = staticResult.products.filter(
@@ -274,6 +265,7 @@ export default function Shop() {
             );
             return [...prev, ...newItems];
           });
+          setHasMore(staticResult.hasMore);
         }
       } finally {
         if (isMountedRef.current) {
@@ -285,12 +277,12 @@ export default function Shop() {
     [selectedCategory, searchQuery, selectedSpice, sortBy, filterStaticCatalog]
   );
 
-  // Trigger fresh initial load whenever filters change
+  // Re-fetch whenever search/filter criteria change
   useEffect(() => {
     setPage(1);
     setHasMore(true);
     fetchProductsBatch(1, true);
-  }, [fetchProductsBatch]);
+  }, [selectedCategory, searchQuery, selectedSpice, sortBy, fetchProductsBatch]);
 
   // Infinite Scroll Trigger (Sentinel Intersection Observer)
   useEffect(() => {
@@ -306,7 +298,7 @@ export default function Shop() {
       },
       {
         root: null,
-        rootMargin: '380px 0px', // Pre-fetch smoothly before user reaches absolute bottom
+        rootMargin: '350px 0px',
         threshold: 0,
       }
     );
@@ -318,22 +310,18 @@ export default function Shop() {
     };
   }, [hasMore, initialLoading, loadingMore, page, fetchProductsBatch]);
 
-  // Compute category counts for filter tabs from complete catalog
+  // Accurate category counts for shortcut cards and filter drawer
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: Math.max(FALLBACK_PRODUCTS.length, totalCount) };
+    const counts: Record<string, number> = { all: FALLBACK_PRODUCTS.length };
     for (const p of FALLBACK_PRODUCTS) {
       if (p.category) {
         counts[p.category] = (counts[p.category] ?? 0) + 1;
       }
     }
     return counts;
-  }, [totalCount]);
+  }, []);
 
   const handleResetFilters = () => {
-    setSelectedCategory('all');
-    setSelectedSpice('All');
-    setSearchQuery('');
-    setSortBy('featured');
     setSearchParams(new URLSearchParams(), { replace: true });
   };
 
@@ -353,76 +341,76 @@ export default function Shop() {
   };
 
   return (
-    <div className="shop-page-wrapper">
+    <div className="eb-shop-page-wrapper">
       <style>{`
-        .shop-page-wrapper {
-          background-color: var(--bg-parchment, #F6EFE3);
-          color: var(--text-dark, #34211D);
+        .eb-shop-page-wrapper {
+          background-color: #FAF6F0;
+          color: #34211D;
           min-height: 100vh;
           display: flex;
           flex-direction: column;
         }
 
-        .shop-main-content {
+        .eb-shop-main-content {
           flex: 1;
-          padding: clamp(20px, 3vw, 48px) clamp(12px, 3vw, 48px) clamp(48px, 6vw, 96px);
+          padding: clamp(16px, 2.5vw, 36px) clamp(14px, 3.5vw, 48px) clamp(48px, 6vw, 96px);
         }
 
-        .shop-content-inner {
-          max-width: var(--container-max, 1240px);
+        .eb-shop-content-inner {
+          max-width: 1240px;
           margin-inline: auto;
           width: 100%;
         }
 
-        /* ── Product Grid ─────────────────────────────────────── */
-        .shop-grid {
+        /* ── Product Grid: 3 per row on desktop, 2 on tablet, 2/1 on mobile ─ */
+        .eb-product-grid {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: clamp(16px, 2.5vw, 32px);
+          gap: clamp(16px, 2.2vw, 28px);
         }
 
-        /* ── Luxury Skeleton Loading Cards ────────────────────── */
-        .shop-skeleton-card {
-          background: #FFFDF8;
-          border: 1px solid rgba(200, 154, 61, 0.24);
+        /* ── Modern Skeleton Loading Cards ──────────────────── */
+        .eb-skeleton-card {
+          background: #FFFFFF;
+          border: 1.5px solid rgba(200, 154, 61, 0.20);
           border-radius: 18px;
           overflow: hidden;
-          padding-bottom: 20px;
+          padding-bottom: 18px;
           box-shadow: 0 4px 18px rgba(85, 0, 10, 0.03);
           display: flex;
           flex-direction: column;
         }
 
-        .shop-skeleton-media {
+        .eb-skeleton-media {
           width: 100%;
-          aspect-ratio: 1.22 / 1;
-          background: linear-gradient(90deg, #F0E9DC 0%, #FAF5EC 50%, #F0E9DC 100%);
+          aspect-ratio: 1.15 / 1;
+          background: linear-gradient(90deg, #EFE8DC 0%, #FBF6EE 50%, #EFE8DC 100%);
           background-size: 200% 100%;
-          animation: skeletonShimmer 1.8s infinite linear;
+          animation: ebSkeletonShimmer 1.6s infinite linear;
         }
 
-        .shop-skeleton-content {
-          padding: 18px 20px 0;
+        .eb-skeleton-content {
+          padding: 16px 18px 0;
           display: flex;
           flex-direction: column;
           gap: 10px;
         }
 
-        .shop-skeleton-line {
+        .eb-skeleton-line {
           height: 14px;
           border-radius: 6px;
-          background: linear-gradient(90deg, #EFE8DC 0%, #F8F3EA 50%, #EFE8DC 100%);
+          background: linear-gradient(90deg, #EDE5D8 0%, #F9F4EC 50%, #EDE5D8 100%);
           background-size: 200% 100%;
-          animation: skeletonShimmer 1.8s infinite linear;
+          animation: ebSkeletonShimmer 1.6s infinite linear;
         }
 
-        @keyframes skeletonShimmer {
+        @keyframes ebSkeletonShimmer {
           0% { background-position: -200% 0; }
           100% { background-position: 200% 0; }
         }
 
-        /* ── End of Catalog Indicator ─────────────────────────── */
-        .shop-end-indicator {
+        /* ── End of Catalog Indicator ───────────────────────── */
+        .eb-shop-end-indicator {
           margin: 48px auto 16px;
           text-align: center;
           display: flex;
@@ -433,7 +421,7 @@ export default function Shop() {
           padding: 20px 16px;
         }
 
-        .shop-end-line-wrap {
+        .eb-shop-end-line-wrap {
           display: flex;
           align-items: center;
           gap: 12px;
@@ -442,48 +430,48 @@ export default function Shop() {
           margin-bottom: 4px;
         }
 
-        .shop-end-line {
+        .eb-shop-end-line {
           height: 1px;
           flex: 1;
           background: linear-gradient(90deg, transparent, rgba(201, 154, 50, 0.4), transparent);
         }
 
-        .shop-end-diamond {
-          width: 5px;
-          height: 5px;
+        .eb-shop-end-diamond {
+          width: 6px;
+          height: 6px;
           background-color: #C99A32;
           transform: rotate(45deg);
         }
 
-        .shop-end-title {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: 19px;
+        .eb-shop-end-title {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 18px;
           font-weight: 700;
+          letter-spacing: -0.01em;
           color: #55000A;
           margin: 0;
-          letter-spacing: 0.04em;
         }
 
-        .shop-end-sub {
-          font-family: Inter, sans-serif;
-          font-size: 12.5px;
+        .eb-shop-end-sub {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 13px;
           color: #75645C;
           margin: 0;
           line-height: 1.5;
         }
 
-        /* ── Empty State ──────────────────────────────────────── */
-        .shop-empty-state {
-          background: #FDFAF4;
-          border: 1px solid rgba(200, 154, 61, 0.28);
+        /* ── Empty State ────────────────────────────────────── */
+        .eb-shop-empty-state {
+          background: #FFFFFF;
+          border: 1.5px solid rgba(200, 154, 61, 0.28);
           border-radius: 20px;
           padding: clamp(48px, 7vw, 84px) 24px;
           text-align: center;
           margin: 20px 0;
-          box-shadow: 0 4px 18px rgba(85, 0, 10, 0.04);
+          box-shadow: 0 4px 20px rgba(85, 0, 10, 0.04);
         }
 
-        .shop-empty-icon {
+        .eb-shop-empty-icon {
           width: 64px;
           height: 64px;
           border-radius: 50%;
@@ -496,72 +484,74 @@ export default function Shop() {
           margin: 0 auto 18px;
         }
 
-        .shop-empty-heading {
-          font-family: 'Cormorant Garamond', Georgia, serif;
-          font-size: clamp(24px, 2.8vw, 32px);
+        .eb-shop-empty-heading {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: clamp(22px, 2.6vw, 30px);
           font-weight: 700;
+          letter-spacing: -0.02em;
           color: #55000A;
           margin: 0 0 8px;
         }
 
-        .shop-empty-sub {
-          font-family: Inter, sans-serif;
+        .eb-shop-empty-sub {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
           font-size: 14px;
+          font-weight: 400;
           color: #75645C;
           max-width: 440px;
           margin: 0 auto 24px;
           line-height: 1.6;
         }
 
-        .shop-empty-btn {
+        .eb-shop-empty-btn {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          height: 42px;
-          padding: 0 24px;
+          height: 44px;
+          padding: 0 26px;
           border-radius: 999px;
           background: #55000A;
           color: #FFF8EC;
           border: none;
-          font-family: Inter, sans-serif;
-          font-size: 11.5px;
-          font-weight: 800;
-          letter-spacing: 0.08em;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.06em;
           text-transform: uppercase;
           cursor: pointer;
           transition: background 0.18s, transform 0.18s;
           box-shadow: 0 4px 14px rgba(85, 0, 10, 0.18);
         }
 
-        .shop-empty-btn:hover {
+        .eb-shop-empty-btn:hover {
           background: #6B000D;
           transform: translateY(-1px);
         }
 
-        /* ── Responsive Grid ──────────────────────────────────── */
-        @media (min-width: 1100px) {
-          .shop-grid {
+        /* ── Responsive Grid Breakpoints ────────────────────── */
+        @media (min-width: 1024px) {
+          .eb-product-grid {
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 28px;
           }
         }
 
-        @media (max-width: 1099px) {
-          .shop-grid {
+        @media (min-width: 641px) and (max-width: 1023px) {
+          .eb-product-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 20px;
           }
         }
 
         @media (max-width: 640px) {
-          .shop-grid {
+          .eb-product-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 12px;
           }
         }
 
-        @media (max-width: 359px) {
-          .shop-grid {
+        @media (max-width: 375px) {
+          .eb-product-grid {
             grid-template-columns: 1fr;
             gap: 16px;
           }
@@ -575,17 +565,25 @@ export default function Shop() {
         structuredData={shopStructuredData}
       />
 
-      {/* Navbar with Reserve Modal Trigger */}
+      {/* 1. Header (Navbar) */}
       <Navbar onReserve={() => setReservationOpen(true)} />
 
-      {/* Hero Banner */}
+      {/* 2. Shop Title / Short Introduction */}
       <ShopHero />
 
-      {/* Main Content Area */}
-      <main className="shop-main-content" aria-label="Malwa Shop Delicacies">
-        <div className="shop-content-inner">
+      {/* 3. Main Content Area */}
+      <main className="eb-shop-main-content" aria-label="Malwa Shop Delicacies">
+        <div className="eb-shop-content-inner">
 
-          {/* Filtering & Search Controls */}
+          {/* 3. Category Shortcut Cards Row */}
+          <CategoryShortcutRow
+            categories={categories}
+            selectedCategory={selectedCategory}
+            onSelectCategory={handleCategoryChange}
+            categoryCounts={categoryCounts}
+          />
+
+          {/* 4. Search + Filters + Sort Controls */}
           <ShopFilters
             selectedCategory={selectedCategory}
             onSelectCategory={handleCategoryChange}
@@ -598,48 +596,49 @@ export default function Shop() {
             categoryCounts={categoryCounts}
             totalResults={totalCount || products.length}
             categories={categories}
+            onResetAll={handleResetFilters}
           />
 
-          {/* Initial Loading Skeleton */}
+          {/* 5. Product Grid */}
           {initialLoading ? (
-            <div className="shop-grid" role="status" aria-label="Loading delicacies">
+            <div className="eb-product-grid" role="status" aria-label="Loading delicacies">
               {[1, 2, 3, 4, 5, 6].map(n => (
-                <div key={n} className="shop-skeleton-card">
-                  <div className="shop-skeleton-media" />
-                  <div className="shop-skeleton-content">
-                    <div className="shop-skeleton-line" style={{ width: '40%' }} />
-                    <div className="shop-skeleton-line" style={{ width: '80%', height: '22px' }} />
-                    <div className="shop-skeleton-line" style={{ width: '60%' }} />
-                    <div className="shop-skeleton-line" style={{ width: '100%', height: '38px', marginTop: '12px', borderRadius: '10px' }} />
+                <div key={n} className="eb-skeleton-card">
+                  <div className="eb-skeleton-media" />
+                  <div className="eb-skeleton-content">
+                    <div className="eb-skeleton-line" style={{ width: '35%' }} />
+                    <div className="eb-skeleton-line" style={{ width: '85%', height: '20px' }} />
+                    <div className="eb-skeleton-line" style={{ width: '60%' }} />
+                    <div className="eb-skeleton-line" style={{ width: '100%', height: '40px', marginTop: '12px', borderRadius: '10px' }} />
                   </div>
                 </div>
               ))}
             </div>
           ) : products.length === 0 ? (
             /* Empty State */
-            <div className="shop-empty-state" role="status">
-              <div className="shop-empty-icon" aria-hidden="true">
+            <div className="eb-shop-empty-state" role="status">
+              <div className="eb-shop-empty-icon" aria-hidden="true">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <circle cx="11" cy="11" r="8" />
                   <path d="M21 21l-4.35-4.35" />
                 </svg>
               </div>
-              <h2 className="shop-empty-heading">No Delicacies Found</h2>
-              <p className="shop-empty-sub">
+              <h2 className="eb-shop-empty-heading">No Delicacies Found</h2>
+              <p className="eb-shop-empty-sub">
                 We couldn't find any savouries matching your current search or filters. Try adjusting your keywords or explore all our heritage categories.
               </p>
               <button
                 type="button"
-                className="shop-empty-btn"
+                className="eb-shop-empty-btn"
                 onClick={handleResetFilters}
               >
                 Reset All Filters
               </button>
             </div>
           ) : (
-            /* Product Grid with Infinite Scroll */
+            /* 6. Product Grid with Infinite Scroll */
             <>
-              <div className="shop-grid" role="list" aria-label="Available delicacies">
+              <div className="eb-product-grid" role="list" aria-label="Available delicacies">
                 {products.map(product => (
                   <ProductCard
                     key={product.id || (product as any)._id || product.slug}
@@ -651,13 +650,13 @@ export default function Shop() {
                 {/* Incremental Loading Skeletons */}
                 {loadingMore &&
                   [1, 2, 3].map(n => (
-                    <div key={`more-skeleton-${n}`} className="shop-skeleton-card">
-                      <div className="shop-skeleton-media" />
-                      <div className="shop-skeleton-content">
-                        <div className="shop-skeleton-line" style={{ width: '40%' }} />
-                        <div className="shop-skeleton-line" style={{ width: '80%', height: '22px' }} />
-                        <div className="shop-skeleton-line" style={{ width: '60%' }} />
-                        <div className="shop-skeleton-line" style={{ width: '100%', height: '38px', marginTop: '12px', borderRadius: '10px' }} />
+                    <div key={`more-skeleton-${n}`} className="eb-skeleton-card">
+                      <div className="eb-skeleton-media" />
+                      <div className="eb-skeleton-content">
+                        <div className="eb-skeleton-line" style={{ width: '35%' }} />
+                        <div className="eb-skeleton-line" style={{ width: '85%', height: '20px' }} />
+                        <div className="eb-skeleton-line" style={{ width: '60%' }} />
+                        <div className="eb-skeleton-line" style={{ width: '100%', height: '40px', marginTop: '12px', borderRadius: '10px' }} />
                       </div>
                     </div>
                   ))}
@@ -674,14 +673,14 @@ export default function Shop() {
 
               {/* End of catalog indicator */}
               {!hasMore && products.length > 0 && (
-                <div className="shop-end-indicator" role="status">
-                  <div className="shop-end-line-wrap">
-                    <div className="shop-end-line" />
-                    <div className="shop-end-diamond" />
-                    <div className="shop-end-line" />
+                <div className="eb-shop-end-indicator" role="status">
+                  <div className="eb-shop-end-line-wrap">
+                    <div className="eb-shop-end-line" />
+                    <div className="eb-shop-end-diamond" />
+                    <div className="eb-shop-end-line" />
                   </div>
-                  <h3 className="shop-end-title">Crafted with Heritage</h3>
-                  <p className="shop-end-sub">
+                  <h3 className="eb-shop-end-title">Crafted with Heritage</h3>
+                  <p className="eb-shop-end-sub">
                     You have explored all our available handcrafted savouries &amp; delicacies.
                   </p>
                 </div>
