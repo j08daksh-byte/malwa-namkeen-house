@@ -6,11 +6,13 @@ export interface ProductWeightOption {
 
 export interface Product {
   id: string;
+  _id?: string;
   slug?: string;
   name: string;
   hindiName?: string;
   tagline: string;
-  category: 'sev-namkeen' | 'mixtures-chivda' | 'khasta-mathri' | 'mithai-sweets' | 'gift-hampers';
+  category: 'sev-namkeen' | 'mixtures-chivda' | 'khasta-mathri' | 'mithai-sweets' | 'gift-hampers' | 'falahari-fasting';
+  categoryId?: string;
   categoryLabel: string;
   description: string;
   story: string;
@@ -22,6 +24,8 @@ export interface Product {
   badge?: string;
   rating: number;
   reviewCount: number;
+  featured?: boolean;
+  isBestSeller?: boolean;
   options: ProductWeightOption[];
   isAvailable: boolean;
   isVegetarian: boolean;
@@ -29,7 +33,7 @@ export interface Product {
 }
 
 export interface ShopCategory {
-  id: 'all' | 'sev-namkeen' | 'mixtures-chivda' | 'khasta-mathri' | 'mithai-sweets' | 'gift-hampers';
+  id: 'all' | 'sev-namkeen' | 'mixtures-chivda' | 'khasta-mathri' | 'mithai-sweets' | 'gift-hampers' | 'falahari-fasting';
   label: string;
   shortLabel: string;
   description: string;
@@ -57,26 +61,34 @@ export const SHOP_CATEGORIES: ShopCategory[] = [
   {
     id: 'khasta-mathri',
     label: 'Crisp Khasta & Mathris',
-    shortLabel: 'Khasta & Mathri',
+    shortLabel: 'Mathri & Snacks',
     description: 'Slow-fried flaky crackers and carom-seed delicacies crafted for afternoon chai rituals.',
   },
   {
     id: 'mithai-sweets',
     label: 'Royal Mithai & Sweets',
-    shortLabel: 'Sweets & Mithai',
+    shortLabel: 'Sweets & Laddoos',
     description: 'Artisanal sweets slow-cooked in 100% pure desi cow ghee with saffron, cardamom, and dry fruits.',
   },
   {
     id: 'gift-hampers',
     label: 'Luxury Gifting & Hampers',
-    shortLabel: 'Gift Boxes',
+    shortLabel: 'Gift Hampers',
     description: 'Handcrafted heritage gift boxes designed for weddings, festive occasions, and corporate gifting.',
+  },
+  {
+    id: 'falahari-fasting',
+    label: 'Falahari & Fasting Specials',
+    shortLabel: 'Falahari & Fasting',
+    description: 'Pure sendha namak fasting delicacies, crispy potato laccha, and roasted peanut blends.',
   },
 ];
 
 export const PRODUCTS: Product[] = [
+  // ── 1. Sev & Namkeen (3 items, 1 Best Seller) ───────────────────────────
   {
     id: 'ratlami-sev-special',
+    slug: 'ratlami-sev-special',
     name: 'Special Ratlami Sev',
     hindiName: 'रतलामी सेंव',
     tagline: 'Clove-warm, peppery & bold',
@@ -88,7 +100,10 @@ export const PRODUCTS: Product[] = [
     spiceLevel: 'Clove Hot',
     shelfLife: '4 Months',
     image: '/mishtichaat/chaat-plate.jpg',
+    images: ['/mishtichaat/chaat-plate.jpg'],
     badge: 'Bestseller',
+    featured: true,
+    isBestSeller: true,
     rating: 4.9,
     reviewCount: 342,
     options: [
@@ -102,6 +117,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'ujjaini-sev-classic',
+    slug: 'ujjaini-sev-classic',
     name: 'Royal Ujjaini Sev',
     hindiName: 'उज्जैनी सेंव',
     tagline: 'Light, delicate & golden',
@@ -113,7 +129,10 @@ export const PRODUCTS: Product[] = [
     spiceLevel: 'Mild',
     shelfLife: '4 Months',
     image: '/mishtichaat/dahi-puri.png',
+    images: ['/mishtichaat/dahi-puri.png'],
     badge: 'Heritage Classic',
+    featured: false,
+    isBestSeller: false,
     rating: 4.8,
     reviewCount: 218,
     options: [
@@ -126,7 +145,39 @@ export const PRODUCTS: Product[] = [
     oilUsed: 'Cold-Pressed Groundnut Oil',
   },
   {
+    id: 'laung-sev-teekha',
+    slug: 'laung-sev-teekha',
+    name: 'Teekha Laung Sev',
+    hindiName: 'लौंग सेंव',
+    tagline: 'Intense Malwa clove aroma',
+    category: 'sev-namkeen',
+    categoryLabel: 'Signature Sev',
+    description: 'Extra aromatic sev packed with coarsely crushed Zanzibari cloves and roasted spices. The authentic accompaniment to Indori Poha and Usal.',
+    story: 'In Malwa households, winter mornings are incomplete without the comforting, warm tingle of fresh clove sev.',
+    ingredients: ['Gram Flour', 'Premium Zanzibari Cloves', 'Black Pepper', 'Red Chilli', 'Groundnut Oil', 'Rock Salt'],
+    spiceLevel: 'Clove Hot',
+    shelfLife: '4 Months',
+    image: '/mishtichaat/dahi-bhalla.jpg',
+    images: ['/mishtichaat/dahi-bhalla.jpg'],
+    badge: 'Spicy Favorite',
+    featured: false,
+    isBestSeller: false,
+    rating: 4.8,
+    reviewCount: 156,
+    options: [
+      { weight: '250g', price: 125, originalPrice: 145 },
+      { weight: '500g', price: 235, originalPrice: 280 },
+      { weight: '1kg', price: 450, originalPrice: 540 },
+    ],
+    isAvailable: true,
+    isVegetarian: true,
+    oilUsed: 'Cold-Pressed Groundnut Oil',
+  },
+
+  // ── 2. Mixtures & Chivda (3 items, 1 Best Seller) ───────────────────────
+  {
     id: 'indori-khatta-meetha',
+    slug: 'indori-khatta-meetha',
     name: 'Indori Khatta Meetha Mixture',
     hindiName: 'खट्टा मीठा मिक्सचर',
     tagline: 'Sweet, tangy & crunchy medley',
@@ -138,7 +189,10 @@ export const PRODUCTS: Product[] = [
     spiceLevel: 'Sweet & Tangy',
     shelfLife: '4 Months',
     image: '/mishtichaat/hero-food.jpg',
-    badge: 'Most Popular',
+    images: ['/mishtichaat/hero-food.jpg'],
+    badge: 'Bestseller',
+    featured: true,
+    isBestSeller: true,
     rating: 4.9,
     reviewCount: 412,
     options: [
@@ -152,6 +206,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'royal-kaju-dalmoth',
+    slug: 'royal-kaju-dalmoth',
     name: 'Shahi Kaju Dalmoth',
     hindiName: 'शाही काजू दालमोठ',
     tagline: 'Fried whole masoor with roasted cashews',
@@ -163,7 +218,10 @@ export const PRODUCTS: Product[] = [
     spiceLevel: 'Medium',
     shelfLife: '3 Months',
     image: '/mishtichaat/semi-hero.png',
+    images: ['/mishtichaat/semi-hero.png'],
     badge: 'Chef’s Selection',
+    featured: false,
+    isBestSeller: false,
     rating: 4.9,
     reviewCount: 184,
     options: [
@@ -176,43 +234,23 @@ export const PRODUCTS: Product[] = [
     oilUsed: 'Cold-Pressed Groundnut Oil',
   },
   {
-    id: 'laung-sev-teekha',
-    name: 'Teekha Laung Sev',
-    hindiName: 'लौंग सेंव',
-    tagline: 'Intense Malwa clove aroma',
-    category: 'sev-namkeen',
-    categoryLabel: 'Signature Sev',
-    description: 'Extra aromatic sev packed with coarsely crushed Zanzibari cloves and roasted spices. The authentic accompaniment to Indori Poha and Usal.',
-    story: 'In Malwa households, winter mornings are incomplete without the comforting, warm tingle of fresh clove sev.',
-    ingredients: ['Gram Flour', 'Premium Zanzibari Cloves', 'Black Pepper', 'Red Chilli', 'Groundnut Oil', 'Rock Salt'],
-    spiceLevel: 'Clove Hot',
-    shelfLife: '4 Months',
-    image: '/mishtichaat/dahi-bhalla.jpg',
-    badge: 'Spicy Favorite',
-    rating: 4.8,
-    reviewCount: 156,
-    options: [
-      { weight: '250g', price: 125, originalPrice: 145 },
-      { weight: '500g', price: 235, originalPrice: 280 },
-      { weight: '1kg', price: 450, originalPrice: 540 },
-    ],
-    isAvailable: true,
-    isVegetarian: true,
-    oilUsed: 'Cold-Pressed Groundnut Oil',
-  },
-  {
     id: 'heeng-jeera-sev',
+    slug: 'heeng-jeera-sev',
     name: 'Aromatic Heeng Sev',
     hindiName: 'हींग सेंव',
     tagline: 'Pure Bandhani Hing & roasted cumin',
-    category: 'sev-namkeen',
-    categoryLabel: 'Signature Sev',
+    category: 'mixtures-chivda',
+    categoryLabel: 'Heritage Savouries',
     description: 'Infused with potent compounded Hathras hing and freshly roasted jeera. Wonderfully fragrant and deeply digestive.',
     story: 'Kneaded with high-potency hing steeped overnight in warm water, ensuring every single strand delivers intoxicating aroma.',
     ingredients: ['Gram Flour', 'Pure Compounded Hing', 'Roasted Cumin', 'Ginger Powder', 'Groundnut Oil', 'Pink Salt'],
     spiceLevel: 'Medium',
     shelfLife: '4 Months',
     image: '/mishtichaat/chaat-tamatar.jpg',
+    images: ['/mishtichaat/chaat-tamatar.jpg'],
+    badge: 'Digestive Blend',
+    featured: false,
+    isBestSeller: false,
     rating: 4.7,
     reviewCount: 98,
     options: [
@@ -224,8 +262,11 @@ export const PRODUCTS: Product[] = [
     isVegetarian: true,
     oilUsed: 'Cold-Pressed Groundnut Oil',
   },
+
+  // ── 3. Khasta & Mathri (2 items, 1 Best Seller) ─────────────────────────
   {
     id: 'flaky-methi-mathri',
+    slug: 'flaky-methi-mathri',
     name: 'Khasta Methi Mathri',
     hindiName: 'खस्ता मेथी मठरी',
     tagline: 'Flaky layers with kasuri methi & ajwain',
@@ -237,7 +278,10 @@ export const PRODUCTS: Product[] = [
     spiceLevel: 'Mild',
     shelfLife: '3 Months',
     image: '/mishtichaat/kachori.jpg',
-    badge: 'Chai Companion',
+    images: ['/mishtichaat/kachori.jpg'],
+    badge: 'Bestseller',
+    featured: true,
+    isBestSeller: true,
     rating: 4.9,
     reviewCount: 265,
     options: [
@@ -251,6 +295,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'chana-zor-garam-spiced',
+    slug: 'chana-zor-garam-spiced',
     name: 'Malwa Chana Zor Garam',
     hindiName: 'चना ज़ोर गरम',
     tagline: 'Pressed black chickpeas with tangy masala',
@@ -262,6 +307,10 @@ export const PRODUCTS: Product[] = [
     spiceLevel: 'Zesty',
     shelfLife: '4 Months',
     image: '/mishtichaat/tamatar-chaat.jpg',
+    images: ['/mishtichaat/tamatar-chaat.jpg'],
+    badge: 'Tangy Crunch',
+    featured: false,
+    isBestSeller: false,
     rating: 4.8,
     reviewCount: 142,
     options: [
@@ -273,33 +322,11 @@ export const PRODUCTS: Product[] = [
     isVegetarian: true,
     oilUsed: 'Cold-Pressed Groundnut Oil',
   },
-  {
-    id: 'falahari-potato-mixture',
-    name: 'Teekha Falahari Chivda',
-    hindiName: 'फलाहारी चिवड़ा',
-    tagline: 'Fasting-friendly potato shreds & peanuts',
-    category: 'mixtures-chivda',
-    categoryLabel: 'Heritage Mixture',
-    description: 'Crispy hand-cut potato shreds, crunchy peanuts, and curry leaves seasoned strictly with sendha namak (rock salt) and green chillies.',
-    story: 'Prepared in dedicated vessels for pious fasting days, yet loved every single day for its addictive lightness.',
-    ingredients: ['Crisp Potato Laccha', 'Roasted Peanuts', 'Sendha Namak (Rock Salt)', 'Green Chillies', 'Curry Leaves', 'Cold-Pressed Peanut Oil'],
-    spiceLevel: 'Medium',
-    shelfLife: '3 Months',
-    image: '/mishtichaat/Image-1.png',
-    badge: 'Fast Friendly',
-    rating: 4.7,
-    reviewCount: 115,
-    options: [
-      { weight: '250g', price: 135, originalPrice: 160 },
-      { weight: '500g', price: 260, originalPrice: 310 },
-      { weight: '1kg', price: 490, originalPrice: 590 },
-    ],
-    isAvailable: true,
-    isVegetarian: true,
-    oilUsed: 'Cold-Pressed Groundnut Oil',
-  },
+
+  // ── 4. Royal Mithai & Sweets (2 items, 1 Best Seller) ───────────────────
   {
     id: 'shahi-besan-ladoo',
+    slug: 'shahi-besan-ladoo',
     name: 'Desi Ghee Besan Ladoo',
     hindiName: 'शुद्ध घी बेसन लड्डू',
     tagline: 'Coarse gram flour slow-roasted in cow ghee',
@@ -311,7 +338,10 @@ export const PRODUCTS: Product[] = [
     spiceLevel: 'Mild',
     shelfLife: '45 Days',
     image: '/mishtichaat/hero-sweets.jpg',
-    badge: 'Pure Desi Ghee',
+    images: ['/mishtichaat/hero-sweets.jpg'],
+    badge: 'Bestseller',
+    featured: true,
+    isBestSeller: true,
     rating: 5.0,
     reviewCount: 289,
     options: [
@@ -324,17 +354,22 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'saffron-rabdi-jalebi-pack',
+    slug: 'saffron-rabdi-jalebi-pack',
     name: 'Kashi Saffron Jalebi Sweet Pack',
     hindiName: 'शाही जलेबी पैक',
     tagline: 'Crisp spirals soaked in saffron rose syrup',
     category: 'mithai-sweets',
     categoryLabel: 'Royal Mithai',
     description: 'Golden fermented batter crisped in cow ghee and drenched in saffron-cardamom nectar. Vacuum packed to retain fresh crispness.',
-    story: 'The legendary taste of Banaras morning ghats, crafted by our third-generation halwais with pure Kashmiri saffron.',
+    story: 'The legendary taste of morning delicacies, crafted by our third-generation halwais with pure Kashmiri saffron.',
     ingredients: ['Refined Flour', 'Pure Desi Ghee', 'Kashmiri Kesar (Saffron)', 'Cardamom', 'Rose Water', 'Sugar Syrup'],
     spiceLevel: 'Mild',
     shelfLife: '15 Days',
     image: '/mishtichaat/jalebi.jpg',
+    images: ['/mishtichaat/jalebi.jpg'],
+    badge: 'Pure Desi Ghee',
+    featured: false,
+    isBestSeller: false,
     rating: 4.8,
     reviewCount: 178,
     options: [
@@ -345,8 +380,11 @@ export const PRODUCTS: Product[] = [
     isVegetarian: true,
     oilUsed: '100% Pure Desi Cow Ghee',
   },
+
+  // ── 5. Luxury Gifting & Hampers (2 items) ────────────────────────────────
   {
     id: 'royal-malwa-hamper',
+    slug: 'royal-malwa-hamper',
     name: 'The Royal Malwa Heritage Hamper',
     hindiName: 'शाही मालवा उपहार पेटी',
     tagline: 'Luxury velvet box with 6 signature items',
@@ -358,7 +396,10 @@ export const PRODUCTS: Product[] = [
     spiceLevel: 'Medium',
     shelfLife: '60 Days',
     image: '/mishtichaat/FAMILY%20FEAST%20THALI.png',
+    images: ['/mishtichaat/FAMILY%20FEAST%20THALI.png'],
     badge: 'Luxury Gift Edition',
+    featured: false,
+    isBestSeller: false,
     rating: 5.0,
     reviewCount: 94,
     options: [
@@ -371,6 +412,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: 'chaat-lover-box',
+    slug: 'chaat-lover-box',
     name: 'Sarafa Street Chaat Craver Kit',
     hindiName: 'सराफा चाट किट',
     tagline: 'Everything for an authentic street-chaat feast',
@@ -382,7 +424,10 @@ export const PRODUCTS: Product[] = [
     spiceLevel: 'Zesty',
     shelfLife: '3 Months',
     image: '/mishtichaat/CHAAT-BAZAAR.png',
+    images: ['/mishtichaat/CHAAT-BAZAAR.png'],
     badge: 'Party Hit',
+    featured: false,
+    isBestSeller: false,
     rating: 4.9,
     reviewCount: 167,
     options: [
@@ -392,20 +437,55 @@ export const PRODUCTS: Product[] = [
     isVegetarian: true,
     oilUsed: 'Cold-Pressed Groundnut Oil',
   },
+
+  // ── 6. Falahari & Fasting Specials (2 items) ────────────────────────────
+  {
+    id: 'falahari-potato-mixture',
+    slug: 'falahari-potato-mixture',
+    name: 'Teekha Falahari Chivda',
+    hindiName: 'फलाहारी चिवड़ा',
+    tagline: 'Fasting-friendly potato shreds & peanuts',
+    category: 'falahari-fasting',
+    categoryLabel: 'Falahari Specials',
+    description: 'Crispy hand-cut potato shreds, crunchy peanuts, and curry leaves seasoned strictly with sendha namak (rock salt) and green chillies.',
+    story: 'Prepared in dedicated vessels for pious fasting days, yet loved every single day for its addictive lightness.',
+    ingredients: ['Crisp Potato Laccha', 'Roasted Peanuts', 'Sendha Namak (Rock Salt)', 'Green Chillies', 'Curry Leaves', 'Cold-Pressed Peanut Oil'],
+    spiceLevel: 'Medium',
+    shelfLife: '3 Months',
+    image: '/mishtichaat/Image-1.png',
+    images: ['/mishtichaat/Image-1.png'],
+    badge: 'Fast Friendly',
+    featured: false,
+    isBestSeller: false,
+    rating: 4.7,
+    reviewCount: 115,
+    options: [
+      { weight: '250g', price: 135, originalPrice: 160 },
+      { weight: '500g', price: 260, originalPrice: 310 },
+      { weight: '1kg', price: 490, originalPrice: 590 },
+    ],
+    isAvailable: true,
+    isVegetarian: true,
+    oilUsed: 'Cold-Pressed Groundnut Oil',
+  },
   {
     id: 'festive-mithai-box-trio',
+    slug: 'festive-mithai-box-trio',
     name: 'Banaras Ki Muskan Mithai Box',
     hindiName: 'बनारस की मुस्कान',
     tagline: 'Trio of handcrafted pure ghee confections',
-    category: 'mithai-sweets',
-    categoryLabel: 'Royal Mithai',
+    category: 'falahari-fasting',
+    categoryLabel: 'Festive Specials',
     description: 'A curated festive trio box of Desi Ghee Besan Ladoo, Saffron Peda, and Dry Fruit Halwa confections adorned with silver vark and whole pistachios.',
     story: 'Prepared in limited morning batches in copper cauldrons with pure A2 cow milk derivatives and slow-simmered sugar reductions.',
     ingredients: ['A2 Milk Khoya', 'Besan', 'Pure Cow Ghee', 'Pistachios', 'Almonds', 'Cardamom', 'Kashmiri Kesar'],
     spiceLevel: 'Mild',
     shelfLife: '25 Days',
     image: '/mishtichaat/MEETHI%20GALI.png',
+    images: ['/mishtichaat/MEETHI%20GALI.png'],
     badge: 'Festive Limited',
+    featured: false,
+    isBestSeller: false,
     rating: 5.0,
     reviewCount: 203,
     options: [
@@ -417,3 +497,4 @@ export const PRODUCTS: Product[] = [
     oilUsed: '100% Pure Desi Cow Ghee',
   },
 ];
+

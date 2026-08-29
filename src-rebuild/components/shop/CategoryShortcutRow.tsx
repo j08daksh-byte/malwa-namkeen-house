@@ -16,6 +16,7 @@ const CATEGORY_IMAGES: Record<string, string> = {
   'khasta-mathri': '/mishtichaat/kachori.jpg',
   'mithai-sweets': '/mishtichaat/hero-sweets.jpg',
   'gift-hampers': '/mishtichaat/FAMILY%20FEAST%20THALI.png',
+  'falahari-fasting': '/mishtichaat/Image-1.png',
 };
 
 // Clean, punchy uppercase display labels matching the Eat Better style
@@ -26,6 +27,7 @@ const CATEGORY_DISPLAY_TITLES: Record<string, string> = {
   'khasta-mathri': 'MATHRI & SNACKS',
   'mithai-sweets': 'SWEETS & LADDOOS',
   'gift-hampers': 'GIFT HAMPERS',
+  'falahari-fasting': 'FALAHARI & FASTING',
 };
 
 export default function CategoryShortcutRow({

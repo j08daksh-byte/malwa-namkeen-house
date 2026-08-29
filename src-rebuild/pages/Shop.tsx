@@ -39,7 +39,8 @@ export default function Shop() {
             (catLower === 'mixtures' && p.category === 'mixtures-chivda') ||
             (catLower === 'sweets' && p.category === 'mithai-sweets') ||
             (catLower === 'snacks' && p.category === 'khasta-mathri') ||
-            (catLower === 'hampers' && p.category === 'gift-hampers')
+            (catLower === 'hampers' && p.category === 'gift-hampers') ||
+            ((catLower === 'falahari' || catLower === 'fasting') && p.category === 'falahari-fasting')
         );
       }
 
