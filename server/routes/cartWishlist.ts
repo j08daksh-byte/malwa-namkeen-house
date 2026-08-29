@@ -134,6 +134,7 @@ router.post('/revalidate', async (req: Request, res: Response) => {
         quantity,
         itemTotal: Math.round(livePrice * quantity * 100) / 100,
         stock: availableStock,
+        isCombo: Boolean(product.isCombo),
         image: primaryImage,
       });
     }
@@ -146,7 +147,7 @@ router.post('/revalidate', async (req: Request, res: Response) => {
     let couponError: string | null = null;
 
     if (couponCode && couponCode.trim()) {
-      const discResult = await validateAndCalculateDiscount(couponCode.trim(), subtotal);
+      const discResult = await validateAndCalculateDiscount(couponCode.trim(), subtotal, validatedItems);
       if (discResult.valid) {
         discountAmount = discResult.discountAmount;
         validatedCoupon = discResult.discount;

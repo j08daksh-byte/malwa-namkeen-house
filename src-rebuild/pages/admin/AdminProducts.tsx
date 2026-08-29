@@ -73,6 +73,7 @@ interface ProductItem {
   variants: VariantForm[];
   featured: boolean;
   isBestSeller?: boolean;
+  isCombo?: boolean;
   active: boolean;
   badge?: string;
   rating?: number;
@@ -126,6 +127,7 @@ export default function AdminProducts() {
   const [formIsVeg, setFormIsVeg] = useState(true);
   const [formFeatured, setFormFeatured] = useState(false);
   const [formIsBestSeller, setFormIsBestSeller] = useState(false);
+  const [formIsCombo, setFormIsCombo] = useState(false);
   const [formActive, setFormActive] = useState(true);
 
   // Form Fields - Tab 2: Media
@@ -249,6 +251,7 @@ export default function AdminProducts() {
     setFormIsVeg(true);
     setFormFeatured(false);
     setFormIsBestSeller(false);
+    setFormIsCombo(false);
     setFormActive(true);
 
     setFormImages([]);
@@ -290,6 +293,7 @@ export default function AdminProducts() {
     setFormIsVeg(p.isVegetarian ?? true);
     setFormFeatured(Boolean(p.featured));
     setFormIsBestSeller(Boolean(p.isBestSeller));
+    setFormIsCombo(Boolean(p.isCombo));
     setFormActive(Boolean(p.active));
 
     setFormImages(Array.isArray(p.images) ? p.images : []);
@@ -567,6 +571,7 @@ export default function AdminProducts() {
       isVegetarian: formIsVeg,
       featured: formFeatured,
       isBestSeller: formIsBestSeller,
+      isCombo: formIsCombo,
       active: formActive,
       images: formImages.filter(Boolean),
       rating: formRating,
@@ -851,6 +856,25 @@ export default function AdminProducts() {
                               {p.badge && p.badge !== 'Best Seller' && (
                                 <span style={{ background: '#F3F4F6', color: '#374151', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
                                   {p.badge}
+                                </span>
+                              )}
+                              {p.isCombo && (
+                                <span
+                                  style={{
+                                    background: '#FCE7F3',
+                                    color: '#9D174D',
+                                    border: '1px solid #FBCFE8',
+                                    padding: '2px 7px',
+                                    borderRadius: '4px',
+                                    fontSize: '10px',
+                                    fontWeight: 800,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                  }}
+                                  title="Combo Product"
+                                >
+                                  <span>🎁 Combo</span>
                                 </span>
                               )}
                             </div>
@@ -1243,6 +1267,40 @@ export default function AdminProducts() {
                           </div>
                           <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#78350F', lineHeight: 1.4 }}>
                             Directly links to the homepage 4 Best Sellers section.
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+
+                    {/* Combo Product Option */}
+                    <div
+                      style={{
+                        padding: '14px 16px',
+                        borderRadius: '10px',
+                        background: formIsCombo ? '#FDF2F8' : '#FAF8F4',
+                        border: formIsCombo ? '1.5px solid #DB2777' : '1px solid #EAE3D2',
+                      }}
+                    >
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={formIsCombo}
+                          onChange={e => setFormIsCombo(e.target.checked)}
+                          style={{ accentColor: '#DB2777', width: '18px', height: '18px', marginTop: '2px', cursor: 'pointer' }}
+                        />
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontWeight: 800, fontSize: '13.5px', color: formIsCombo ? '#9D174D' : '#3C0815' }}>
+                              🎁 Combo Pack / Combo Delicacy
+                            </span>
+                            {formIsCombo && (
+                              <span style={{ fontSize: '10px', fontWeight: 800, background: '#DB2777', color: '#FFF', padding: '1px 6px', borderRadius: '999px' }}>
+                                COMBO ACTIVE
+                              </span>
+                            )}
+                          </div>
+                          <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#831843', lineHeight: 1.4 }}>
+                            Check this box to mark this product as a Combo item. Combo-only discount coupons will be functional on orders containing combo products.
                           </p>
                         </div>
                       </label>

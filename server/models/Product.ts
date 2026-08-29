@@ -39,6 +39,7 @@ export interface IProduct extends Document {
   featured: boolean;
   isBestSeller?: boolean;
   bestSellerAt?: Date;
+  isCombo?: boolean;
   active: boolean;
   rating: number;
   reviewCount: number;
@@ -201,6 +202,11 @@ const productSchema = new Schema<IProduct>(
     bestSellerAt: {
       type: Date,
       default: null,
+    },
+    isCombo: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
     active: {
       type: Boolean,

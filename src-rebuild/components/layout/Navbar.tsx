@@ -102,12 +102,47 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
   const navbarLinks = NAV_LINKS;
   const mobileLinks = MOBILE_LINKS;
 
+  const [liveProducts, setLiveProducts] = useState<any[]>([]);
+
+  useEffect(() => {
+    const term = query.trim();
+    if (!term) {
+      setLiveProducts([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/products?search=${encodeURIComponent(term)}&limit=6`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.products)) {
+            setLiveProducts(data.products);
+          }
+        }
+      } catch {
+        // Ignore fallback
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [query]);
+
   const results = useMemo(() => {
+    if (liveProducts.length > 0) {
+      return liveProducts.map(p => ({
+        id: p.id || p._id,
+        slug: p.slug || p.id,
+        name: p.name,
+        description: p.tagline || p.description || p.categoryLabel,
+        price: p.options?.[0]?.price ?? 120,
+        category: p.categoryLabel || 'Namkeens',
+        keywords: [p.name, p.hindiName || ''],
+      }));
+    }
     const term = query.trim().toLowerCase();
     return term
       ? ACTIVE_MENU.filter(p => [p.name, p.description, p.category, ...p.keywords].join(' ').toLowerCase().includes(term)).slice(0, 6)
       : [];
-  }, [query]);
+  }, [liveProducts, query]);
 
   const closeMenu = useCallback(() => setOpen(false), []);
   const closePanels = useCallback(() => {
@@ -202,10 +237,14 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
     setCartOpen(true);
   };
 
-  const addFromSearch = (product: MenuItem) => {
-    addItem(product);
+  const addFromSearch = (product: any) => {
     setSearchOpen(false);
-    setCartOpen(true);
+    if (product.slug) {
+      navigate(`/product/${product.slug}`);
+    } else {
+      addItem(product);
+      setCartOpen(true);
+    }
   };
 
   return (

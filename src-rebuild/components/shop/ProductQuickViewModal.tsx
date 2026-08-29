@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { type Product, type ProductWeightOption } from '../../data/products';
 import { useCart } from '../../lib/cartContext';
 import { BUSINESS } from '../../lib/business';
+import { useStoreSettings } from '../../lib/storeSettingsContext';
 
 interface ProductQuickViewModalProps {
   product: Product | null;
@@ -11,6 +12,7 @@ interface ProductQuickViewModalProps {
 
 export default function ProductQuickViewModal({ product, onClose }: ProductQuickViewModalProps) {
   const navigate = useNavigate();
+  const { settings } = useStoreSettings();
   const { addToCart, openCart } = useCart();
   const [selectedOption, setSelectedOption] = useState<ProductWeightOption | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -47,10 +49,12 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
   };
 
   const handleBuyNowWhatsApp = () => {
+    const storeName = settings.storeName || BUSINESS.name;
+    const waNumber = (settings.contact?.whatsappNumber || BUSINESS.whatsappNumber).replace(/\D/g, '');
     const text = encodeURIComponent(
-      `Namaste ${BUSINESS.name}! 🙏\nI would like to order:\n*${product.name} (${selectedOption.weight})* × ${quantity} (₹${selectedOption.price * quantity})\n\nPlease share delivery details.`
+      `Namaste ${storeName}! 🙏\nI would like to order:\n*${product.name} (${selectedOption.weight})* × ${quantity} (₹${selectedOption.price * quantity})\n\nPlease share delivery details.`
     );
-    window.open(`https://wa.me/${BUSINESS.whatsappNumber}?text=${text}`, '_blank');
+    window.open(`https://wa.me/${waNumber}?text=${text}`, '_blank');
   };
 
   return (

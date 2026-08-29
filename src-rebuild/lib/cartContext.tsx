@@ -155,19 +155,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setCouponError(null);
 
       try {
+        const payload = {
+          code: cleanCode,
+          subtotal,
+          items: cart.map(it => ({
+            productId: it.product.id || (it.product as any)._id,
+            isCombo: Boolean(it.product.isCombo),
+            quantity: it.quantity,
+            price: it.selectedOption?.price || 0,
+          })),
+        };
+
         const res = await fetch('/api/discounts/validate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: cleanCode, subtotal }),
+          body: JSON.stringify(payload),
         });
 
         const data = await res.json();
-        if (res.ok && data.valid && data.discount) {
+        if (res.ok && data.valid && (data.discount || data.discountAmount !== undefined)) {
           const applied: AppliedCoupon = {
-            code: data.discount.code,
-            type: data.discount.type,
-            value: data.discount.value,
-            discountAmount: data.discountAmount,
+            code: data.code || cleanCode,
+            type: data.type || data.discount?.type || 'percentage',
+            value: data.value || data.discount?.value || 0,
+            discountAmount: data.discountAmount || 0,
           };
           setCoupon(applied);
           setToastMessage(`Coupon ${cleanCode} applied! Saved ₹${data.discountAmount}`);
@@ -185,7 +196,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setIsApplyingCoupon(false);
       }
     },
-    [subtotal]
+    [cart, subtotal]
   );
 
   const removeCoupon = useCallback(() => {

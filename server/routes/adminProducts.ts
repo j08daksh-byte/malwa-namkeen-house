@@ -80,6 +80,7 @@ async function ensureInitialSeed() {
         featured: idx < 4,
         isBestSeller: idx < 4,
         bestSellerAt: idx < 4 ? new Date(Date.now() - idx * 1000) : null,
+        isCombo: (p as any).isCombo ?? false,
         active: p.isAvailable ?? true,
         rating: p.rating || 4.9,
         reviewCount: p.reviewCount || 42,
@@ -267,6 +268,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       variants = [],
       featured = false,
       isBestSeller = false,
+      isCombo = false,
       active = true,
       badge = '',
       rating = 5.0,
@@ -374,6 +376,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       featured: Boolean(featured),
       isBestSeller: Boolean(isBestSeller),
       bestSellerAt: isBestSeller ? new Date() : null,
+      isCombo: Boolean(isCombo),
       active: Boolean(active),
       badge: badge ? String(badge).trim() : (isBestSeller ? 'Best Seller' : ''),
       rating: typeof rating === 'number' ? rating : 5.0,
@@ -425,6 +428,7 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
       variants,
       featured,
       isBestSeller,
+      isCombo,
       active,
       badge,
       rating,
@@ -450,6 +454,7 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
     if (packagingType !== undefined) existingProduct.packagingType = String(packagingType).trim();
     if (isVegetarian !== undefined) existingProduct.isVegetarian = Boolean(isVegetarian);
     if (featured !== undefined) existingProduct.featured = Boolean(featured);
+    if (isCombo !== undefined) existingProduct.isCombo = Boolean(isCombo);
     if (active !== undefined) existingProduct.active = Boolean(active);
     if (badge !== undefined) existingProduct.badge = String(badge).trim();
     if (rating !== undefined && !isNaN(Number(rating))) existingProduct.rating = Number(rating);
@@ -600,6 +605,37 @@ router.patch('/:id/toggle-bestseller', async (req: AuthenticatedRequest, res: Re
     });
   } catch (err: unknown) {
     res.status(500).json({ success: false, message: 'Failed to toggle best seller status.' });
+  }
+});
+
+/**
+ * PATCH /api/admin/products/:id/toggle-combo
+ */
+router.patch('/:id/toggle-combo', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(400).json({ success: false, message: 'Invalid product ID.' });
+      return;
+    }
+
+    const product = await Product.findById(id);
+    if (!product) {
+      res.status(404).json({ success: false, message: 'Product not found.' });
+      return;
+    }
+
+    product.isCombo = !product.isCombo;
+    await product.save();
+
+    res.json({
+      success: true,
+      message: `Product is ${product.isCombo ? 'now marked as Combo Delicacy' : 'no longer marked as Combo'}.`,
+      isCombo: product.isCombo,
+      product,
+    });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, message: 'Failed to toggle combo status.' });
   }
 });
 

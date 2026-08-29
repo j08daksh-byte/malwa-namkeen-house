@@ -76,6 +76,7 @@ function formatPublicProduct(p: any) {
     reviewCount: typeof p.reviewCount === 'number' ? p.reviewCount : 124,
     featured: Boolean(p.featured),
     isBestSeller: Boolean(p.isBestSeller),
+    isCombo: Boolean(p.isCombo),
     options,
   };
 }

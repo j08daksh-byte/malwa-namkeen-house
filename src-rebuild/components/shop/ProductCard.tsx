@@ -33,8 +33,8 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
     setTimeout(() => setIsAdding(false), 500);
   };
 
-  // Determine badge text: only show if explicitly given or bestseller
-  const badgeText = product.badge?.trim() || (product.isBestSeller ? 'BESTSELLER' : undefined);
+  // Determine badge text: only show if explicitly given, combo, or bestseller
+  const badgeText = product.badge?.trim() || (product.isCombo ? 'COMBO PACK' : product.isBestSeller ? 'BESTSELLER' : undefined);
 
   // Oil / Purity feature tag: only show if oilUsed is provided
   const oilBadgeText = product.oilUsed?.trim()

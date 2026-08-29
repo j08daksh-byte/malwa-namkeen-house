@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../lib/cartContext';
 import { useCustomerSession } from '../layout/CustomerSessionContext';
 import { BUSINESS } from '../../lib/business';
+import { useStoreSettings } from '../../lib/storeSettingsContext';
 import {
   Check,
   MapPin,
@@ -36,6 +37,7 @@ interface SavedAddress {
 
 export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const navigate = useNavigate();
+  const { settings } = useStoreSettings();
   const { cart, subtotal, discountAmount, coupon, totalItems, clearCart, revalidateCart } = useCart();
   const { customer, loading: sessionLoading } = useCustomerSession();
 
@@ -221,9 +223,11 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       .map((it: any, idx: number) => `${idx + 1}. *${it.productName}* (${it.variantLabel}) × ${it.quantity} — ₹${it.itemTotal}`)
       .join('\n');
 
-    const msg = `Namaste ${BUSINESS.name}! 🙏\n\n*CONFIRMED ORDER (#${createdOrder.orderNumber})*\n\n🛍️ *ITEMS:*\n${itemsText}\n\n💰 *Total Amount:* ₹${createdOrder.total}\n📍 *Deliver To:* ${createdOrder.shippingAddress?.name}, ${createdOrder.shippingAddress?.city} — ${createdOrder.shippingAddress?.pincode}\n\nPlease confirm dispatch. Thank you!`;
+    const storeName = settings.storeName || BUSINESS.name;
+    const waNumber = (settings.contact?.whatsappNumber || BUSINESS.whatsappNumber).replace(/\D/g, '');
+    const msg = `Namaste ${storeName}! 🙏\n\n*CONFIRMED ORDER (#${createdOrder.orderNumber})*\n\n🛍️ *ITEMS:*\n${itemsText}\n\n💰 *Total Amount:* ₹${createdOrder.total}\n📍 *Deliver To:* ${createdOrder.shippingAddress?.name}, ${createdOrder.shippingAddress?.city} — ${createdOrder.shippingAddress?.pincode}\n\nPlease confirm dispatch. Thank you!`;
 
-    window.open(`https://wa.me/${BUSINESS.whatsappNumber}?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   return (

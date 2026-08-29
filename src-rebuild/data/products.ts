@@ -31,6 +31,7 @@ export interface Product {
   reviewCount: number;
   featured?: boolean;
   isBestSeller?: boolean;
+  isCombo?: boolean;
   options: ProductWeightOption[];
   isAvailable: boolean;
   isVegetarian: boolean;
@@ -408,6 +409,7 @@ export const PRODUCTS: Product[] = [
     badge: 'Luxury Gift Edition',
     featured: false,
     isBestSeller: false,
+    isCombo: true,
     rating: 5.0,
     reviewCount: 94,
     options: [
@@ -436,6 +438,7 @@ export const PRODUCTS: Product[] = [
     badge: 'Party Hit',
     featured: false,
     isBestSeller: false,
+    isCombo: true,
     rating: 4.9,
     reviewCount: 167,
     options: [

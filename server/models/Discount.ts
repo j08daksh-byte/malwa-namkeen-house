@@ -14,6 +14,8 @@ export interface IDiscount extends Document {
   usageLimit?: number;
   usageLimitPerUser?: number;
   usedCount: number;
+  isCombo?: boolean;
+  isComboOnly?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -73,6 +75,14 @@ const discountSchema = new Schema<IDiscount>(
     usedCount: {
       type: Number,
       default: 0,
+    },
+    isCombo: {
+      type: Boolean,
+      default: false,
+    },
+    isComboOnly: {
+      type: Boolean,
+      default: false,
     },
   },
   {

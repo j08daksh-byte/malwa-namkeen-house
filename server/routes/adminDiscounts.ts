@@ -13,8 +13,8 @@ const router = Router();
  */
 router.post('/validate', async (req, res: Response) => {
   try {
-    const { code, subtotal } = req.body;
-    const result = await validateAndCalculateDiscount(code, Number(subtotal) || 0);
+    const { code, subtotal, items = [] } = req.body;
+    const result = await validateAndCalculateDiscount(code, Number(subtotal) || 0, items);
 
     if (!result.valid) {
       res.status(400).json({
@@ -135,6 +135,8 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       endDate,
       usageLimit,
       usageLimitPerUser = 1,
+      isCombo = false,
+      isComboOnly,
     } = req.body;
 
     if (!code || typeof code !== 'string' || !code.trim()) {
@@ -165,6 +167,8 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       return;
     }
 
+    const comboFlag = Boolean(isCombo || isComboOnly);
+
     const newDiscount = await Discount.create({
       code: normalizedCode,
       type: type === 'fixed' ? 'fixed' : 'percentage',
@@ -175,6 +179,8 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
           ? Number(maximumDiscount)
           : null,
       active: Boolean(active),
+      isCombo: comboFlag,
+      isComboOnly: comboFlag,
       startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,
       usageLimit: usageLimit && Number(usageLimit) > 0 ? Number(usageLimit) : null,
@@ -212,6 +218,8 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
       minimumOrder,
       maximumDiscount,
       active,
+      isCombo,
+      isComboOnly,
       startDate,
       endDate,
       usageLimit,
@@ -258,6 +266,11 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
       discount.maximumDiscount = Number(maximumDiscount) > 0 ? Number(maximumDiscount) : undefined;
     }
     if (active !== undefined) discount.active = Boolean(active);
+    if (isCombo !== undefined || isComboOnly !== undefined) {
+      const comboVal = Boolean(isCombo !== undefined ? isCombo : isComboOnly);
+      discount.isCombo = comboVal;
+      discount.isComboOnly = comboVal;
+    }
     if (startDate !== undefined) discount.startDate = startDate ? new Date(startDate) : undefined;
     if (endDate !== undefined) discount.endDate = endDate ? new Date(endDate) : undefined;
     if (usageLimit !== undefined) {

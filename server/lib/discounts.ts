@@ -1,4 +1,15 @@
+import mongoose from 'mongoose';
 import { Discount, type IDiscount } from '../models/Discount.ts';
+import { Product } from '../models/Product.ts';
+
+export interface CartItemValidationInput {
+  productId?: string | any;
+  productName?: string;
+  isCombo?: boolean;
+  quantity?: number;
+  price?: number;
+  [key: string]: any;
+}
 
 export interface DiscountValidationResult {
   valid: boolean;
@@ -14,7 +25,8 @@ export interface DiscountValidationResult {
  */
 export async function validateAndCalculateDiscount(
   rawCode: string,
-  subtotal: number
+  subtotal: number,
+  cartItems?: CartItemValidationInput[]
 ): Promise<DiscountValidationResult> {
   if (!rawCode || typeof rawCode !== 'string' || !rawCode.trim()) {
     return { valid: false, message: 'Please enter a coupon code.', discountAmount: 0 };
@@ -75,6 +87,66 @@ export async function validateAndCalculateDiscount(
     };
   }
 
+  // Validate Combo-Only Coupon Rule
+  const isComboCoupon = Boolean(discount.isCombo || discount.isComboOnly);
+  if (isComboCoupon) {
+    if (!Array.isArray(cartItems) || cartItems.length === 0) {
+      return {
+        valid: false,
+        message: `Coupon "${code}" is only applicable when purchasing Combo products.`,
+        discountAmount: 0,
+      };
+    }
+
+    // Resolve authoritative isCombo status for all cart items from database if possible
+    const productIds = cartItems
+      .map(item => item.productId)
+      .filter(id => id && mongoose.Types.ObjectId.isValid(String(id)));
+
+    let dbProductMap = new Map<string, boolean>();
+    if (productIds.length > 0) {
+      const dbProducts = await Product.find({ _id: { $in: productIds } })
+        .select('_id isCombo name')
+        .lean();
+      dbProductMap = new Map(dbProducts.map(p => [String(p._id), Boolean(p.isCombo)]));
+    }
+
+    let hasComboItem = false;
+    let hasNonComboItem = false;
+
+    for (const item of cartItems) {
+      const pId = item.productId ? String(item.productId) : '';
+      let isItemCombo = false;
+      if (pId && dbProductMap.has(pId)) {
+        isItemCombo = Boolean(dbProductMap.get(pId));
+      } else if (item.isCombo !== undefined) {
+        isItemCombo = Boolean(item.isCombo);
+      }
+
+      if (isItemCombo) {
+        hasComboItem = true;
+      } else {
+        hasNonComboItem = true;
+      }
+    }
+
+    if (!hasComboItem) {
+      return {
+        valid: false,
+        message: `Coupon "${code}" is only applicable on Combo products.`,
+        discountAmount: 0,
+      };
+    }
+
+    if (hasNonComboItem) {
+      return {
+        valid: false,
+        message: `Coupon "${code}" is valid exclusively on Combo products. It cannot be applied when non-combo items are in your cart.`,
+        discountAmount: 0,
+      };
+    }
+  }
+
   // Calculate discount amount server-side
   let discountAmount = 0;
 
@@ -99,3 +171,4 @@ export async function validateAndCalculateDiscount(
     discount,
   };
 }
+

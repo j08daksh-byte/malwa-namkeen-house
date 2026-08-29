@@ -2,15 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../lib/cartContext';
 import { BUSINESS } from '../../lib/business';
+import { useStoreSettings } from '../../lib/storeSettingsContext';
 
 interface CartDrawerProps {
   onOpenCheckout: () => void;
 }
 
-const FREE_SHIPPING_THRESHOLD = 499;
+const DEFAULT_FREE_SHIPPING_THRESHOLD = 499;
 
 export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
   const navigate = useNavigate();
+  const { settings } = useStoreSettings();
+  const FREE_SHIPPING_THRESHOLD = settings.deliverySettings?.freeShippingThreshold || DEFAULT_FREE_SHIPPING_THRESHOLD;
   const {
     cart,
     isCartOpen,
@@ -97,9 +100,11 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
       couponInfo = `🎟️ *Coupon Applied (${coupon.code}):* -₹${discountAmount}\n`;
     }
 
-    const message = `Namaste ${BUSINESS.name}! 🙏\nI would like to order from your Shop:\n\n🛍️ *ORDER SUMMARY:*\n${itemsList}\n📦 *Total Items:* ${totalItems}\n💰 *Subtotal:* ₹${result.subtotal || subtotal}\n${couponInfo}✨ *Final Total:* ₹${result.total || finalTotal}\n\nPlease confirm delivery availability and dispatch timeline. Thank you!`;
+    const storeName = settings.storeName || BUSINESS.name;
+    const waNumber = (settings.contact?.whatsappNumber || BUSINESS.whatsappNumber).replace(/\D/g, '');
+    const message = `Namaste ${storeName}! 🙏\nI would like to order from your Shop:\n\n🛍️ *ORDER SUMMARY:*\n${itemsList}\n📦 *Total Items:* ${totalItems}\n💰 *Subtotal:* ₹${result.subtotal || subtotal}\n${couponInfo}✨ *Final Total:* ₹${result.total || finalTotal}\n\nPlease confirm delivery availability and dispatch timeline. Thank you!`;
 
-    window.open(`https://wa.me/${BUSINESS.whatsappNumber}?text=${encodeURIComponent(message)}`, '_blank');
+    window.open(`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   return (

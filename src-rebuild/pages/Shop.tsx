@@ -222,7 +222,7 @@ export default function Shop() {
         });
 
         const timeoutPromise = new Promise<Response>((_, reject) =>
-          setTimeout(() => reject(new Error('Fetch timeout')), 2000)
+          setTimeout(() => reject(new Error('Fetch timeout')), 8000)
         );
 
         const fetchPromise = fetch(`/api/products?${queryParams.toString()}`, {
@@ -235,7 +235,7 @@ export default function Shop() {
 
         if (res.ok) {
           const data = await res.json();
-          if (data.success && Array.isArray(data.products) && data.products.length > 0) {
+          if (data.success && Array.isArray(data.products)) {
             setTotalCount(data.total ?? data.products.length);
             setHasMore(Boolean(data.page < data.totalPages));
             setPage(pageToFetch);

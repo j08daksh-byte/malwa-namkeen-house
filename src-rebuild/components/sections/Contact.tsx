@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { submitContact } from '../../lib/api.ts';
 import { CATEGORY_WA_URLS, WA_URLS } from '../../lib/whatsapp.ts';
 import { BUSINESS } from '../../lib/business.ts';
+import { useStoreSettings } from '../../lib/storeSettingsContext';
 import { EVENTS } from '../../lib/events';
 
 // Must match server/validate.ts message min
@@ -76,6 +77,7 @@ const FIELD_IDS: Record<string, string> = {
 
 /* ─── Main component ─────────────────────────────────────────────────────── */
 export default function Contact() {
+  const { settings } = useStoreSettings();
   const [name,     setName]     = useState('');
   const [email,    setEmail]    = useState('');
   const [phone,    setPhone]    = useState('');
@@ -500,7 +502,7 @@ export default function Contact() {
                 </svg>
               }
               title="Email Us"
-              text={BUSINESS.email}
+              text={settings.contact?.email || BUSINESS.email}
             />
 
             <InfoBlock

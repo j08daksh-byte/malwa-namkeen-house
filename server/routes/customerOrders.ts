@@ -224,7 +224,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
     let discountAmount = 0;
 
     if (couponCode && typeof couponCode === 'string' && couponCode.trim()) {
-      const discountCalc = await validateAndCalculateDiscount(couponCode.trim(), subtotal);
+      const discountCalc = await validateAndCalculateDiscount(couponCode.trim(), subtotal, orderItems);
       if (!discountCalc.valid || !discountCalc.discount) {
         res.status(400).json({
           success: false,

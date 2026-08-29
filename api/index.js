@@ -323,6 +323,11 @@ var productSchema = new Schema3(
       type: Date,
       default: null
     },
+    isCombo: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
     active: {
       type: Boolean,
       default: true,
@@ -711,6 +716,7 @@ var PRODUCTS = [
     badge: "Luxury Gift Edition",
     featured: false,
     isBestSeller: false,
+    isCombo: true,
     rating: 5,
     reviewCount: 94,
     options: [
@@ -739,6 +745,7 @@ var PRODUCTS = [
     badge: "Party Hit",
     featured: false,
     isBestSeller: false,
+    isCombo: true,
     rating: 4.9,
     reviewCount: 167,
     options: [
@@ -2484,6 +2491,7 @@ function formatPublicProduct(p) {
     reviewCount: typeof p.reviewCount === "number" ? p.reviewCount : 124,
     featured: Boolean(p.featured),
     isBestSeller: Boolean(p.isBestSeller),
+    isCombo: Boolean(p.isCombo),
     options
   };
 }
@@ -2712,6 +2720,9 @@ var products_default = router3;
 
 // server/routes/cartWishlist.ts
 import { Router as Router4 } from "express";
+import mongoose10 from "mongoose";
+
+// server/lib/discounts.ts
 import mongoose9 from "mongoose";
 
 // server/models/Discount.ts
@@ -2771,6 +2782,14 @@ var discountSchema = new Schema5(
     usedCount: {
       type: Number,
       default: 0
+    },
+    isCombo: {
+      type: Boolean,
+      default: false
+    },
+    isComboOnly: {
+      type: Boolean,
+      default: false
     }
   },
   {
@@ -2780,7 +2799,7 @@ var discountSchema = new Schema5(
 var Discount = mongoose8.models.Discount || mongoose8.model("Discount", discountSchema);
 
 // server/lib/discounts.ts
-async function validateAndCalculateDiscount(rawCode, subtotal) {
+async function validateAndCalculateDiscount(rawCode, subtotal, cartItems) {
   if (!rawCode || typeof rawCode !== "string" || !rawCode.trim()) {
     return { valid: false, message: "Please enter a coupon code.", discountAmount: 0 };
   }
@@ -2826,6 +2845,52 @@ async function validateAndCalculateDiscount(rawCode, subtotal) {
       discountAmount: 0
     };
   }
+  const isComboCoupon = Boolean(discount.isCombo || discount.isComboOnly);
+  if (isComboCoupon) {
+    if (!Array.isArray(cartItems) || cartItems.length === 0) {
+      return {
+        valid: false,
+        message: `Coupon "${code}" is only applicable when purchasing Combo products.`,
+        discountAmount: 0
+      };
+    }
+    const productIds = cartItems.map((item) => item.productId).filter((id) => id && mongoose9.Types.ObjectId.isValid(String(id)));
+    let dbProductMap = /* @__PURE__ */ new Map();
+    if (productIds.length > 0) {
+      const dbProducts = await Product.find({ _id: { $in: productIds } }).select("_id isCombo name").lean();
+      dbProductMap = new Map(dbProducts.map((p) => [String(p._id), Boolean(p.isCombo)]));
+    }
+    let hasComboItem = false;
+    let hasNonComboItem = false;
+    for (const item of cartItems) {
+      const pId = item.productId ? String(item.productId) : "";
+      let isItemCombo = false;
+      if (pId && dbProductMap.has(pId)) {
+        isItemCombo = Boolean(dbProductMap.get(pId));
+      } else if (item.isCombo !== void 0) {
+        isItemCombo = Boolean(item.isCombo);
+      }
+      if (isItemCombo) {
+        hasComboItem = true;
+      } else {
+        hasNonComboItem = true;
+      }
+    }
+    if (!hasComboItem) {
+      return {
+        valid: false,
+        message: `Coupon "${code}" is only applicable on Combo products.`,
+        discountAmount: 0
+      };
+    }
+    if (hasNonComboItem) {
+      return {
+        valid: false,
+        message: `Coupon "${code}" is valid exclusively on Combo products. It cannot be applied when non-combo items are in your cart.`,
+        discountAmount: 0
+      };
+    }
+  }
   let discountAmount = 0;
   if (discount.type === "percentage") {
     const rawDiscount = subtotal * discount.value / 100;
@@ -2864,7 +2929,7 @@ router4.post("/revalidate", async (req, res) => {
       return;
     }
     const productIds = [
-      ...new Set(items.map((it) => it.productId).filter((id) => mongoose9.Types.ObjectId.isValid(id)))
+      ...new Set(items.map((it) => it.productId).filter((id) => mongoose10.Types.ObjectId.isValid(id)))
     ];
     const products = await Product.find({
       _id: { $in: productIds },
@@ -2935,6 +3000,7 @@ router4.post("/revalidate", async (req, res) => {
         quantity,
         itemTotal: Math.round(livePrice * quantity * 100) / 100,
         stock: availableStock,
+        isCombo: Boolean(product.isCombo),
         image: primaryImage
       });
     }
@@ -2943,7 +3009,7 @@ router4.post("/revalidate", async (req, res) => {
     let validatedCoupon = null;
     let couponError = null;
     if (couponCode && couponCode.trim()) {
-      const discResult = await validateAndCalculateDiscount(couponCode.trim(), subtotal);
+      const discResult = await validateAndCalculateDiscount(couponCode.trim(), subtotal, validatedItems);
       if (discResult.valid) {
         discountAmount = discResult.discountAmount;
         validatedCoupon = discResult.discount;
@@ -2997,7 +3063,7 @@ router4.get("/wishlist", requireAuth, async (req, res) => {
 router4.post("/wishlist/toggle", requireAuth, async (req, res) => {
   try {
     const { productId } = req.body;
-    if (!productId || !mongoose9.Types.ObjectId.isValid(productId)) {
+    if (!productId || !mongoose10.Types.ObjectId.isValid(productId)) {
       res.status(400).json({ success: false, message: "Valid productId is required." });
       return;
     }
@@ -3011,7 +3077,7 @@ router4.post("/wishlist/toggle", requireAuth, async (req, res) => {
     if (exists) {
       user.wishlist = (user.wishlist || []).filter((id) => String(id) !== productId);
     } else {
-      user.wishlist = [...user.wishlist || [], new mongoose9.Types.ObjectId(productId)];
+      user.wishlist = [...user.wishlist || [], new mongoose10.Types.ObjectId(productId)];
     }
     await user.save();
     res.json({
@@ -3028,7 +3094,7 @@ router4.post("/wishlist/toggle", requireAuth, async (req, res) => {
 router4.post("/wishlist/sync", requireAuth, async (req, res) => {
   try {
     const { productIds = [] } = req.body;
-    const validIds = productIds.filter((id) => mongoose9.Types.ObjectId.isValid(id));
+    const validIds = productIds.filter((id) => mongoose10.Types.ObjectId.isValid(id));
     const user = await User.findById(req.user?.userId);
     if (!user) {
       res.status(404).json({ success: false, message: "Customer account not found." });
@@ -3037,7 +3103,7 @@ router4.post("/wishlist/sync", requireAuth, async (req, res) => {
     const existingStrings = new Set((user.wishlist || []).map((id) => String(id)));
     for (const id of validIds) {
       if (!existingStrings.has(id)) {
-        user.wishlist?.push(new mongoose9.Types.ObjectId(id));
+        user.wishlist?.push(new mongoose10.Types.ObjectId(id));
         existingStrings.add(id);
       }
     }
@@ -3056,10 +3122,10 @@ var cartWishlist_default = router4;
 
 // server/routes/customerAccount.ts
 import { Router as Router5 } from "express";
-import mongoose11 from "mongoose";
+import mongoose12 from "mongoose";
 
 // server/models/Order.ts
-import mongoose10, { Schema as Schema6 } from "mongoose";
+import mongoose11, { Schema as Schema6 } from "mongoose";
 var orderItemSchema = new Schema6(
   {
     productId: {
@@ -3221,7 +3287,7 @@ orderSchema.index({ customer: 1, createdAt: -1 });
 orderSchema.index({ "customerInfo.email": 1, createdAt: -1 });
 orderSchema.index({ orderStatus: 1, createdAt: -1 });
 orderSchema.index({ paymentStatus: 1, createdAt: -1 });
-var Order = mongoose10.models.Order || mongoose10.model("Order", orderSchema);
+var Order = mongoose11.models.Order || mongoose11.model("Order", orderSchema);
 
 // server/routes/customerAccount.ts
 var router5 = Router5();
@@ -3410,7 +3476,7 @@ router5.put("/addresses/:addressId", async (req, res) => {
   try {
     const { addressId } = req.params;
     const { name: name2, phone: phone2, addressLine1, addressLine2, city, state, pincode, landmark, isDefault } = req.body;
-    if (!mongoose11.Types.ObjectId.isValid(addressId)) {
+    if (!mongoose12.Types.ObjectId.isValid(addressId)) {
       res.status(400).json({ success: false, message: "Invalid address ID format." });
       return;
     }
@@ -3462,7 +3528,7 @@ router5.put("/addresses/:addressId", async (req, res) => {
 router5.delete("/addresses/:addressId", async (req, res) => {
   try {
     const { addressId } = req.params;
-    if (!mongoose11.Types.ObjectId.isValid(addressId)) {
+    if (!mongoose12.Types.ObjectId.isValid(addressId)) {
       res.status(400).json({ success: false, message: "Invalid address ID format." });
       return;
     }
@@ -3495,7 +3561,7 @@ router5.delete("/addresses/:addressId", async (req, res) => {
 router5.put("/addresses/:addressId/default", async (req, res) => {
   try {
     const { addressId } = req.params;
-    if (!mongoose11.Types.ObjectId.isValid(addressId)) {
+    if (!mongoose12.Types.ObjectId.isValid(addressId)) {
       res.status(400).json({ success: false, message: "Invalid address ID format." });
       return;
     }
@@ -3550,7 +3616,7 @@ router5.get("/orders/:orderId", async (req, res) => {
       res.status(404).json({ success: false, message: "Account not found or inactive." });
       return;
     }
-    const query = mongoose11.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderNumber: orderId };
+    const query = mongoose12.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderNumber: orderId };
     const order = await Order.findOne(query).lean();
     if (!order) {
       res.status(404).json({ success: false, message: "Order not found." });
@@ -3577,10 +3643,10 @@ var customerAccount_default = router5;
 
 // server/routes/customerOrders.ts
 import { Router as Router6 } from "express";
-import mongoose13 from "mongoose";
+import mongoose14 from "mongoose";
 
 // server/models/StoreSettings.ts
-import mongoose12, { Schema as Schema7 } from "mongoose";
+import mongoose13, { Schema as Schema7 } from "mongoose";
 var storeSettingsSchema = new Schema7(
   {
     storeName: {
@@ -3666,7 +3732,7 @@ var storeSettingsSchema = new Schema7(
     timestamps: true
   }
 );
-var StoreSettings = mongoose12.models.StoreSettings || mongoose12.model("StoreSettings", storeSettingsSchema);
+var StoreSettings = mongoose13.models.StoreSettings || mongoose13.model("StoreSettings", storeSettingsSchema);
 
 // server/routes/customerOrders.ts
 var router6 = Router6();
@@ -3734,7 +3800,7 @@ router6.post("/", requireAuth, async (req, res) => {
     }
     const productIds = [
       ...new Set(
-        items.map((it) => it.productId).filter((id) => mongoose13.Types.ObjectId.isValid(id))
+        items.map((it) => it.productId).filter((id) => mongoose14.Types.ObjectId.isValid(id))
       )
     ];
     const products = await Product.find({
@@ -3824,7 +3890,7 @@ router6.post("/", requireAuth, async (req, res) => {
     const shipping = subtotal >= freeThreshold ? 0 : standardFee;
     let discountAmount = 0;
     if (couponCode && typeof couponCode === "string" && couponCode.trim()) {
-      const discountCalc = await validateAndCalculateDiscount(couponCode.trim(), subtotal);
+      const discountCalc = await validateAndCalculateDiscount(couponCode.trim(), subtotal, orderItems);
       if (!discountCalc.valid || !discountCalc.discount) {
         res.status(400).json({
           success: false,
@@ -4044,7 +4110,7 @@ var customerOrders_default = router6;
 
 // server/routes/adminProducts.ts
 import { Router as Router7 } from "express";
-import mongoose14 from "mongoose";
+import mongoose15 from "mongoose";
 var router7 = Router7();
 router7.use(requireAdmin);
 async function enforceMaxBestSellers(currentProductId) {
@@ -4104,6 +4170,7 @@ async function ensureInitialSeed() {
         featured: idx < 4,
         isBestSeller: idx < 4,
         bestSellerAt: idx < 4 ? new Date(Date.now() - idx * 1e3) : null,
+        isCombo: p.isCombo ?? false,
         active: p.isAvailable ?? true,
         rating: p.rating || 4.9,
         reviewCount: p.reviewCount || 42,
@@ -4161,8 +4228,8 @@ router7.get("/", async (req, res) => {
       ];
     }
     if (category && category !== "all") {
-      if (mongoose14.Types.ObjectId.isValid(category)) {
-        filter.category = new mongoose14.Types.ObjectId(category);
+      if (mongoose15.Types.ObjectId.isValid(category)) {
+        filter.category = new mongoose15.Types.ObjectId(category);
       } else {
         const cat = await Category.findOne({ slug: category });
         if (cat) filter.category = cat._id;
@@ -4205,7 +4272,7 @@ router7.get("/", async (req, res) => {
 router7.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose14.Types.ObjectId.isValid(id)) {
+    if (!mongoose15.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID format." });
       return;
     }
@@ -4245,6 +4312,7 @@ router7.post("/", async (req, res) => {
       variants = [],
       featured = false,
       isBestSeller = false,
+      isCombo = false,
       active = true,
       badge = "",
       rating = 5,
@@ -4266,7 +4334,7 @@ router7.post("/", async (req, res) => {
       return;
     }
     let categoryId = category;
-    if (!mongoose14.Types.ObjectId.isValid(category)) {
+    if (!mongoose15.Types.ObjectId.isValid(category)) {
       const cat = await Category.findOne({ slug: category });
       if (!cat) {
         res.status(400).json({ success: false, message: "Invalid category specified." });
@@ -4326,6 +4394,7 @@ router7.post("/", async (req, res) => {
       featured: Boolean(featured),
       isBestSeller: Boolean(isBestSeller),
       bestSellerAt: isBestSeller ? /* @__PURE__ */ new Date() : null,
+      isCombo: Boolean(isCombo),
       active: Boolean(active),
       badge: badge ? String(badge).trim() : isBestSeller ? "Best Seller" : "",
       rating: typeof rating === "number" ? rating : 5,
@@ -4346,7 +4415,7 @@ router7.post("/", async (req, res) => {
 router7.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose14.Types.ObjectId.isValid(id)) {
+    if (!mongoose15.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID format." });
       return;
     }
@@ -4370,6 +4439,7 @@ router7.put("/:id", async (req, res) => {
       variants,
       featured,
       isBestSeller,
+      isCombo,
       active,
       badge,
       rating,
@@ -4393,6 +4463,7 @@ router7.put("/:id", async (req, res) => {
     if (packagingType !== void 0) existingProduct.packagingType = String(packagingType).trim();
     if (isVegetarian !== void 0) existingProduct.isVegetarian = Boolean(isVegetarian);
     if (featured !== void 0) existingProduct.featured = Boolean(featured);
+    if (isCombo !== void 0) existingProduct.isCombo = Boolean(isCombo);
     if (active !== void 0) existingProduct.active = Boolean(active);
     if (badge !== void 0) existingProduct.badge = String(badge).trim();
     if (rating !== void 0 && !isNaN(Number(rating))) existingProduct.rating = Number(rating);
@@ -4412,8 +4483,8 @@ router7.put("/:id", async (req, res) => {
       }
     }
     if (category) {
-      if (mongoose14.Types.ObjectId.isValid(category)) {
-        existingProduct.category = new mongoose14.Types.ObjectId(category);
+      if (mongoose15.Types.ObjectId.isValid(category)) {
+        existingProduct.category = new mongoose15.Types.ObjectId(category);
       } else {
         const cat = await Category.findOne({ slug: category });
         if (cat) existingProduct.category = cat._id;
@@ -4464,7 +4535,7 @@ router7.put("/:id", async (req, res) => {
 router7.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose14.Types.ObjectId.isValid(id)) {
+    if (!mongoose15.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -4487,7 +4558,7 @@ router7.patch("/:id/toggle", async (req, res) => {
 router7.patch("/:id/toggle-bestseller", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose14.Types.ObjectId.isValid(id)) {
+    if (!mongoose15.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -4518,10 +4589,34 @@ router7.patch("/:id/toggle-bestseller", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to toggle best seller status." });
   }
 });
+router7.patch("/:id/toggle-combo", async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose15.Types.ObjectId.isValid(id)) {
+      res.status(400).json({ success: false, message: "Invalid product ID." });
+      return;
+    }
+    const product = await Product.findById(id);
+    if (!product) {
+      res.status(404).json({ success: false, message: "Product not found." });
+      return;
+    }
+    product.isCombo = !product.isCombo;
+    await product.save();
+    res.json({
+      success: true,
+      message: `Product is ${product.isCombo ? "now marked as Combo Delicacy" : "no longer marked as Combo"}.`,
+      isCombo: product.isCombo,
+      product
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Failed to toggle combo status." });
+  }
+});
 router7.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose14.Types.ObjectId.isValid(id)) {
+    if (!mongoose15.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -4542,7 +4637,7 @@ var adminProducts_default = router7;
 
 // server/routes/adminCategories.ts
 import { Router as Router8 } from "express";
-import mongoose15 from "mongoose";
+import mongoose16 from "mongoose";
 var router8 = Router8();
 router8.use(requireAdmin);
 async function ensureCategoriesSeeded() {
@@ -4608,7 +4703,7 @@ router8.get("/", async (req, res) => {
 router8.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose15.Types.ObjectId.isValid(id)) {
+    if (!mongoose16.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -4671,7 +4766,7 @@ router8.post("/", async (req, res) => {
 router8.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose15.Types.ObjectId.isValid(id)) {
+    if (!mongoose16.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -4714,7 +4809,7 @@ router8.put("/:id", async (req, res) => {
 router8.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose15.Types.ObjectId.isValid(id)) {
+    if (!mongoose16.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID." });
       return;
     }
@@ -4737,7 +4832,7 @@ router8.patch("/:id/toggle", async (req, res) => {
 router8.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose15.Types.ObjectId.isValid(id)) {
+    if (!mongoose16.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -4773,7 +4868,7 @@ var adminCategories_default = router8;
 
 // server/routes/adminOrders.ts
 import { Router as Router9 } from "express";
-import mongoose16 from "mongoose";
+import mongoose17 from "mongoose";
 var router9 = Router9();
 router9.use(requireAdmin);
 router9.get("/", async (req, res) => {
@@ -4872,7 +4967,7 @@ router9.get("/", async (req, res) => {
 router9.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose16.Types.ObjectId.isValid(id)) {
+    if (!mongoose17.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -4889,7 +4984,7 @@ router9.get("/:id", async (req, res) => {
 router9.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose16.Types.ObjectId.isValid(id)) {
+    if (!mongoose17.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID." });
       return;
     }
@@ -4987,7 +5082,7 @@ router9.put("/:id", async (req, res) => {
 router9.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose16.Types.ObjectId.isValid(id)) {
+    if (!mongoose17.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID." });
       return;
     }
@@ -5008,7 +5103,7 @@ var adminOrders_default = router9;
 
 // server/routes/adminCustomers.ts
 import { Router as Router10 } from "express";
-import mongoose17 from "mongoose";
+import mongoose18 from "mongoose";
 var router10 = Router10();
 router10.use(requireAdmin);
 router10.get("/", async (req, res) => {
@@ -5124,7 +5219,7 @@ router10.get("/", async (req, res) => {
 router10.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose17.Types.ObjectId.isValid(id)) {
+    if (!mongoose18.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -5154,7 +5249,7 @@ router10.get("/:id", async (req, res) => {
 router10.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose17.Types.ObjectId.isValid(id)) {
+    if (!mongoose18.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -5177,7 +5272,7 @@ router10.patch("/:id/toggle", async (req, res) => {
 router10.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose17.Types.ObjectId.isValid(id)) {
+    if (!mongoose18.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -5215,12 +5310,12 @@ var adminCustomers_default = router10;
 
 // server/routes/adminDiscounts.ts
 import { Router as Router11 } from "express";
-import mongoose18 from "mongoose";
+import mongoose19 from "mongoose";
 var router11 = Router11();
 router11.post("/validate", async (req, res) => {
   try {
-    const { code, subtotal } = req.body;
-    const result = await validateAndCalculateDiscount(code, Number(subtotal) || 0);
+    const { code, subtotal, items = [] } = req.body;
+    const result = await validateAndCalculateDiscount(code, Number(subtotal) || 0, items);
     if (!result.valid) {
       res.status(400).json({
         success: false,
@@ -5287,7 +5382,7 @@ router11.get("/", async (req, res) => {
 router11.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose18.Types.ObjectId.isValid(id)) {
+    if (!mongoose19.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -5313,7 +5408,9 @@ router11.post("/", async (req, res) => {
       startDate,
       endDate,
       usageLimit,
-      usageLimitPerUser = 1
+      usageLimitPerUser = 1,
+      isCombo = false,
+      isComboOnly
     } = req.body;
     if (!code || typeof code !== "string" || !code.trim()) {
       res.status(400).json({ success: false, message: "Coupon code is required." });
@@ -5337,6 +5434,7 @@ router11.post("/", async (req, res) => {
       res.status(400).json({ success: false, message: "Percentage discount cannot exceed 100%." });
       return;
     }
+    const comboFlag = Boolean(isCombo || isComboOnly);
     const newDiscount = await Discount.create({
       code: normalizedCode,
       type: type === "fixed" ? "fixed" : "percentage",
@@ -5344,6 +5442,8 @@ router11.post("/", async (req, res) => {
       minimumOrder: Math.max(0, Number(minimumOrder) || 0),
       maximumDiscount: type === "percentage" && maximumDiscount && Number(maximumDiscount) > 0 ? Number(maximumDiscount) : null,
       active: Boolean(active),
+      isCombo: comboFlag,
+      isComboOnly: comboFlag,
       startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,
       usageLimit: usageLimit && Number(usageLimit) > 0 ? Number(usageLimit) : null,
@@ -5364,7 +5464,7 @@ router11.post("/", async (req, res) => {
 router11.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose18.Types.ObjectId.isValid(id)) {
+    if (!mongoose19.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -5375,6 +5475,8 @@ router11.put("/:id", async (req, res) => {
       minimumOrder,
       maximumDiscount,
       active,
+      isCombo,
+      isComboOnly,
       startDate,
       endDate,
       usageLimit,
@@ -5416,6 +5518,11 @@ router11.put("/:id", async (req, res) => {
       discount.maximumDiscount = Number(maximumDiscount) > 0 ? Number(maximumDiscount) : void 0;
     }
     if (active !== void 0) discount.active = Boolean(active);
+    if (isCombo !== void 0 || isComboOnly !== void 0) {
+      const comboVal = Boolean(isCombo !== void 0 ? isCombo : isComboOnly);
+      discount.isCombo = comboVal;
+      discount.isComboOnly = comboVal;
+    }
     if (startDate !== void 0) discount.startDate = startDate ? new Date(startDate) : void 0;
     if (endDate !== void 0) discount.endDate = endDate ? new Date(endDate) : void 0;
     if (usageLimit !== void 0) {
@@ -5438,7 +5545,7 @@ router11.put("/:id", async (req, res) => {
 router11.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose18.Types.ObjectId.isValid(id)) {
+    if (!mongoose19.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -5461,7 +5568,7 @@ router11.patch("/:id/toggle", async (req, res) => {
 router11.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose18.Types.ObjectId.isValid(id)) {
+    if (!mongoose19.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -5482,10 +5589,10 @@ var adminDiscounts_default = router11;
 
 // server/routes/adminInquiries.ts
 import { Router as Router12 } from "express";
-import mongoose20 from "mongoose";
+import mongoose21 from "mongoose";
 
 // server/models/Inquiry.ts
-import mongoose19, { Schema as Schema8 } from "mongoose";
+import mongoose20, { Schema as Schema8 } from "mongoose";
 var inquirySchema = new Schema8(
   {
     name: {
@@ -5531,7 +5638,7 @@ var inquirySchema = new Schema8(
     timestamps: true
   }
 );
-var Inquiry = mongoose19.models.Inquiry || mongoose19.model("Inquiry", inquirySchema);
+var Inquiry = mongoose20.models.Inquiry || mongoose20.model("Inquiry", inquirySchema);
 
 // server/routes/adminInquiries.ts
 var router12 = Router12();
@@ -5550,9 +5657,9 @@ var handlePublicInquiry = async (req, res) => {
       res.status(400).json({ success: false, message: "Please provide a descriptive inquiry message." });
       return;
     }
-    if (mongoose20.connection.readyState !== 1) {
+    if (mongoose21.connection.readyState !== 1) {
       const fallbackInquiry = {
-        _id: new mongoose20.Types.ObjectId(),
+        _id: new mongoose21.Types.ObjectId(),
         name: name2.trim(),
         email: email2.trim().toLowerCase(),
         phone: phone2 ? String(phone2).trim() : "",
@@ -5693,7 +5800,7 @@ router12.get("/", async (req, res) => {
 router12.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -5710,7 +5817,7 @@ router12.get("/:id", async (req, res) => {
 router12.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -5741,7 +5848,7 @@ router12.put("/:id", async (req, res) => {
 router12.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -5763,7 +5870,7 @@ var adminInquiries_default = router12;
 // server/routes/adminStaff.ts
 import { Router as Router13 } from "express";
 import crypto2 from "crypto";
-import mongoose21 from "mongoose";
+import mongoose22 from "mongoose";
 var router13 = Router13();
 router13.use(requireSuperAdmin);
 var EMAIL_REGEX2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -5834,7 +5941,7 @@ router13.post("/invite", async (req, res) => {
       active: true,
       invitationTokenHash: tokenHash,
       invitationExpiresAt: expiresAt,
-      invitedBy: req.user?.userId ? new mongoose21.Types.ObjectId(req.user.userId) : void 0,
+      invitedBy: req.user?.userId ? new mongoose22.Types.ObjectId(req.user.userId) : void 0,
       invitedAt: /* @__PURE__ */ new Date()
     });
     const emailResult = await sendAdminInvitationEmail({
@@ -5867,7 +5974,7 @@ router13.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const { name: name2, role, active } = req.body;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose22.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid staff ID." });
       return;
     }
@@ -5915,7 +6022,7 @@ router13.patch("/:id", async (req, res) => {
 router13.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose22.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid staff ID." });
       return;
     }
@@ -5955,7 +6062,7 @@ var adminStaff_default = router13;
 
 // server/routes/adminSettings.ts
 import { Router as Router14 } from "express";
-import mongoose22 from "mongoose";
+import mongoose23 from "mongoose";
 var router14 = Router14();
 async function getOrCreateSingletonSettings() {
   let settings = await StoreSettings.findOne();
@@ -6007,7 +6114,7 @@ var DEFAULT_PUBLIC_SETTINGS = {
 var handlePublicSettings = async (_req, res) => {
   try {
     let settings = null;
-    if (mongoose22.connection.readyState === 1) {
+    if (mongoose23.connection.readyState === 1) {
       settings = await StoreSettings.findOne().lean();
     }
     if (!settings) {
@@ -6479,7 +6586,7 @@ var uploads_default = router16;
 // server/routes/enquiries.ts
 import { Router as Router17 } from "express";
 import { ZodError } from "zod";
-import mongoose23 from "mongoose";
+import mongoose24 from "mongoose";
 
 // server/validate.ts
 import { z } from "zod";
@@ -6850,7 +6957,7 @@ router17.post("/contact", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose23.Types.ObjectId().toString();
+  let id = new mongoose24.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -6908,7 +7015,7 @@ router17.post("/reservation", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose23.Types.ObjectId().toString();
+  let id = new mongoose24.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.customer_name,
@@ -6967,7 +7074,7 @@ router17.post("/katering", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose23.Types.ObjectId().toString();
+  let id = new mongoose24.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -7009,7 +7116,7 @@ router17.post("/gifting", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose23.Types.ObjectId().toString();
+  let id = new mongoose24.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -7036,7 +7143,7 @@ var enquiries_default = router17;
 import { Router as Router18 } from "express";
 
 // server/models/Banner.ts
-import mongoose24, { Schema as Schema9 } from "mongoose";
+import mongoose25, { Schema as Schema9 } from "mongoose";
 var bannerSchema = new Schema9(
   {
     title: {
@@ -7093,7 +7200,7 @@ var bannerSchema = new Schema9(
 );
 bannerSchema.index({ active: 1, sortOrder: 1 });
 bannerSchema.index({ sortOrder: 1 });
-var Banner = mongoose24.models.Banner || mongoose24.model("Banner", bannerSchema);
+var Banner = mongoose25.models.Banner || mongoose25.model("Banner", bannerSchema);
 
 // server/routes/adminBanners.ts
 var router18 = Router18();

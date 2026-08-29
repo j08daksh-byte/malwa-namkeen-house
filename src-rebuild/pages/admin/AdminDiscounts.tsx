@@ -29,6 +29,8 @@ interface DiscountRecord {
   minimumOrder: number;
   maximumDiscount?: number | null;
   active: boolean;
+  isCombo?: boolean;
+  isComboOnly?: boolean;
   startDate?: string | null;
   endDate?: string | null;
   usageLimit?: number | null;
@@ -71,6 +73,7 @@ export default function AdminDiscounts() {
   const [formEndDate, setFormEndDate] = useState('');
   const [formUsageLimit, setFormUsageLimit] = useState<number | ''>('');
   const [formUsageLimitPerUser, setFormUsageLimitPerUser] = useState<number | ''>(1);
+  const [formIsCombo, setFormIsCombo] = useState(false);
   const [formActive, setFormActive] = useState(true);
 
   // Live Coupon Tester Widget State
@@ -153,6 +156,7 @@ export default function AdminDiscounts() {
     setFormEndDate('');
     setFormUsageLimit('');
     setFormUsageLimitPerUser(1);
+    setFormIsCombo(false);
     setFormActive(true);
     setFormError(null);
     setTestResult(null);
@@ -171,6 +175,7 @@ export default function AdminDiscounts() {
     setFormEndDate(d.endDate ? new Date(d.endDate).toISOString().slice(0, 10) : '');
     setFormUsageLimit(d.usageLimit ?? '');
     setFormUsageLimitPerUser(d.usageLimitPerUser ?? 1);
+    setFormIsCombo(Boolean(d.isCombo || d.isComboOnly));
     setFormActive(d.active);
     setFormError(null);
     setTestResult(null);
@@ -269,6 +274,8 @@ export default function AdminDiscounts() {
       endDate: formEndDate ? new Date(formEndDate).toISOString() : null,
       usageLimit: formUsageLimit !== '' ? Number(formUsageLimit) : null,
       usageLimitPerUser: formUsageLimitPerUser !== '' ? Number(formUsageLimitPerUser) : 1,
+      isCombo: formIsCombo,
+      isComboOnly: formIsCombo,
       active: formActive,
     };
 
@@ -468,6 +475,13 @@ export default function AdminDiscounts() {
                           <Tag size={13} color="#D4AA45" />
                           <span>{d.code}</span>
                         </div>
+                        {(d.isCombo || d.isComboOnly) && (
+                          <div style={{ marginTop: '5px' }}>
+                            <span style={{ background: '#FCE7F3', color: '#9D174D', border: '1px solid #FBCFE8', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                              🎁 Combo Only
+                            </span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Benefit */}
@@ -756,6 +770,40 @@ export default function AdminDiscounts() {
                     style={{ accentColor: '#3C0815', width: '16px', height: '16px' }}
                   />
                   <span style={{ fontWeight: 600, color: '#374151' }}>Active & Ready for Checkout</span>
+                </label>
+              </div>
+
+              {/* Combo Only Toggle */}
+              <div
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: '10px',
+                  background: formIsCombo ? '#FDF2F8' : '#FAF8F4',
+                  border: formIsCombo ? '1.5px solid #DB2777' : '1px solid #EAE3D2',
+                }}
+              >
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={formIsCombo}
+                    onChange={e => setFormIsCombo(e.target.checked)}
+                    style={{ accentColor: '#DB2777', width: '18px', height: '18px', marginTop: '2px', cursor: 'pointer' }}
+                  />
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontWeight: 800, fontSize: '13px', color: formIsCombo ? '#9D174D' : '#3C0815' }}>
+                        🎁 Combo Items Only Coupon
+                      </span>
+                      {formIsCombo && (
+                        <span style={{ fontSize: '10px', fontWeight: 800, background: '#DB2777', color: '#FFF', padding: '1px 6px', borderRadius: '999px' }}>
+                          COMBO EXCLUSIVE
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: '#831843', lineHeight: 1.4 }}>
+                      When checked, this coupon will only be applicable on products marked as <strong>Combo</strong>. If there are any additional non-combo items in the cart during purchase, this coupon will not be applicable.
+                    </p>
+                  </div>
                 </label>
               </div>
 
