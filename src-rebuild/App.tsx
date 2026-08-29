@@ -138,6 +138,8 @@ export default function App() {
                   <Route path="/faq" element={<FAQ />} />
                   <Route path="/account" element={<Account />} />
                   <Route path="/login" element={<Account />} />
+                  <Route path="/forgot-password" element={<Account />} />
+                  <Route path="/reset-password" element={<Account />} />
                   <Route path="/dashboard" element={<Dashboard />} />
 
                   {/* Legal pages */}

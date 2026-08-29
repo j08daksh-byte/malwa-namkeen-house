@@ -3,6 +3,7 @@ import mongoose, { Document, Model, Schema } from 'mongoose';
 export type EmailEventType =
   | 'admin_invitation'
   | 'admin_password_reset'
+  | 'customer_password_reset'
   | 'order_confirmation'
   | 'order_status_update'
   | 'inquiry_acknowledgement'
@@ -34,6 +35,7 @@ const emailLogSchema = new Schema<IEmailLog>(
       enum: [
         'admin_invitation',
         'admin_password_reset',
+        'customer_password_reset',
         'order_confirmation',
         'order_status_update',
         'inquiry_acknowledgement',

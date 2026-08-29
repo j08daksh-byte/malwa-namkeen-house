@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { User } from '../models/User.ts';
 import { hashPassword, generateToken, setAuthCookie } from '../lib/auth.ts';
-import { sendPasswordResetEmail } from '../lib/emailService.ts';
+import { sendPasswordResetEmail, sendCustomerPasswordReset } from '../lib/emailService.ts';
 
 const router = Router();
 
@@ -16,7 +16,7 @@ const forgotPasswordLimiter = rateLimit({
   legacyHeaders: false,
   message: {
     success: true, // Maintain generic response even if rate limited
-    message: 'If an administrative account exists for this email, password reset instructions have been dispatched.',
+    message: 'If an account exists for this email, password reset instructions have been dispatched.',
   },
 });
 
@@ -30,6 +30,64 @@ const tokenSubmissionLimiter = rateLimit({
     success: false,
     message: 'Too many requests. Please try again after 15 minutes.',
   },
+});
+
+/**
+ * POST /api/auth/forgot-password
+ * General & Customer password reset trigger.
+ * Always returns a generic response to prevent user enumeration.
+ */
+router.post('/forgot-password', forgotPasswordLimiter, async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    const genericSuccess = {
+      success: true,
+      message: 'If an account exists for this email address, password reset instructions have been dispatched.',
+    };
+
+    if (!email || typeof email !== 'string') {
+      res.json(genericSuccess);
+      return;
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Look up active user account (customer or admin)
+    const user = await User.findOne({
+      email: cleanEmail,
+      active: true,
+    });
+
+    if (!user) {
+      res.json(genericSuccess);
+      return;
+    }
+
+    // Generate cryptographically random token (32 bytes = 64 hex chars)
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    user.passwordResetTokenHash = tokenHash;
+    user.passwordResetExpiresAt = expiresAt;
+    await user.save();
+
+    // Dispatch customer reset email
+    await sendCustomerPasswordReset({
+      email: user.email,
+      name: user.name,
+      token: rawToken,
+    });
+
+    res.json(genericSuccess);
+  } catch (err: unknown) {
+    console.error('[Customer Forgot Password Error]', err);
+    res.json({
+      success: true,
+      message: 'If an account exists for this email address, password reset instructions have been dispatched.',
+    });
+  }
 });
 
 /**

@@ -286,6 +286,50 @@ export async function sendAdminPasswordReset({
 }
 
 /**
+ * 2b. Customer Password Reset Email
+ */
+export async function sendCustomerPasswordReset({
+  email,
+  name,
+  token,
+}: {
+  email: string;
+  name: string;
+  token: string;
+}): Promise<EmailResult> {
+  const { appBaseUrl } = getEmailConfig();
+  const resetUrl = `${appBaseUrl}/reset-password?token=${encodeURIComponent(token)}`;
+
+  const html = wrapEmailTemplate({
+    title: 'Password Reset Request',
+    preheader: 'Reset instructions for your Malwa Namkeen House account.',
+    contentHtml: `
+      <h2 style="color: #3C0815; font-size: 18px; margin-top: 0;">Password Reset Instructions</h2>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        Namaste ${name},
+      </p>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        We received a request to reset the password for your Malwa Namkeen House account (<strong>${email}</strong>).
+      </p>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${resetUrl}" class="btn">Reset Your Password</a>
+      </div>
+      <p style="font-size: 12.5px; color: #6B7280; line-height: 1.5;">
+        <strong>Security Notice:</strong> This link is valid for 1 hour and can only be used once. If you did not make this request, you can safely ignore this email.
+      </p>
+    `,
+  });
+
+  return sendEmail({
+    to: email,
+    subject: 'Password Reset Request — Malwa Namkeen House',
+    html,
+    eventType: 'customer_password_reset',
+    relatedId: email,
+  });
+}
+
+/**
  * 3. Customer Order Confirmation Email
  */
 export async function sendCustomerOrderConfirmation({

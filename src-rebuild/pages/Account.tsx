@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, type FormEvent } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Eye,
   EyeOff,
@@ -13,16 +13,19 @@ import {
   Sparkles,
   Info,
   X,
+  KeyRound,
+  MessageCircle,
+  ArrowRight,
 } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import SEOHead from '../components/seo/SEOHead';
 import { useCustomerSession } from '../components/layout/CustomerSessionContext';
 
-type Mode = 'signin' | 'signup';
+type Mode = 'signin' | 'signup' | 'forgot' | 'reset';
 
 function GoogleIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ flexShrink: 0 }}>
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ flexShrink: 0, display: 'block' }}>
       <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
       <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
       <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
@@ -32,15 +35,29 @@ function GoogleIcon() {
 }
 
 export default function Account() {
-  const [mode, setMode] = useState<Mode>('signin');
+  const [searchParams] = useSearchParams();
+  const resetTokenParam = searchParams.get('token') || searchParams.get('reset_token') || '';
+
+  const [mode, setMode] = useState<Mode>(() => (resetTokenParam ? 'reset' : 'signin'));
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Google OAuth states
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleClientId, setGoogleClientId] = useState<string>('');
+  const [isGsiRendered, setIsGsiRendered] = useState(false);
   const [googleSetupModalOpen, setGoogleSetupModalOpen] = useState(false);
   const [demoName, setDemoName] = useState('Ananya Sharma');
   const [demoEmail, setDemoEmail] = useState('ananya.sharma@gmail.com');
+
+  // Forgot password & Reset states
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetToken, setResetToken] = useState(resetTokenParam);
+  const [resetVerifying, setResetVerifying] = useState(false);
+  const [resetTokenValid, setResetTokenValid] = useState(false);
+  const [resetUserEmail, setResetUserEmail] = useState('');
 
   const googleButtonContainerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -52,7 +69,41 @@ export default function Account() {
     setMode(next);
     setMessage(null);
     setShowPassword(false);
+    setShowConfirmPassword(false);
   };
+
+  // ── Handle token from URL if loaded directly ─────────────────────────────────
+  useEffect(() => {
+    if (resetTokenParam) {
+      setResetToken(resetTokenParam);
+      setMode('reset');
+      verifyToken(resetTokenParam);
+    }
+  }, [resetTokenParam]);
+
+  async function verifyToken(tok: string) {
+    if (!tok) return;
+    setResetVerifying(true);
+    try {
+      const res = await fetch(`/api/auth/verify-reset-token?token=${encodeURIComponent(tok)}`);
+      const data = await res.json();
+      if (res.ok && data.valid) {
+        setResetTokenValid(true);
+        setResetUserEmail(data.email || '');
+      } else {
+        setResetTokenValid(false);
+        setMessage({
+          type: 'error',
+          text: data.message || 'This password reset link is invalid or has expired. Please request a new one.',
+        });
+      }
+    } catch {
+      setResetTokenValid(false);
+      setMessage({ type: 'error', text: 'Unable to connect to verification server. Please try again.' });
+    } finally {
+      setResetVerifying(false);
+    }
+  }
 
   // ── Load Google OAuth Client Configuration ──────────────────────────────────
   useEffect(() => {
@@ -88,7 +139,9 @@ export default function Account() {
         script.src = 'https://accounts.google.com/gsi/client';
         script.async = true;
         script.defer = true;
-        script.onload = () => initGsi(clientId);
+        script.onload = () => {
+          if (isMounted) initGsi(clientId);
+        };
         document.body.appendChild(script);
       }
     }
@@ -104,6 +157,7 @@ export default function Account() {
           });
 
           if (googleButtonContainerRef.current) {
+            googleButtonContainerRef.current.innerHTML = '';
             (window as any).google.accounts.id.renderButton(
               googleButtonContainerRef.current,
               {
@@ -116,9 +170,11 @@ export default function Account() {
                 width: 380,
               }
             );
+            setIsGsiRendered(true);
           }
         } catch (e) {
           console.warn('[GSI Init Error]', e);
+          setIsGsiRendered(false);
         }
       }
     }
@@ -128,7 +184,7 @@ export default function Account() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [mode]);
 
   const handleGoogleCredentialResponse = async (response: any) => {
     if (!response || !response.credential) return;
@@ -155,7 +211,7 @@ export default function Account() {
         setGoogleSetupModalOpen(true);
       }
     } else {
-      // Google Client ID is not yet provided in .env
+      // Google Client ID is not yet provided or needs test modal
       setGoogleSetupModalOpen(true);
     }
   };
@@ -189,7 +245,6 @@ export default function Account() {
         return;
       }
 
-      const { signIn } = (useCustomerSession as any) ? { signIn: (u: any, t: any) => localStorage.setItem('malwa_auth_token', t) } : { signIn: () => {} };
       localStorage.setItem('malwa_auth_token', data.token);
       localStorage.setItem('malwa-customer-session', JSON.stringify(data.user));
 
@@ -203,6 +258,98 @@ export default function Account() {
     }
   };
 
+  // ── Forgot Password Submission ──────────────────────────────────────────────
+  const handleForgotPasswordSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+
+    const email = forgotEmail.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setMessage({ type: 'error', text: 'Please enter a valid email address.' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      setIsSubmitting(false);
+
+      if (res.ok && data.success) {
+        setMessage({
+          type: 'success',
+          text: 'If an account exists for this email, password reset instructions have been sent. Please check your inbox.',
+        });
+      } else {
+        setMessage({
+          type: 'error',
+          text: data.message || 'Unable to process password reset request. Please try again.',
+        });
+      }
+    } catch {
+      setIsSubmitting(false);
+      setMessage({
+        type: 'error',
+        text: 'Network error. Could not reach the password recovery service.',
+      });
+    }
+  };
+
+  // ── Reset Password Submission ───────────────────────────────────────────────
+  const handleResetPasswordSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+
+    const data = new FormData(e.currentTarget);
+    const newPassword = String(data.get('password') ?? '');
+    const confirmPassword = String(data.get('confirmPassword') ?? '');
+
+    if (!newPassword || newPassword.length < 6) {
+      setMessage({ type: 'error', text: 'Please choose a password with at least 6 characters.' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setMessage({ type: 'error', text: 'Passwords do not match. Please re-enter.' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetToken, newPassword }),
+      });
+      const resData = await res.json();
+      setIsSubmitting(false);
+
+      if (res.ok && resData.success) {
+        setMessage({
+          type: 'success',
+          text: 'Password updated successfully! You can now sign in with your new password.',
+        });
+        window.setTimeout(() => switchMode('signin'), 1200);
+      } else {
+        setMessage({
+          type: 'error',
+          text: resData.message || 'Failed to update password. Link may have expired.',
+        });
+      }
+    } catch {
+      setIsSubmitting(false);
+      setMessage({ type: 'error', text: 'Network error. Could not update password.' });
+    }
+  };
+
+  // ── Sign In / Sign Up Submission ────────────────────────────────────────────
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isSubmitting) return;
@@ -330,8 +477,8 @@ export default function Account() {
             margin-bottom: 12px;
           }
           .account-visual__title {
-            font-size: clamp(38px, 4.2vw, 56px);
-            line-height: 1.06;
+            font-size: clamp(36px, 4.2vw, 54px);
+            line-height: 1.08;
             font-weight: 700;
             letter-spacing: -0.03em;
             color: #FFF8EC;
@@ -397,23 +544,28 @@ export default function Account() {
             position: relative;
             display: flex;
             align-items: center;
+            width: 100%;
           }
-          .account-input svg {
+          .account-input__icon {
             position: absolute;
             left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
             color: #9CA3AF;
             pointer-events: none;
+            z-index: 1;
           }
           .account-input input {
             width: 100%;
             height: 46px;
-            padding: 0 14px 0 42px;
+            padding: 0 44px 0 42px;
             border-radius: 10px;
             border: 1px solid #D1D5DB;
             background: #FFFFFF;
             font-size: 14px;
             color: #1F2937;
             outline: none;
+            box-sizing: border-box;
             transition: border-color 0.2s, box-shadow 0.2s;
           }
           .account-input input:focus {
@@ -422,17 +574,31 @@ export default function Account() {
           }
           .password-toggle {
             position: absolute;
-            right: 12px;
-            background: none;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
             border: none;
             color: #9CA3AF;
             cursor: pointer;
-            display: grid;
-            place-items: center;
-            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+            border-radius: 6px;
+            z-index: 2;
+            transition: color 0.15s, background-color 0.15s;
+          }
+          .password-toggle svg {
+            position: static !important;
+            left: auto !important;
+            color: inherit !important;
+            pointer-events: auto !important;
+            display: block;
           }
           .password-toggle:hover {
-            color: #4B5563;
+            color: #55000A;
+            background-color: rgba(85, 0, 10, 0.06);
           }
           .terms {
             display: flex;
@@ -461,20 +627,23 @@ export default function Account() {
             border: none;
             color: #881337;
             font-size: 12.5px;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
             padding: 0;
+            transition: color 0.2s;
           }
           .account-options button:hover {
             text-decoration: underline;
+            color: #55000A;
           }
           .account-message {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 8px;
-            padding: 10px 14px;
+            padding: 12px 14px;
             border-radius: 8px;
             font-size: 13px;
+            line-height: 1.45;
             margin-top: 16px;
           }
           .account-message--error {
@@ -500,7 +669,11 @@ export default function Account() {
             letter-spacing: 0.04em;
             cursor: pointer;
             box-shadow: 0 4px 14px rgba(85, 0, 10, 0.25);
-            transition: background 0.2s, transform 0.15s;
+            transition: background 0.2s, transform 0.15s, opacity 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
           }
           .account-submit:hover:not(:disabled) {
             background: #400007;
@@ -570,6 +743,29 @@ export default function Account() {
           .account-switch button:hover {
             text-decoration: underline;
           }
+          .whatsapp-help-box {
+            margin-top: 16px;
+            background: #F0FDF4;
+            border: 1px solid #BBF7D0;
+            border-radius: 10px;
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+          }
+          .whatsapp-help-box a {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #15803D;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 12.5px;
+          }
+          .whatsapp-help-box a:hover {
+            text-decoration: underline;
+          }
 
           @media (max-width: 900px) {
             .account-page {
@@ -588,6 +784,7 @@ export default function Account() {
           }
         `}</style>
 
+        {/* Left Visual Heritage Section */}
         <section className="account-visual" aria-label="Malwa Namkeen House heritage">
           <Link className="account-back" to="/">
             <ArrowLeft size={15} /> Back to the house
@@ -603,161 +800,341 @@ export default function Account() {
           </div>
         </section>
 
+        {/* Right Authentication Form Area */}
         <section className="account-form-area">
           <div className="account-form">
             <div className="account-brand">MALWA NAMKEEN HOUSE</div>
-            <p className="account-kicker">{mode === 'signin' ? 'Your account' : 'Join the house'}</p>
-            <h2 className="account-heading">{mode === 'signin' ? 'Welcome Back' : 'Create an account'}</h2>
-            <p className="account-subtitle">
-              {mode === 'signin'
-                ? 'Sign in to continue your journey with authentic flavours of Malwa.'
-                : 'Create your account for a seamless Malwa Namkeen House experience.'}
-            </p>
 
-            <form onSubmit={submit} noValidate>
-              <div className="account-fields">
-                {mode === 'signup' && (
-                  <>
+            {/* ── FORGOT PASSWORD MODE ── */}
+            {mode === 'forgot' && (
+              <>
+                <p className="account-kicker">Account Assistance</p>
+                <h2 className="account-heading">Reset Password</h2>
+                <p className="account-subtitle">
+                  Enter your registered email address and we'll send you secure instructions to reset your password.
+                </p>
+
+                <form onSubmit={handleForgotPasswordSubmit} noValidate>
+                  <div className="account-fields">
                     <div className="account-field">
-                      <label htmlFor="account-name">Full name</label>
+                      <label htmlFor="forgot-email">Email address</label>
                       <div className="account-input">
-                        <UserRound size={17} />
-                        <input id="account-name" name="name" autoComplete="name" placeholder="Your full name" />
+                        <Mail className="account-input__icon" size={17} />
+                        <input
+                          id="forgot-email"
+                          name="email"
+                          type="email"
+                          value={forgotEmail}
+                          onChange={e => setForgotEmail(e.target.value)}
+                          placeholder="you@example.com"
+                          required
+                          autoComplete="email"
+                        />
                       </div>
                     </div>
-                    <div className="account-field">
-                      <label htmlFor="account-phone">Phone number</label>
-                      <div className="account-input">
-                        <Phone size={17} />
-                        <input id="account-phone" name="phone" type="tel" autoComplete="tel" placeholder="+91 00000 00000" />
-                      </div>
+                  </div>
+
+                  {message && (
+                    <div className={`account-message account-message--${message.type}`} role="status">
+                      {message.type === 'success' ? (
+                        <CheckCircle2 size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                      ) : (
+                        <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                      )}
+                      <span>{message.text}</span>
                     </div>
-                  </>
-                )}
+                  )}
 
-                <div className="account-field">
-                  <label htmlFor="account-email">Email address</label>
-                  <div className="account-input">
-                    <Mail size={17} />
-                    <input id="account-email" name="email" type="email" autoComplete="email" placeholder="you@example.com" required />
-                  </div>
-                </div>
-
-                <div className="account-field">
-                  <label htmlFor="account-password">Password</label>
-                  <div className="account-input">
-                    <LockKeyhole size={17} />
-                    <input
-                      id="account-password"
-                      name="password"
-                      type={showPassword ? 'text' : 'password'}
-                      autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-                      placeholder="Enter your password"
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="password-toggle"
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      onClick={() => setShowPassword(value => !value)}
-                    >
-                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                    </button>
-                  </div>
-                </div>
-
-                {mode === 'signup' && (
-                  <div className="account-field">
-                    <label htmlFor="account-confirm">Confirm password</label>
-                    <div className="account-input">
-                      <LockKeyhole size={17} />
-                      <input
-                        id="account-confirm"
-                        name="confirmPassword"
-                        type={showPassword ? 'text' : 'password'}
-                        autoComplete="new-password"
-                        placeholder="Re-enter your password"
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {mode === 'signup' && (
-                  <label className="terms">
-                    <input name="terms" type="checkbox" />
-                    <span>I agree to the <a href="/terms-and-conditions">Terms &amp; Conditions</a> and Privacy Policy.</span>
-                  </label>
-                )}
-              </div>
-
-              {mode === 'signin' && (
-                <div className="account-options">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setMessage({
-                        type: 'success',
-                        text: 'For password recovery assistance, message our customer support team on WhatsApp.',
-                      })
-                    }
-                  >
-                    Forgot Password?
+                  <button className="account-submit" type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Sending Reset Link…' : 'Send Password Reset Link'}
                   </button>
+                </form>
+
+                <div className="whatsapp-help-box">
+                  <span style={{ fontSize: '12px', color: '#166534' }}>Need urgent recovery assistance?</span>
+                  <a
+                    href="https://wa.me/917987732765?text=Hello%2C%20I%20need%20assistance%20resetting%20my%20Malwa%20Namkeen%20House%20account%20password."
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <MessageCircle size={15} /> WhatsApp Support
+                  </a>
                 </div>
-              )}
 
-              {message && (
-                <div className={`account-message account-message--${message.type}`} role="status">
-                  {message.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-                  <span>{message.text}</span>
-                </div>
-              )}
-
-              <button className="account-submit" type="submit" disabled={isSubmitting || googleLoading}>
-                {isSubmitting
-                  ? mode === 'signin'
-                    ? 'Signing in…'
-                    : 'Creating account…'
-                  : mode === 'signin'
-                  ? 'Sign in'
-                  : 'Create account'}
-              </button>
-            </form>
-
-            <div className="account-divider">OR</div>
-
-            {/* Hidden container for Google Official GSI Button if Client ID is configured */}
-            <div
-              ref={googleButtonContainerRef}
-              style={{
-                display: googleClientId ? 'flex' : 'none',
-                justifyContent: 'center',
-                marginBottom: '10px',
-              }}
-            />
-
-            {/* Always visible custom branded Google Button */}
-            {(!googleClientId || !googleButtonContainerRef.current?.hasChildNodes()) && (
-              <button
-                className="social-button"
-                type="button"
-                onClick={handleGoogleButtonClick}
-                disabled={googleLoading}
-                title="Continue with Google"
-              >
-                <GoogleIcon />
-                <span>{googleLoading ? 'Connecting to Google…' : 'Continue with Google'}</span>
-              </button>
+                <p className="account-switch">
+                  Remember your password?{' '}
+                  <button type="button" onClick={() => switchMode('signin')}>
+                    Back to Sign In
+                  </button>
+                </p>
+              </>
             )}
 
-            <p className="account-switch">
-              {mode === 'signin' ? 'New to Malwa Namkeen House?' : 'Already have an account?'}
-              {' '}
-              <button type="button" onClick={() => switchMode(mode === 'signin' ? 'signup' : 'signin')}>
-                {mode === 'signin' ? 'Create an account' : 'Sign In'}
-              </button>
-            </p>
+            {/* ── RESET PASSWORD WITH TOKEN MODE ── */}
+            {mode === 'reset' && (
+              <>
+                <p className="account-kicker">Security</p>
+                <h2 className="account-heading">Set New Password</h2>
+                <p className="account-subtitle">
+                  {resetUserEmail ? `Create a new password for ${resetUserEmail}.` : 'Please enter your new password below.'}
+                </p>
+
+                {resetVerifying ? (
+                  <div style={{ textAlign: 'center', padding: '30px 0', color: '#55000A' }}>
+                    <p style={{ fontSize: '14px', fontWeight: 600 }}>Verifying password recovery link…</p>
+                  </div>
+                ) : !resetTokenValid && message?.type === 'error' ? (
+                  <div>
+                    <div className="account-message account-message--error">
+                      <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                      <span>{message.text}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="account-submit"
+                      style={{ marginTop: '16px' }}
+                      onClick={() => switchMode('forgot')}
+                    >
+                      Request a New Reset Link
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleResetPasswordSubmit} noValidate>
+                    <div className="account-fields">
+                      <div className="account-field">
+                        <label htmlFor="reset-password">New Password</label>
+                        <div className="account-input">
+                          <LockKeyhole className="account-input__icon" size={17} />
+                          <input
+                            id="reset-password"
+                            name="password"
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder="Enter new password (min. 6 characters)"
+                            required
+                          />
+                          <button
+                            type="button"
+                            className="password-toggle"
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            onClick={() => setShowPassword(v => !v)}
+                          >
+                            {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="account-field">
+                        <label htmlFor="reset-confirm">Confirm New Password</label>
+                        <div className="account-input">
+                          <LockKeyhole className="account-input__icon" size={17} />
+                          <input
+                            id="reset-confirm"
+                            name="confirmPassword"
+                            type={showConfirmPassword ? 'text' : 'password'}
+                            placeholder="Re-enter new password"
+                            required
+                          />
+                          <button
+                            type="button"
+                            className="password-toggle"
+                            aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                            onClick={() => setShowConfirmPassword(v => !v)}
+                          >
+                            {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {message && (
+                      <div className={`account-message account-message--${message.type}`} role="status">
+                        {message.type === 'success' ? (
+                          <CheckCircle2 size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                        ) : (
+                          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                        )}
+                        <span>{message.text}</span>
+                      </div>
+                    )}
+
+                    <button className="account-submit" type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? 'Updating Password…' : 'Save New Password'}
+                    </button>
+                  </form>
+                )}
+
+                <p className="account-switch">
+                  <button type="button" onClick={() => switchMode('signin')}>
+                    Return to Sign In
+                  </button>
+                </p>
+              </>
+            )}
+
+            {/* ── SIGN IN & SIGN UP MODES ── */}
+            {(mode === 'signin' || mode === 'signup') && (
+              <>
+                <p className="account-kicker">{mode === 'signin' ? 'Your account' : 'Join the house'}</p>
+                <h2 className="account-heading">{mode === 'signin' ? 'Welcome Back' : 'Create an account'}</h2>
+                <p className="account-subtitle">
+                  {mode === 'signin'
+                    ? 'Sign in to continue your journey with authentic flavours of Malwa.'
+                    : 'Create your account for a seamless Malwa Namkeen House experience.'}
+                </p>
+
+                <form onSubmit={submit} noValidate>
+                  <div className="account-fields">
+                    {mode === 'signup' && (
+                      <>
+                        <div className="account-field">
+                          <label htmlFor="account-name">Full name</label>
+                          <div className="account-input">
+                            <UserRound className="account-input__icon" size={17} />
+                            <input id="account-name" name="name" autoComplete="name" placeholder="Your full name" required />
+                          </div>
+                        </div>
+                        <div className="account-field">
+                          <label htmlFor="account-phone">Phone number</label>
+                          <div className="account-input">
+                            <Phone className="account-input__icon" size={17} />
+                            <input id="account-phone" name="phone" type="tel" autoComplete="tel" placeholder="+91 00000 00000" required />
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    <div className="account-field">
+                      <label htmlFor="account-email">Email address</label>
+                      <div className="account-input">
+                        <Mail className="account-input__icon" size={17} />
+                        <input id="account-email" name="email" type="email" autoComplete="email" placeholder="you@example.com" required />
+                      </div>
+                    </div>
+
+                    <div className="account-field">
+                      <label htmlFor="account-password">Password</label>
+                      <div className="account-input">
+                        <LockKeyhole className="account-input__icon" size={17} />
+                        <input
+                          id="account-password"
+                          name="password"
+                          type={showPassword ? 'text' : 'password'}
+                          autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                          placeholder="Enter your password"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="password-toggle"
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                          onClick={() => setShowPassword(value => !value)}
+                        >
+                          {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {mode === 'signup' && (
+                      <div className="account-field">
+                        <label htmlFor="account-confirm">Confirm password</label>
+                        <div className="account-input">
+                          <LockKeyhole className="account-input__icon" size={17} />
+                          <input
+                            id="account-confirm"
+                            name="confirmPassword"
+                            type={showConfirmPassword ? 'text' : 'password'}
+                            autoComplete="new-password"
+                            placeholder="Re-enter your password"
+                            required
+                          />
+                          <button
+                            type="button"
+                            className="password-toggle"
+                            aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                            onClick={() => setShowConfirmPassword(v => !v)}
+                          >
+                            {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {mode === 'signup' && (
+                      <label className="terms">
+                        <input name="terms" type="checkbox" required />
+                        <span>I agree to the <a href="/terms-and-conditions">Terms &amp; Conditions</a> and Privacy Policy.</span>
+                      </label>
+                    )}
+                  </div>
+
+                  {mode === 'signin' && (
+                    <div className="account-options">
+                      <button type="button" onClick={() => switchMode('forgot')}>
+                        Forgot Password?
+                      </button>
+                    </div>
+                  )}
+
+                  {message && (
+                    <div className={`account-message account-message--${message.type}`} role="status">
+                      {message.type === 'success' ? (
+                        <CheckCircle2 size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                      ) : (
+                        <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                      )}
+                      <span>{message.text}</span>
+                    </div>
+                  )}
+
+                  <button className="account-submit" type="submit" disabled={isSubmitting || googleLoading}>
+                    {isSubmitting
+                      ? mode === 'signin'
+                        ? 'Signing in…'
+                        : 'Creating account…'
+                      : mode === 'signin'
+                      ? 'Sign in'
+                      : 'Create account'}
+                  </button>
+                </form>
+
+                <div className="account-divider">OR</div>
+
+                {/* SINGLE UNIFIED GOOGLE SIGN-IN BUTTON */}
+                <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                  {/* Container for Google's Official GSI button */}
+                  <div
+                    ref={googleButtonContainerRef}
+                    style={{
+                      display: isGsiRendered && googleClientId ? 'flex' : 'none',
+                      justifyContent: 'center',
+                      width: '100%',
+                    }}
+                  />
+
+                  {/* Branded Fallback Button (Only shown when GSI button is NOT rendered) */}
+                  {(!isGsiRendered || !googleClientId) && (
+                    <button
+                      className="social-button"
+                      type="button"
+                      onClick={handleGoogleButtonClick}
+                      disabled={googleLoading}
+                      title="Continue with Google"
+                    >
+                      <GoogleIcon />
+                      <span>{googleLoading ? 'Connecting to Google…' : 'Continue with Google'}</span>
+                    </button>
+                  )}
+                </div>
+
+                <p className="account-switch">
+                  {mode === 'signin' ? 'New to Malwa Namkeen House?' : 'Already have an account?'}
+                  {' '}
+                  <button type="button" onClick={() => switchMode(mode === 'signin' ? 'signup' : 'signin')}>
+                    {mode === 'signin' ? 'Create an account' : 'Sign In'}
+                  </button>
+                </p>
+              </>
+            )}
           </div>
         </section>
       </main>
@@ -815,7 +1192,7 @@ export default function Account() {
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#1F2937' }}>
-                  Google Sign-In Ready
+                  Google Sign-In
                 </h3>
                 <span style={{ fontSize: '11.5px', color: '#6B7280' }}>
                   Quick test or add your Google Client ID
@@ -824,7 +1201,7 @@ export default function Account() {
             </div>
 
             <p style={{ fontSize: '13px', color: '#4B5563', lineHeight: 1.5, margin: '0 0 16px' }}>
-              The backend authentication endpoint is fully mounted and ready. You can test it right away or connect your official Google Cloud OAuth Client ID.
+              The authentication system supports seamless Google Sign-In. You can test it immediately below or configure your official Google Cloud OAuth Client ID.
             </p>
 
             <form onSubmit={handleDemoGoogleSignIn} style={{ background: '#FAF6EF', padding: '16px', borderRadius: '12px', border: '1px solid #EAE3D2', marginBottom: '16px' }}>
@@ -836,13 +1213,13 @@ export default function Account() {
                   value={demoName}
                   onChange={e => setDemoName(e.target.value)}
                   placeholder="Your Name (e.g. Ananya Sharma)"
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '13px', outline: 'none' }}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
                 />
                 <input
                   value={demoEmail}
                   onChange={e => setDemoEmail(e.target.value)}
                   placeholder="Your Google Email (e.g. user@gmail.com)"
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '13px', outline: 'none' }}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
                 />
                 <button
                   type="submit"

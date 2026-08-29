@@ -1547,6 +1547,7 @@ var emailLogSchema = new Schema4(
       enum: [
         "admin_invitation",
         "admin_password_reset",
+        "customer_password_reset",
         "order_confirmation",
         "order_status_update",
         "inquiry_acknowledgement",
@@ -1819,6 +1820,40 @@ async function sendAdminPasswordReset({
     subject: "Password Reset Request \u2014 Malwa Namkeen House Staff Portal",
     html,
     eventType: "admin_password_reset",
+    relatedId: email2
+  });
+}
+async function sendCustomerPasswordReset({
+  email: email2,
+  name: name2,
+  token
+}) {
+  const { appBaseUrl } = getEmailConfig();
+  const resetUrl = `${appBaseUrl}/reset-password?token=${encodeURIComponent(token)}`;
+  const html = wrapEmailTemplate({
+    title: "Password Reset Request",
+    preheader: "Reset instructions for your Malwa Namkeen House account.",
+    contentHtml: `
+      <h2 style="color: #3C0815; font-size: 18px; margin-top: 0;">Password Reset Instructions</h2>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        Namaste ${name2},
+      </p>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        We received a request to reset the password for your Malwa Namkeen House account (<strong>${email2}</strong>).
+      </p>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${resetUrl}" class="btn">Reset Your Password</a>
+      </div>
+      <p style="font-size: 12.5px; color: #6B7280; line-height: 1.5;">
+        <strong>Security Notice:</strong> This link is valid for 1 hour and can only be used once. If you did not make this request, you can safely ignore this email.
+      </p>
+    `
+  });
+  return sendEmail({
+    to: email2,
+    subject: "Password Reset Request \u2014 Malwa Namkeen House",
+    html,
+    eventType: "customer_password_reset",
     relatedId: email2
   });
 }
@@ -2143,7 +2178,7 @@ var forgotPasswordLimiter = rateLimit2({
   message: {
     success: true,
     // Maintain generic response even if rate limited
-    message: "If an administrative account exists for this email, password reset instructions have been dispatched."
+    message: "If an account exists for this email, password reset instructions have been dispatched."
   }
 });
 var tokenSubmissionLimiter = rateLimit2({
@@ -2154,6 +2189,46 @@ var tokenSubmissionLimiter = rateLimit2({
   message: {
     success: false,
     message: "Too many requests. Please try again after 15 minutes."
+  }
+});
+router2.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
+  try {
+    const { email: email2 } = req.body;
+    const genericSuccess = {
+      success: true,
+      message: "If an account exists for this email address, password reset instructions have been dispatched."
+    };
+    if (!email2 || typeof email2 !== "string") {
+      res.json(genericSuccess);
+      return;
+    }
+    const cleanEmail = email2.trim().toLowerCase();
+    const user = await User.findOne({
+      email: cleanEmail,
+      active: true
+    });
+    if (!user) {
+      res.json(genericSuccess);
+      return;
+    }
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1e3);
+    user.passwordResetTokenHash = tokenHash;
+    user.passwordResetExpiresAt = expiresAt;
+    await user.save();
+    await sendCustomerPasswordReset({
+      email: user.email,
+      name: user.name,
+      token: rawToken
+    });
+    res.json(genericSuccess);
+  } catch (err) {
+    console.error("[Customer Forgot Password Error]", err);
+    res.json({
+      success: true,
+      message: "If an account exists for this email address, password reset instructions have been dispatched."
+    });
   }
 });
 router2.post("/admin/forgot-password", forgotPasswordLimiter, async (req, res) => {
