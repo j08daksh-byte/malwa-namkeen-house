@@ -1199,36 +1199,44 @@ export default function ProductDetail() {
                 <h1 className="pdp-title">{product.name}</h1>
               </div>
 
-              {product.hindiName && (
+              {Boolean(product.hindiName?.trim()) && (
                 <div className="pdp-hindi-title">{product.hindiName}</div>
               )}
 
-              {product.tagline && (
+              {Boolean(product.tagline?.trim()) && (
                 <div className="pdp-tagline">“{product.tagline}”</div>
               )}
 
               {/* Meta Badges */}
               <div className="pdp-meta-pills">
-                <div className="pdp-veg-badge">
-                  <span className="pdp-veg-dot" /> 100% Pure Vegetarian
-                </div>
+                {product.isVegetarian !== false && (
+                  <div className="pdp-veg-badge">
+                    <span className="pdp-veg-dot" /> 100% Pure Vegetarian
+                  </div>
+                )}
 
-                <div className="pdp-spice-badge">
-                  <Flame size={13} /> {product.spiceLevel || 'Medium'}
-                </div>
+                {Boolean(product.spiceLevel?.trim()) && (
+                  <div className="pdp-spice-badge">
+                    <Flame size={13} /> {product.spiceLevel}
+                  </div>
+                )}
 
-                <div className="pdp-rating-badge">
-                  <Star size={13} fill="#D4AA45" stroke="none" />
-                  <span>{product.rating ?? 4.9}</span>
-                  <span style={{ color: '#75645C', fontWeight: 500 }}>
-                    ({product.reviewCount ?? 120} Reviews)
-                  </span>
-                </div>
+                {Boolean(product.rating && product.rating > 0 && product.reviewCount && product.reviewCount > 0) && (
+                  <div className="pdp-rating-badge">
+                    <Star size={13} fill="#D4AA45" stroke="none" />
+                    <span>{product.rating}</span>
+                    <span style={{ color: '#75645C', fontWeight: 500 }}>
+                      ({product.reviewCount} Reviews)
+                    </span>
+                  </div>
+                )}
               </div>
 
-              <p style={{ fontSize: '14.5px', lineHeight: 1.7, color: '#4A3530', margin: '0 0 20px' }}>
-                {product.description}
-              </p>
+              {Boolean(product.description?.trim()) && (
+                <p style={{ fontSize: '14.5px', lineHeight: 1.7, color: '#4A3530', margin: '0 0 20px' }}>
+                  {product.description}
+                </p>
+              )}
             </div>
 
             {/* Price Card */}
@@ -1242,10 +1250,12 @@ export default function ProductDetail() {
                   <span className="pdp-price-save">{discountPercent}% Off</span>
                 )}
               </div>
-              <div style={{ fontSize: '12px', color: '#75645C' }}>
-                Inclusive of all taxes · Prepared in 100% pure cold-pressed groundnut oil
-              </div>
-              {(selectedOption as any)?.sku && (
+              {Boolean(product.oilUsed?.trim()) && (
+                <div style={{ fontSize: '12px', color: '#75645C' }}>
+                  Inclusive of all taxes · Prepared in {product.oilUsed}
+                </div>
+              )}
+              {Boolean((selectedOption as any)?.sku?.trim()) && (
                 <div className="pdp-sku-row">SKU: {(selectedOption as any).sku}</div>
               )}
             </div>
@@ -1381,73 +1391,98 @@ export default function ProductDetail() {
           </div>
         </div>
 
-        {/* Detailed Product Specifications & Story */}
-        <section className="pdp-details-section">
-          <div className="pdp-details-grid">
-            {/* Story */}
-            {product.story && (
-              <div className="pdp-detail-card">
-                <h3>Heritage & Craft Story</h3>
-                <p>{product.story}</p>
-                <p style={{ fontStyle: 'italic', color: '#75645C' }}>
-                  Handcrafted following traditional recipe proportions preserved through generations.
-                </p>
-              </div>
-            )}
+        {/* Detailed Product Specifications & Story (Rendered ONLY if data exists) */}
+        {(() => {
+          const hasStory = Boolean(product.story?.trim());
+          const validIngredients = Array.isArray(product.ingredients) ? product.ingredients.filter(i => i && i.trim()) : [];
+          const hasIngredients = validIngredients.length > 0;
+          const validCustomSpecs = (product.customSpecifications || []).filter(s => s && s.label?.trim() && s.value?.trim());
+          const hasShelfLife = Boolean(product.shelfLife?.trim());
+          const hasOilUsed = Boolean(product.oilUsed?.trim());
+          const hasDietaryStandard = Boolean(product.dietaryStandard?.trim());
+          const hasSpice = Boolean(product.spiceLevel?.trim());
+          const hasPackagingType = Boolean(product.packagingType?.trim());
+          const hasSpecs = hasShelfLife || hasOilUsed || hasDietaryStandard || hasSpice || hasPackagingType || validCustomSpecs.length > 0;
 
-            {/* Ingredients */}
-            {Array.isArray(product.ingredients) && product.ingredients.length > 0 && (
-              <div className="pdp-detail-card">
-                <h3>Authentic Ingredients</h3>
-                <p>Pure ingredients sourced directly from prime regional harvests:</p>
-                <div className="pdp-ingredients-chips">
-                  {product.ingredients.map((ing, i) => (
-                    <span key={i} className="pdp-chip">{ing}</span>
-                  ))}
-                </div>
-              </div>
-            )}
+          if (!hasStory && !hasIngredients && !hasSpecs) return null;
 
-            {/* Specifications Table */}
-            <div className="pdp-detail-card">
-              <h3>Delicacy Specifications</h3>
-              <table className="pdp-specs-table">
-                <tbody>
-                  <tr>
-                    <td>Shelf Life</td>
-                    <td>{product.shelfLife || '90 Days from packaging'}</td>
-                  </tr>
-                  <tr>
-                    <td>Cooking Oil</td>
-                    <td>{product.oilUsed || 'Pure Cold-Pressed Groundnut Oil'}</td>
-                  </tr>
-                  <tr>
-                    <td>Dietary Standard</td>
-                    <td>{product.dietaryStandard || (product.isVegetarian ? '100% Pure Vegetarian (Satvik)' : 'Standard')}</td>
-                  </tr>
-                  <tr>
-                    <td>Spice Level</td>
-                    <td>{product.spiceLevel || 'Medium Malwa Spice'}</td>
-                  </tr>
-                  <tr>
-                    <td>Packaging Format</td>
-                    <td>{product.packagingType || 'Food-Grade Multi-Layer Aroma Seal'}</td>
-                  </tr>
-                  {/* Dynamic custom specifications entered from admin portal */}
-                  {Array.isArray(product.customSpecifications) &&
-                    product.customSpecifications.map((spec, i) =>
-                      spec.label && spec.value ? (
-                        <tr key={`custom-spec-${i}`}>
-                          <td>{spec.label}</td>
-                          <td>{spec.value}</td>
-                        </tr>
-                      ) : null
-                    )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
+          return (
+            <section className="pdp-details-section">
+              <div className="pdp-details-grid">
+                {/* Story */}
+                {hasStory && (
+                  <div className="pdp-detail-card">
+                    <h3>Heritage & Craft Story</h3>
+                    <p>{product.story}</p>
+                    <p style={{ fontStyle: 'italic', color: '#75645C' }}>
+                      Handcrafted following traditional recipe proportions preserved through generations.
+                    </p>
+                  </div>
+                )}
+
+                {/* Ingredients */}
+                {hasIngredients && (
+                  <div className="pdp-detail-card">
+                    <h3>Authentic Ingredients</h3>
+                    <p>Pure ingredients sourced directly from prime regional harvests:</p>
+                    <div className="pdp-ingredients-chips">
+                      {validIngredients.map((ing, i) => (
+                        <span key={i} className="pdp-chip">{ing}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Specifications Table */}
+                {hasSpecs && (
+                  <div className="pdp-detail-card">
+                    <h3>Delicacy Specifications</h3>
+                    <table className="pdp-specs-table">
+                      <tbody>
+                        {hasShelfLife && (
+                          <tr>
+                            <td>Shelf Life</td>
+                            <td>{product.shelfLife}</td>
+                          </tr>
+                        )}
+                        {hasOilUsed && (
+                          <tr>
+                            <td>Cooking Oil</td>
+                            <td>{product.oilUsed}</td>
+                          </tr>
+                        )}
+                        {hasDietaryStandard && (
+                          <tr>
+                            <td>Dietary Standard</td>
+                            <td>{product.dietaryStandard}</td>
+                          </tr>
+                        )}
+                        {hasSpice && (
+                          <tr>
+                            <td>Spice Level</td>
+                            <td>{product.spiceLevel}</td>
+                          </tr>
+                        )}
+                        {hasPackagingType && (
+                          <tr>
+                            <td>Packaging Format</td>
+                            <td>{product.packagingType}</td>
+                          </tr>
+                        )}
+                        {validCustomSpecs.map((spec, i) => (
+                          <tr key={`custom-spec-${i}`}>
+                            <td>{spec.label}</td>
+                            <td>{spec.value}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </section>
+          );
+        })()}
 
         {/* Related Products Section */}
         {relatedProducts.length > 0 && (

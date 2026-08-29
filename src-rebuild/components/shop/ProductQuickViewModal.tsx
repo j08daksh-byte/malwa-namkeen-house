@@ -447,25 +447,29 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
         {/* Left: Product Media */}
         <div className="qv-media">
           <img src={product.image} alt={product.name} className="qv-img" />
-          {product.badge && <span className="qv-media-badge">{product.badge}</span>}
+          {Boolean(product.badge?.trim()) && <span className="qv-media-badge">{product.badge}</span>}
         </div>
 
         {/* Right: Detailed Content */}
         <div className="qv-content">
-          <span className="qv-eyebrow">{product.categoryLabel} · {product.spiceLevel}</span>
+          <span className="qv-eyebrow">
+            {[product.categoryLabel, product.spiceLevel].filter(Boolean).join(' · ')}
+          </span>
           <h2 id="qv-title" className="qv-title">
             {product.name}
-            {product.hindiName && (
+            {Boolean(product.hindiName?.trim()) && (
               <span style={{ fontSize: '15px', color: '#8C756B', marginLeft: '8px', fontWeight: 500 }}>
                 ({product.hindiName})
               </span>
             )}
           </h2>
-          <p className="qv-tagline">{product.tagline}</p>
+          {Boolean(product.tagline?.trim()) && (
+            <p className="qv-tagline">{product.tagline}</p>
+          )}
 
           <div className="qv-price-row">
             <span className="qv-price">₹{selectedOption.price * quantity}</span>
-            {selectedOption.originalPrice && (
+            {selectedOption.originalPrice && selectedOption.originalPrice > selectedOption.price && (
               <span className="qv-orig-price">₹{selectedOption.originalPrice * quantity}</span>
             )}
             <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', color: '#75645C' }}>
@@ -473,26 +477,40 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
             </span>
           </div>
 
-          <h4 className="qv-section-title">Heritage & Craft</h4>
-          <p className="qv-story">{product.story || product.description}</p>
+          {Boolean(product.story?.trim() || product.description?.trim()) && (
+            <>
+              <h4 className="qv-section-title">Heritage &amp; Craft</h4>
+              <p className="qv-story">{product.story || product.description}</p>
+            </>
+          )}
 
-          <h4 className="qv-section-title">Authentic Ingredients</h4>
-          <div className="qv-ingredients">
-            {product.ingredients.map(ing => (
-              <span key={ing} className="qv-ing-chip">{ing}</span>
-            ))}
-          </div>
+          {Array.isArray(product.ingredients) && product.ingredients.filter(i => i && i.trim()).length > 0 && (
+            <>
+              <h4 className="qv-section-title">Authentic Ingredients</h4>
+              <div className="qv-ingredients">
+                {product.ingredients.filter(i => i && i.trim()).map(ing => (
+                  <span key={ing} className="qv-ing-chip">{ing}</span>
+                ))}
+              </div>
+            </>
+          )}
 
-          <div className="qv-specs-grid">
-            <div>
-              <span className="qv-spec-label">Oil Used</span>
-              <p className="qv-spec-val">{product.oilUsed}</p>
+          {Boolean(product.oilUsed?.trim() || product.shelfLife?.trim()) && (
+            <div className="qv-specs-grid">
+              {Boolean(product.oilUsed?.trim()) && (
+                <div>
+                  <span className="qv-spec-label">Oil Used</span>
+                  <p className="qv-spec-val">{product.oilUsed}</p>
+                </div>
+              )}
+              {Boolean(product.shelfLife?.trim()) && (
+                <div>
+                  <span className="qv-spec-label">Shelf Life</span>
+                  <p className="qv-spec-val">{product.shelfLife}</p>
+                </div>
+              )}
             </div>
-            <div>
-              <span className="qv-spec-label">Shelf Life</span>
-              <p className="qv-spec-val">{product.shelfLife}</p>
-            </div>
-          </div>
+          )}
 
           {/* Select Weight */}
           <h4 className="qv-section-title">Select Pack Size</h4>

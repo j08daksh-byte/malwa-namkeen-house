@@ -33,13 +33,15 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
     setTimeout(() => setIsAdding(false), 500);
   };
 
-  // Determine badge text: use existing badge or fallback based on rating/category
-  const badgeText = product.badge || (product.rating >= 4.9 ? 'BESTSELLER' : undefined);
+  // Determine badge text: only show if explicitly given or bestseller
+  const badgeText = product.badge?.trim() || (product.isBestSeller ? 'BESTSELLER' : undefined);
 
-  // Oil / Purity feature tag (like Eat Better's "No Palm Oil" tag)
-  const oilBadgeText = product.oilUsed?.includes('Desi Cow Ghee') || product.oilUsed?.includes('Ghee')
-    ? 'Pure Desi Ghee'
-    : 'No Palm Oil • Groundnut Oil';
+  // Oil / Purity feature tag: only show if oilUsed is provided
+  const oilBadgeText = product.oilUsed?.trim()
+    ? product.oilUsed.includes('Desi Cow Ghee') || product.oilUsed.includes('Ghee')
+      ? 'Pure Desi Ghee'
+      : product.oilUsed
+    : undefined;
 
   const productUrl = `/product/${product.slug || product.id}`;
 
@@ -495,10 +497,12 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
         )}
 
         {/* Bottom-Left Rating Pill */}
-        <div className="eb-product-card__rating-pill">
-          <span className="eb-product-card__rating-star" aria-hidden="true">★</span>
-          <span>{product.rating ? product.rating.toFixed(1) : '4.8'}</span>
-        </div>
+        {Boolean(product.rating && product.rating > 0 && product.reviewCount && product.reviewCount > 0) && (
+          <div className="eb-product-card__rating-pill">
+            <span className="eb-product-card__rating-star" aria-hidden="true">★</span>
+            <span>{product.rating.toFixed(1)}</span>
+          </div>
+        )}
 
         {/* Top-Right Wishlist Heart Button */}
         <button
@@ -544,8 +548,10 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
 
       {/* Card Body */}
       <div className="eb-product-card__body">
-        {/* Dark Characteristic Pill (e.g. No Palm Oil) */}
-        <span className="eb-product-card__oil-pill">{oilBadgeText}</span>
+        {/* Characteristic Pill (only if oilBadgeText exists) */}
+        {oilBadgeText && (
+          <span className="eb-product-card__oil-pill">{oilBadgeText}</span>
+        )}
 
         {/* Product Title */}
         <div className="eb-product-card__title-wrap">
@@ -554,16 +560,18 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
             onClick={() => navigate(productUrl)}
           >
             {product.name}
-            {product.hindiName && (
+            {Boolean(product.hindiName?.trim()) && (
               <span className="eb-product-card__hindi">{product.hindiName}</span>
             )}
           </h3>
         </div>
 
         {/* Subtitle / Tagline */}
-        <p className="eb-product-card__sub">
-          {product.tagline || product.description}
-        </p>
+        {Boolean(product.tagline?.trim() || product.description?.trim()) && (
+          <p className="eb-product-card__sub">
+            {product.tagline || product.description}
+          </p>
+        )}
 
         {/* Weight Selector */}
         {product.options && product.options.length > 0 && (

@@ -11,20 +11,25 @@ const LEGAL_LINKS = [
   { label: 'Refund Policy',       href: '/refund-policy'        },
 ];
 
+function isValidLink(url?: string): boolean {
+  if (!url) return false;
+  const trimmed = url.trim();
+  return trimmed !== '' && trimmed !== '#' && trimmed !== 'undefined' && trimmed !== 'null';
+}
+
 function SocialBtn({ label, path, href }: { label: string; path: string; href?: string }) {
   const [hov, setHov] = useState(false);
-  const isPlaceholder = !href || href === '#' || href === '';
+  if (!isValidLink(href)) return null;
+
   return (
     <a
-      href={isPlaceholder ? '#' : href}
-      target={isPlaceholder ? undefined : '_blank'}
-      rel={isPlaceholder ? undefined : 'noopener noreferrer'}
-      aria-label={isPlaceholder ? `${label} (coming soon)` : label}
-      aria-disabled={isPlaceholder}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={label}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
-      onClick={e => { if (isPlaceholder) e.preventDefault(); }}
-      title={isPlaceholder ? `${label} — link coming soon` : label}
+      title={label}
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         width: 36, height: 36, borderRadius: '50%',
@@ -33,8 +38,7 @@ function SocialBtn({ label, path, href }: { label: string; path: string; href?: 
         transition: 'border-color 0.22s, background 0.22s, transform 0.22s',
         transform: hov ? 'translateY(-2px)' : 'none',
         textDecoration: 'none',
-        opacity: isPlaceholder ? 0.45 : 1,
-        cursor: isPlaceholder ? 'not-allowed' : 'pointer',
+        cursor: 'pointer',
       }}
     >
       <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -299,34 +303,61 @@ export default function Footer() {
                 onError={e => { e.currentTarget.style.display = 'none'; }}
               />
             </div>
-            <p className="ft-brand-desc">
-              {settings.description || 'Malwa heritage in every bite — artisanal Ratlami Sev, handcrafted mathris, and traditional namkeens crafted with 100% pure cold-pressed groundnut oil.'}
-            </p>
-            <div className="ft-contact-row">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
-                <rect x="1" y="2.5" width="12" height="9" rx="1.5" stroke="rgba(200,154,61,0.55)" strokeWidth="1.1"/>
-                <path d="M1 5l6 3.5L13 5" stroke="rgba(200,154,61,0.55)" strokeWidth="1.1" strokeLinecap="round"/>
-              </svg>
-              <a href={`mailto:${settings.contact.email}`}>{settings.contact.email}</a>
-            </div>
-            <div className="ft-contact-row">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
-                <path d="M2 2h2.5l1 2.5-1.5 1.5c.75 1.75 2 3 3.75 3.75l1.5-1.5L11.5 9.5V12C8 12.5 1.5 8.5 2 2z" stroke="rgba(200,154,61,0.55)" strokeWidth="1.1" strokeLinejoin="round"/>
-              </svg>
-              <a href={`tel:${settings.contact.whatsappNumber || settings.contact.phone}`}>{settings.contact.phone}</a>
-            </div>
-            <div className="ft-socials">
-              <SocialBtn
-                label="Instagram"
-                href={settings.socialLinks?.instagram}
-                path="M11 1H5a4 4 0 00-4 4v6a4 4 0 004 4h6a4 4 0 004-4V5a4 4 0 00-4-4zM8 11a3 3 0 110-6 3 3 0 010 6zm3.5-6.5a.75.75 0 110-1.5.75.75 0 010 1.5z"
-              />
-              <SocialBtn
-                label="Facebook"
-                href={settings.socialLinks?.facebook}
-                path="M13 1H3a2 2 0 00-2 2v10a2 2 0 002 2h5v-5H6.5V7.5H8V6c0-1.66 1.34-3 3-3h2v2.5h-1.5c-.28 0-.5.22-.5.5v1.5H13l-.5 2.5H11V15h2a2 2 0 002-2V3a2 2 0 00-2-2z"
-              />
-            </div>
+            {Boolean(settings.description?.trim()) && (
+              <p className="ft-brand-desc">{settings.description}</p>
+            )}
+            {Boolean(settings.contact?.email?.trim()) && (
+              <div className="ft-contact-row">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+                  <rect x="1" y="2.5" width="12" height="9" rx="1.5" stroke="rgba(200,154,61,0.55)" strokeWidth="1.1"/>
+                  <path d="M1 5l6 3.5L13 5" stroke="rgba(200,154,61,0.55)" strokeWidth="1.1" strokeLinecap="round"/>
+                </svg>
+                <a href={`mailto:${settings.contact.email}`}>{settings.contact.email}</a>
+              </div>
+            )}
+            {Boolean(settings.contact?.phone?.trim() || settings.contact?.whatsappNumber?.trim()) && (
+              <div className="ft-contact-row">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+                  <path d="M2 2h2.5l1 2.5-1.5 1.5c.75 1.75 2 3 3.75 3.75l1.5-1.5L11.5 9.5V12C8 12.5 1.5 8.5 2 2z" stroke="rgba(200,154,61,0.55)" strokeWidth="1.1" strokeLinejoin="round"/>
+                </svg>
+                <a href={`tel:${settings.contact.whatsappNumber || settings.contact.phone}`}>{settings.contact.phone || settings.contact.whatsappNumber}</a>
+              </div>
+            )}
+            {(isValidLink(settings.socialLinks?.instagram) ||
+              isValidLink(settings.socialLinks?.facebook) ||
+              isValidLink(settings.socialLinks?.youtube) ||
+              isValidLink(settings.socialLinks?.twitter)) && (
+              <div className="ft-socials">
+                {isValidLink(settings.socialLinks?.instagram) && (
+                  <SocialBtn
+                    label="Instagram"
+                    href={settings.socialLinks?.instagram}
+                    path="M11 1H5a4 4 0 00-4 4v6a4 4 0 004 4h6a4 4 0 004-4V5a4 4 0 00-4-4zM8 11a3 3 0 110-6 3 3 0 010 6zm3.5-6.5a.75.75 0 110-1.5.75.75 0 010 1.5z"
+                  />
+                )}
+                {isValidLink(settings.socialLinks?.facebook) && (
+                  <SocialBtn
+                    label="Facebook"
+                    href={settings.socialLinks?.facebook}
+                    path="M13 1H3a2 2 0 00-2 2v10a2 2 0 002 2h5v-5H6.5V7.5H8V6c0-1.66 1.34-3 3-3h2v2.5h-1.5c-.28 0-.5.22-.5.5v1.5H13l-.5 2.5H11V15h2a2 2 0 002-2V3a2 2 0 00-2-2z"
+                  />
+                )}
+                {isValidLink(settings.socialLinks?.youtube) && (
+                  <SocialBtn
+                    label="YouTube"
+                    href={settings.socialLinks?.youtube}
+                    path="M14.667 4.667a1.667 1.667 0 00-1.173-1.173C12.46 3.227 8 3.227 8 3.227s-4.46 0-5.494.267A1.667 1.667 0 001.333 4.667C1.067 5.7 1.067 8 1.067 8s0 2.3.266 3.333a1.667 1.667 0 001.174 1.174c1.033.266 5.493.266 5.493.266s4.46 0 5.494-.266a1.667 1.667 0 001.173-1.174c.266-1.033.266-3.333.266-3.333s0-2.3-.266-3.333zM6.5 10.133V5.867L10.267 8 6.5 10.133z"
+                  />
+                )}
+                {isValidLink(settings.socialLinks?.twitter) && (
+                  <SocialBtn
+                    label="X (Twitter)"
+                    href={settings.socialLinks?.twitter}
+                    path="M12.6 1.5h2.4L9.75 7.5 16 15h-4.8l-3.75-5.1L3.2 15H.8l5.65-6.5L.4 1.5h4.95l3.4 4.7z"
+                  />
+                )}
+              </div>
+            )}
           </div>
 
           {/* ── Column 2: Navigate ── */}
