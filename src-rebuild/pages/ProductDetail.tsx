@@ -1423,16 +1423,26 @@ export default function ProductDetail() {
                   </tr>
                   <tr>
                     <td>Dietary Standard</td>
-                    <td>100% Pure Vegetarian (Satvik)</td>
+                    <td>{product.dietaryStandard || (product.isVegetarian ? '100% Pure Vegetarian (Satvik)' : 'Standard')}</td>
                   </tr>
                   <tr>
                     <td>Spice Level</td>
                     <td>{product.spiceLevel || 'Medium Malwa Spice'}</td>
                   </tr>
                   <tr>
-                    <td>Packaging</td>
-                    <td>Food-Grade Multi-Layer Aroma Seal</td>
+                    <td>Packaging Format</td>
+                    <td>{product.packagingType || 'Food-Grade Multi-Layer Aroma Seal'}</td>
                   </tr>
+                  {/* Dynamic custom specifications entered from admin portal */}
+                  {Array.isArray(product.customSpecifications) &&
+                    product.customSpecifications.map((spec, i) =>
+                      spec.label && spec.value ? (
+                        <tr key={`custom-spec-${i}`}>
+                          <td>{spec.label}</td>
+                          <td>{spec.value}</td>
+                        </tr>
+                      ) : null
+                    )}
                 </tbody>
               </table>
             </div>

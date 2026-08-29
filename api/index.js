@@ -272,6 +272,20 @@ var productSchema = new Schema3(
       type: String,
       default: "Pure Groundnut Oil"
     },
+    dietaryStandard: {
+      type: String,
+      default: "100% Pure Vegetarian (Satvik)"
+    },
+    packagingType: {
+      type: String,
+      default: "Food-Grade Multi-Layer Aroma Seal"
+    },
+    customSpecifications: [
+      {
+        label: { type: String, trim: true },
+        value: { type: String, trim: true }
+      }
+    ],
     isVegetarian: {
       type: Boolean,
       default: true
@@ -2380,6 +2394,9 @@ function formatPublicProduct(p) {
     spiceLevel: p.spiceLevel || "Medium",
     shelfLife: p.shelfLife || "90 Days from manufacturing",
     oilUsed: p.oilUsed || "100% Pure Cold-Pressed Groundnut Oil",
+    dietaryStandard: p.dietaryStandard || "100% Pure Vegetarian (Satvik)",
+    packagingType: p.packagingType || "Food-Grade Multi-Layer Aroma Seal",
+    customSpecifications: Array.isArray(p.customSpecifications) ? p.customSpecifications : [],
     isVegetarian: p.isVegetarian !== false,
     isAvailable: p.active !== false && totalStock > 0,
     category: p.category?.slug || (typeof p.category === "string" ? p.category : "sev-namkeen"),
@@ -4144,6 +4161,9 @@ router7.post("/", async (req, res) => {
       spiceLevel,
       shelfLife,
       oilUsed,
+      dietaryStandard,
+      packagingType,
+      customSpecifications = [],
       isVegetarian = true,
       category,
       images = [],
@@ -4151,7 +4171,9 @@ router7.post("/", async (req, res) => {
       featured = false,
       isBestSeller = false,
       active = true,
-      badge = ""
+      badge = "",
+      rating = 5,
+      reviewCount = 0
     } = req.body;
     if (isBestSeller) {
       await enforceMaxBestSellers();
@@ -4207,6 +4229,7 @@ router7.post("/", async (req, res) => {
     const finalSlug = slug && typeof slug === "string" && slug.trim() ? slug.trim().toLowerCase().replace(/[\s_]+/g, "-") : createSlug(name2);
     const existing = await Product.findOne({ slug: finalSlug });
     const productSlug = existing ? `${finalSlug}-${Date.now().toString(36).slice(-4)}` : finalSlug;
+    const cleanedSpecs = Array.isArray(customSpecifications) ? customSpecifications.filter((s) => s && typeof s.label === "string" && s.label.trim() && typeof s.value === "string" && s.value.trim()).map((s) => ({ label: s.label.trim(), value: s.value.trim() })) : [];
     const newProduct = await Product.create({
       name: name2.trim(),
       slug: productSlug,
@@ -4218,6 +4241,9 @@ router7.post("/", async (req, res) => {
       spiceLevel: spiceLevel || "Medium",
       shelfLife: shelfLife ? String(shelfLife).trim() : "90 Days",
       oilUsed: oilUsed ? String(oilUsed).trim() : "Pure Groundnut Oil",
+      dietaryStandard: dietaryStandard ? String(dietaryStandard).trim() : "100% Pure Vegetarian (Satvik)",
+      packagingType: packagingType ? String(packagingType).trim() : "Food-Grade Multi-Layer Aroma Seal",
+      customSpecifications: cleanedSpecs,
       isVegetarian: Boolean(isVegetarian),
       category: categoryId,
       images: Array.isArray(images) ? images.filter(Boolean) : [],
@@ -4227,8 +4253,8 @@ router7.post("/", async (req, res) => {
       bestSellerAt: isBestSeller ? /* @__PURE__ */ new Date() : null,
       active: Boolean(active),
       badge: badge ? String(badge).trim() : isBestSeller ? "Best Seller" : "",
-      rating: 5,
-      reviewCount: 0
+      rating: typeof rating === "number" ? rating : 5,
+      reviewCount: typeof reviewCount === "number" ? reviewCount : 0
     });
     const populated = await Product.findById(newProduct._id).populate("category", "name slug");
     res.status(201).json({
@@ -4260,6 +4286,9 @@ router7.put("/:id", async (req, res) => {
       spiceLevel,
       shelfLife,
       oilUsed,
+      dietaryStandard,
+      packagingType,
+      customSpecifications,
       isVegetarian,
       category,
       images,
@@ -4267,7 +4296,9 @@ router7.put("/:id", async (req, res) => {
       featured,
       isBestSeller,
       active,
-      badge
+      badge,
+      rating,
+      reviewCount
     } = req.body;
     const existingProduct = await Product.findById(id);
     if (!existingProduct) {
@@ -4283,10 +4314,17 @@ router7.put("/:id", async (req, res) => {
     if (spiceLevel) existingProduct.spiceLevel = spiceLevel;
     if (shelfLife !== void 0) existingProduct.shelfLife = String(shelfLife).trim();
     if (oilUsed !== void 0) existingProduct.oilUsed = String(oilUsed).trim();
+    if (dietaryStandard !== void 0) existingProduct.dietaryStandard = String(dietaryStandard).trim();
+    if (packagingType !== void 0) existingProduct.packagingType = String(packagingType).trim();
     if (isVegetarian !== void 0) existingProduct.isVegetarian = Boolean(isVegetarian);
     if (featured !== void 0) existingProduct.featured = Boolean(featured);
     if (active !== void 0) existingProduct.active = Boolean(active);
     if (badge !== void 0) existingProduct.badge = String(badge).trim();
+    if (rating !== void 0 && !isNaN(Number(rating))) existingProduct.rating = Number(rating);
+    if (reviewCount !== void 0 && !isNaN(Number(reviewCount))) existingProduct.reviewCount = Number(reviewCount);
+    if (Array.isArray(customSpecifications)) {
+      existingProduct.customSpecifications = customSpecifications.filter((s) => s && typeof s.label === "string" && s.label.trim() && typeof s.value === "string" && s.value.trim()).map((s) => ({ label: s.label.trim(), value: s.value.trim() }));
+    }
     if (isBestSeller !== void 0) {
       const willBeBestSeller = Boolean(isBestSeller);
       if (willBeBestSeller && !existingProduct.isBestSeller) {

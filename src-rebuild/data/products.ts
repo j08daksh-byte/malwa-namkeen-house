@@ -4,6 +4,11 @@ export interface ProductWeightOption {
   originalPrice?: number;
 }
 
+export interface CustomSpec {
+  label: string;
+  value: string;
+}
+
 export interface Product {
   id: string;
   _id?: string;
@@ -30,6 +35,9 @@ export interface Product {
   isAvailable: boolean;
   isVegetarian: boolean;
   oilUsed: string;
+  dietaryStandard?: string;
+  packagingType?: string;
+  customSpecifications?: CustomSpec[];
 }
 
 export interface ShopCategory {

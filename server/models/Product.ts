@@ -13,6 +13,11 @@ export interface IProductVariant {
   sortOrder: number;         // Ordering of variants on storefront
 }
 
+export interface ICustomSpecification {
+  label: string;
+  value: string;
+}
+
 export interface IProduct extends Document {
   name: string;
   slug: string;
@@ -24,6 +29,9 @@ export interface IProduct extends Document {
   spiceLevel?: 'Mild' | 'Medium' | 'Zesty' | 'Clove Hot' | 'Sweet & Tangy';
   shelfLife?: string;
   oilUsed?: string;
+  dietaryStandard?: string;
+  packagingType?: string;
+  customSpecifications?: ICustomSpecification[];
   isVegetarian: boolean;
   category: Types.ObjectId;
   images: string[];
@@ -143,6 +151,20 @@ const productSchema = new Schema<IProduct>(
       type: String,
       default: 'Pure Groundnut Oil',
     },
+    dietaryStandard: {
+      type: String,
+      default: '100% Pure Vegetarian (Satvik)',
+    },
+    packagingType: {
+      type: String,
+      default: 'Food-Grade Multi-Layer Aroma Seal',
+    },
+    customSpecifications: [
+      {
+        label: { type: String, trim: true },
+        value: { type: String, trim: true },
+      },
+    ],
     isVegetarian: {
       type: Boolean,
       default: true,
