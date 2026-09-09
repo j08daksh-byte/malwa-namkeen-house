@@ -7,7 +7,9 @@ import ScrollToTop from './components/layout/ScrollToTop';
 // Public site sections (Directly loaded for instant first paint)
 import BrandIntro           from './components/layout/BrandIntro';
 import Navbar               from './components/layout/Navbar';
-import { CartProvider }     from './lib/cartContext';
+import { CartProvider, useCart } from './lib/cartContext';
+import CartDrawer from './components/shop/CartDrawer';
+import CheckoutModal from './components/shop/CheckoutModal';
 import { CustomerSessionProvider } from './components/layout/CustomerSessionContext';
 import { WishlistProvider } from './lib/wishlistContext';
 import { StoreSettingsProvider } from './lib/storeSettingsContext';
@@ -119,6 +121,16 @@ function PublicSite() {
   );
 }
 
+function GlobalCartAndCheckout() {
+  const { isCheckoutOpen, closeCheckout, openCheckout } = useCart();
+  return (
+    <>
+      <CartDrawer onOpenCheckout={openCheckout} />
+      <CheckoutModal isOpen={isCheckoutOpen} onClose={closeCheckout} />
+    </>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -127,6 +139,7 @@ export default function App() {
         <CustomerSessionProvider>
           <WishlistProvider>
             <CartProvider>
+              <GlobalCartAndCheckout />
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   {/* Public website */}

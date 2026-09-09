@@ -1341,7 +1341,7 @@ export default function AdminProducts() {
 
                       <div style={{ display: 'flex', gap: '6px', flex: 1, minWidth: '240px' }}>
                         <input
-                          placeholder="Or paste external image URL (e.g. /mishtichaat/chaat-plate.jpg)..."
+                          placeholder="Or paste external image URL (e.g. /hero-banner-1.png)..."
                           value={imageUrlInput}
                           onChange={e => setImageUrlInput(e.target.value)}
                           style={{ ...inputStyle, flex: 1 }}

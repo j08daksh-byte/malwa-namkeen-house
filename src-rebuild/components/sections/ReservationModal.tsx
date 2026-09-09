@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { submitReservation } from '../../lib/api.ts';
+import { submitBulkEnquiry } from '../../lib/api.ts';
 import { WA_URLS } from '../../lib/whatsapp.ts';
 
-const TIMES = [
-  '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
-  '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM', '2:00 PM', '2:30 PM',
-  '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM', '5:00 PM', '5:30 PM',
-  '6:00 PM', '6:30 PM', '7:00 PM', '7:30 PM', '8:00 PM', '8:30 PM',
-  '9:00 PM', '9:30 PM', '10:00 PM',
+const REQUIREMENT_TYPES = [
+  'Corporate Gifting',
+  'Wedding / Event',
+  'Festival Gifting',
+  'Bulk Namkeen Order',
+  'Retail / Reseller Enquiry',
+  'Other',
 ];
 
 const WA_ICON = (
@@ -17,7 +18,7 @@ const WA_ICON = (
   </svg>
 );
 
-/** Minimum date string for the date input (today in YYYY-MM-DD) */
+/** Minimum date string for required by date (today in YYYY-MM-DD) */
 function todayStr(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -29,14 +30,17 @@ interface Props {
 }
 
 export default function ReservationModal({ open, onClose }: Props) {
-  const [customerName, setCustomerName] = useState('');
-  const [email,        setEmail]        = useState('');
-  const [phone,        setPhone]        = useState('');
-  const [date,         setDate]         = useState('');
-  const [time,         setTime]         = useState('');
-  const [guests,       setGuests]       = useState('');
-  const [specialReq,   setSpecialReq]   = useState('');
-  const [consent,      setConsent]      = useState(false);
+  const [name,                setName]                = useState('');
+  const [phone,               setPhone]               = useState('');
+  const [email,               setEmail]               = useState('');
+  const [companyName,         setCompanyName]         = useState('');
+  const [requirementType,     setRequirementType]     = useState('Corporate Gifting');
+  const [approxQuantity,      setApproxQuantity]      = useState('');
+  const [approxBudget,        setApproxBudget]        = useState('');
+  const [requiredByDate,      setRequiredByDate]      = useState('');
+  const [deliveryCityPincode, setDeliveryCityPincode] = useState('');
+  const [message,             setMessage]             = useState('');
+  const [consent,             setConsent]             = useState(false);
 
   const [loading,     setLoading]     = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -45,7 +49,7 @@ export default function ReservationModal({ open, onClose }: Props) {
 
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  // Focus trap — cycle Tab/Shift+Tab within the modal
+  // Focus trap
   useEffect(() => {
     if (!open) return;
     const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -60,7 +64,6 @@ export default function ReservationModal({ open, onClose }: Props) {
         if (document.activeElement === last) { e.preventDefault(); first.focus(); }
       }
     };
-    // Set initial focus
     const first = dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE);
     first?.focus();
     document.addEventListener('keydown', trap);
@@ -95,9 +98,10 @@ export default function ReservationModal({ open, onClose }: Props) {
   }
 
   function resetForm() {
-    setCustomerName(''); setEmail(''); setPhone('');
-    setDate(''); setTime(''); setGuests('');
-    setSpecialReq(''); setConsent(false);
+    setName(''); setPhone(''); setEmail(''); setCompanyName('');
+    setRequirementType('Corporate Gifting'); setApproxQuantity('');
+    setApproxBudget(''); setRequiredByDate(''); setDeliveryCityPincode('');
+    setMessage(''); setConsent(false);
     setFieldErrors({}); setServerError('');
   }
 
@@ -111,24 +115,30 @@ export default function ReservationModal({ open, onClose }: Props) {
       return;
     }
 
-    const guestCount = parseInt(guests, 10);
-    if (!guests || isNaN(guestCount) || guestCount < 1) {
-      setFieldErrors({ guest_count: 'Please enter a valid number of guests.' });
+    if (!approxQuantity.trim()) {
+      setFieldErrors({ approx_quantity: 'Please enter approximate quantity or unit count.' });
+      return;
+    }
+
+    if (!deliveryCityPincode.trim()) {
+      setFieldErrors({ delivery_city_pincode: 'Please enter your delivery city or pincode.' });
       return;
     }
 
     setLoading(true);
     try {
-      const result = await submitReservation({
-        customer_name:    customerName,
-        email,
+      const result = await submitBulkEnquiry({
+        name,
         phone,
-        reservation_date: date,
-        preferred_time:   time,
-        guest_count:      guestCount,
-        special_request:  specialReq,
+        email,
+        company_name: companyName,
+        requirement_type: requirementType,
+        approx_quantity: approxQuantity,
+        approx_budget: approxBudget,
+        required_by_date: requiredByDate,
+        delivery_city_pincode: deliveryCityPincode,
+        message,
         consent_accepted: consent,
-        location_id:      'bengaluru-sarjapur',
       });
 
       if (result.success) {
@@ -163,7 +173,7 @@ export default function ReservationModal({ open, onClose }: Props) {
         .rm-panel {
           background: #FFFDF8;
           border-radius: 20px;
-          width: 100%; max-width: 560px;
+          width: 100%; max-width: 580px;
           max-height: calc(100dvh - 24px);
           overflow-y: auto;
           -webkit-overflow-scrolling: touch;
@@ -189,7 +199,7 @@ export default function ReservationModal({ open, onClose }: Props) {
         }
         .rm-header-sub {
           font-family: var(--font-primary, 'DM Sans', sans-serif);
-          font-size: 13px; color: rgba(255,248,236,0.75);
+          font-size: 13px; color: rgba(255,248,236,0.78);
           margin: 0; line-height: 1.5;
         }
         .rm-close {
@@ -325,8 +335,8 @@ export default function ReservationModal({ open, onClose }: Props) {
 
           {/* Header */}
           <div className="rm-header">
-            <h2 id="rm-title" className="rm-header-title">Bulk &amp; Gifting Enquiry</h2>
-            <p className="rm-header-sub">Send us your requirements for bulk namkeens, wedding boxes, or corporate hampers.</p>
+            <h2 id="rm-title" className="rm-header-title">Bulk &amp; Corporate Gifting Enquiry</h2>
+            <p className="rm-header-sub">Customized gift hampers, wedding boxes, festival assortments &amp; wholesale namkeen orders.</p>
             <button className="rm-close" onClick={close} aria-label="Close enquiry form">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
@@ -344,20 +354,20 @@ export default function ReservationModal({ open, onClose }: Props) {
                   <path d="M14 24l7 7 13-14" stroke="#55000A" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
                 <p style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '20px', fontWeight: 700, letterSpacing: '-0.015em', color: '#55000A', margin: '0 0 10px' }}>
-                  Enquiry received!
+                  Enquiry Received!
                 </p>
                 <div className="rm-notice" style={{ textAlign: 'left' }}>
-                  <strong>Thank you! Your bulk/gifting enquiry has been received.</strong>
-                  {' '}Our team will contact you shortly with customized quotations.
+                  <strong>Thank you! Your bulk &amp; gifting enquiry has been logged.</strong>
+                  {' '}Our corporate gifting and bulk supply team will contact you with customized catalogue options and bulk pricing.
                 </div>
                 {success.referenceId && (
                   <p style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '12px', color: '#A08D82', margin: '0 0 4px' }}>
-                    Reference: <strong style={{ color: '#55000A' }}>{success.referenceId}</strong>
+                    Reference ID: <strong style={{ color: '#55000A' }}>{success.referenceId}</strong>
                   </p>
                 )}
-                <a href={WA_URLS.reservation} className="rm-wa-btn" target="_blank" rel="noopener noreferrer">
+                <a href={WA_URLS.catering || 'https://wa.me/917987732765'} className="rm-wa-btn" target="_blank" rel="noopener noreferrer">
                   {WA_ICON}
-                  Follow up on WhatsApp
+                  Direct WhatsApp Follow-up
                 </a>
                 <button
                   onClick={close}
@@ -368,37 +378,54 @@ export default function ReservationModal({ open, onClose }: Props) {
                     display: 'block', width: '100%', textAlign: 'center',
                   }}
                 >
-                  Close
+                  Close Window
                 </button>
               </div>
             ) : (
               <form onSubmit={handleSubmit} noValidate className="rm-form">
 
                 <div className="rm-notice">
-                  <strong>Gifting &amp; Bulk supply.</strong> We will contact you via WhatsApp or email with packaging options and volume rates.
+                  <strong>Freshly Prepared &amp; Packed.</strong> Volume pricing, custom tin/box packaging, and pan-India shipping available.
                 </div>
 
-                {/* Name + Email */}
+                {/* Name + Phone */}
                 <div className="rm-row">
                   <div>
                     <label htmlFor="rm-name" className="rm-label">Full Name *</label>
                     <input
                       id="rm-name"
-                      className={`rm-input${fieldErrors.customer_name ? ' rm-input--error' : ''}`}
-                      type="text" placeholder="Priya Sharma"
+                      className={`rm-input${fieldErrors.name ? ' rm-input--error' : ''}`}
+                      type="text" placeholder="e.g. Priya Sharma"
                       autoComplete="name"
-                      value={customerName}
-                      onChange={e => setCustomerName(e.target.value)}
+                      value={name}
+                      onChange={e => setName(e.target.value)}
                       required
                     />
-                    {fieldErr('customer_name')}
+                    {fieldErr('name')}
                   </div>
                   <div>
-                    <label htmlFor="rm-email" className="rm-label">Email *</label>
+                    <label htmlFor="rm-phone" className="rm-label">Mobile / WhatsApp *</label>
+                    <input
+                      id="rm-phone"
+                      className={`rm-input${fieldErrors.phone ? ' rm-input--error' : ''}`}
+                      type="tel" placeholder="+91 98765 43210"
+                      autoComplete="tel"
+                      value={phone}
+                      onChange={e => setPhone(e.target.value)}
+                      required
+                    />
+                    {fieldErr('phone')}
+                  </div>
+                </div>
+
+                {/* Email + Company */}
+                <div className="rm-row">
+                  <div>
+                    <label htmlFor="rm-email" className="rm-label">Email Address *</label>
                     <input
                       id="rm-email"
                       className={`rm-input${fieldErrors.email ? ' rm-input--error' : ''}`}
-                      type="email" placeholder="you@example.com"
+                      type="email" placeholder="you@company.com"
                       autoComplete="email"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
@@ -406,50 +433,31 @@ export default function ReservationModal({ open, onClose }: Props) {
                     />
                     {fieldErr('email')}
                   </div>
+                  <div>
+                    <label htmlFor="rm-company" className="rm-label">Company / Organisation</label>
+                    <input
+                      id="rm-company"
+                      className="rm-input"
+                      type="text" placeholder="e.g. Acme Corp (Optional)"
+                      value={companyName}
+                      onChange={e => setCompanyName(e.target.value)}
+                    />
+                  </div>
                 </div>
 
-                {/* Phone */}
-                <div>
-                  <label htmlFor="rm-phone" className="rm-label">Phone Number *</label>
-                  <input
-                    id="rm-phone"
-                    className={`rm-input${fieldErrors.phone ? ' rm-input--error' : ''}`}
-                    type="tel" placeholder="+91 98765 43210"
-                    autoComplete="tel"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    required
-                  />
-                  {fieldErr('phone')}
-                </div>
-
-                {/* Date + Time */}
+                {/* Requirement Type + Approx Quantity */}
                 <div className="rm-row">
                   <div>
-                    <label htmlFor="rm-date" className="rm-label">Date *</label>
-                    <input
-                      id="rm-date"
-                      className={`rm-input${fieldErrors.reservation_date ? ' rm-input--error' : ''}`}
-                      type="date"
-                      min={todayStr()}
-                      value={date}
-                      onChange={e => setDate(e.target.value)}
-                      required
-                    />
-                    {fieldErr('reservation_date')}
-                  </div>
-                  <div>
-                    <label htmlFor="rm-time" className="rm-label">Preferred Time *</label>
+                    <label htmlFor="rm-type" className="rm-label">Requirement Type *</label>
                     <div className="rm-select-wrap">
                       <select
-                        id="rm-time"
-                        className={`rm-select${fieldErrors.preferred_time ? ' rm-select--error' : ''}`}
-                        value={time}
-                        onChange={e => setTime(e.target.value)}
+                        id="rm-type"
+                        className="rm-select"
+                        value={requirementType}
+                        onChange={e => setRequirementType(e.target.value)}
                         required
                       >
-                        <option value="">Select time…</option>
-                        {TIMES.map(t => <option key={t} value={t}>{t}</option>)}
+                        {REQUIREMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                       </select>
                       <span className="rm-select-arrow" aria-hidden="true">
                         <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
@@ -457,34 +465,69 @@ export default function ReservationModal({ open, onClose }: Props) {
                         </svg>
                       </span>
                     </div>
-                    {fieldErr('preferred_time')}
+                  </div>
+                  <div>
+                    <label htmlFor="rm-qty" className="rm-label">Approx Quantity *</label>
+                    <input
+                      id="rm-qty"
+                      className={`rm-input${fieldErrors.approx_quantity ? ' rm-input--error' : ''}`}
+                      type="text" placeholder="e.g. 50 Hampers / 100 kg"
+                      value={approxQuantity}
+                      onChange={e => setApproxQuantity(e.target.value)}
+                      required
+                    />
+                    {fieldErr('approx_quantity')}
                   </div>
                 </div>
 
-                {/* Guests */}
-                <div>
-                  <label htmlFor="rm-guests" className="rm-label">Number of Guests *</label>
-                  <input
-                    id="rm-guests"
-                    className={`rm-input${fieldErrors.guest_count ? ' rm-input--error' : ''}`}
-                    type="number" placeholder="e.g. 4"
-                    min="1" max="200"
-                    value={guests}
-                    onChange={e => setGuests(e.target.value)}
-                    required
-                  />
-                  {fieldErr('guest_count')}
+                {/* Budget + Required By Date */}
+                <div className="rm-row">
+                  <div>
+                    <label htmlFor="rm-budget" className="rm-label">Approx Budget (Optional)</label>
+                    <input
+                      id="rm-budget"
+                      className="rm-input"
+                      type="text" placeholder="e.g. ₹20,000 – ₹50,000"
+                      value={approxBudget}
+                      onChange={e => setApproxBudget(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="rm-date" className="rm-label">Required By Date (Optional)</label>
+                    <input
+                      id="rm-date"
+                      className="rm-input"
+                      type="date"
+                      min={todayStr()}
+                      value={requiredByDate}
+                      onChange={e => setRequiredByDate(e.target.value)}
+                    />
+                  </div>
                 </div>
 
-                {/* Special request */}
+                {/* Delivery City / Pincode */}
                 <div>
-                  <label htmlFor="rm-special" className="rm-label">Special Requests</label>
+                  <label htmlFor="rm-city" className="rm-label">Delivery City / Pincode *</label>
+                  <input
+                    id="rm-city"
+                    className={`rm-input${fieldErrors.delivery_city_pincode ? ' rm-input--error' : ''}`}
+                    type="text" placeholder="e.g. Indore 452001 or Mumbai 400001"
+                    value={deliveryCityPincode}
+                    onChange={e => setDeliveryCityPincode(e.target.value)}
+                    required
+                  />
+                  {fieldErr('delivery_city_pincode')}
+                </div>
+
+                {/* Special requirements */}
+                <div>
+                  <label htmlFor="rm-special" className="rm-label">Message / Special Requirements</label>
                   <textarea
                     id="rm-special"
                     className="rm-textarea"
-                    placeholder="Dietary needs, occasion, seating preference, décor requests…"
-                    value={specialReq}
-                    onChange={e => setSpecialReq(e.target.value)}
+                    placeholder="Specific namkeen selections, custom branding, personalized greeting cards, packaging preferences…"
+                    value={message}
+                    onChange={e => setMessage(e.target.value)}
                   />
                 </div>
 
@@ -497,8 +540,7 @@ export default function ReservationModal({ open, onClose }: Props) {
                       onChange={e => setConsent(e.target.checked)}
                     />
                     <span className="rm-consent-text">
-                      I agree that Malwa Namkeen House may use my details to respond to this order enquiry.
-                      I understand this requires manual confirmation from the store team.
+                      I agree that Malwa Namkeen House may contact me via WhatsApp/Email to provide quotation and product details.
                     </span>
                   </label>
                   {fieldErr('consent_accepted')}
@@ -512,7 +554,7 @@ export default function ReservationModal({ open, onClose }: Props) {
                 )}
 
                 <button type="submit" className="rm-submit" disabled={loading}>
-                  {loading ? 'Submitting…' : 'Submit Gifting & Bulk Enquiry'}
+                  {loading ? 'Submitting Enquiry…' : 'Submit Bulk & Gifting Enquiry'}
                 </button>
 
               </form>

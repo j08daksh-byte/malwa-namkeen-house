@@ -59,7 +59,28 @@ export function submitContact(payload: ContactPayload): Promise<ApiResult> {
   return post('/api/contact', { ...payload, _hp: '' });
 }
 
-// ── Reservation enquiry ──────────────────────────────────────────────────────
+// ── Bulk & Corporate Gifting enquiry ────────────────────────────────────────
+
+export interface BulkEnquiryPayload {
+  name:                  string;
+  email:                 string;
+  phone:                 string;
+  company_name?:         string;
+  requirement_type:      string;
+  approx_quantity:       string;
+  approx_budget?:        string;
+  required_by_date?:     string;
+  delivery_city_pincode: string;
+  message?:              string;
+  consent_accepted:      boolean;
+  _hp?:                  string;
+}
+
+export function submitBulkEnquiry(payload: BulkEnquiryPayload): Promise<ApiResult> {
+  return post('/api/enquiries/bulk', { ...payload, _hp: '' });
+}
+
+// ── Legacy Reservation enquiry (backward compatibility) ─────────────────────
 
 export interface ReservationPayload {
   customer_name:    string;

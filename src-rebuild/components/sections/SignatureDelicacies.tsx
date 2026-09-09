@@ -16,7 +16,7 @@ const FALLBACK_BEST_SELLERS: BestSellerProduct[] = [
     id: 'ratlami-sev-special',
     slug: 'ratlami-sev-special',
     name: 'Special Ratlami Sev',
-    image: '/mishtichaat/chaat-plate.jpg',
+    image: '/hero-banner-1.png',
     price: 120,
     badge: 'Best Seller',
     position: 'center 35%',

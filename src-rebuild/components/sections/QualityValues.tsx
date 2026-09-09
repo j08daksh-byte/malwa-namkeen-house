@@ -1,7 +1,7 @@
 const CARDS = [
   {
-    title: 'Pure Soya Oil',
-    desc: 'Prepared exclusively in 100% pure soya oil — zero palm oil, zero trans fats.',
+    title: 'Pure Groundnut Oil',
+    desc: 'Prepared exclusively in 100% pure cold-pressed groundnut oil — zero palm oil, zero trans fats.',
     icon: (
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M12 2C9 7 5 8.5 5 13a7 7 0 0014 0c0-4.5-4-6-7-11z" stroke="#B77F22" strokeWidth="1.6" strokeLinejoin="round" fill="rgba(183,127,34,0.14)"/>

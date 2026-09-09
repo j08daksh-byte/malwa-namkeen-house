@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
-const TAGS = ['100% Satvik', 'Pure Desi Ghee', 'Since 1978', 'Heritage Recipes'];
+const TAGS = ['100% Satvik', 'Pure Desi Ghee', 'Since 1954', 'Heritage Recipes'];
 
 export default function LegacyStory() {
   const [hov, setHov] = useState(false);
@@ -294,7 +294,7 @@ export default function LegacyStory() {
             <div className="ls-postcard">
               <div className="ls-postcard-border">
                 <img
-                  src="/mishtichaat/chaat-plate.jpg"
+                  src="/hero-banner-1.png"
                   alt="Heritage Malwa Namkeen craftsmanship"
                   className="ls-postcard-img"
                   loading="lazy"
@@ -313,7 +313,7 @@ export default function LegacyStory() {
             </div>
 
             {/* Since badge */}
-            <div className="ls-since" aria-hidden="true">Since 1978</div>
+            <div className="ls-since" aria-hidden="true">Since 1954</div>
 
             {/* Corner flourish */}
             <svg className="ls-flourish" width="80" height="80" viewBox="0 0 80 80" fill="none" aria-hidden="true">

@@ -18,9 +18,9 @@ export default function RefundPolicy() {
       <h2>3. When a Refund May Not Apply</h2>
       <p>Refunds may not be issued in the following cases:</p>
       <ul>
-        <li>Cancellations made after the cutoff agreed at the time of booking.</li>
-        <li>No-shows for confirmed restaurant reservations without prior notice.</li>
-        <li>Dissatisfaction with a product or service not raised at the time of delivery or dining.</li>
+        <li>Cancellations made after the dispatch cutoff agreed at the time of booking or ordering.</li>
+        <li>Dispatched transit items with incorrect or incomplete shipping addresses provided by the customer.</li>
+        <li>Dissatisfaction with a product or package condition not raised at the time of delivery or receipt.</li>
       </ul>
 
       <h2>4. Refund Process</h2>

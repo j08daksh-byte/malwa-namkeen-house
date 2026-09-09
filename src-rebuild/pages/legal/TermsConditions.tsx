@@ -20,7 +20,7 @@ export default function TermsConditions() {
       <p>MALWA NAMKEEN HOUSE makes reasonable efforts to ensure the accuracy of information on this website but does not warrant that it is complete, current, or error-free. We are not liable for any losses or damages arising from your reliance on information provided on this site.</p>
 
       <h2>6. Governing Law</h2>
-      <p>These Terms are governed by the laws of India. Any disputes arising from the use of this website shall be subject to the exclusive jurisdiction of the courts in Bengaluru, Karnataka.</p>
+      <p>These Terms are governed by the laws of India. Any disputes arising from the use of this website shall be subject to the exclusive jurisdiction of the courts in Indore, Madhya Pradesh.</p>
 
       <h2>7. Changes to Terms</h2>
       <p>We reserve the right to modify these Terms at any time. The "Last Updated" date reflects the most recent revision. Continued use of our website constitutes acceptance of any changes.</p>

@@ -10,13 +10,13 @@ interface CategoryShortcutRowProps {
 
 // Representative images matching Malwa's actual culinary catalog
 const CATEGORY_IMAGES: Record<string, string> = {
-  all: '/mishtichaat/chaat-plate.jpg',
-  'sev-namkeen': '/mishtichaat/dahi-puri.png',
+  all: '/hero-banner-1.png',
+  'sev-namkeen': '/hero-banner-1.png',
   'mixtures-chivda': '/mishtichaat/hero-food.jpg',
   'khasta-mathri': '/mishtichaat/kachori.jpg',
   'mithai-sweets': '/mishtichaat/hero-sweets.jpg',
-  'gift-hampers': '/mishtichaat/FAMILY%20FEAST%20THALI.png',
-  'falahari-fasting': '/mishtichaat/Image-1.png',
+  'gift-hampers': '/hero-banner-1.png',
+  'falahari-fasting': '/mishtichaat/hero-food.jpg',
 };
 
 // Clean, punchy uppercase display labels matching the Eat Better style
@@ -63,7 +63,7 @@ export default function CategoryShortcutRow({
           scrollbar-width: none;
           -ms-overflow-style: none;
           padding: 6px 4px 14px;
-          scroll-snap-type: x mandatory;
+          scroll-snap-type: x proximity;
         }
 
         .cat-row-scroll-container::-webkit-scrollbar {
@@ -206,15 +206,16 @@ export default function CategoryShortcutRow({
             display: none;
           }
           .cat-row-wrapper {
-            margin-bottom: 20px;
+            margin-bottom: 16px;
           }
           .cat-row-scroll-container {
-            gap: 10px;
-            padding: 4px 2px 10px;
+            gap: 8px;
+            padding: 4px 4px 8px;
           }
           .cat-card-btn {
-            padding: 6px 14px 6px 6px;
+            padding: 6px 12px 6px 6px;
             border-radius: 14px;
+            gap: 10px;
           }
           .cat-card-img-wrap {
             width: 38px;
@@ -223,9 +224,61 @@ export default function CategoryShortcutRow({
           }
           .cat-card-title {
             font-size: 11px;
+            letter-spacing: 0.04em;
           }
           .cat-card-count {
             font-size: 9.5px;
+          }
+        }
+
+        @media (max-width: 420px) {
+          .cat-row-scroll-container {
+            gap: 8px;
+            padding: 2px 2px 8px;
+          }
+          .cat-card-btn {
+            padding: 5px 10px 5px 5px;
+            border-radius: 12px;
+            gap: 8px;
+          }
+          .cat-card-img-wrap {
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+          }
+          .cat-card-title {
+            font-size: 10.5px;
+            letter-spacing: 0.02em;
+          }
+          .cat-card-count {
+            font-size: 9px;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .cat-row-wrapper {
+            margin-bottom: 12px;
+          }
+          .cat-row-scroll-container {
+            gap: 6px;
+            padding: 2px 0 6px;
+          }
+          .cat-card-btn {
+            padding: 4px 8px 4px 4px;
+            border-radius: 10px;
+            gap: 6px;
+          }
+          .cat-card-img-wrap {
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+          }
+          .cat-card-title {
+            font-size: 9.5px;
+            letter-spacing: 0.01em;
+          }
+          .cat-card-count {
+            font-size: 8.5px;
           }
         }
       `}</style>
@@ -247,7 +300,7 @@ export default function CategoryShortcutRow({
         {categories.map(cat => {
           const isActive = selectedCategory === cat.id;
           const displayTitle = CATEGORY_DISPLAY_TITLES[cat.id] || cat.shortLabel?.toUpperCase() || cat.label?.toUpperCase();
-          const imageUrl = CATEGORY_IMAGES[cat.id] || '/mishtichaat/chaat-plate.jpg';
+          const imageUrl = CATEGORY_IMAGES[cat.id] || '/hero-banner-1.png';
           const count = categoryCounts[cat.id];
 
           return (
@@ -266,7 +319,7 @@ export default function CategoryShortcutRow({
                   className="cat-card-img"
                   loading="eager"
                   onError={e => {
-                    (e.currentTarget as HTMLImageElement).src = '/mishtichaat/chaat-plate.jpg';
+                    (e.currentTarget as HTMLImageElement).src = '/hero-banner-1.png';
                   }}
                 />
               </div>

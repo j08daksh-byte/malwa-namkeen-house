@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 
 import {
   contactSchema,
+  bulkEnquirySchema,
   reservationSchema,
   kateringSchema,
   giftingSchema,
@@ -105,6 +106,81 @@ router.post('/contact', async (req: Request, res: Response) => {
     message: 'Your enquiry has been received. Our team will contact you shortly.',
     referenceId: id,
     whatsappUrl: getWaUrlForCategory(parsed.category),
+  });
+});
+
+// ── POST /api/enquiries/bulk ────────────────────────────────────────────────
+
+router.post(['/enquiries/bulk', '/enquiry/bulk', '/bulk-enquiry'], async (req: Request, res: Response) => {
+  if (req.body._hp) {
+    res.json({ success: true, message: 'Bulk & gifting enquiry received. Our team will contact you shortly.' });
+    return;
+  }
+
+  let parsed;
+  try {
+    parsed = bulkEnquirySchema.parse(req.body);
+  } catch (err) {
+    if (err instanceof ZodError) {
+      res.status(400).json({
+        success: false,
+        message: 'Please check the form and try again.',
+        fieldErrors: Object.fromEntries(
+          zodToFieldErrors(err).map(e => [e.field, e.message])
+        ),
+      });
+      return;
+    }
+    throw err;
+  }
+
+  let id = new mongoose.Types.ObjectId().toString();
+  const summaryMessage = [
+    `Requirement: ${parsed.requirement_type}`,
+    `Quantity: ${parsed.approx_quantity}`,
+    parsed.company_name ? `Company: ${parsed.company_name}` : '',
+    parsed.approx_budget ? `Budget: ${parsed.approx_budget}` : '',
+    parsed.required_by_date ? `Required By: ${parsed.required_by_date}` : '',
+    `Delivery To: ${parsed.delivery_city_pincode}`,
+    parsed.message ? `Notes: ${parsed.message}` : '',
+  ].filter(Boolean).join(' | ');
+
+  try {
+    const doc = await Inquiry.create({
+      name: parsed.name,
+      email: parsed.email,
+      phone: parsed.phone,
+      category: 'bulk_gifting',
+      message: summaryMessage,
+      status: 'new',
+    });
+    if (doc) id = String(doc._id);
+  } catch (err) {
+    console.error('[Bulk Enquiry] MongoDB save error:', err instanceof Error ? err.message : err);
+  }
+
+  const emailData = {
+    referenceId: id,
+    customerName: parsed.name,
+    customerEmail: parsed.email,
+    phone: parsed.phone,
+    category: 'bulk_gifting',
+    categoryLabel: `Bulk & Gifting (${parsed.requirement_type})`,
+    message: summaryMessage,
+    locationId: 'indore-headquarters',
+    submittedAt: isoNow(),
+  };
+
+  Promise.allSettled([
+    sendContactCustomerEmail(emailData),
+    sendContactAdminEmail(emailData),
+  ]).catch(() => {});
+
+  res.json({
+    success: true,
+    message: 'Your bulk & corporate gifting enquiry has been received. Our team will contact you with customized rates shortly.',
+    referenceId: id,
+    whatsappUrl: WA_URLS.catering || 'https://wa.me/917987732765',
   });
 });
 

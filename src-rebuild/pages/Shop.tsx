@@ -8,8 +8,6 @@ import CategoryShortcutRow from '../components/shop/CategoryShortcutRow';
 import ShopFilters from '../components/shop/ShopFilters';
 import ProductCard from '../components/shop/ProductCard';
 import ProductQuickViewModal from '../components/shop/ProductQuickViewModal';
-import CartDrawer from '../components/shop/CartDrawer';
-import CheckoutModal from '../components/shop/CheckoutModal';
 import ShopToast from '../components/shop/ShopToast';
 import SEOHead from '../components/seo/SEOHead';
 import { PRODUCTS as FALLBACK_PRODUCTS, SHOP_CATEGORIES as FALLBACK_CATEGORIES, type Product, type ShopCategory } from '../data/products';
@@ -97,7 +95,6 @@ export default function Shop() {
   const [totalCount, setTotalCount] = useState<number>(() => filterStaticCatalog(1).total);
 
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
   const [reservationOpen, setReservationOpen] = useState<boolean>(false);
 
   // References for tracking and aborting concurrent fetch requests
@@ -697,16 +694,6 @@ export default function Shop() {
         onClose={() => setQuickViewProduct(null)}
       />
 
-      {/* Cart Drawer */}
-      <CartDrawer
-        onOpenCheckout={() => setIsCheckoutOpen(true)}
-      />
-
-      {/* Checkout Modal */}
-      <CheckoutModal
-        isOpen={isCheckoutOpen}
-        onClose={() => setIsCheckoutOpen(false)}
-      />
 
       {/* Toast & Floating Cart Trigger */}
       <ShopToast />

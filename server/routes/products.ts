@@ -14,7 +14,7 @@ function formatPublicProduct(p: any) {
   const primaryImage =
     (Array.isArray(p.images) && p.images[0]) ||
     p.image ||
-    '/mishtichaat/chaat-plate.jpg';
+    '/hero-banner-1.png';
 
   // Dynamic packaging options from MongoDB variants
   const activeVariants = Array.isArray(p.variants)

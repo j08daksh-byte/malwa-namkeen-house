@@ -126,6 +126,54 @@ export const reservationSchema = z.object({
 
 export type ReservationInput = z.output<typeof reservationSchema>;
 
+export const ALLOWED_REQUIREMENT_TYPES = [
+  'Corporate Gifting',
+  'Wedding / Event',
+  'Festival Gifting',
+  'Bulk Namkeen Order',
+  'Retail / Reseller Enquiry',
+  'Other',
+] as const;
+
+export const bulkEnquirySchema = z.object({
+  name,
+  email,
+  phone,
+  company_name: z.string().max(120).transform(s => s.trim()).optional().or(z.literal('')),
+  requirement_type: z
+    .string({ error: 'Please select a requirement type.' })
+    .refine(v => ALLOWED_REQUIREMENT_TYPES.includes(v as any), {
+      message: 'Invalid requirement type selected.',
+    }),
+  approx_quantity: z
+    .string({ error: 'Please provide approximate quantity.' })
+    .min(1, 'Please provide approximate quantity.')
+    .max(100)
+    .transform(s => s.trim()),
+  approx_budget: z.string().max(100).transform(s => s.trim()).optional().or(z.literal('')),
+  required_by_date: z
+    .string()
+    .optional()
+    .or(z.literal(''))
+    .refine(v => {
+      if (!v || v.trim() === '') return true;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return new Date(v) >= today;
+    }, { message: 'Required by date cannot be in the past.' }),
+  delivery_city_pincode: z
+    .string({ error: 'Delivery city or pincode is required.' })
+    .min(2, 'Please enter delivery city or pincode.')
+    .max(120)
+    .transform(s => s.trim()),
+  message: messageOptional,
+  consent_accepted: consent,
+  _hp: honeypot,
+});
+
+export type BulkEnquiryInput = z.output<typeof bulkEnquirySchema>;
+
 // ── Katering schema ─────────────────────────────────────────────────────────
 
 export const kateringSchema = z.object({

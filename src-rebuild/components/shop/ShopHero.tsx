@@ -103,18 +103,22 @@ export default function ShopHero() {
 
         @media (max-width: 640px) {
           .shop-intro-header {
-            padding: 20px 14px 20px;
+            padding: 10px 14px 10px;
           }
           .shop-breadcrumb {
-            margin-bottom: 24px;
+            margin-bottom: 6px;
+            font-size: 10px;
           }
           .shop-title-h1 {
-            font-size: 26px;
-            margin-bottom: 28px;
+            font-size: 22px;
+            margin-bottom: 8px;
+          }
+          .shop-trust-pills {
+            gap: 5px;
           }
           .shop-trust-pill {
-            font-size: 10px;
-            padding: 3px 9px;
+            font-size: 9.5px;
+            padding: 2px 7px;
           }
         }
       `}</style>

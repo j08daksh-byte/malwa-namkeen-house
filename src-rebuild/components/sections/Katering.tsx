@@ -465,7 +465,7 @@ export default function Katering() {
             <div className="k-dbar" />
           </div>
           <p className="k-sub">
-            Everything you may want to know about orders, catering, gifting, reservations, celebrations and franchise opportunities.
+            Everything you may want to know about online orders, bulk supply, corporate gifting, and celebrations.
           </p>
         </div>
 
@@ -485,7 +485,7 @@ export default function Katering() {
         <div className="k-cta">
           <div className="k-cta-text">
             <h3>Still have a question?</h3>
-            <p>Talk directly to the Malwa Namkeen House team for orders, catering, gifting and reservations.</p>
+            <p>Talk directly to the Malwa Namkeen House team for online orders, corporate gifting, and bulk supply.</p>
           </div>
           <div className="k-cta-btns">
             <button

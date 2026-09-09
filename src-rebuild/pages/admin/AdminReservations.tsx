@@ -5,11 +5,7 @@ import {
   Pagination, Empty, Spinner, Alert, fmtDate, fmtDateTime, waLink, Card,
 } from '../../components/admin/ui.tsx';
 
-const STATUSES = ['new', 'contacted', 'confirmed', 'declined', 'cancelled', 'completed', 'no_show'];
-const OCCASION_LABELS: Record<string, string> = {
-  birthday: 'Birthday', anniversary: 'Anniversary', date_night: 'Date Night',
-  family_gathering: 'Family Gathering', business_lunch: 'Business', other: 'Other',
-};
+const STATUSES = ['new', 'contacted', 'confirmed', 'declined', 'cancelled', 'completed'];
 
 export default function AdminReservations() {
   const [rows,    setRows]    = useState<ReservationRow[]>([]);
@@ -64,8 +60,8 @@ export default function AdminReservations() {
       setAlert({
         type: 'success',
         msg: res.emailSent === false
-          ? 'Status updated. Confirmation email could not be sent.'
-          : 'Reservation updated.',
+          ? 'Status updated. Customer notification could not be dispatched.'
+          : 'Enquiry updated successfully.',
       });
       setRows(r => r.map(x => x.id === selected.id ? { ...x, status: editStatus, admin_notes: editNotes } : x));
       setSelected(prev => prev ? { ...prev, status: editStatus, admin_notes: editNotes } : prev);
@@ -78,14 +74,14 @@ export default function AdminReservations() {
 
   return (
     <>
-      <PageHeader title="Reservations" subtitle={`${total} total`} />
+      <PageHeader title="Bulk & Gifting Enquiries" subtitle={`${total} total enquiries`} />
 
       {/* Filters */}
       <Card style={{ marginBottom: '18px' }}>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div style={{ flex: '1 1 200px' }}>
             <label style={lblStyle}>Search</label>
-            <Input placeholder="Name, email, phone…" value={search} onChange={e => setSearch(e.target.value)} />
+            <Input placeholder="Name, email, phone, requirements…" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <div style={{ flex: '0 1 160px' }}>
             <label style={lblStyle}>Status</label>
@@ -109,14 +105,14 @@ export default function AdminReservations() {
       </Card>
 
       {/* Table */}
-      {loading ? <Spinner /> : rows.length === 0 ? <Empty message="No reservations found." /> : (
+      {loading ? <Spinner /> : rows.length === 0 ? <Empty message="No bulk or gifting enquiries found." /> : (
         <>
           <Table>
             <thead>
               <tr>
                 <Th>Customer</Th>
-                <Th>Date & Time</Th>
-                <Th>Guests</Th>
+                <Th>Requirement / Date</Th>
+                <Th>Quantity / Units</Th>
                 <Th>Status</Th>
                 <Th>Submitted</Th>
                 <Th>{''}</Th>
@@ -131,10 +127,12 @@ export default function AdminReservations() {
                     <div style={{ fontSize: '12px', color: '#6B7280' }}>{r.phone}</div>
                   </Td>
                   <Td>
-                    <div>{fmtDate(r.reservation_date)}</div>
-                    <div style={{ color: '#6B7280', fontSize: '12px' }}>{r.preferred_time}</div>
+                    <div style={{ fontWeight: 500, color: '#1A0A0F' }}>{r.reservation_date ? fmtDate(r.reservation_date) : 'Flexible'}</div>
+                    <div style={{ color: '#6B7280', fontSize: '12px' }}>{r.preferred_time || 'General'}</div>
                   </Td>
-                  <Td>{r.guest_count}</Td>
+                  <Td>
+                    <span style={{ fontWeight: 600, color: '#800020' }}>{r.guest_count || 1} units</span>
+                  </Td>
                   <Td><StatusBadge status={r.status} type="reservation" /></Td>
                   <Td style={{ fontSize: '12px', color: '#9CA3AF', whiteSpace: 'nowrap' }}>{fmtDate(r.created_at)}</Td>
                   <Td>
@@ -149,7 +147,7 @@ export default function AdminReservations() {
       )}
 
       {/* Detail modal */}
-      <Modal open={!!selected} onClose={() => setSelected(null)} title="Reservation Detail">
+      <Modal open={!!selected} onClose={() => setSelected(null)} title="Enquiry Detail">
         {selected && (
           <>
             {alert && <div style={{ marginBottom: '14px' }}><Alert type={alert.type} message={alert.msg} /></div>}
@@ -158,23 +156,22 @@ export default function AdminReservations() {
               <Detail label="Name"       value={selected.customer_name || selected.name} />
               <Detail label="Email"      value={selected.email} />
               <Detail label="Phone"      value={selected.phone} />
-              <Detail label="Date"       value={fmtDate(selected.reservation_date)} />
-              <Detail label="Time"       value={selected.preferred_time} />
-              <Detail label="Guests"     value={String(selected.guest_count)} />
+              <Detail label="Target Date" value={selected.reservation_date ? fmtDate(selected.reservation_date) : 'Flexible'} />
+              <Detail label="Approx Units" value={String(selected.guest_count || 'Flexible')} />
               <Detail label="Submitted"  value={fmtDateTime(selected.created_at)} />
             </div>
 
             {selected.special_request && (
               <div style={{ marginBottom: '14px' }}>
-                <div style={lblStyle}>Special Requests</div>
-                <div style={{ fontSize: '13.5px', color: '#374151', background: '#F9FAFB', borderRadius: '8px', padding: '10px 14px' }}>{selected.special_request}</div>
+                <div style={lblStyle}>Enquiry Notes / Requirements</div>
+                <div style={{ fontSize: '13.5px', color: '#374151', background: '#F9FAFB', borderRadius: '8px', padding: '10px 14px', whiteSpace: 'pre-wrap' }}>{selected.special_request}</div>
               </div>
             )}
 
             {selected.phone && (
               <div style={{ marginBottom: '16px' }}>
                 <a href={waLink(selected.phone, selected.customer_name || selected.name)} target="_blank" rel="noreferrer" style={{ fontSize: '13px', color: '#059669', fontWeight: 600 }}>
-                  💬 Chat on WhatsApp
+                  💬 Contact Customer on WhatsApp
                 </a>
               </div>
             )}
@@ -184,12 +181,11 @@ export default function AdminReservations() {
               <Select value={editStatus} onChange={e => setEditStatus(e.target.value)}>
                 {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
               </Select>
-              {editStatus === 'confirmed' && <p style={{ fontSize: '12px', color: '#065F46', marginTop: '5px' }}>A confirmation email will be sent to the customer.</p>}
             </div>
 
             <div style={{ marginBottom: '18px' }}>
-              <label style={lblStyle}>Admin Notes (internal)</label>
-              <Textarea rows={3} value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Internal notes, not visible to customer…" />
+              <label style={lblStyle}>Internal Admin Notes</label>
+              <Textarea rows={3} value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Quotation provided, delivery timeline, payment status…" />
             </div>
 
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>

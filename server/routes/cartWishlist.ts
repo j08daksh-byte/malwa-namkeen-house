@@ -120,7 +120,7 @@ router.post('/revalidate', async (req: Request, res: Response) => {
       const primaryImage =
         (Array.isArray(product.images) && product.images[0]) ||
         product.image ||
-        '/mishtichaat/chaat-plate.jpg';
+        '/hero-banner-1.png';
 
       validatedItems.push({
         productId: String(product._id),

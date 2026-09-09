@@ -48,6 +48,9 @@ export interface CartContextType {
   isCartOpen: boolean;
   openCart: () => void;
   closeCart: () => void;
+  isCheckoutOpen: boolean;
+  openCheckout: () => void;
+  closeCheckout: () => void;
   toastMessage: string | null;
   dismissToast: () => void;
 }
@@ -109,6 +112,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const openCart = useCallback(() => setIsCartOpen(true), []);
   const closeCart = useCallback(() => setIsCartOpen(false), []);
+
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const openCheckout = useCallback(() => setIsCheckoutOpen(true), []);
+  const closeCheckout = useCallback(() => setIsCheckoutOpen(false), []);
 
   // Compute Raw Subtotal
   const subtotal = useMemo(() => {
@@ -498,6 +505,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       isCartOpen,
       openCart,
       closeCart,
+      isCheckoutOpen,
+      openCheckout,
+      closeCheckout,
       toastMessage,
       dismissToast,
     }),
@@ -522,6 +532,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       isCartOpen,
       openCart,
       closeCart,
+      isCheckoutOpen,
+      openCheckout,
+      closeCheckout,
       toastMessage,
       dismissToast,
     ]

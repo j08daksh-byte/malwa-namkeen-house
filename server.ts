@@ -87,52 +87,18 @@ function getGemini(): GoogleGenAI {
   return aiClient;
 }
 
-const MENU_CONTEXT_SUMMARY = `
-- breakfast:
-  * Poori & Sabji (₹120): Poori served with slow-cooked pumpkin & mix veg, green chilli pickle, and sonth chutney. (Best Seller)
-  * Kachauri & Sabji (₹160): Traditional Banarasi kachauris served with light masala potato gravy, crispy Jalebi, and chutneys. (Chef Special)
-  * Aloo Paratha (₹100): Wheat paratha served with curd, mint chutney, and butter.
-  * Sattu/Paneer Paratha (₹120): Paratha stuffed with spicy roasted chana sattu or fresh paneer.
-  * Chole Bhature (₹200): Fluffy bhature served with slow-cooked spicy dark chole, achari potatoes.
-  * Chole Kulche (₹130): Butter toasted bread kulcha with dry white peas masala.
-
-- chaat:
-  * Banarsi Pani Poori (₹60): 5 crispy wheat / suji balls with mint & sweet sonth waters.
-  * Aloo Tikki Chaat (₹100): Potato patties served with yellow peas chole, seasoned curds, sweet and spicy chutneys. (Best Seller)
-  * Dahi Bhalla (₹120): Soft urad dal dumplings in thick cream yoghurt, roasted spices.
-  * Raj Kachori (₹140): Emperor kachori packed with sprouts, dahi vada, yoghurt, sev, and pomegranate. (Chef Special)
-  * Samosa Chaat (₹120): Flaky samosa crushed in chickpea chole, curds, sonth, and green chutneys.
-  * Kashi Tamatar Chaat (₹120): Slow-cooked spiced mashed tomatoes with green peas, dry fruits, seasoned with hing-jeera cow ghee syrup.
-
-- mains:
-  * Arhar Daal Ghee Tadka (₹200): Comfy split pigeon peas with high ghee-cumin-garlic tempering.
-  * Daal Makhani (₹240): Slow simmed black lentils and kidney beans topped with fresh cream, butter.
-  * Paneer Butter Masala (₹250): Fresh cottage cheese blocks in cream tomato-cashew curry.
-  * Daal Bati Chokha (₹260): Sattu bati dipped in desi ghee with eggplant mashed chokha, rice, dal, and Kheer.
-  * Puratan Special Khichdi (₹210): Light moong dal rice cooked in ghee, served with bhartha, papad, chutneys.
-
-- mithai (Sweets):
-  * Desi Ghee Jalebi (100gm, ₹80): Golden crispy sweet spirals fried in 100% desi cow ghee.
-  * Shahi Rabadi (100gm, ₹100): Granular thickened cardamon milk.
-  * Ras Malai (1 Pc, ₹50): Soft cottage cheese sponges inside pistachio saffron milk.
-  * Gulab Jamun (₹40), Rasgulla (₹40): Classic high-quality melt-in-mouth delicacies.
-
-- beverages:
-  * Special Kulladh Chai (₹40): Spiced milk tea served in organic clay cups.
-  * Banarsi Shahi Thandai (₹120): Cool energy mix of nuts, black pepper, fennel, and rose.
-  * Kulladh Lassi (₹100): Curd whipped thick with fresh milk malai, almonds, pistachios.
-`;
-
 const INITIAL_CONCIERGE_PROMPT = `
-You are Malwa Concierge, the extremely warm, polite, and deeply knowledgeable culinary concierge at Malwa Namkeen House.
-Your tone is welcoming, highly respectful, and warm (refer to guests respectfully, start with 'Namaste', and reflect authentic Indian hospitality). You are passionate about Malwa and Ujjain's heritage savouries, Ratlami sev, and pure ghee sweets.
+You are Malwa Concierge, the warm, polite, and knowledgeable culinary guide at MALWA NAMKEEN HOUSE (EST. 1954).
+Your tone is welcoming, respectful, and warm (refer to customers respectfully, greet with 'Namaste' or 'Pranam', and embody authentic Indian hospitality).
 
-Follow these strictly:
-1. Refer to yourself as "Malwa Concierge".
-2. Speak about authentic Malwa namkeens, pure cold-pressed groundnut oil, and stone-ground spices with pride.
-3. If users chat in English or Hindi, respond naturally in a warm, polite blend of both.
-4. Suggest amazing namkeen pairings and packaging formats for festivals or daily snacking.
-5. If they wish to place bulk orders or gifting hampers, advise them to submit an inquiry through the website or message us on WhatsApp (+91 7987732765).
+Key Business Knowledge & Guidelines:
+1. Brand Truth: MALWA NAMKEEN HOUSE was established in 1954, bringing over seven decades of authentic Malwa culinary heritage.
+2. Authentic Product Catalog: Artisanal small-batch namkeens including authentic Ratlami Sev (infused with clove and black pepper warmth), Ujjaini Sev, Laung Sev, Hing Peda Sev, Khatta Meetha Mixture, Khasta Mathri, and festive gift hampers.
+3. Pure Ingredients: Prepared strictly in 100% Pure Cold-Pressed Groundnut Oil — zero palm oil, zero trans fats, and zero artificial preservatives.
+4. Advisory Pricing & Cart: Product prices and weights are dynamically managed on the storefront and checkout. Always advise customers to check the active product cards for current pricing; never invent prices or override checkout data.
+5. Shipping & Delivery: Nationwide delivery across India with free shipping on orders above ₹499 (standard delivery is ₹49).
+6. Bulk & Corporate Gifting: Custom corporate hampers, wedding boxes, festival gifting, and wholesale namkeen orders. Advise customers to submit an online Bulk & Gifting enquiry or reach out on WhatsApp at +91 7987732765.
+7. Constraints: Never invent unverified ingredients, nutrition claims, medical claims, or stock promises. Never refer to table reservations or restaurant dine-in.
 `;
 
 // ── Server bootstrap ─────────────────────────────────────────────────────────
@@ -311,7 +277,7 @@ async function startServer() {
 
       const conversationHistoryString = messages
         .slice(Math.max(0, messages.length - 7), messages.length - 1)
-        .map((m: { sender: string; text: string }) => `${m.sender === 'user' ? 'Guest' : 'Kashi-Ji'}: ${m.text}`)
+        .map((m: { sender: string; text: string }) => `${m.sender === 'user' ? 'Customer' : 'Malwa Concierge'}: ${m.text}`)
         .join('\n');
 
       const fullPrompt = `Conversation history:\n${conversationHistoryString}\n\nThe guest asks: "${lastUserMessage}"\nResponse:`;

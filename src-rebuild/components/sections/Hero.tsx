@@ -4,6 +4,11 @@ import { useNavigate } from 'react-router-dom';
 export interface BannerSlide {
   id: string | number;
   image: string;
+  mobileImage?: string;
+  title?: string;
+  subtitle?: string;
+  badge?: string;
+  ctaText?: string;
   alt: string;
   link: string;
 }
@@ -12,12 +17,20 @@ const DEFAULT_BANNER_SLIDES: BannerSlide[] = [
   {
     id: 1,
     image: '/hero-banner-1.png',
+    title: 'Pure Malwa Heritage in Every Crunchy Bite',
+    subtitle: 'Special Ratlami Sev & Artisanal Namkeens',
+    badge: 'EST. 1954',
+    ctaText: 'SHOP NOW',
     alt: 'Pure Malwa Heritage in Every Crunchy Bite - Special Ratlami Sev & Artisanal Namkeens',
     link: '/shop',
   },
   {
     id: 2,
     image: '/hero-banner-2.png',
+    title: 'Add the Malwa Crunch',
+    subtitle: 'Roasted Not Fried, No Palm Oil',
+    badge: 'SNACK TIME',
+    ctaText: 'EXPLORE SHOP',
     alt: 'Add the Malwa Crunch: Complete Your Snack Time - Roasted Not Fried, No Palm Oil',
     link: '/shop',
   },
@@ -46,6 +59,11 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
               data.banners.map((b: any, idx: number) => ({
                 id: b.id || b._id || idx + 1,
                 image: b.image,
+                mobileImage: b.mobileImage,
+                title: b.title || b.alt,
+                subtitle: b.subtitle,
+                badge: b.badge || 'MALWA HERITAGE',
+                ctaText: b.ctaText || 'SHOP NOW',
                 alt: b.alt || b.title || 'Malwa Namkeen House Hero Banner',
                 link: b.link || '/shop',
               }))
@@ -231,12 +249,17 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
           box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
         }
 
+        .hero-mobile-overlay,
+        .hero-mobile-content {
+          display: none;
+        }
+
         @media (max-width: 768px) {
           .hero-nav-arrow {
             display: none;
           }
           .hero-carousel-dots {
-            bottom: 8px;
+            bottom: 12px;
             gap: 6px;
             padding: 4px 8px;
           }
@@ -246,6 +269,97 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
           }
           .hero-dot-btn--active {
             width: 20px;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .hero-carousel-section {
+            min-height: 380px;
+            height: clamp(380px, 86vw, 440px);
+          }
+          .hero-carousel-track {
+            height: 100%;
+          }
+          .hero-slide {
+            height: 100%;
+          }
+          .hero-slide-img {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: 78% center;
+          }
+          .hero-mobile-overlay {
+            display: block;
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(35, 3, 10, 0.20) 0%, rgba(35, 3, 10, 0.52) 40%, rgba(35, 3, 10, 0.92) 100%);
+            pointer-events: none;
+            z-index: 2;
+          }
+          .hero-mobile-content {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: flex-end;
+            position: absolute;
+            inset: 0;
+            padding: 20px 20px 38px;
+            gap: 8px;
+            z-index: 3;
+            pointer-events: none;
+          }
+          .hero-mobile-badge {
+            display: inline-block;
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: #F0DFA0;
+            background: rgba(200, 154, 61, 0.22);
+            border: 1px solid rgba(200, 154, 61, 0.45);
+            padding: 3px 10px;
+            border-radius: 999px;
+          }
+          .hero-mobile-title {
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
+            font-size: clamp(20px, 5.8vw, 26px);
+            font-weight: 700;
+            color: #FFF8EC;
+            margin: 0;
+            line-height: 1.15;
+            letter-spacing: -0.02em;
+          }
+          .hero-mobile-sub {
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
+            font-size: 12.5px;
+            color: rgba(255, 248, 236, 0.85);
+            margin: 0;
+            line-height: 1.4;
+          }
+          .hero-mobile-cta {
+            pointer-events: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            height: 44px;
+            min-height: 44px;
+            padding: 0 20px;
+            background: #D4AA45;
+            color: #3C0815;
+            border: none;
+            border-radius: 999px;
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
+            font-size: 11.5px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            margin-top: 4px;
           }
         }
       `}</style>
@@ -284,6 +398,26 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
                 loading={index === 0 ? 'eager' : 'lazy'}
                 decoding="async"
               />
+              <div className="hero-mobile-overlay" aria-hidden="true" />
+              <div className="hero-mobile-content">
+                {slide.badge && <span className="hero-mobile-badge">{slide.badge}</span>}
+                <h2 className="hero-mobile-title">{slide.title || slide.alt}</h2>
+                {slide.subtitle && <p className="hero-mobile-sub">{slide.subtitle}</p>}
+                <button
+                  type="button"
+                  className="hero-mobile-cta"
+                  onClick={e => {
+                    e.stopPropagation();
+                    navigate(slide.link);
+                  }}
+                  aria-label={`${slide.ctaText || 'Shop Now'} — ${slide.title || slide.alt}`}
+                >
+                  <span>{slide.ctaText || 'SHOP NOW'}</span>
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                    <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </div>
             </div>
           );
         })}

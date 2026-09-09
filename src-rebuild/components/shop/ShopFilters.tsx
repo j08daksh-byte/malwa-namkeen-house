@@ -496,22 +496,41 @@ export default function ShopFilters({
         }
 
         @media (max-width: 640px) {
+          .eb-controls-wrapper {
+            margin-bottom: 12px;
+          }
           .eb-controls-bar {
             gap: 8px;
+            padding: 4px 0 6px;
+          }
+          .eb-controls-left {
+            flex: 1 1 100%;
+            gap: 8px;
+          }
+          .eb-controls-right {
+            width: 100%;
+            justify-content: space-between;
           }
           .eb-filter-trigger-btn {
             height: 38px;
+            min-height: 40px;
             padding: 0 14px;
-            font-size: 10.5px;
+            font-size: 11px;
+          }
+          .eb-search-wrap {
+            flex: 1 1 auto;
           }
           .eb-search-input {
             height: 38px;
-            font-size: 12px;
+            font-size: 12.5px;
           }
           .eb-sort-select {
-            height: 38px;
-            font-size: 10.5px;
-            padding: 0 30px 0 12px;
+            height: 36px;
+            font-size: 11px;
+            padding: 0 28px 0 12px;
+          }
+          .eb-results-count {
+            font-size: 11px;
           }
           .eb-filter-drawer {
             max-width: 100%;

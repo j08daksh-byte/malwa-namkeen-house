@@ -179,7 +179,7 @@ router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) =
       const primaryImage =
         (Array.isArray(product.images) && product.images[0]) ||
         product.image ||
-        '/mishtichaat/chaat-plate.jpg';
+        '/hero-banner-1.png';
 
       const variantLabel = variant.label || `${variant.value || ''} ${variant.unit || ''}`.trim() || 'Standard';
 

@@ -16,14 +16,14 @@ const DEFAULT_HERITAGE_BLOCKS: HeritageBlock[] = [
     name: 'Crafted for the shared table',
     eyebrow: 'The Malwa table',
     description: 'Bold, bright and generously layered — every handful carries the warmth of a family recipe.',
-    image: '/mishtichaat/chaat-plate.jpg',
+    image: '/hero-banner-1.png',
     position: 'center',
   },
   {
     slug: 'sev-namkeen',
     name: 'Crisp by tradition',
     eyebrow: 'Handcrafted',
-    image: '/mishtichaat/dahi-puri.png',
+    image: '/hero-banner-1.png',
     position: 'center',
   },
   {
@@ -37,7 +37,7 @@ const DEFAULT_HERITAGE_BLOCKS: HeritageBlock[] = [
     slug: 'mixtures-chivda',
     name: 'Generations of flavour',
     eyebrow: 'Celebration',
-    image: '/mishtichaat/dahi-bhalla.jpg',
+    image: '/mishtichaat/hero-food.jpg',
     position: 'center 55%',
   },
   {
@@ -51,7 +51,7 @@ const DEFAULT_HERITAGE_BLOCKS: HeritageBlock[] = [
     slug: 'gift-hampers',
     name: 'Time-honoured craft',
     eyebrow: 'From our kitchen',
-    image: '/mishtichaat/hero-food.jpg',
+    image: '/hero-banner-2.png',
     position: 'center 70%',
   },
 ];

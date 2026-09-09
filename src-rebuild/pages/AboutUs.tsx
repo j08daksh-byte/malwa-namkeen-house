@@ -46,6 +46,7 @@ export default function AboutUs() {
               lineHeight: 1.05,
               margin: '0 0 20px',
               letterSpacing: '-0.025em',
+              color: 'var(--text-on-dark, #FFF8EC)',
             }}>
               Our Heritage & Legacy
             </h1>

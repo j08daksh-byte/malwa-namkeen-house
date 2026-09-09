@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+Allow: /shop
+Allow: /product/
+Allow: /about-us
+Allow: /faq
+Allow: /contact
+Allow: /privacy-policy
+Allow: /terms-and-conditions
+Allow: /cancellation-policy
+Allow: /refund-policy
+
+# Protected / Private Routes
+Disallow: /admin/
+Disallow: /dashboard
+Disallow: /account
+Disallow: /login
+Disallow: /api/
+
+Sitemap: https://malwanamkeen.com/sitemap.xml

@@ -5,7 +5,7 @@ import { BUSINESS } from '../../lib/business';
 import { useStoreSettings } from '../../lib/storeSettingsContext';
 
 interface CartDrawerProps {
-  onOpenCheckout: () => void;
+  onOpenCheckout?: () => void;
 }
 
 const DEFAULT_FREE_SHIPPING_THRESHOLD = 499;
@@ -18,6 +18,7 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
     cart,
     isCartOpen,
     closeCart,
+    openCheckout,
     updateQuantity,
     removeFromCart,
     subtotal,
@@ -79,7 +80,11 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
     } finally {
       setIsRevalidating(false);
       closeCart();
-      onOpenCheckout();
+      if (onOpenCheckout) {
+        onOpenCheckout();
+      } else if (openCheckout) {
+        openCheckout();
+      }
     }
   };
 

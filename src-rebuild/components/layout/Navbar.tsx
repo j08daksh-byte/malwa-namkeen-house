@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode, type CSSProperties } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, UserRound, ShoppingBag, Heart, ShieldCheck, X, Minus, Plus, ArrowRight } from 'lucide-react';
+import { Search, UserRound, ShoppingBag, Heart, ShieldCheck, X } from 'lucide-react';
 import { NAV_LINKS, MOBILE_LINKS } from '../../data/nav-links';
-import { ACTIVE_MENU, type MenuItem } from '../../data/menu';
+import { PRODUCTS } from '../../data/products';
 import { useCart } from './CartContext';
 import { useWishlist } from '../../lib/wishlistContext';
 import { useCustomerSession } from './CustomerSessionContext';
@@ -21,9 +21,6 @@ function scrollTo(href: string) {
   }
 }
 
-function price(value: MenuItem['price']) {
-  return typeof value === 'number' ? `₹${value}` : value ?? 'Price on request';
-}
 
 function HamburgerIcon({ open }: { open: boolean }) {
   const bar: CSSProperties = {
@@ -87,14 +84,13 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
   const navigate = useNavigate();
   const location = useLocation();
   const { customer } = useCustomerSession();
-  const { items, itemCount, subtotal, addItem, updateQuantity, removeItem } = useCart();
+  const { totalItems, addItem, openCart } = useCart();
   const { wishlistCount } = useWishlist();
 
   const openCustomerAccount = () => navigate(customer ? '/dashboard' : '/account');
 
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [cartOpen, setCartOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const searchInput = useRef<HTMLInputElement>(null);
@@ -140,13 +136,20 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
     }
     const term = query.trim().toLowerCase();
     return term
-      ? ACTIVE_MENU.filter(p => [p.name, p.description, p.category, ...p.keywords].join(' ').toLowerCase().includes(term)).slice(0, 6)
+      ? PRODUCTS.filter(p => [p.name, p.description, p.categoryLabel, p.hindiName || '', ...p.ingredients].join(' ').toLowerCase().includes(term)).slice(0, 6).map(p => ({
+          id: p.id,
+          slug: p.slug || p.id,
+          name: p.name,
+          description: p.tagline || p.description || p.categoryLabel,
+          price: p.options?.[0]?.price ?? 120,
+          category: p.categoryLabel || 'Namkeens',
+          keywords: [p.name, p.hindiName || ''],
+        }))
       : [];
   }, [liveProducts, query]);
 
   const closeMenu = useCallback(() => setOpen(false), []);
   const closePanels = useCallback(() => {
-    setCartOpen(false);
     setSearchOpen(false);
   }, []);
 
@@ -177,7 +180,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
   }, [searchOpen]);
 
   useEffect(() => {
-    if (!open && !cartOpen && !searchOpen) return;
+    if (!open && !searchOpen) return;
     const fn = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         closeMenu();
@@ -186,14 +189,14 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
     };
     document.addEventListener('keydown', fn);
     return () => document.removeEventListener('keydown', fn);
-  }, [open, cartOpen, searchOpen, closeMenu, closePanels]);
+  }, [open, searchOpen, closeMenu, closePanels]);
 
   useEffect(() => {
-    document.body.style.overflow = open || cartOpen || searchOpen ? 'hidden' : '';
+    document.body.style.overflow = open || searchOpen ? 'hidden' : '';
     return () => {
       document.body.style.overflow = '';
     };
-  }, [open, cartOpen, searchOpen]);
+  }, [open, searchOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -227,14 +230,13 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
 
   const showSearch = () => {
     closeMenu();
-    setCartOpen(false);
     setSearchOpen(true);
   };
 
   const showCart = () => {
     closeMenu();
     setSearchOpen(false);
-    setCartOpen(true);
+    openCart();
   };
 
   const addFromSearch = (product: any) => {
@@ -243,7 +245,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
       navigate(`/product/${product.slug}`);
     } else {
       addItem(product);
-      setCartOpen(true);
+      openCart();
     }
   };
 
@@ -328,177 +330,6 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
         .shop-overlay--open {
           opacity: 1;
           pointer-events: auto;
-        }
-        .cart-panel {
-          position: fixed;
-          z-index: 501;
-          top: 0;
-          right: 0;
-          bottom: 0;
-          width: min(100%, 430px);
-          display: flex;
-          flex-direction: column;
-          background: #FFFDF8;
-          box-shadow: -18px 0 52px rgba(42, 0, 5, .22);
-          transform: translateX(104%);
-          transition: transform .34s cubic-bezier(.22, .8, .25, 1);
-        }
-        .cart-panel--open {
-          transform: translateX(0);
-        }
-        .cart-panel__head {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 25px 25px 19px;
-          border-bottom: 1px solid var(--border-soft);
-        }
-        .cart-panel__title {
-          color: var(--brand-maroon);
-          font-family: var(--font-primary, 'DM Sans', sans-serif);
-          font-size: 26px;
-          font-weight: 700;
-          line-height: 1.1;
-          letter-spacing: -.02em;
-        }
-        .panel-close {
-          width: 36px;
-          height: 36px;
-          display: grid;
-          place-items: center;
-          border: 1px solid var(--border-soft);
-          border-radius: 50%;
-          color: var(--brand-maroon);
-          background: transparent;
-          cursor: pointer;
-          transition: background .18s, color .18s, border-color .18s;
-        }
-        .panel-close:hover {
-          background: var(--brand-maroon);
-          color: var(--text-on-dark);
-          border-color: var(--brand-maroon);
-        }
-        .cart-panel__body {
-          flex: 1;
-          overflow-y: auto;
-          padding: 24px;
-        }
-        .cart-empty {
-          min-height: 260px;
-          display: grid;
-          place-content: center;
-          text-align: center;
-          color: var(--text-muted);
-        }
-        .cart-empty svg {
-          margin: 0 auto 16px;
-          color: var(--gold);
-          stroke-width: 1.25;
-        }
-        .cart-empty h3 {
-          margin: 0 0 7px;
-          color: var(--brand-maroon);
-          font-family: var(--font-primary, 'DM Sans', sans-serif);
-          font-size: 22px;
-          font-weight: 700;
-          letter-spacing: -.01em;
-        }
-        .cart-empty p {
-          max-width: 230px;
-          font-size: 13px;
-          line-height: 1.6;
-        }
-        .cart-line {
-          display: grid;
-          grid-template-columns: 1fr auto;
-          gap: 14px;
-          padding: 0 0 19px;
-          margin: 0 0 19px;
-          border-bottom: 1px solid var(--border-soft);
-        }
-        .cart-line__name {
-          color: var(--text-dark);
-          font-family: var(--font-primary, 'DM Sans', sans-serif);
-          font-size: 15px;
-          font-weight: 600;
-          line-height: 1.25;
-        }
-        .cart-line__meta {
-          margin-top: 5px;
-          color: var(--text-muted);
-          font-family: var(--font-primary, 'DM Sans', sans-serif);
-          font-size: 11px;
-          letter-spacing: .04em;
-          text-transform: uppercase;
-        }
-        .cart-line__price {
-          color: var(--brand-maroon);
-          font-family: var(--font-primary, 'DM Sans', sans-serif);
-          font-size: 14px;
-          font-weight: 700;
-          text-align: right;
-        }
-        .quantity-control {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          margin-top: 12px;
-          padding: 3px;
-          border: 1px solid var(--border-soft);
-          border-radius: 999px;
-        }
-        .quantity-control button {
-          width: 23px;
-          height: 23px;
-          display: grid;
-          place-items: center;
-          border: 0;
-          border-radius: 50%;
-          background: transparent;
-          color: var(--brand-maroon);
-          cursor: pointer;
-        }
-        .quantity-control button:hover {
-          background: var(--maroon-light);
-        }
-        .quantity-control span {
-          min-width: 18px;
-          text-align: center;
-          color: var(--text-dark);
-          font: 700 12px var(--font-primary, 'DM Sans', sans-serif);
-        }
-        .cart-panel__footer {
-          padding: 20px 24px 25px;
-          border-top: 1px solid var(--border-soft);
-          background: var(--bg-card-alt);
-        }
-        .cart-subtotal {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 16px;
-          color: var(--brand-maroon);
-          font-family: var(--font-primary, 'DM Sans', sans-serif);
-          font-size: 14px;
-          font-weight: 700;
-        }
-        .checkout-btn {
-          width: 100%;
-          padding: 14px;
-          border: 0;
-          border-radius: 999px;
-          background: var(--brand-maroon);
-          color: var(--text-on-dark);
-          font-family: var(--font-primary, 'DM Sans', sans-serif);
-          font-size: 12px;
-          font-weight: 700;
-          letter-spacing: .06em;
-          text-transform: uppercase;
-          cursor: pointer;
-          transition: background .18s, transform .18s;
-        }
-        .checkout-btn:hover {
-          background: var(--maroon-hover);
-          transform: translateY(-1px);
         }
         .mobile-link {
           display: flex;
@@ -634,31 +465,49 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
           .nav-desktop-links { display: none !important; }
           .nav-hamburger { display: flex !important; }
           .nav-drawer { display: block !important; }
-          .nav-actions { gap: 1px; }
-          .nav-action { width: 34px; height: 40px; }
-          .nav-action svg { width: 18px; height: 18px; }
-          .nav-action__count { top: 4px; right: 0; }
+          .nav-actions { gap: 3px; }
+          .nav-action {
+            width: 42px;
+            height: 44px;
+            min-width: 42px;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+          }
+          .nav-action svg { width: 19px; height: 19px; }
+          .nav-action__count {
+            top: 2px;
+            right: 2px;
+            border: 1.5px solid var(--brand-nav);
+          }
           .search-results { grid-template-columns: 1fr; }
           .search-shell { padding-top: 84px; }
-          .cart-panel { width: min(100%, 390px); }
-          .cart-panel__footer { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
         }
-        @media (max-width: 420px) {
-          .nav-action { width: 32px; height: 38px; }
-          .nav-action svg { width: 17px; height: 17px; }
-          .cart-panel__head { padding: 18px 16px 14px; }
-          .cart-panel__body { padding: 16px; }
-          .cart-panel__footer { padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
-          .search-shell { padding-inline: 14px; }
-          .search-field input { font-size: 15px; height: 46px; }
-          .search-result { padding: 12px; }
+        @media (max-width: 479px) {
+          .nav-action--account { display: none !important; }
+          .nav-actions { gap: 2px; }
+          .nav-action {
+            width: 40px;
+            height: 44px;
+            min-width: 40px;
+            min-height: 44px;
+          }
+          .nav-action svg { width: 18px; height: 18px; }
           .brand-logo__img { height: 32px !important; }
         }
         @media (max-width: 360px) {
-          .nav-action { width: 28px; height: 36px; }
-          .nav-action svg { width: 15px; height: 15px; }
+          .nav-actions { gap: 1px; }
+          .nav-action {
+            width: 38px;
+            height: 44px;
+            min-width: 38px;
+            min-height: 44px;
+          }
+          .nav-action svg { width: 17px; height: 17px; }
           .brand-logo__img { height: 28px !important; }
-          .nav-hamburger { padding: 4px !important; min-width: 36px !important; }
+          .nav-hamburger { min-width: 40px !important; min-height: 44px !important; }
         }
       `}</style>
 
@@ -738,7 +587,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
                 </button>
               )}
               <button
-                className="nav-action"
+                className="nav-action nav-action--account"
                 onClick={openCustomerAccount}
                 aria-label={customer ? 'Open customer dashboard' : 'Sign in to your account'}
               >
@@ -753,9 +602,9 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
                 <Heart size={19} strokeWidth={1.7} />
                 {wishlistCount > 0 && <span className="nav-action__count">{wishlistCount > 9 ? '9+' : wishlistCount}</span>}
               </button>
-              <button className="nav-action" onClick={showCart} aria-label={`Cart, ${itemCount} items`}>
+              <button className="nav-action" onClick={showCart} aria-label={`Cart, ${totalItems} items`}>
                 <ShoppingBag size={19} strokeWidth={1.7} />
-                {itemCount > 0 && <span className="nav-action__count">{itemCount > 9 ? '9+' : itemCount}</span>}
+                {totalItems > 0 && <span className="nav-action__count">{totalItems > 9 ? '9+' : totalItems}</span>}
               </button>
             </div>
 
@@ -831,9 +680,9 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
             setOpen(false);
             openCustomerAccount();
           }}
-          style={{ borderBottom: '1px solid rgba(255,255,255,.08)' }}
+          style={{ borderBottom: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', gap: '8px' }}
         >
-          {customer ? 'Your Account' : 'Sign In'}
+          <UserRound size={16} /> {customer ? 'Your Account' : 'Sign In'}
         </button>
         {mobileLinks.map((link, i) => (
           <a
@@ -861,87 +710,12 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
 
       <div style={{ height: '68px' }} aria-hidden="true" />
 
-      {/* Overlays for Cart & Search */}
+      {/* Overlay for Search */}
       <div
-        className={`shop-overlay ${cartOpen || searchOpen ? 'shop-overlay--open' : ''}`}
+        className={`shop-overlay ${searchOpen ? 'shop-overlay--open' : ''}`}
         onClick={closePanels}
         aria-hidden="true"
       />
-
-      {/* Navbar Slide-out Cart Panel */}
-      <aside
-        className={`cart-panel ${cartOpen ? 'cart-panel--open' : ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Shopping cart"
-        aria-hidden={!cartOpen}
-      >
-        <div className="cart-panel__head">
-          <h2 className="cart-panel__title">Cart</h2>
-          <button className="panel-close" onClick={() => setCartOpen(false)} aria-label="Close cart">
-            <X size={19} />
-          </button>
-        </div>
-
-        <div className="cart-panel__body">
-          {items.length === 0 ? (
-            <div className="cart-empty">
-              <ShoppingBag size={38} />
-              <h3>Your cart is empty</h3>
-              <p>Add something delicious from our menu or shop to begin your order.</p>
-            </div>
-          ) : (
-            items.map(({ product, quantity }) => (
-              <div className="cart-line" key={product.id}>
-                <div>
-                  <div className="cart-line__name">{product.name}</div>
-                  <div className="cart-line__meta">{product.category}</div>
-                  <div className="quantity-control">
-                    <button onClick={() => updateQuantity(product.id, quantity - 1)} aria-label={`Remove one ${product.name}`}>
-                      <Minus size={13} />
-                    </button>
-                    <span>{quantity}</span>
-                    <button onClick={() => updateQuantity(product.id, quantity + 1)} aria-label={`Add one ${product.name}`}>
-                      <Plus size={13} />
-                    </button>
-                  </div>
-                </div>
-                <div className="cart-line__price">
-                  {price(typeof product.price === 'number' ? product.price * quantity : product.price)}
-                  <button
-                    onClick={() => removeItem(product.id)}
-                    style={{
-                      display: 'block',
-                      margin: '12px 0 0 auto',
-                      border: 0,
-                      padding: 0,
-                      color: 'var(--text-muted)',
-                      background: 'none',
-                      font: '500 11px Inter, sans-serif',
-                      textDecoration: 'underline',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {items.length > 0 && (
-          <div className="cart-panel__footer">
-            <div className="cart-subtotal">
-              <span>Subtotal</span>
-              <span>₹{subtotal}</span>
-            </div>
-            <button className="checkout-btn" onClick={() => navigate('/shop')}>
-              Proceed to checkout <ArrowRight size={14} style={{ verticalAlign: '-2px', marginLeft: 5 }} />
-            </button>
-          </div>
-        )}
-      </aside>
 
       {/* Global Search Shell */}
       <section
@@ -984,7 +758,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
                         <span className="search-result__name">{product.name}</span>
                         <span className="search-result__info">{product.description || product.category}</span>
                       </span>
-                      <span className="search-result__price">{price(product.price)} +</span>
+                      <span className="search-result__price">{product.price ? `₹${product.price}` : ''} +</span>
                     </button>
                   ))}
                 </div>

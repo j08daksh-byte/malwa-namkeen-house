@@ -485,8 +485,8 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           decoding="async"
           onError={e => {
             const el = e.currentTarget;
-            if (!el.src.includes('/mishtichaat/chaat-plate.jpg')) {
-              el.src = '/mishtichaat/chaat-plate.jpg';
+            if (!el.src.includes('/hero-banner-1.png')) {
+              el.src = '/hero-banner-1.png';
             }
           }}
         />

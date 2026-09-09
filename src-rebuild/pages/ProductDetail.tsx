@@ -4,8 +4,6 @@ import Navbar from '../components/layout/Navbar';
 import Footer from '../components/sections/Footer';
 import ProductCard from '../components/shop/ProductCard';
 import ProductQuickViewModal from '../components/shop/ProductQuickViewModal';
-import CartDrawer from '../components/shop/CartDrawer';
-import CheckoutModal from '../components/shop/CheckoutModal';
 import ShopToast from '../components/shop/ShopToast';
 import { PRODUCTS as FALLBACK_PRODUCTS, type Product, type ProductWeightOption } from '../data/products';
 import { useCart } from '../lib/cartContext';
@@ -106,7 +104,6 @@ export default function ProductDetail() {
     initialStaticProduct ? getStaticRelatedProducts(initialStaticProduct) : []
   );
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
 
   // 1. Fetch Product by Slug or ID with fallback
   const fetchProduct = useCallback(async () => {
@@ -248,7 +245,7 @@ export default function ProductDetail() {
     if (Array.isArray(product.images) && product.images.length > 0) {
       return product.images;
     }
-    return [product.image || '/mishtichaat/chaat-plate.jpg'];
+    return [product.image || '/hero-banner-1.png'];
   }, [product]);
 
   const activeImage = imageList[selectedImageIdx] || imageList[0];
@@ -427,8 +424,6 @@ export default function ProductDetail() {
           overflow: hidden;
           padding: 16px;
           box-shadow: 0 10px 30px rgba(85, 0, 10, 0.05);
-          position: sticky;
-          top: 96px;
         }
 
         .pdp-main-image-wrap {
@@ -1067,8 +1062,11 @@ export default function ProductDetail() {
           .pdp-mobile-bar {
             display: flex;
           }
+          .pdp-wrapper {
+            padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 16px);
+          }
           .pdp-container {
-            padding: 16px 14px calc(96px + env(safe-area-inset-bottom, 0px));
+            padding: 16px 14px 48px;
           }
           .pdp-trust-grid {
             grid-template-columns: 1fr;
@@ -1136,8 +1134,8 @@ export default function ProductDetail() {
                 loading="eager"
                 onError={e => {
                   const el = e.currentTarget;
-                  if (!el.src.includes('/mishtichaat/chaat-plate.jpg')) {
-                    el.src = '/mishtichaat/chaat-plate.jpg';
+                  if (!el.src.includes('/hero-banner-1.png')) {
+                    el.src = '/hero-banner-1.png';
                   }
                 }}
               />
@@ -1179,8 +1177,8 @@ export default function ProductDetail() {
                       className="pdp-thumb-img"
                       onError={e => {
                         const el = e.currentTarget;
-                        if (!el.src.includes('/mishtichaat/chaat-plate.jpg')) {
-                          el.src = '/mishtichaat/chaat-plate.jpg';
+                        if (!el.src.includes('/hero-banner-1.png')) {
+                          el.src = '/hero-banner-1.png';
                         }
                       }}
                     />
@@ -1581,8 +1579,6 @@ export default function ProductDetail() {
         onClose={() => setQuickViewProduct(null)}
       />
 
-      <CartDrawer onOpenCheckout={() => setIsCheckoutOpen(true)} />
-      <CheckoutModal isOpen={isCheckoutOpen} onClose={() => setIsCheckoutOpen(false)} />
       <ShopToast />
 
       <Footer />

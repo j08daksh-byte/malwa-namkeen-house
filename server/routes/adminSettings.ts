@@ -4,6 +4,8 @@ import mongoose from 'mongoose';
 import { StoreSettings, type IStoreSettings } from '../models/StoreSettings.ts';
 import { requireAdmin, type AuthenticatedRequest } from '../lib/auth.ts';
 
+import { BUSINESS } from '../config.ts';
+
 const router = Router();
 
 /**
@@ -23,7 +25,7 @@ const DEFAULT_PUBLIC_SETTINGS = {
   description: 'Authentic Ratlami Sev, Hing Sev, Ujjaini Mixture, and Mathris crafted with cold-pressed groundnut oil and hand-ground spices.',
   logo: '/logo.png',
   gstNumber: '23AAAAA0000A1Z5',
-  fssaiNumber: '11422850001234',
+  fssaiNumber: BUSINESS.fssaiNumber,
   contact: {
     phone: '+91 7987732765',
     email: 'malwanamkeenhouse@gmail.com',

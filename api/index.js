@@ -419,8 +419,8 @@ var PRODUCTS = [
     ingredients: ["Gram Flour (Besan)", "Whole Cloves (Laung)", "Black Pepper", "Carom Seeds (Ajwain)", "Asafoetida (Hing)", "Cold-Pressed Groundnut Oil", "Rock Salt"],
     spiceLevel: "Clove Hot",
     shelfLife: "4 Months",
-    image: "/mishtichaat/chaat-plate.jpg",
-    images: ["/mishtichaat/chaat-plate.jpg"],
+    image: "/hero-banner-1.png",
+    images: ["/hero-banner-1.png"],
     badge: "Bestseller",
     featured: true,
     isBestSeller: true,
@@ -448,8 +448,8 @@ var PRODUCTS = [
     ingredients: ["Besan", "Carom Seeds", "Turmeric", "Cumin", "Cold-Pressed Groundnut Oil", "Himalayan Pink Salt"],
     spiceLevel: "Mild",
     shelfLife: "4 Months",
-    image: "/mishtichaat/dahi-puri.png",
-    images: ["/mishtichaat/dahi-puri.png"],
+    image: "/mishtichaat/hero-food.jpg",
+    images: ["/mishtichaat/hero-food.jpg"],
     badge: "Heritage Classic",
     featured: false,
     isBestSeller: false,
@@ -477,8 +477,8 @@ var PRODUCTS = [
     ingredients: ["Gram Flour", "Premium Zanzibari Cloves", "Black Pepper", "Red Chilli", "Groundnut Oil", "Rock Salt"],
     spiceLevel: "Clove Hot",
     shelfLife: "4 Months",
-    image: "/mishtichaat/dahi-bhalla.jpg",
-    images: ["/mishtichaat/dahi-bhalla.jpg"],
+    image: "/hero-banner-2.png",
+    images: ["/hero-banner-2.png"],
     badge: "Spicy Favorite",
     featured: false,
     isBestSeller: false,
@@ -536,8 +536,8 @@ var PRODUCTS = [
     ingredients: ["Whole Brown Lentils (Masoor)", "Jumbo Cashews", "Melon Seeds (Magaz)", "Fine Gram Flour Sev", "Black Pepper", "Cloves", "Groundnut Oil", "Rock Salt"],
     spiceLevel: "Medium",
     shelfLife: "3 Months",
-    image: "/mishtichaat/semi-hero.png",
-    images: ["/mishtichaat/semi-hero.png"],
+    image: "/mishtichaat/hero-food.jpg",
+    images: ["/mishtichaat/hero-food.jpg"],
     badge: "Chef\u2019s Selection",
     featured: false,
     isBestSeller: false,
@@ -565,8 +565,8 @@ var PRODUCTS = [
     ingredients: ["Gram Flour", "Pure Compounded Hing", "Roasted Cumin", "Ginger Powder", "Groundnut Oil", "Pink Salt"],
     spiceLevel: "Medium",
     shelfLife: "4 Months",
-    image: "/mishtichaat/chaat-tamatar.jpg",
-    images: ["/mishtichaat/chaat-tamatar.jpg"],
+    image: "/hero-banner-2.png",
+    images: ["/hero-banner-2.png"],
     badge: "Digestive Blend",
     featured: false,
     isBestSeller: false,
@@ -624,8 +624,8 @@ var PRODUCTS = [
     ingredients: ["Flattened Black Chickpeas", "Roasted Cumin", "Dry Mango Powder", "Mint Leaf Powder", "Black Salt", "Cold-Pressed Groundnut Oil"],
     spiceLevel: "Zesty",
     shelfLife: "4 Months",
-    image: "/mishtichaat/tamatar-chaat.jpg",
-    images: ["/mishtichaat/tamatar-chaat.jpg"],
+    image: "/mishtichaat/kachori.jpg",
+    images: ["/mishtichaat/kachori.jpg"],
     badge: "Tangy Crunch",
     featured: false,
     isBestSeller: false,
@@ -711,8 +711,8 @@ var PRODUCTS = [
     ingredients: ["Assorted Namkeens", "Pure Ghee Besan Ladoos", "Artisanal Brass Spoon", "Luxury Velvet Packaging"],
     spiceLevel: "Medium",
     shelfLife: "60 Days",
-    image: "/mishtichaat/FAMILY%20FEAST%20THALI.png",
-    images: ["/mishtichaat/FAMILY%20FEAST%20THALI.png"],
+    image: "/hero-banner-1.png",
+    images: ["/hero-banner-1.png"],
     badge: "Luxury Gift Edition",
     featured: false,
     isBestSeller: false,
@@ -740,8 +740,8 @@ var PRODUCTS = [
     ingredients: ["Fine Sev", "Crispy Papdi", "Khasta Cracker", "Sarafa Special Chaat Masala Jar"],
     spiceLevel: "Zesty",
     shelfLife: "3 Months",
-    image: "/mishtichaat/CHAAT-BAZAAR.png",
-    images: ["/mishtichaat/CHAAT-BAZAAR.png"],
+    image: "/mishtichaat/kachori.jpg",
+    images: ["/mishtichaat/kachori.jpg"],
     badge: "Party Hit",
     featured: false,
     isBestSeller: false,
@@ -798,8 +798,8 @@ var PRODUCTS = [
     ingredients: ["A2 Milk Khoya", "Besan", "Pure Cow Ghee", "Pistachios", "Almonds", "Cardamom", "Kashmiri Kesar"],
     spiceLevel: "Mild",
     shelfLife: "25 Days",
-    image: "/mishtichaat/MEETHI%20GALI.png",
-    images: ["/mishtichaat/MEETHI%20GALI.png"],
+    image: "/mishtichaat/hero-sweets.jpg",
+    images: ["/mishtichaat/hero-sweets.jpg"],
     badge: "Festive Limited",
     featured: false,
     isBestSeller: false,
@@ -2441,7 +2441,7 @@ import { Router as Router3 } from "express";
 import mongoose7 from "mongoose";
 var router3 = Router3();
 function formatPublicProduct(p) {
-  const primaryImage = Array.isArray(p.images) && p.images[0] || p.image || "/mishtichaat/chaat-plate.jpg";
+  const primaryImage = Array.isArray(p.images) && p.images[0] || p.image || "/hero-banner-1.png";
   const activeVariants = Array.isArray(p.variants) ? p.variants.filter((v) => v.active !== false) : [];
   const options = activeVariants.length > 0 ? activeVariants.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((v) => ({
     id: String(v._id || v.sku || v.label),
@@ -2987,7 +2987,7 @@ router4.post("/revalidate", async (req, res) => {
           `Price for "${product.name} (${variant.label})" was updated from \u20B9${item.price} to current price \u20B9${livePrice}.`
         );
       }
-      const primaryImage = Array.isArray(product.images) && product.images[0] || product.image || "/mishtichaat/chaat-plate.jpg";
+      const primaryImage = Array.isArray(product.images) && product.images[0] || product.image || "/hero-banner-1.png";
       validatedItems.push({
         productId: String(product._id),
         variantId: String(variant._id || variant.sku || variant.label),
@@ -3855,7 +3855,7 @@ router6.post("/", requireAuth, async (req, res) => {
         return;
       }
       const unitPrice = typeof variant.salePrice === "number" && variant.salePrice > 0 ? variant.salePrice : variant.price;
-      const primaryImage = Array.isArray(product.images) && product.images[0] || product.image || "/mishtichaat/chaat-plate.jpg";
+      const primaryImage = Array.isArray(product.images) && product.images[0] || product.image || "/hero-banner-1.png";
       const variantLabel = variant.label || `${variant.value || ""} ${variant.unit || ""}`.trim() || "Standard";
       orderItems.push({
         productId: product._id,
@@ -6077,7 +6077,7 @@ var DEFAULT_PUBLIC_SETTINGS = {
   description: "Authentic Ratlami Sev, Hing Sev, Ujjaini Mixture, and Mathris crafted with cold-pressed groundnut oil and hand-ground spices.",
   logo: "/logo.png",
   gstNumber: "23AAAAA0000A1Z5",
-  fssaiNumber: "11422850001234",
+  fssaiNumber: BUSINESS.fssaiNumber,
   contact: {
     phone: "+91 7987732765",
     email: "malwanamkeenhouse@gmail.com",
@@ -6629,6 +6629,36 @@ var reservationSchema = z.object({
   location_id: locationId,
   _hp: honeypot
 });
+var ALLOWED_REQUIREMENT_TYPES = [
+  "Corporate Gifting",
+  "Wedding / Event",
+  "Festival Gifting",
+  "Bulk Namkeen Order",
+  "Retail / Reseller Enquiry",
+  "Other"
+];
+var bulkEnquirySchema = z.object({
+  name,
+  email,
+  phone,
+  company_name: z.string().max(120).transform((s) => s.trim()).optional().or(z.literal("")),
+  requirement_type: z.string({ error: "Please select a requirement type." }).refine((v) => ALLOWED_REQUIREMENT_TYPES.includes(v), {
+    message: "Invalid requirement type selected."
+  }),
+  approx_quantity: z.string({ error: "Please provide approximate quantity." }).min(1, "Please provide approximate quantity.").max(100).transform((s) => s.trim()),
+  approx_budget: z.string().max(100).transform((s) => s.trim()).optional().or(z.literal("")),
+  required_by_date: z.string().optional().or(z.literal("")).refine((v) => {
+    if (!v || v.trim() === "") return true;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+    const today = /* @__PURE__ */ new Date();
+    today.setHours(0, 0, 0, 0);
+    return new Date(v) >= today;
+  }, { message: "Required by date cannot be in the past." }),
+  delivery_city_pincode: z.string({ error: "Delivery city or pincode is required." }).min(2, "Please enter delivery city or pincode.").max(120).transform((s) => s.trim()),
+  message: messageOptional,
+  consent_accepted: consent,
+  _hp: honeypot
+});
 var kateringSchema = z.object({
   name,
   email: emailOptional,
@@ -6992,6 +7022,73 @@ router17.post("/contact", async (req, res) => {
     message: "Your enquiry has been received. Our team will contact you shortly.",
     referenceId: id,
     whatsappUrl: getWaUrlForCategory(parsed.category)
+  });
+});
+router17.post(["/enquiries/bulk", "/enquiry/bulk", "/bulk-enquiry"], async (req, res) => {
+  if (req.body._hp) {
+    res.json({ success: true, message: "Bulk & gifting enquiry received. Our team will contact you shortly." });
+    return;
+  }
+  let parsed;
+  try {
+    parsed = bulkEnquirySchema.parse(req.body);
+  } catch (err) {
+    if (err instanceof ZodError) {
+      res.status(400).json({
+        success: false,
+        message: "Please check the form and try again.",
+        fieldErrors: Object.fromEntries(
+          zodToFieldErrors(err).map((e) => [e.field, e.message])
+        )
+      });
+      return;
+    }
+    throw err;
+  }
+  let id = new mongoose24.Types.ObjectId().toString();
+  const summaryMessage = [
+    `Requirement: ${parsed.requirement_type}`,
+    `Quantity: ${parsed.approx_quantity}`,
+    parsed.company_name ? `Company: ${parsed.company_name}` : "",
+    parsed.approx_budget ? `Budget: ${parsed.approx_budget}` : "",
+    parsed.required_by_date ? `Required By: ${parsed.required_by_date}` : "",
+    `Delivery To: ${parsed.delivery_city_pincode}`,
+    parsed.message ? `Notes: ${parsed.message}` : ""
+  ].filter(Boolean).join(" | ");
+  try {
+    const doc = await Inquiry.create({
+      name: parsed.name,
+      email: parsed.email,
+      phone: parsed.phone,
+      category: "bulk_gifting",
+      message: summaryMessage,
+      status: "new"
+    });
+    if (doc) id = String(doc._id);
+  } catch (err) {
+    console.error("[Bulk Enquiry] MongoDB save error:", err instanceof Error ? err.message : err);
+  }
+  const emailData = {
+    referenceId: id,
+    customerName: parsed.name,
+    customerEmail: parsed.email,
+    phone: parsed.phone,
+    category: "bulk_gifting",
+    categoryLabel: `Bulk & Gifting (${parsed.requirement_type})`,
+    message: summaryMessage,
+    locationId: "indore-headquarters",
+    submittedAt: isoNow()
+  };
+  Promise.allSettled([
+    sendContactCustomerEmail(emailData),
+    sendContactAdminEmail(emailData)
+  ]).catch(() => {
+  });
+  res.json({
+    success: true,
+    message: "Your bulk & corporate gifting enquiry has been received. Our team will contact you with customized rates shortly.",
+    referenceId: id,
+    whatsappUrl: WA_URLS.catering || "https://wa.me/917987732765"
   });
 });
 router17.post("/reservation", async (req, res) => {
