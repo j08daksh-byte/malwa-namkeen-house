@@ -351,6 +351,10 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
           .map((s: any) => ({ label: s.label.trim(), value: s.value.trim() }))
       : [];
 
+    if (isBestSeller) {
+      await enforceMaxBestSellers();
+    }
+
     const newProduct = await Product.create({
       name: name.trim(),
       slug: productSlug,

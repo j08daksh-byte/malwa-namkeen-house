@@ -203,21 +203,22 @@ router.get('/products', async (req: Request, res: Response) => {
     if (mongoose.connection.readyState === 1) {
       const filter: Record<string, unknown> = { active: { $ne: false } };
 
-      // Category filter by slug or ID
+      // Category filter by slug, name or ID
       if (category && category !== 'all') {
         if (mongoose.Types.ObjectId.isValid(category)) {
           filter.category = new mongoose.Types.ObjectId(category);
         } else {
-          const catDoc = await Category.findOne({ slug: category.toLowerCase(), active: { $ne: false } }).maxTimeMS(2000).lean();
+          const catDoc = await Category.findOne({
+            $or: [
+              { slug: category.toLowerCase() },
+              { name: new RegExp(`^${category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+            ],
+            active: { $ne: false }
+          }).maxTimeMS(2000).lean();
           if (catDoc) {
             filter.category = catDoc._id;
           } else {
-            const hasAnyCat = await Category.countDocuments().maxTimeMS(2000);
-            if (hasAnyCat > 0) {
-              res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-              res.json({ success: true, products: [], total: 0 });
-              return;
-            }
+            filter.category = category;
           }
         }
       }
@@ -270,25 +271,23 @@ router.get('/products', async (req: Request, res: Response) => {
         Category.find({ active: { $ne: false } }).sort({ sortOrder: 1 }).maxTimeMS(2000).lean(),
       ]);
 
-      if (total > 0 || rawProducts.length > 0) {
-        const formattedProducts = rawProducts.map(formatPublicProduct);
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.json({
-          success: true,
-          products: formattedProducts,
-          categories: allCategories.map(c => ({
-            id: c.slug,
-            _id: String(c._id),
-            slug: c.slug,
-            name: c.name,
-            label: c.name,
-          })),
-          total,
-          page: pageNum,
-          totalPages: Math.ceil(total / limitNum) || 1,
-        });
-        return;
-      }
+      const formattedProducts = rawProducts.map(formatPublicProduct);
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.json({
+        success: true,
+        products: formattedProducts,
+        categories: allCategories.map(c => ({
+          id: c.slug,
+          _id: String(c._id),
+          slug: c.slug,
+          name: c.name,
+          label: c.name,
+        })),
+        total,
+        page: pageNum,
+        totalPages: Math.ceil(total / limitNum) || 1,
+      });
+      return;
     }
   } catch (_err: unknown) {
     // Fall back to static catalog

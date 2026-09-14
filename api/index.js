@@ -852,62 +852,55 @@ async function syncDatabaseCatalog() {
           active: true,
           sortOrder: i
         });
-      } else {
-        cat.name = catData.label;
-        cat.description = catData.description;
-        cat.active = true;
-        cat.sortOrder = i;
-        await cat.save();
       }
       categoryDocMap.set(catData.id, cat._id);
     }
-    await Category.deleteMany({ slug: { $regex: /^test-category/i } });
-    for (let idx = 0; idx < PRODUCTS.length; idx++) {
-      const p = PRODUCTS[idx];
-      const catId = categoryDocMap.get(p.category) || Array.from(categoryDocMap.values())[0];
-      const pSlug = p.slug || p.id;
-      const variants = p.options.map((opt, vIdx) => ({
-        label: opt.weight,
-        value: parseFloat(opt.weight) || 250,
-        unit: opt.weight.replace(/^[0-9.]+/, "").trim() || "g",
-        price: opt.price,
-        salePrice: opt.originalPrice && opt.originalPrice > opt.price ? opt.price : void 0,
-        stock: 100,
-        sku: `MLW-${p.id.slice(0, 4).toUpperCase()}-${opt.weight.replace(/\s+/g, "").toUpperCase()}`,
-        active: true,
-        sortOrder: vIdx
-      }));
-      const productPayload = {
-        name: p.name,
-        slug: pSlug,
-        hindiName: p.hindiName || "",
-        tagline: p.tagline || "",
-        description: p.description,
-        story: p.story || "",
-        ingredients: p.ingredients || [],
-        spiceLevel: p.spiceLevel || "Medium",
-        shelfLife: p.shelfLife || "90 Days",
-        oilUsed: p.oilUsed || "Pure Groundnut Oil",
-        isVegetarian: p.isVegetarian ?? true,
-        category: catId,
-        images: Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image],
-        badge: p.badge || (p.isBestSeller ? "Bestseller" : ""),
-        featured: Boolean(p.featured),
-        isBestSeller: Boolean(p.isBestSeller),
-        bestSellerAt: p.isBestSeller ? new Date(Date.now() - idx * 6e4) : null,
-        active: p.isAvailable ?? true,
-        rating: p.rating || 4.9,
-        reviewCount: p.reviewCount || 42,
-        variants
-      };
-      await Product.findOneAndUpdate(
-        { slug: pSlug },
-        { $set: productPayload },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
+    const productCount = await Product.countDocuments();
+    if (productCount === 0) {
+      for (let idx = 0; idx < PRODUCTS.length; idx++) {
+        const p = PRODUCTS[idx];
+        const catId = categoryDocMap.get(p.category) || Array.from(categoryDocMap.values())[0];
+        const pSlug = p.slug || p.id;
+        const variants = p.options.map((opt, vIdx) => ({
+          label: opt.weight,
+          value: parseFloat(opt.weight) || 250,
+          unit: opt.weight.replace(/^[0-9.]+/, "").trim() || "g",
+          price: opt.price,
+          salePrice: opt.originalPrice && opt.originalPrice > opt.price ? opt.price : void 0,
+          stock: 100,
+          sku: `MLW-${p.id.slice(0, 4).toUpperCase()}-${opt.weight.replace(/\s+/g, "").toUpperCase()}`,
+          active: true,
+          sortOrder: vIdx
+        }));
+        const productPayload = {
+          name: p.name,
+          slug: pSlug,
+          hindiName: p.hindiName || "",
+          tagline: p.tagline || "",
+          description: p.description,
+          story: p.story || "",
+          ingredients: p.ingredients || [],
+          spiceLevel: p.spiceLevel || "Medium",
+          shelfLife: p.shelfLife || "90 Days",
+          oilUsed: p.oilUsed || "Pure Groundnut Oil",
+          isVegetarian: p.isVegetarian ?? true,
+          category: catId,
+          images: Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image],
+          badge: p.badge || (p.isBestSeller ? "Bestseller" : ""),
+          featured: Boolean(p.featured),
+          isBestSeller: Boolean(p.isBestSeller),
+          bestSellerAt: p.isBestSeller ? new Date(Date.now() - idx * 6e4) : null,
+          active: p.isAvailable ?? true,
+          rating: p.rating || 4.9,
+          reviewCount: p.reviewCount || 42,
+          variants
+        };
+        await Product.create(productPayload);
+      }
+      console.log(`[MongoDB] Database catalog initialized with ${PRODUCTS.length} seed products.`);
+    } else {
+      console.log(`[MongoDB] Database catalog verified: ${productCount} existing products intact.`);
     }
-    await Product.deleteMany({ slug: { $nin: PRODUCTS.map((p) => p.slug || p.id) } });
-    console.log(`[MongoDB] Database catalog synchronized: ${validCategories.length} categories, ${PRODUCTS.length} products (4 bestsellers).`);
   } catch (err) {
     console.warn("[MongoDB] Database catalog sync warning:", err instanceof Error ? err.message : err);
   }
