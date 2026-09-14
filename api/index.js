@@ -2500,7 +2500,7 @@ router3.get("/categories", async (_req, res) => {
     if (mongoose7.connection.readyState === 1) {
       const categories = await Category.find({ active: true }).sort({ sortOrder: 1, name: 1 }).lean();
       if (categories.length > 0) {
-        res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=300");
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         res.json({
           success: true,
           categories: categories.map((c) => ({
@@ -2519,6 +2519,7 @@ router3.get("/categories", async (_req, res) => {
     }
   } catch (_err) {
   }
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   res.json({
     success: true,
     categories: SHOP_CATEGORIES.map((c) => ({
@@ -2536,17 +2537,17 @@ router3.get("/categories", async (_req, res) => {
 router3.get("/products/best-sellers", async (_req, res) => {
   try {
     if (mongoose7.connection.readyState === 1) {
-      let bestSellers = await Product.find({ active: true, isBestSeller: true }).populate({ path: "category", select: "name slug image", strictPopulate: false }).sort({ bestSellerAt: -1, updatedAt: -1, createdAt: -1 }).limit(4).lean();
+      let bestSellers = await Product.find({ active: { $ne: false }, isBestSeller: true }).populate({ path: "category", select: "name slug image", strictPopulate: false }).sort({ bestSellerAt: -1, updatedAt: -1, createdAt: -1 }).limit(4).lean();
       if (bestSellers.length < 4) {
         const existingIds = bestSellers.map((p) => p._id);
         const backfill = await Product.find({
-          active: true,
+          active: { $ne: false },
           _id: { $nin: existingIds }
         }).populate({ path: "category", select: "name slug image", strictPopulate: false }).sort({ featured: -1, rating: -1, createdAt: -1 }).limit(4 - bestSellers.length).lean();
         bestSellers = [...bestSellers, ...backfill];
       }
       if (bestSellers.length > 0) {
-        res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         res.json({
           success: true,
           count: bestSellers.length,
@@ -2558,6 +2559,7 @@ router3.get("/products/best-sellers", async (_req, res) => {
   } catch (err) {
     console.warn("[Public Best Sellers Error]", err);
   }
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   const fallback = PRODUCTS.slice(0, 4);
   res.json({
     success: true,
@@ -2577,17 +2579,18 @@ router3.get("/products", async (req, res) => {
       limit = "100"
     } = req.query;
     if (mongoose7.connection.readyState === 1) {
-      const filter = { active: true };
+      const filter = { active: { $ne: false } };
       if (category2 && category2 !== "all") {
         if (mongoose7.Types.ObjectId.isValid(category2)) {
           filter.category = new mongoose7.Types.ObjectId(category2);
         } else {
-          const catDoc = await Category.findOne({ slug: category2.toLowerCase(), active: true }).maxTimeMS(2e3).lean();
+          const catDoc = await Category.findOne({ slug: category2.toLowerCase(), active: { $ne: false } }).maxTimeMS(2e3).lean();
           if (catDoc) {
             filter.category = catDoc._id;
           } else {
             const hasAnyCat = await Category.countDocuments().maxTimeMS(2e3);
             if (hasAnyCat > 0) {
+              res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
               res.json({ success: true, products: [], total: 0 });
               return;
             }
@@ -2628,11 +2631,11 @@ router3.get("/products", async (req, res) => {
       const [total, rawProducts, allCategories] = await Promise.all([
         Product.countDocuments(filter).maxTimeMS(2e3),
         Product.find(filter).populate({ path: "category", select: "name slug image", strictPopulate: false }).sort(sortObj).skip(skip2).limit(limitNum2).maxTimeMS(2e3).lean(),
-        Category.find({ active: true }).sort({ sortOrder: 1 }).maxTimeMS(2e3).lean()
+        Category.find({ active: { $ne: false } }).sort({ sortOrder: 1 }).maxTimeMS(2e3).lean()
       ]);
       if (total > 0 || rawProducts.length > 0) {
         const formattedProducts = rawProducts.map(formatPublicProduct);
-        res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         res.json({
           success: true,
           products: formattedProducts,
@@ -2677,6 +2680,7 @@ router3.get("/products", async (req, res) => {
   const limitNum = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 12));
   const skip = (pageNum - 1) * limitNum;
   const paginated = filtered.slice(skip, skip + limitNum);
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   res.json({
     success: true,
     products: paginated,
@@ -2688,28 +2692,41 @@ router3.get("/products", async (req, res) => {
 });
 router3.get("/products/:slugOrId", async (req, res) => {
   const { slugOrId } = req.params;
+  const cleanParam = decodeURIComponent(slugOrId).trim();
+  const cleanSlug = cleanParam.toLowerCase();
   try {
     if (mongoose7.connection.readyState === 1) {
       let productDoc = null;
-      if (mongoose7.Types.ObjectId.isValid(slugOrId)) {
-        productDoc = await Product.findOne({ _id: slugOrId, active: true }).populate({ path: "category", select: "name slug image", strictPopulate: false }).lean();
+      if (mongoose7.Types.ObjectId.isValid(cleanParam)) {
+        productDoc = await Product.findOne({ _id: cleanParam, active: { $ne: false } }).populate({ path: "category", select: "name slug image", strictPopulate: false }).lean();
       }
       if (!productDoc) {
-        productDoc = await Product.findOne({ slug: slugOrId.toLowerCase(), active: true }).populate({ path: "category", select: "name slug image", strictPopulate: false }).lean();
+        productDoc = await Product.findOne({ slug: cleanSlug, active: { $ne: false } }).populate({ path: "category", select: "name slug image", strictPopulate: false }).lean();
+      }
+      if (!productDoc) {
+        const escaped = cleanParam.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        productDoc = await Product.findOne({
+          $or: [
+            { slug: { $regex: new RegExp(`^${escaped}$`, "i") } },
+            { name: { $regex: new RegExp(`^${escaped.replace(/[-_]/g, "[ -_]")}$`, "i") } },
+            { slug: { $regex: new RegExp(cleanSlug.replace(/[-_]/g, ".*"), "i") } }
+          ],
+          active: { $ne: false }
+        }).populate({ path: "category", select: "name slug image", strictPopulate: false }).lean();
       }
       if (productDoc) {
         const product = formatPublicProduct(productDoc);
-        res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         res.json({ success: true, product });
         return;
       }
     }
   } catch (_err) {
   }
-  const cleanSlug = slugOrId.toLowerCase().trim();
   const fallback = PRODUCTS.find(
-    (p) => (p.slug || p.id).toLowerCase() === cleanSlug || p.id === cleanSlug || p.name.toLowerCase().replace(/\s+/g, "-").includes(cleanSlug) || cleanSlug.includes(p.id)
+    (p) => (p.slug || p.id).toLowerCase() === cleanSlug || p.id.toLowerCase() === cleanSlug || p.name.toLowerCase().replace(/\s+/g, "-").includes(cleanSlug) || cleanSlug.includes(p.id.toLowerCase())
   );
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   if (fallback) {
     res.json({ success: true, product: fallback });
   } else {
@@ -6401,12 +6418,18 @@ function configureCloudinary() {
 configureCloudinary();
 var ALLOWED_MIME_TYPES = [
   "image/jpeg",
+  "image/jpg",
+  "image/pjpeg",
   "image/png",
+  "image/x-png",
   "image/webp",
   "image/avif",
-  "image/gif"
+  "image/gif",
+  "image/heic",
+  "image/heif",
+  "image/svg+xml"
 ];
-var MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+var MAX_FILE_SIZE_BYTES = 30 * 1024 * 1024;
 function getUploadFolder(target) {
   if (target === "categories") {
     return "malwa-namkeen-house/categories";
@@ -6490,10 +6513,12 @@ var upload = multer({
     fileSize: MAX_FILE_SIZE_BYTES
   },
   fileFilter: (_req, file, cb) => {
-    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+    const mime = (file.mimetype || "").toLowerCase();
+    const isImage = mime.startsWith("image/") || ALLOWED_MIME_TYPES.includes(mime);
+    if (isImage || /\.(jpe?g|png|webp|avif|gif|heic|heif|svg)$/i.test(file.originalname)) {
       cb(null, true);
     } else {
-      cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed types: JPEG, PNG, WebP, AVIF, GIF.`));
+      cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed types: JPEG, PNG, WebP, AVIF, GIF, HEIC.`));
     }
   }
 });
@@ -7509,14 +7534,33 @@ var adminBanners_default = router18;
 import { Router as Router19 } from "express";
 var router19 = Router19();
 router19.get("/", async (_req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   try {
-    await ensureInitialBanners();
     const banners = await Banner.find({ active: true }).sort({ sortOrder: 1, createdAt: -1 });
     if (banners && banners.length > 0) {
       res.json({
         success: true,
         count: banners.length,
         banners: banners.map((b) => ({
+          id: b._id.toString(),
+          title: b.title,
+          alt: b.alt || b.title,
+          image: b.image,
+          mobileImage: b.mobileImage,
+          link: b.link || "/shop",
+          badge: b.badge,
+          sortOrder: b.sortOrder
+        }))
+      });
+      return;
+    }
+    await ensureInitialBanners();
+    const seededBanners = await Banner.find({ active: true }).sort({ sortOrder: 1, createdAt: -1 });
+    if (seededBanners && seededBanners.length > 0) {
+      res.json({
+        success: true,
+        count: seededBanners.length,
+        banners: seededBanners.map((b) => ({
           id: b._id.toString(),
           title: b.title,
           alt: b.alt || b.title,

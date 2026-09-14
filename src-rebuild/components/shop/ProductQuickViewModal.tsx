@@ -449,9 +449,39 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
         </button>
 
         {/* Left: Product Media */}
-        <div className="qv-media">
+        <div
+          className="qv-media"
+          onClick={() => {
+            onClose();
+            navigate(`/product/${product.slug || product.id}`);
+          }}
+          style={{ cursor: 'pointer' }}
+          title={`View full page for ${product.name}`}
+        >
           <img src={product.image} alt={product.name} className="qv-img" />
           {Boolean(product.badge?.trim()) && <span className="qv-media-badge">{product.badge}</span>}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '12px',
+              left: '12px',
+              right: '12px',
+              background: 'rgba(53, 5, 14, 0.85)',
+              backdropFilter: 'blur(4px)',
+              borderRadius: '8px',
+              padding: '6px 10px',
+              color: '#FFF9EF',
+              fontSize: '11px',
+              fontWeight: 600,
+              textAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '5px',
+            }}
+          >
+            <span>Click to View Full Product Page ↗</span>
+          </div>
         </div>
 
         {/* Right: Detailed Content */}
@@ -459,7 +489,16 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
           <span className="qv-eyebrow">
             {[product.categoryLabel, product.spiceLevel].filter(Boolean).join(' · ')}
           </span>
-          <h2 id="qv-title" className="qv-title">
+          <h2
+            id="qv-title"
+            className="qv-title"
+            onClick={() => {
+              onClose();
+              navigate(`/product/${product.slug || product.id}`);
+            }}
+            style={{ cursor: 'pointer' }}
+            title={`View full page for ${product.name}`}
+          >
             {product.name}
             {Boolean(product.hindiName?.trim()) && (
               <span style={{ fontSize: '15px', color: '#8C756B', marginLeft: '8px', fontWeight: 500 }}>
@@ -579,7 +618,7 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
             </button>
           </div>
 
-          <div style={{ marginTop: '16px', textAlign: 'center' }}>
+          <div style={{ marginTop: '20px', textAlign: 'center' }}>
             <button
               type="button"
               onClick={() => {
@@ -587,17 +626,22 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
                 navigate(`/product/${product.slug || product.id}`);
               }}
               style={{
-                background: 'transparent',
-                border: 'none',
+                background: '#FAF6EF',
+                border: '1px solid #D4AA45',
+                borderRadius: '999px',
+                padding: '9px 20px',
                 color: '#55000A',
-                fontSize: '12px',
+                fontSize: '13px',
                 fontWeight: 700,
-                textDecoration: 'underline',
-                textUnderlineOffset: '3px',
                 cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.2s',
               }}
             >
-              View Full Delicacy Page & Story →
+              <span>View Full Product Page, Story &amp; Reviews</span>
+              <span>→</span>
             </button>
           </div>
         </div>

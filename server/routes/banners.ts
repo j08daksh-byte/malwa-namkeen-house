@@ -11,9 +11,8 @@ const router = Router();
  * Falls back to DEFAULT_BANNERS gracefully if database is offline or empty.
  */
 router.get('/', async (_req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   try {
-    await ensureInitialBanners();
-
     const banners = await Banner.find({ active: true }).sort({ sortOrder: 1, createdAt: -1 });
 
     if (banners && banners.length > 0) {
@@ -21,6 +20,28 @@ router.get('/', async (_req: Request, res: Response) => {
         success: true,
         count: banners.length,
         banners: banners.map(b => ({
+          id: b._id.toString(),
+          title: b.title,
+          alt: b.alt || b.title,
+          image: b.image,
+          mobileImage: b.mobileImage,
+          link: b.link || '/shop',
+          badge: b.badge,
+          sortOrder: b.sortOrder,
+        })),
+      });
+      return;
+    }
+
+    // If database has 0 banners, check if initial seed is needed
+    await ensureInitialBanners();
+    const seededBanners = await Banner.find({ active: true }).sort({ sortOrder: 1, createdAt: -1 });
+
+    if (seededBanners && seededBanners.length > 0) {
+      res.json({
+        success: true,
+        count: seededBanners.length,
+        banners: seededBanners.map(b => ({
           id: b._id.toString(),
           title: b.title,
           alt: b.alt || b.title,

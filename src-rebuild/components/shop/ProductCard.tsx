@@ -568,7 +568,11 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
 
         {/* Subtitle / Tagline */}
         {Boolean(product.tagline?.trim() || product.description?.trim()) && (
-          <p className="eb-product-card__sub">
+          <p
+            className="eb-product-card__sub"
+            onClick={() => navigate(productUrl)}
+            style={{ cursor: 'pointer' }}
+          >
             {product.tagline || product.description}
           </p>
         )}

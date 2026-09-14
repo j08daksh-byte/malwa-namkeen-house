@@ -20,10 +20,12 @@ const upload = multer({
     fileSize: MAX_FILE_SIZE_BYTES,
   },
   fileFilter: (_req, file, cb) => {
-    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+    const mime = (file.mimetype || '').toLowerCase();
+    const isImage = mime.startsWith('image/') || ALLOWED_MIME_TYPES.includes(mime);
+    if (isImage || /\.(jpe?g|png|webp|avif|gif|heic|heif|svg)$/i.test(file.originalname)) {
       cb(null, true);
     } else {
-      cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed types: JPEG, PNG, WebP, AVIF, GIF.`));
+      cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed types: JPEG, PNG, WebP, AVIF, GIF, HEIC.`));
     }
   },
 });

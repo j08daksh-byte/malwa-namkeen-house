@@ -38,41 +38,60 @@ const DEFAULT_BANNER_SLIDES: BannerSlide[] = [
 
 const AUTOPLAY_INTERVAL = 5000; // 5 seconds per slide
 
+function getCachedBanners(): BannerSlide[] | null {
+  try {
+    const raw = sessionStorage.getItem('mnh_active_banners');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // Ignore storage issues
+  }
+  return null;
+}
+
 export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void }) {
   const navigate = useNavigate();
-  const [slides, setSlides] = useState<BannerSlide[]>(DEFAULT_BANNER_SLIDES);
+  const cached = getCachedBanners();
+  const [slides, setSlides] = useState<BannerSlide[]>(cached || DEFAULT_BANNER_SLIDES);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const touchStartXRef = useRef<number | null>(null);
 
-  // Fetch active banners from API
+  // Fetch active banners from API (always fresh)
   useEffect(() => {
     let isMounted = true;
     async function fetchBanners() {
       try {
-        const res = await fetch('/api/banners');
+        const res = await fetch('/api/banners', { cache: 'no-store' });
         if (!res.ok) return;
         const data = await res.json();
         if (data.success && Array.isArray(data.banners) && data.banners.length > 0) {
           if (isMounted) {
-            setSlides(
-              data.banners.map((b: any, idx: number) => ({
-                id: b.id || b._id || idx + 1,
-                image: b.image,
-                mobileImage: b.mobileImage,
-                title: b.title || b.alt,
-                subtitle: b.subtitle,
-                badge: b.badge || 'MALWA HERITAGE',
-                ctaText: b.ctaText || 'SHOP NOW',
-                alt: b.alt || b.title || 'Malwa Namkeen House Hero Banner',
-                link: b.link || '/shop',
-              }))
-            );
+            const freshSlides: BannerSlide[] = data.banners.map((b: any, idx: number) => ({
+              id: b.id || b._id || idx + 1,
+              image: b.image,
+              mobileImage: b.mobileImage,
+              title: b.title || b.alt,
+              subtitle: b.subtitle,
+              badge: b.badge || 'MALWA HERITAGE',
+              ctaText: b.ctaText || 'SHOP NOW',
+              alt: b.alt || b.title || 'Malwa Namkeen House Hero Banner',
+              link: b.link || '/shop',
+            }));
+
+            setSlides(freshSlides);
+            try {
+              sessionStorage.setItem('mnh_active_banners', JSON.stringify(freshSlides));
+            } catch {
+              // Ignore
+            }
             setCurrentSlide(0);
           }
         }
       } catch (err) {
-        console.warn('Could not fetch dynamic banners, using defaults:', err);
+        console.warn('Could not fetch dynamic banners:', err);
       }
     }
     fetchBanners();

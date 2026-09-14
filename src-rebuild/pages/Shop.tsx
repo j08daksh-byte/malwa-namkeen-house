@@ -153,32 +153,22 @@ export default function Shop() {
     };
   }, []);
 
-  // Fetch Categories once on mount, merging with fallback
+  // Fetch Categories once on mount (authoritative from API)
   useEffect(() => {
     async function loadCategories() {
       try {
-        const res = await fetch('/api/categories');
+        const res = await fetch('/api/categories', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           if (data.success && Array.isArray(data.categories) && data.categories.length > 0) {
             const apiCats = data.categories.filter((c: any) => (c.slug || c.id) !== 'all');
-            const mergedMap = new Map<string, ShopCategory>();
-
-            // Always preserve all default categories
-            FALLBACK_CATEGORIES.forEach(c => mergedMap.set(c.id, c));
-
-            // Merge any dynamic categories from API
-            apiCats.forEach((c: any) => {
-              const id = c.slug || c.id;
-              mergedMap.set(id, {
-                id,
-                label: c.name || c.label,
-                shortLabel: c.shortLabel || c.name,
-                description: c.description || 'Artisanal authentic recipe extruded and prepared in pure groundnut oil.',
-              });
-            });
-
-            setCategories(Array.from(mergedMap.values()));
+            const loadedCats: ShopCategory[] = apiCats.map((c: any) => ({
+              id: c.slug || c.id,
+              label: c.name || c.label,
+              shortLabel: c.shortLabel || c.name,
+              description: c.description || 'Artisanal authentic recipe extruded and prepared in pure groundnut oil.',
+            }));
+            setCategories(loadedCats);
           }
         }
       } catch (err) {

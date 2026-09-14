@@ -15,6 +15,7 @@ import {
   ArrowUpDown,
 } from 'lucide-react';
 import { Card, PageHeader, Spinner } from '../../components/admin/ui.tsx';
+import { uploadAdminImage } from '../../lib/imageUploadHelper.ts';
 
 interface CategoryItem {
   _id: string;
@@ -160,7 +161,7 @@ export default function AdminCategories() {
     }
   };
 
-  // Upload image to Cloudinary (malwa-namkeen-house/categories)
+  // Upload image to Cloudinary (malwa-namkeen-house/categories) with client compression & fallback
   const handleImageFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -169,27 +170,12 @@ export default function AdminCategories() {
     setFormError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('image', file);
-      formData.append('target', 'categories');
-
-      const res = await fetch('/api/admin/uploads', {
-        method: 'POST',
-        headers: getAuthHeader(),
-        body: formData,
-        credentials: 'include',
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Image upload to Cloudinary failed.');
-      }
-
-      if (data.secureUrl) {
-        setFormImage(data.secureUrl);
+      const secureOrLocalUrl = await uploadAdminImage(file, { target: 'categories' });
+      if (secureOrLocalUrl) {
+        setFormImage(secureOrLocalUrl);
       }
     } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : 'Upload failed. Check Cloudinary connection.');
+      setFormError(err instanceof Error ? err.message : 'Upload failed. Please check your image.');
     } finally {
       setUploadingImage(false);
       e.target.value = '';
@@ -255,11 +241,13 @@ export default function AdminCategories() {
 
     setFormSubmitting(true);
 
+    const finalImage = formImage.trim() || imageUrlInput.trim();
+
     const payload = {
       name: formName.trim(),
       slug: formSlug.trim() || undefined,
       description: formDescription.trim(),
-      image: formImage.trim(),
+      image: finalImage,
       sortOrder: formSortOrder !== '' ? Number(formSortOrder) : 0,
       active: formActive,
     };

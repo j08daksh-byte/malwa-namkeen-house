@@ -57,7 +57,7 @@ export default function SignatureDelicacies() {
     let isMounted = true;
     async function fetchBestSellers() {
       try {
-        const res = await fetch('/api/products/best-sellers');
+        const res = await fetch('/api/products/best-sellers', { cache: 'no-store' });
         if (!res.ok) return;
         const data = await res.json();
         if (data.success && Array.isArray(data.products) && data.products.length > 0) {

@@ -27,6 +27,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { Card, PageHeader, Spinner } from '../../components/admin/ui.tsx';
+import { uploadAdminImage } from '../../lib/imageUploadHelper.ts';
 
 interface VariantForm {
   _id?: string;
@@ -329,7 +330,7 @@ export default function AdminProducts() {
     setModalOpen(true);
   };
 
-  // Cloudinary Image Upload
+  // Image Upload with Client Compression & Resilient Fallback
   const handleImageFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -340,28 +341,13 @@ export default function AdminProducts() {
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const formData = new FormData();
-        formData.append('image', file);
-        formData.append('target', 'products');
-
-        const res = await fetch('/api/admin/uploads', {
-          method: 'POST',
-          headers: getAuthHeader(),
-          body: formData,
-          credentials: 'include',
-        });
-
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Image upload to Cloudinary failed.');
-        }
-
-        if (data.secureUrl) {
-          setFormImages(prev => [...prev, data.secureUrl]);
+        const secureOrLocalUrl = await uploadAdminImage(file, { target: 'products' });
+        if (secureOrLocalUrl) {
+          setFormImages(prev => [...prev, secureOrLocalUrl]);
         }
       }
     } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : 'Upload failed. Please check network/Cloudinary.');
+      setFormError(err instanceof Error ? err.message : 'Upload failed. Please check your image.');
     } finally {
       setUploadingImage(false);
       e.target.value = '';
@@ -573,7 +559,7 @@ export default function AdminProducts() {
       isBestSeller: formIsBestSeller,
       isCombo: formIsCombo,
       active: formActive,
-      images: formImages.filter(Boolean),
+      images: Array.from(new Set([...formImages, imageUrlInput.trim()])).filter(Boolean),
       rating: formRating,
       reviewCount: formReviewCount,
       variants: formVariants.map((v, i) => ({

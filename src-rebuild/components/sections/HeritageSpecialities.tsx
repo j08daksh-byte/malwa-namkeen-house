@@ -81,7 +81,7 @@ export default function HeritageSpecialities() {
     let isMounted = true;
     async function fetchCategories() {
       try {
-        const res = await fetch('/api/categories');
+        const res = await fetch('/api/categories', { cache: 'no-store' });
         if (!res.ok) return;
         const data = await res.json();
         if (data.success && Array.isArray(data.categories) && data.categories.length > 0) {

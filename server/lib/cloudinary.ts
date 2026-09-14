@@ -20,13 +20,19 @@ configureCloudinary();
 
 export const ALLOWED_MIME_TYPES = [
   'image/jpeg',
+  'image/jpg',
+  'image/pjpeg',
   'image/png',
+  'image/x-png',
   'image/webp',
   'image/avif',
   'image/gif',
+  'image/heic',
+  'image/heif',
+  'image/svg+xml',
 ];
 
-export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+export const MAX_FILE_SIZE_BYTES = 30 * 1024 * 1024; // 30 MB
 
 /**
  * Resolves Cloudinary folder path.

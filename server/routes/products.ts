@@ -93,7 +93,7 @@ router.get('/categories', async (_req: Request, res: Response) => {
         .lean();
 
       if (categories.length > 0) {
-        res.setHeader('Cache-Control', 'public, max-age=120, stale-while-revalidate=300');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.json({
           success: true,
           categories: categories.map(c => ({
@@ -115,6 +115,7 @@ router.get('/categories', async (_req: Request, res: Response) => {
   }
 
   // Fallback to rich static categories
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
     success: true,
     categories: FALLBACK_CATEGORIES.map(c => ({
@@ -138,7 +139,7 @@ router.get('/products/best-sellers', async (_req: Request, res: Response) => {
   try {
     if (mongoose.connection.readyState === 1) {
       // Find products explicitly marked as Best Seller (ordered by bestSellerAt desc)
-      let bestSellers = await Product.find({ active: true, isBestSeller: true })
+      let bestSellers = await Product.find({ active: { $ne: false }, isBestSeller: true })
         .populate({ path: 'category', select: 'name slug image', strictPopulate: false })
         .sort({ bestSellerAt: -1, updatedAt: -1, createdAt: -1 })
         .limit(4)
@@ -148,7 +149,7 @@ router.get('/products/best-sellers', async (_req: Request, res: Response) => {
       if (bestSellers.length < 4) {
         const existingIds = bestSellers.map(p => p._id);
         const backfill = await Product.find({
-          active: true,
+          active: { $ne: false },
           _id: { $nin: existingIds },
         })
           .populate({ path: 'category', select: 'name slug image', strictPopulate: false })
@@ -160,7 +161,7 @@ router.get('/products/best-sellers', async (_req: Request, res: Response) => {
       }
 
       if (bestSellers.length > 0) {
-        res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.json({
           success: true,
           count: bestSellers.length,
@@ -174,6 +175,7 @@ router.get('/products/best-sellers', async (_req: Request, res: Response) => {
   }
 
   // Fallback to top 4 products from static catalog
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   const fallback = FALLBACK_PRODUCTS.slice(0, 4);
   res.json({
     success: true,
@@ -199,19 +201,20 @@ router.get('/products', async (req: Request, res: Response) => {
     } = req.query as Record<string, string>;
 
     if (mongoose.connection.readyState === 1) {
-      const filter: Record<string, unknown> = { active: true };
+      const filter: Record<string, unknown> = { active: { $ne: false } };
 
       // Category filter by slug or ID
       if (category && category !== 'all') {
         if (mongoose.Types.ObjectId.isValid(category)) {
           filter.category = new mongoose.Types.ObjectId(category);
         } else {
-          const catDoc = await Category.findOne({ slug: category.toLowerCase(), active: true }).maxTimeMS(2000).lean();
+          const catDoc = await Category.findOne({ slug: category.toLowerCase(), active: { $ne: false } }).maxTimeMS(2000).lean();
           if (catDoc) {
             filter.category = catDoc._id;
           } else {
             const hasAnyCat = await Category.countDocuments().maxTimeMS(2000);
             if (hasAnyCat > 0) {
+              res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
               res.json({ success: true, products: [], total: 0 });
               return;
             }
@@ -264,12 +267,12 @@ router.get('/products', async (req: Request, res: Response) => {
           .limit(limitNum)
           .maxTimeMS(2000)
           .lean(),
-        Category.find({ active: true }).sort({ sortOrder: 1 }).maxTimeMS(2000).lean(),
+        Category.find({ active: { $ne: false } }).sort({ sortOrder: 1 }).maxTimeMS(2000).lean(),
       ]);
 
       if (total > 0 || rawProducts.length > 0) {
         const formattedProducts = rawProducts.map(formatPublicProduct);
-        res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.json({
           success: true,
           products: formattedProducts,
@@ -325,6 +328,7 @@ router.get('/products', async (req: Request, res: Response) => {
   const skip = (pageNum - 1) * limitNum;
   const paginated = filtered.slice(skip, skip + limitNum);
 
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
     success: true,
     products: paginated,
@@ -341,25 +345,45 @@ router.get('/products', async (req: Request, res: Response) => {
  */
 router.get('/products/:slugOrId', async (req: Request, res: Response) => {
   const { slugOrId } = req.params;
+  const cleanParam = decodeURIComponent(slugOrId).trim();
+  const cleanSlug = cleanParam.toLowerCase();
+
   try {
     if (mongoose.connection.readyState === 1) {
       let productDoc: any = null;
 
-      if (mongoose.Types.ObjectId.isValid(slugOrId)) {
-        productDoc = await Product.findOne({ _id: slugOrId, active: true })
+      // 1. Match by exact ObjectId if valid
+      if (mongoose.Types.ObjectId.isValid(cleanParam)) {
+        productDoc = await Product.findOne({ _id: cleanParam, active: { $ne: false } })
           .populate({ path: 'category', select: 'name slug image', strictPopulate: false })
           .lean();
       }
 
+      // 2. Match by exact slug
       if (!productDoc) {
-        productDoc = await Product.findOne({ slug: slugOrId.toLowerCase(), active: true })
+        productDoc = await Product.findOne({ slug: cleanSlug, active: { $ne: false } })
+          .populate({ path: 'category', select: 'name slug image', strictPopulate: false })
+          .lean();
+      }
+
+      // 3. Match case-insensitively or by name / normalized slug
+      if (!productDoc) {
+        const escaped = cleanParam.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        productDoc = await Product.findOne({
+          $or: [
+            { slug: { $regex: new RegExp(`^${escaped}$`, 'i') } },
+            { name: { $regex: new RegExp(`^${escaped.replace(/[-_]/g, '[ -_]')}$`, 'i') } },
+            { slug: { $regex: new RegExp(cleanSlug.replace(/[-_]/g, '.*'), 'i') } },
+          ],
+          active: { $ne: false },
+        })
           .populate({ path: 'category', select: 'name slug image', strictPopulate: false })
           .lean();
       }
 
       if (productDoc) {
         const product = formatPublicProduct(productDoc);
-        res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.json({ success: true, product });
         return;
       }
@@ -368,10 +392,14 @@ router.get('/products/:slugOrId', async (req: Request, res: Response) => {
     // Fall back to static lookup
   }
 
-  const cleanSlug = slugOrId.toLowerCase().trim();
   const fallback = FALLBACK_PRODUCTS.find(
-    p => (p.slug || p.id).toLowerCase() === cleanSlug || p.id === cleanSlug || p.name.toLowerCase().replace(/\s+/g, '-').includes(cleanSlug) || cleanSlug.includes(p.id)
+    p => (p.slug || p.id).toLowerCase() === cleanSlug ||
+      p.id.toLowerCase() === cleanSlug ||
+      p.name.toLowerCase().replace(/\s+/g, '-').includes(cleanSlug) ||
+      cleanSlug.includes(p.id.toLowerCase())
   );
+
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   if (fallback) {
     res.json({ success: true, product: fallback });
   } else {

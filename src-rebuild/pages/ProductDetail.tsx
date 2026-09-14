@@ -114,6 +114,8 @@ export default function ProductDetail() {
       setProduct(prev => prev || staticProd);
       setSelectedOption(prev => prev || staticProd.options?.[0] || { weight: 'Standard', price: 150 });
       setRelatedProducts(prev => (prev.length > 0 ? prev : getStaticRelatedProducts(staticProd)));
+    } else {
+      setLoading(true);
     }
 
     try {
