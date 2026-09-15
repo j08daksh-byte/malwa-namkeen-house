@@ -14,7 +14,8 @@ export interface CartRevalidateItemInput {
   weight?: string;
   sku?: string;
   quantity: number;
-  price: number;
+  price?: number;
+  unitPrice?: number;
 }
 
 /**
@@ -42,22 +43,42 @@ router.post('/revalidate', async (req: Request, res: Response) => {
       return;
     }
 
-    const productIds = [
-      ...new Set(items.map(it => it.productId).filter(id => mongoose.Types.ObjectId.isValid(id))),
+    const objectIds = [
+      ...new Set(items.map(it => it.productId).filter(id => id && mongoose.Types.ObjectId.isValid(id))),
+    ];
+    const slugs = [
+      ...new Set(items.map(it => it.productId).filter(id => id && !mongoose.Types.ObjectId.isValid(id))),
     ];
 
-    const products = await Product.find({
-      _id: { $in: productIds },
-      active: true,
-    }).lean();
+    const orClauses: Array<Record<string, unknown>> = [];
+    if (objectIds.length > 0) {
+      orClauses.push({ _id: { $in: objectIds } });
+    }
+    if (slugs.length > 0) {
+      orClauses.push({ slug: { $in: slugs.map(s => String(s).toLowerCase().trim()) } });
+    }
 
-    const productMap = new Map<string, any>(products.map(p => [String(p._id), p]));
+    const products = orClauses.length > 0
+      ? await Product.find({
+          $or: orClauses,
+          active: true,
+        }).lean()
+      : [];
+
+    const productMap = new Map<string, any>();
+    for (const p of products) {
+      productMap.set(String(p._id), p);
+      if (p.slug) {
+        productMap.set(p.slug.toLowerCase().trim(), p);
+      }
+    }
 
     const validatedItems: any[] = [];
     const adjustments: string[] = [];
 
     for (const item of items) {
-      const product = productMap.get(item.productId);
+      const lookupKey = typeof item.productId === 'string' ? item.productId.trim() : String(item.productId);
+      const product = productMap.get(lookupKey) || productMap.get(lookupKey.toLowerCase());
 
       if (!product) {
         adjustments.push(`A product in your cart is no longer available and has been removed.`);
@@ -111,9 +132,16 @@ router.post('/revalidate', async (req: Request, res: Response) => {
           ? variant.salePrice
           : variant.price;
 
-      if (livePrice !== item.price) {
+      const submittedPrice =
+        typeof item.price === 'number'
+          ? item.price
+          : typeof item.unitPrice === 'number'
+          ? item.unitPrice
+          : undefined;
+
+      if (submittedPrice !== undefined && livePrice !== submittedPrice) {
         adjustments.push(
-          `Price for "${product.name} (${variant.label})" was updated from ₹${item.price} to current price ₹${livePrice}.`
+          `Price for "${product.name} (${variant.label})" was updated from ₹${submittedPrice} to current price ₹${livePrice}.`
         );
       }
 
@@ -124,6 +152,7 @@ router.post('/revalidate', async (req: Request, res: Response) => {
 
       validatedItems.push({
         productId: String(product._id),
+        slug: product.slug || '',
         variantId: String(variant._id || variant.sku || variant.label),
         productName: product.name,
         hindiName: product.hindiName || '',

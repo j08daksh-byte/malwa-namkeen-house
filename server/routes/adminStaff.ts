@@ -3,8 +3,9 @@ import type { Response } from 'express';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { User, type UserRole } from '../models/User.ts';
+import { AuditLog } from '../models/AuditLog.ts';
 import { requireSuperAdmin, type AuthenticatedRequest } from '../lib/auth.ts';
-import { sendAdminInvitationEmail } from '../lib/emailService.ts';
+import { sendAdminInvitationEmail, sendRoleChangedNotification } from '../lib/emailService.ts';
 
 const router = Router();
 
@@ -157,10 +158,14 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
       return;
     }
 
+    const oldRole = staffMember.role;
+    const isRoleChanging =
+      Boolean(role) && (role === 'admin' || role === 'super_admin') && role !== oldRole;
+
     // ── LAST SUPER ADMIN SAFETY GUARD ──
     const isTargetSuperAdmin = staffMember.role === 'super_admin';
     const isDemotingOrDeactivating =
-      (role && role !== 'super_admin' && isTargetSuperAdmin) ||
+      (isRoleChanging && role !== 'super_admin' && isTargetSuperAdmin) ||
       (active === false && isTargetSuperAdmin && staffMember.active);
 
     if (isDemotingOrDeactivating) {
@@ -172,21 +177,62 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
       if (activeSuperAdmins <= 1) {
         res.status(400).json({
           success: false,
-          message: 'Operation prohibited: Cannot demote or deactivate the last remaining active Super Administrator.',
+          message:
+            'Operation prohibited: Cannot demote or deactivate the last remaining active Super Administrator.',
         });
         return;
       }
     }
 
     if (name && typeof name === 'string') staffMember.name = name.trim();
-    if (role && (role === 'admin' || role === 'super_admin')) staffMember.role = role;
+    if (isRoleChanging) staffMember.role = role;
     if (typeof active === 'boolean') staffMember.active = active;
 
+    // Persist changes to database first
     await staffMember.save();
+
+    let emailDispatched = false;
+    let simulatedEmail = false;
+
+    if (isRoleChanging) {
+      // 1. Audit Log: ROLE_CHANGED
+      try {
+        await AuditLog.create({
+          action: 'ROLE_CHANGED',
+          actorId: req.user?.userId ? new mongoose.Types.ObjectId(req.user.userId) : undefined,
+          targetUserId: staffMember._id,
+          metadata: {
+            oldRole,
+            newRole: staffMember.role,
+            email: staffMember.email,
+            timestamp: new Date(),
+          },
+        });
+      } catch (logErr) {
+        console.warn('[AuditLog Warning] Failed to log role change:', logErr);
+      }
+
+      // 2. Dispatch role update notification email (after DB update succeeds)
+      try {
+        const emailRes = await sendRoleChangedNotification({
+          email: staffMember.email,
+          name: staffMember.name,
+          oldRole,
+          newRole: staffMember.role,
+        });
+        emailDispatched = Boolean(emailRes.success);
+        simulatedEmail = Boolean(emailRes.simulated);
+      } catch (emailErr) {
+        console.error('[Role Change Email Error]', emailErr);
+      }
+    }
 
     res.json({
       success: true,
       message: 'Administrator account updated successfully.',
+      roleChanged: isRoleChanging,
+      emailDispatched,
+      simulated: simulatedEmail,
       staff: {
         _id: String(staffMember._id),
         name: staffMember.name,
@@ -199,6 +245,121 @@ router.patch('/:id', async (req: AuthenticatedRequest, res: Response) => {
   } catch (err: unknown) {
     console.error('[Admin Staff Update Error]', err);
     res.status(500).json({ success: false, message: 'Failed to update administrator record.' });
+  }
+});
+
+/**
+ * POST /api/admin/staff/promote
+ * Promotes an existing customer or administrator to admin or super_admin.
+ * Strictly protected by requireSuperAdmin.
+ */
+router.post('/promote', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { userId, email, role } = req.body;
+
+    if (!role || (role !== 'admin' && role !== 'super_admin')) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid target role. Must be either "admin" or "super_admin".',
+      });
+      return;
+    }
+
+    // Lookup user by ID or Email
+    let query: Record<string, unknown> = {};
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      query = { _id: userId };
+    } else if (email && typeof email === 'string' && EMAIL_REGEX.test(email.trim().toLowerCase())) {
+      query = { email: email.trim().toLowerCase() };
+    } else {
+      res.status(400).json({
+        success: false,
+        message: 'A valid user ID or registered email address is required for promotion.',
+      });
+      return;
+    }
+
+    const targetUser = await User.findOne(query);
+    if (!targetUser) {
+      res.status(404).json({
+        success: false,
+        message: 'User account not found. Please verify the user ID or email address.',
+      });
+      return;
+    }
+
+    if (!targetUser.active) {
+      res.status(400).json({
+        success: false,
+        message: 'Cannot promote an inactive or deactivated user account.',
+      });
+      return;
+    }
+
+    const oldRole = targetUser.role;
+    if (oldRole === role) {
+      res.status(400).json({
+        success: false,
+        message: `This user already possesses the "${role === 'super_admin' ? 'Super Administrator' : 'Administrator'}" role.`,
+      });
+      return;
+    }
+
+    // Apply role promotion
+    targetUser.role = role;
+    await targetUser.save();
+
+    // 1. Audit Log: ROLE_CHANGED
+    try {
+      await AuditLog.create({
+        action: 'ROLE_CHANGED',
+        actorId: req.user?.userId ? new mongoose.Types.ObjectId(req.user.userId) : undefined,
+        targetUserId: targetUser._id,
+        metadata: {
+          oldRole,
+          newRole: targetUser.role,
+          email: targetUser.email,
+          timestamp: new Date(),
+        },
+      });
+    } catch (logErr) {
+      console.warn('[AuditLog Warning] Failed to log role promotion:', logErr);
+    }
+
+    // 2. Dispatch role update email notification
+    let emailDispatched = false;
+    let simulatedEmail = false;
+    try {
+      const emailRes = await sendRoleChangedNotification({
+        email: targetUser.email,
+        name: targetUser.name,
+        oldRole,
+        newRole: targetUser.role,
+      });
+      emailDispatched = Boolean(emailRes.success);
+      simulatedEmail = Boolean(emailRes.simulated);
+    } catch (emailErr) {
+      console.error('[Role Promotion Email Error]', emailErr);
+    }
+
+    res.json({
+      success: true,
+      message: `User ${targetUser.email} has been promoted to ${role === 'super_admin' ? 'Super Administrator' : 'Administrator'}.`,
+      roleChanged: true,
+      emailDispatched,
+      simulated: simulatedEmail,
+      staff: {
+        _id: String(targetUser._id),
+        name: targetUser.name,
+        email: targetUser.email,
+        role: targetUser.role,
+        active: targetUser.active,
+        updatedAt: targetUser.updatedAt,
+      },
+    });
+  } catch (err: unknown) {
+    console.error('[Admin Staff Promote Error]', err);
+    res.status(500).json({ success: false, message: 'Failed to promote user account.' });
   }
 });
 

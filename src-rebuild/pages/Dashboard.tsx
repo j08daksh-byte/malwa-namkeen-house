@@ -20,6 +20,10 @@ import {
   CheckCircle2,
   XCircle,
   ShieldCheck,
+  Mail,
+  KeyRound,
+  RefreshCw,
+  ArrowLeft,
 } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/sections/Footer';
@@ -98,7 +102,27 @@ export default function Dashboard() {
   const [notice, setNotice] = useState<string>('');
   const [errorNotice, setErrorNotice] = useState<string>('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // 2-Step Password Change with Email OTP
+  const [passwordStep, setPasswordStep] = useState<1 | 2>(1);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [maskedEmail, setMaskedEmail] = useState('');
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const [isRequestingOtp, setIsRequestingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [isResendingOtp, setIsResendingOtp] = useState(false);
+
+  // Resend countdown timer
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    const interval = setInterval(() => {
+      setCooldownSeconds(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldownSeconds]);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('malwa_auth_token') : null;
 
@@ -308,48 +332,138 @@ export default function Dashboard() {
     }
   };
 
-  // Change Password
-  const handleChangePassword = async (e: FormEvent<HTMLFormElement>) => {
+  // Step 1: Request Password Change OTP
+  const handleRequestPasswordOtp = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!token) return;
 
-    setIsChangingPassword(true);
     setNotice('');
     setErrorNotice('');
 
-    const formData = new FormData(e.currentTarget);
-    const currentPassword = String(formData.get('currentPassword') || '');
-    const newPassword = String(formData.get('newPassword') || '');
-    const confirmPassword = String(formData.get('confirmPassword') || '');
-
-    if (newPassword !== confirmPassword) {
-      setErrorNotice('New passwords do not match.');
-      setIsChangingPassword(false);
+    if (!currentPassword) {
+      setErrorNotice('Current password is required.');
       return;
     }
 
+    if (!newPassword || newPassword.length < 6) {
+      setErrorNotice('New password must be at least 6 characters long.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setErrorNotice('New passwords do not match.');
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      setErrorNotice('New password must be different from your current password.');
+      return;
+    }
+
+    setIsRequestingOtp(true);
     try {
-      const res = await fetch('/api/customer/password', {
-        method: 'PUT',
+      const res = await fetch('/api/auth/password-change/request', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ currentPassword, newPassword }),
+        body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
-        setNotice('Password updated successfully.');
-        (e.target as HTMLFormElement).reset();
+        setMaskedEmail(data.maskedEmail || customer.email);
+        setCooldownSeconds(data.cooldownSeconds || 60);
+        setPasswordStep(2);
+        setNotice('A 6-digit verification code has been dispatched to your email.');
       } else {
-        setErrorNotice(data.message || 'Failed to update password.');
+        setErrorNotice(data.message || 'Failed to initiate password change.');
       }
     } catch {
-      setErrorNotice('Network error. Could not update password.');
+      setErrorNotice('Network error. Could not dispatch verification code.');
     } finally {
-      setIsChangingPassword(false);
+      setIsRequestingOtp(false);
     }
+  };
+
+  // Step 2: Verify OTP and Commit Password Change
+  const handleVerifyPasswordOtp = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!token) return;
+
+    if (!otpCode || !/^\d{6}$/.test(otpCode.trim())) {
+      setErrorNotice('Please enter the 6-digit verification code sent to your email.');
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+    setNotice('');
+    setErrorNotice('');
+
+    try {
+      const res = await fetch('/api/auth/password-change/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ otp: otpCode.trim() }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setNotice('Password updated successfully! Your account is now secured with your new password.');
+        setPasswordStep(1);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setOtpCode('');
+      } else {
+        setErrorNotice(data.message || 'Verification failed. Please check your code and try again.');
+      }
+    } catch {
+      setErrorNotice('Network error. Could not verify code.');
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
+  // Resend OTP handler
+  const handleResendOtp = async () => {
+    if (!token || cooldownSeconds > 0 || isResendingOtp) return;
+
+    setIsResendingOtp(true);
+    setNotice('');
+    setErrorNotice('');
+
+    try {
+      const res = await fetch('/api/auth/password-change/resend', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCooldownSeconds(data.cooldownSeconds || 60);
+        setNotice('A fresh verification code has been sent to your email.');
+      } else {
+        setErrorNotice(data.message || 'Failed to resend code.');
+      }
+    } catch {
+      setErrorNotice('Network error while resending verification code.');
+    } finally {
+      setIsResendingOtp(false);
+    }
+  };
+
+  const handleBackToStep1 = () => {
+    setPasswordStep(1);
+    setOtpCode('');
+    setErrorNotice('');
   };
 
   if (sessionLoading || !customer) {
@@ -1282,31 +1396,164 @@ export default function Dashboard() {
                 </div>
 
                 <div style={{ background: '#FDFAF4', border: '1px solid rgba(200,154,61,0.28)', borderRadius: '16px', padding: '28px' }}>
-                  <h3 style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '18px', fontWeight: 700, color: '#55000A', margin: '0 0 6px' }}>
-                    Change Password
-                  </h3>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <h3 style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '18px', fontWeight: 700, color: '#55000A', margin: 0 }}>
+                      Change Password
+                    </h3>
+                    <span style={{ fontSize: '11.5px', fontWeight: 700, padding: '3px 10px', borderRadius: '12px', background: passwordStep === 1 ? 'rgba(200,154,61,0.15)' : '#D1FAE5', color: passwordStep === 1 ? '#8A6016' : '#065F46', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {passwordStep === 1 ? 'Step 1 of 2: Details' : 'Step 2 of 2: Verification'}
+                    </span>
+                  </div>
                   <p style={{ color: '#75645C', fontSize: '13px', margin: '0 0 20px' }}>
-                    Ensure your account is protected with a secure password containing at least 6 characters.
+                    {passwordStep === 1
+                      ? 'Ensure your account is protected with a secure password containing at least 6 characters. A verification code will be sent to your registered email.'
+                      : `A 6-digit security code was dispatched to ${maskedEmail || 'your email'}. Enter it below to confirm your password change.`}
                   </p>
-                  <form className="profile-form" onSubmit={handleChangePassword}>
-                    <div className="profile-field profile-field--wide">
-                      <label>Current Password</label>
-                      <input name="currentPassword" type="password" required placeholder="••••••••" />
-                    </div>
-                    <div className="profile-field">
-                      <label>New Password</label>
-                      <input name="newPassword" type="password" required minLength={6} placeholder="••••••••" />
-                    </div>
-                    <div className="profile-field">
-                      <label>Confirm New Password</label>
-                      <input name="confirmPassword" type="password" required minLength={6} placeholder="••••••••" />
-                    </div>
-                    <div style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
-                      <button className="brand-button" type="submit" disabled={isChangingPassword}>
-                        {isChangingPassword ? 'Updating...' : 'Update Password'} <LockKeyhole size={14} />
-                      </button>
-                    </div>
-                  </form>
+
+                  {passwordStep === 1 ? (
+                    <form className="profile-form" onSubmit={handleRequestPasswordOtp}>
+                      <div className="profile-field profile-field--wide">
+                        <label>Current Password</label>
+                        <input
+                          name="currentPassword"
+                          type="password"
+                          required
+                          value={currentPassword}
+                          onChange={e => setCurrentPassword(e.target.value)}
+                          placeholder="••••••••"
+                        />
+                      </div>
+                      <div className="profile-field">
+                        <label>New Password (min. 6 characters)</label>
+                        <input
+                          name="newPassword"
+                          type="password"
+                          required
+                          minLength={6}
+                          value={newPassword}
+                          onChange={e => setNewPassword(e.target.value)}
+                          placeholder="••••••••"
+                        />
+                      </div>
+                      <div className="profile-field">
+                        <label>Confirm New Password</label>
+                        <input
+                          name="confirmPassword"
+                          type="password"
+                          required
+                          minLength={6}
+                          value={confirmPassword}
+                          onChange={e => setConfirmPassword(e.target.value)}
+                          placeholder="••••••••"
+                        />
+                      </div>
+                      <div style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
+                        <button className="brand-button" type="submit" disabled={isRequestingOtp} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                          {isRequestingOtp ? 'Sending Code…' : 'Send Verification Code'} <Mail size={14} />
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <form onSubmit={handleVerifyPasswordOtp} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div style={{ background: '#FAF6EE', border: '1px solid rgba(200,154,61,0.3)', borderRadius: '12px', padding: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#55000A', fontWeight: 600, fontSize: '13.5px', marginBottom: '4px' }}>
+                          <Mail size={16} color="#C89A3D" />
+                          <span>Code dispatched to {maskedEmail}</span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '12.5px', color: '#75645C' }}>
+                          Please check your inbox (and spam folder). The code remains valid for 10 minutes.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: '#34211D', marginBottom: '6px' }}>
+                          Enter 6-Digit Verification Code
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={6}
+                          required
+                          autoFocus
+                          value={otpCode}
+                          onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          placeholder="123456"
+                          style={{
+                            fontFamily: 'monospace, Courier, sans-serif',
+                            fontSize: '22px',
+                            fontWeight: 700,
+                            letterSpacing: '0.3em',
+                            textAlign: 'center',
+                            width: '100%',
+                            maxWidth: '260px',
+                            padding: '12px 16px',
+                            borderRadius: '10px',
+                            border: '1.5px solid rgba(200,154,61,0.4)',
+                            background: '#FFFDF8',
+                            color: '#3C0815',
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
+                        <button
+                          className="brand-button"
+                          type="submit"
+                          disabled={isVerifyingOtp || otpCode.length !== 6}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                        >
+                          {isVerifyingOtp ? 'Verifying…' : 'Verify & Change Password'} <LockKeyhole size={14} />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleResendOtp}
+                          disabled={cooldownSeconds > 0 || isResendingOtp}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '10px 16px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(200,154,61,0.3)',
+                            background: '#FFFDF8',
+                            color: cooldownSeconds > 0 ? '#9CA3AF' : '#55000A',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            cursor: cooldownSeconds > 0 || isResendingOtp ? 'not-allowed' : 'pointer',
+                            opacity: cooldownSeconds > 0 ? 0.7 : 1,
+                          }}
+                        >
+                          <RefreshCw size={13} className={isResendingOtp ? 'animate-spin' : ''} />
+                          <span>{cooldownSeconds > 0 ? `Resend Code (${cooldownSeconds}s)` : isResendingOtp ? 'Sending…' : 'Resend Code'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleBackToStep1}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#75645C',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <ArrowLeft size={13} />
+                          <span>Change Details / Back</span>
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </div>
               </>
             )}

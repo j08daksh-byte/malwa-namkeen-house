@@ -497,37 +497,54 @@ export default function ShopFilters({
 
         @media (max-width: 640px) {
           .eb-controls-wrapper {
-            margin-bottom: 12px;
+            margin-bottom: 14px;
           }
           .eb-controls-bar {
+            flex-direction: column;
+            align-items: stretch;
             gap: 8px;
-            padding: 4px 0 6px;
+            padding: 2px 0 4px;
           }
           .eb-controls-left {
-            flex: 1 1 100%;
-            gap: 8px;
-          }
-          .eb-controls-right {
+            display: flex;
+            align-items: center;
             width: 100%;
-            justify-content: space-between;
+            gap: 8px;
+            flex: none;
           }
           .eb-filter-trigger-btn {
             height: 38px;
-            min-height: 40px;
-            padding: 0 14px;
+            min-height: 38px;
+            padding: 0 12px;
             font-size: 11px;
+            gap: 6px;
+            flex-shrink: 0;
           }
           .eb-search-wrap {
             flex: 1 1 auto;
+            min-width: 0;
+          }
+          .eb-search-icon {
+            left: 11px;
           }
           .eb-search-input {
             height: 38px;
-            font-size: 12.5px;
+            font-size: 12px;
+            padding: 0 28px 0 32px;
+          }
+          .eb-controls-right {
+            width: 100%;
+            flex-shrink: 0;
+          }
+          .eb-sort-select-wrap {
+            width: 100%;
           }
           .eb-sort-select {
-            height: 36px;
+            width: 100%;
+            height: 38px;
+            min-height: 38px;
             font-size: 11px;
-            padding: 0 28px 0 12px;
+            padding: 0 32px 0 14px;
           }
           .eb-results-count {
             font-size: 11px;
@@ -578,7 +595,7 @@ export default function ShopFilters({
               type="text"
               value={searchQuery}
               onChange={e => onSearchChange(e.target.value)}
-              placeholder="Search Ratlami Sev, Mathri, Sweets..."
+              placeholder="Search delicacies, sev…"
               className="eb-search-input"
               aria-label="Search delicacies"
             />

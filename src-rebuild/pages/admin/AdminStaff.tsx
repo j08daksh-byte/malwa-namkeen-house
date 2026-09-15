@@ -45,12 +45,17 @@ export default function AdminStaff() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showRoleConfirmModal, setShowRoleConfirmModal] = useState(false);
+  const [showPromoteConfirmModal, setShowPromoteConfirmModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
 
   // Form states
+  const [inviteTab, setInviteTab] = useState<'new' | 'promote'>('new');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState<'admin' | 'super_admin'>('admin');
+  const [promoteEmail, setPromoteEmail] = useState('');
+  const [promoteRole, setPromoteRole] = useState<'admin' | 'super_admin'>('admin');
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState<'admin' | 'super_admin'>('admin');
   const [editActive, setEditActive] = useState(true);
@@ -90,7 +95,12 @@ export default function AdminStaff() {
 
   // Modal Escape & Scroll Locking
   useEffect(() => {
-    const isModalOpen = showInviteModal || showEditModal || showDeleteModal;
+    const isModalOpen =
+      showInviteModal ||
+      showEditModal ||
+      showDeleteModal ||
+      showRoleConfirmModal ||
+      showPromoteConfirmModal;
     if (isModalOpen) {
       document.body.style.overflow = 'hidden';
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -98,6 +108,8 @@ export default function AdminStaff() {
           setShowInviteModal(false);
           setShowEditModal(false);
           setShowDeleteModal(false);
+          setShowRoleConfirmModal(false);
+          setShowPromoteConfirmModal(false);
         }
       };
       window.addEventListener('keydown', handleKeyDown);
@@ -106,7 +118,13 @@ export default function AdminStaff() {
         window.removeEventListener('keydown', handleKeyDown);
       };
     }
-  }, [showInviteModal, showEditModal, showDeleteModal]);
+  }, [
+    showInviteModal,
+    showEditModal,
+    showDeleteModal,
+    showRoleConfirmModal,
+    showPromoteConfirmModal,
+  ]);
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,8 +161,18 @@ export default function AdminStaff() {
     }
   };
 
-  const handleEditSubmit = async (e: React.FormEvent) => {
+  const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedStaff) return;
+    // If role is being changed, intercept with confirmation modal first
+    if (selectedStaff.role !== editRole) {
+      setShowRoleConfirmModal(true);
+      return;
+    }
+    executeEditSubmit();
+  };
+
+  const executeEditSubmit = async () => {
     if (!selectedStaff) return;
     setActionLoading(true);
     try {
@@ -163,14 +191,71 @@ export default function AdminStaff() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast('success', 'Staff member updated successfully.');
+        setShowRoleConfirmModal(false);
         setShowEditModal(false);
+        if (data.roleChanged) {
+          const emailNotice = data.emailDispatched
+            ? ` A notification email has been dispatched to ${selectedStaff.email}.`
+            : data.simulated
+            ? ' (Notification email simulated in dev).'
+            : '';
+          showToast('success', `Administrator role updated successfully.${emailNotice}`);
+        } else {
+          showToast('success', 'Staff member updated successfully.');
+        }
         fetchStaff();
       } else {
         showToast('error', data.message || 'Failed to update staff member.');
       }
     } catch {
       showToast('error', 'Network error updating staff member.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handlePromoteSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promoteEmail.trim()) {
+      showToast('error', 'Please enter a valid user email address.');
+      return;
+    }
+    setShowPromoteConfirmModal(true);
+  };
+
+  const executePromote = async () => {
+    setActionLoading(true);
+    try {
+      const token = localStorage.getItem('malwa_admin_token');
+      const res = await fetch('/api/admin/staff/promote', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          email: promoteEmail.trim(),
+          role: promoteRole,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setShowPromoteConfirmModal(false);
+        setShowInviteModal(false);
+        setPromoteEmail('');
+        setPromoteRole('admin');
+        const emailNotice = data.emailDispatched
+          ? ` A notification email has been dispatched to ${promoteEmail}.`
+          : data.simulated
+          ? ' (Notification email simulated in dev).'
+          : '';
+        showToast('success', `User promoted successfully.${emailNotice}`);
+        fetchStaff();
+      } else {
+        showToast('error', data.message || 'Failed to promote user.');
+      }
+    } catch {
+      showToast('error', 'Network error while promoting user.');
     } finally {
       setActionLoading(false);
     }
@@ -547,75 +632,170 @@ export default function AdminStaff() {
         )}
       </Card>
 
-      {/* Invite Modal */}
+      {/* Invite & Promote Modal */}
       {showInviteModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 9999 }}>
           <div style={{ background: '#fff', borderRadius: '16px', maxWidth: '460px', width: '100%', padding: '28px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#1A0A0F' }}>Invite Administrator</h3>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#1A0A0F' }}>
+                {inviteTab === 'new' ? 'Invite Administrator' : 'Promote Existing User'}
+              </h3>
               <button onClick={() => setShowInviteModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
                 <X size={20} color="#6B7280" />
               </button>
             </div>
-            <p style={{ margin: '0 0 20px', fontSize: '13px', color: '#6B7280' }}>
-              Generate a secure invitation link for a new staff member to activate their administrative account.
-            </p>
 
-            <form onSubmit={handleInvite}>
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Staff Member Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={inviteName}
-                  onChange={e => setInviteName(e.target.value)}
-                  placeholder="e.g. Ramesh Sharma"
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '13.5px', outline: 'none' }}
-                />
-              </div>
+            {/* Mode Switcher */}
+            <div style={{ display: 'flex', borderBottom: '1px solid #E5E7EB', marginBottom: '20px' }}>
+              <button
+                type="button"
+                onClick={() => setInviteTab('new')}
+                style={{
+                  flex: 1,
+                  padding: '9px 12px',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: inviteTab === 'new' ? '2px solid #3C0815' : '2px solid transparent',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  color: inviteTab === 'new' ? '#3C0815' : '#6B7280',
+                  cursor: 'pointer',
+                }}
+              >
+                Invite New Staff
+              </button>
+              <button
+                type="button"
+                onClick={() => setInviteTab('promote')}
+                style={{
+                  flex: 1,
+                  padding: '9px 12px',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: inviteTab === 'promote' ? '2px solid #3C0815' : '2px solid transparent',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  color: inviteTab === 'promote' ? '#3C0815' : '#6B7280',
+                  cursor: 'pointer',
+                }}
+              >
+                Promote User / Customer
+              </button>
+            </div>
 
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Staff Email Address</label>
-                <input
-                  type="email"
-                  required
-                  value={inviteEmail}
-                  onChange={e => setInviteEmail(e.target.value)}
-                  placeholder="staff@malwanamkeen.com"
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '13.5px', outline: 'none' }}
-                />
-              </div>
+            {inviteTab === 'new' ? (
+              <>
+                <p style={{ margin: '0 0 20px', fontSize: '13px', color: '#6B7280' }}>
+                  Generate a secure invitation link for a new staff member to activate their administrative account.
+                </p>
 
-              <div style={{ marginBottom: '22px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Access Role</label>
-                <select
-                  value={inviteRole}
-                  onChange={e => setInviteRole(e.target.value as any)}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '13.5px', background: '#fff', outline: 'none' }}
-                >
-                  <option value="admin">Administrator (Products, Orders, Discounts, Inquiries)</option>
-                  <option value="super_admin">Super Administrator (Full Access + Staff Management)</option>
-                </select>
-              </div>
+                <form onSubmit={handleInvite}>
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Staff Member Full Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={inviteName}
+                      onChange={e => setInviteName(e.target.value)}
+                      placeholder="e.g. Ramesh Sharma"
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '13.5px', outline: 'none' }}
+                    />
+                  </div>
 
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowInviteModal(false)}
-                  style={{ flex: 1, padding: '11px', background: '#F3F4F6', color: '#4B5563', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '13.5px', cursor: 'pointer' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  style={{ flex: 2, padding: '11px', background: '#3C0815', color: '#FFF8EC', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '13.5px', cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                >
-                  <Send size={15} />
-                  <span>{actionLoading ? 'Sending…' : 'Dispatch Invitation'}</span>
-                </button>
-              </div>
-            </form>
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Staff Email Address</label>
+                    <input
+                      type="email"
+                      required
+                      value={inviteEmail}
+                      onChange={e => setInviteEmail(e.target.value)}
+                      placeholder="staff@malwanamkeen.com"
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '13.5px', outline: 'none' }}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: '22px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Access Role</label>
+                    <select
+                      value={inviteRole}
+                      onChange={e => setInviteRole(e.target.value as any)}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '13.5px', background: '#fff', outline: 'none' }}
+                    >
+                      <option value="admin">Administrator (Products, Orders, Discounts, Inquiries)</option>
+                      <option value="super_admin">Super Administrator (Full Access + Staff Management)</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowInviteModal(false)}
+                      style={{ flex: 1, padding: '11px', background: '#F3F4F6', color: '#4B5563', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '13.5px', cursor: 'pointer' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={actionLoading}
+                      style={{ flex: 2, padding: '11px', background: '#3C0815', color: '#FFF8EC', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '13.5px', cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                    >
+                      <Send size={15} />
+                      <span>{actionLoading ? 'Sending…' : 'Dispatch Invitation'}</span>
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              <>
+                <p style={{ margin: '0 0 20px', fontSize: '13px', color: '#6B7280' }}>
+                  Elevate an existing customer or user account to administrative staff. A notification email will be dispatched to their address.
+                </p>
+
+                <form onSubmit={handlePromoteSubmit}>
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Registered User Email</label>
+                    <input
+                      type="email"
+                      required
+                      value={promoteEmail}
+                      onChange={e => setPromoteEmail(e.target.value)}
+                      placeholder="customer@example.com"
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '13.5px', outline: 'none' }}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: '22px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>Promote to Role</label>
+                    <select
+                      value={promoteRole}
+                      onChange={e => setPromoteRole(e.target.value as any)}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '13.5px', background: '#fff', outline: 'none' }}
+                    >
+                      <option value="admin">Administrator (Products, Orders, Discounts, Inquiries)</option>
+                      <option value="super_admin">Super Administrator (Full Access + Staff Management)</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowInviteModal(false)}
+                      style={{ flex: 1, padding: '11px', background: '#F3F4F6', color: '#4B5563', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '13.5px', cursor: 'pointer' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={actionLoading}
+                      style={{ flex: 2, padding: '11px', background: '#3C0815', color: '#FFF8EC', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '13.5px', cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                    >
+                      <ShieldCheck size={16} />
+                      <span>{actionLoading ? 'Promoting…' : 'Promote Account'}</span>
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -720,6 +900,102 @@ export default function AdminStaff() {
                 style={{ flex: 1, padding: '11px', background: '#DC2626', color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '13.5px', cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}
               >
                 {actionLoading ? 'Removing…' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Role Change Confirmation Modal */}
+      {showRoleConfirmModal && selectedStaff && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 10000 }}>
+          <div style={{ background: '#fff', borderRadius: '16px', maxWidth: '460px', width: '100%', padding: '28px', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: editRole === 'super_admin' ? '#FEF3C7' : '#EFF6FF', color: editRole === 'super_admin' ? '#D97706' : '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+              <ShieldCheck size={26} />
+            </div>
+
+            <h3 style={{ margin: '0 0 6px', fontSize: '19px', fontWeight: 700, color: '#1A0A0F' }}>
+              Change Administrator Role?
+            </h3>
+            <p style={{ margin: '0 0 16px', fontSize: '13.5px', color: '#4B5563' }}>
+              <strong>{selectedStaff.name}</strong> ({selectedStaff.email})
+            </p>
+
+            <div style={{ background: '#FAF7F2', border: '1px solid #EAE5D9', borderRadius: '10px', padding: '14px', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', fontWeight: 600 }}>
+                <span style={{ color: '#6B7280' }}>
+                  Current: <strong style={{ color: '#1A0A0F' }}>{selectedStaff.role === 'super_admin' ? 'Super Admin' : 'Admin'}</strong>
+                </span>
+                <span style={{ color: '#C89A3D' }}>→</span>
+                <span style={{ color: editRole === 'super_admin' ? '#B45309' : '#047857' }}>
+                  New: <strong>{editRole === 'super_admin' ? 'Super Admin' : 'Admin'}</strong>
+                </span>
+              </div>
+              <p style={{ margin: '10px 0 0', fontSize: '12.5px', color: '#57534E', lineHeight: 1.5 }}>
+                {editRole === 'super_admin'
+                  ? 'This will grant this account elevated administrative permissions across Malwa Namkeen House, including team access control and staff management. A notification email will be dispatched automatically.'
+                  : 'This will revoke Super Administrator privileges from this account. The user will retain standard Administrator access. A notification email will be dispatched automatically.'}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setShowRoleConfirmModal(false)}
+                style={{ flex: 1, padding: '11px', background: '#F3F4F6', color: '#4B5563', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '13.5px', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeEditSubmit}
+                disabled={actionLoading}
+                style={{ flex: 2, padding: '11px', background: '#3C0815', color: '#FFF8EC', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '13.5px', cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}
+              >
+                {actionLoading ? 'Updating…' : 'Confirm Role Update'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Promotion Confirmation Modal */}
+      {showPromoteConfirmModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 10000 }}>
+          <div style={{ background: '#fff', borderRadius: '16px', maxWidth: '460px', width: '100%', padding: '28px', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#D1FAE5', color: '#065F46', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+              <ShieldCheck size={26} />
+            </div>
+
+            <h3 style={{ margin: '0 0 6px', fontSize: '19px', fontWeight: 700, color: '#1A0A0F' }}>
+              Confirm Role Promotion?
+            </h3>
+            <p style={{ margin: '0 0 16px', fontSize: '13.5px', color: '#4B5563' }}>
+              Promoting user: <strong>{promoteEmail}</strong>
+            </p>
+
+            <div style={{ background: '#FAF7F2', border: '1px solid #EAE5D9', borderRadius: '10px', padding: '14px', marginBottom: '18px', fontSize: '13px' }}>
+              <div>Assigned Role: <strong style={{ color: '#3C0815' }}>{promoteRole === 'super_admin' ? 'Super Administrator' : 'Administrator'}</strong></div>
+              <p style={{ margin: '8px 0 0', fontSize: '12.5px', color: '#57534E', lineHeight: 1.5 }}>
+                This user account will immediately receive administrative access and an official notification email will be dispatched.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setShowPromoteConfirmModal(false)}
+                style={{ flex: 1, padding: '11px', background: '#F3F4F6', color: '#4B5563', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '13.5px', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executePromote}
+                disabled={actionLoading}
+                style={{ flex: 2, padding: '11px', background: '#3C0815', color: '#FFF8EC', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '13.5px', cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}
+              >
+                {actionLoading ? 'Promoting…' : 'Confirm Promotion'}
               </button>
             </div>
           </div>

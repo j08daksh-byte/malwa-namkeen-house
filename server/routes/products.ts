@@ -48,6 +48,9 @@ function formatPublicProduct(p: any) {
 
   const totalStock = options.reduce((sum: number, o: any) => sum + (o.stock || 0), 0);
 
+  const basePrice = options[0]?.price || 0;
+  const baseOrigPrice = options[0]?.originalPrice;
+
   return {
     id: String(p._id),
     _id: String(p._id),
@@ -71,6 +74,9 @@ function formatPublicProduct(p: any) {
     categoryLabel: p.category?.name || 'Heritage Namkeens',
     images: Array.isArray(p.images) && p.images.length > 0 ? p.images : [primaryImage],
     image: primaryImage,
+    price: basePrice,
+    originalPrice: baseOrigPrice,
+    stock: totalStock,
     badge: p.badge || (p.isBestSeller ? 'Best Seller' : p.featured ? 'Signature' : undefined),
     rating: typeof p.rating === 'number' ? p.rating : 4.9,
     reviewCount: typeof p.reviewCount === 'number' ? p.reviewCount : 124,
@@ -111,10 +117,10 @@ router.get('/categories', async (_req: Request, res: Response) => {
       }
     }
   } catch (_err: unknown) {
-    // Fall back below
+    // Fall back below only if DB fails/disconnected
   }
 
-  // Fallback to rich static categories
+  // Fallback to static categories only if MongoDB is disconnected in development
   res.json({
     success: true,
     categories: FALLBACK_CATEGORIES.map(c => ({
@@ -173,7 +179,7 @@ router.get('/products/best-sellers', async (_req: Request, res: Response) => {
     console.warn('[Public Best Sellers Error]', err);
   }
 
-  // Fallback to top 4 products from static catalog
+  // Fallback to top 4 products from static catalog only if MongoDB unavailable
   const fallback = FALLBACK_PRODUCTS.slice(0, 4);
   res.json({
     success: true,
@@ -184,7 +190,8 @@ router.get('/products/best-sellers', async (_req: Request, res: Response) => {
 
 /**
  * GET /api/products
- * Public customer storefront product catalog with search, category filtering & sorting
+ * Public customer storefront product catalog with search, category filtering & sorting.
+ * When MongoDB is connected, MongoDB is strictly authoritative (0 matches returns empty array).
  */
 router.get('/products', async (req: Request, res: Response) => {
   try {
@@ -210,11 +217,16 @@ router.get('/products', async (req: Request, res: Response) => {
           if (catDoc) {
             filter.category = catDoc._id;
           } else {
-            const hasAnyCat = await Category.countDocuments().maxTimeMS(2000);
-            if (hasAnyCat > 0) {
-              res.json({ success: true, products: [], total: 0 });
-              return;
-            }
+            // Category slug does not match any registered category in DB
+            res.json({
+              success: true,
+              products: [],
+              categories: [],
+              total: 0,
+              page: 1,
+              totalPages: 1,
+            });
+            return;
           }
         }
       }
@@ -267,31 +279,34 @@ router.get('/products', async (req: Request, res: Response) => {
         Category.find({ active: true }).sort({ sortOrder: 1 }).maxTimeMS(2000).lean(),
       ]);
 
-      if (total > 0 || rawProducts.length > 0) {
-        const formattedProducts = rawProducts.map(formatPublicProduct);
-        res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
-        res.json({
-          success: true,
-          products: formattedProducts,
-          categories: allCategories.map(c => ({
-            id: c.slug,
-            _id: String(c._id),
-            slug: c.slug,
-            name: c.name,
-            label: c.name,
-          })),
-          total,
-          page: pageNum,
-          totalPages: Math.ceil(total / limitNum) || 1,
-        });
-        return;
+      // When MongoDB is connected, return DB results directly even if 0 results match
+      const formattedProducts = rawProducts.map(formatPublicProduct);
+      if (process.env.NODE_ENV === 'production') {
+        res.setHeader('Cache-Control', 'public, max-age=10, stale-while-revalidate=30');
+      } else {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       }
+      res.json({
+        success: true,
+        products: formattedProducts,
+        categories: allCategories.map(c => ({
+          id: c.slug,
+          _id: String(c._id),
+          slug: c.slug,
+          name: c.name,
+          label: c.name,
+        })),
+        total,
+        page: pageNum,
+        totalPages: Math.ceil(total / limitNum) || 1,
+      });
+      return;
     }
   } catch (_err: unknown) {
-    // Fall back to static catalog
+    // If MongoDB threw a connection error, fall through to static fallback below
   }
 
-  // Fallback to rich static product catalog
+  // Fallback to rich static product catalog ONLY if MongoDB is completely disconnected/unavailable
   let filtered = [...FALLBACK_PRODUCTS];
   const { category = 'all', search = '', spice = 'All', sortBy = 'featured' } = req.query as Record<string, string>;
 
@@ -337,40 +352,56 @@ router.get('/products', async (req: Request, res: Response) => {
 
 /**
  * GET /api/products/:slugOrId
- * Public product detail by slug or ID
+ * Public product detail strictly resolved in deterministic order:
+ * 1. MongoDB ObjectId match (_id)
+ * 2. Persisted exact slug match (case-insensitive)
+ * When MongoDB is connected, missing product returns 404. No fuzzy regex name matching.
  */
 router.get('/products/:slugOrId', async (req: Request, res: Response) => {
   const { slugOrId } = req.params;
+  const cleanParam = (slugOrId || '').trim();
+
   try {
     if (mongoose.connection.readyState === 1) {
       let productDoc: any = null;
 
-      if (mongoose.Types.ObjectId.isValid(slugOrId)) {
-        productDoc = await Product.findOne({ _id: slugOrId, active: true })
+      // 1. Check valid MongoDB ObjectId
+      if (mongoose.Types.ObjectId.isValid(cleanParam)) {
+        productDoc = await Product.findOne({ _id: cleanParam, active: true })
           .populate({ path: 'category', select: 'name slug image', strictPopulate: false })
           .lean();
       }
 
+      // 2. Exact case-insensitive slug lookup
       if (!productDoc) {
-        productDoc = await Product.findOne({ slug: slugOrId.toLowerCase(), active: true })
+        productDoc = await Product.findOne({ slug: cleanParam.toLowerCase(), active: true })
           .populate({ path: 'category', select: 'name slug image', strictPopulate: false })
           .lean();
       }
 
       if (productDoc) {
         const product = formatPublicProduct(productDoc);
-        res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+        if (process.env.NODE_ENV === 'production') {
+          res.setHeader('Cache-Control', 'public, max-age=10, stale-while-revalidate=30');
+        } else {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        }
         res.json({ success: true, product });
         return;
       }
+
+      // MongoDB is authoritative: if product was not found or is inactive, return 404.
+      res.status(404).json({ success: false, message: 'Product delicacy not found or unavailable.' });
+      return;
     }
   } catch (_err: unknown) {
-    // Fall back to static lookup
+    // Fall back to static lookup only if database is disconnected
   }
 
-  const cleanSlug = slugOrId.toLowerCase().trim();
+  // Static fallback ONLY if database is disconnected in development
+  const cleanSlug = cleanParam.toLowerCase();
   const fallback = FALLBACK_PRODUCTS.find(
-    p => (p.slug || p.id).toLowerCase() === cleanSlug || p.id === cleanSlug || p.name.toLowerCase().replace(/\s+/g, '-').includes(cleanSlug) || cleanSlug.includes(p.id)
+    p => (p.slug || p.id).toLowerCase() === cleanSlug || p.id.toLowerCase() === cleanSlug
   );
   if (fallback) {
     res.json({ success: true, product: fallback });

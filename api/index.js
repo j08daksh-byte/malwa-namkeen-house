@@ -866,58 +866,65 @@ async function syncDatabaseCatalog() {
       const p = PRODUCTS[idx];
       const catId = categoryDocMap.get(p.category) || Array.from(categoryDocMap.values())[0];
       const pSlug = p.slug || p.id;
-      const variants = p.options.map((opt, vIdx) => ({
-        label: opt.weight,
-        value: parseFloat(opt.weight) || 250,
-        unit: opt.weight.replace(/^[0-9.]+/, "").trim() || "g",
-        price: opt.price,
-        salePrice: opt.originalPrice && opt.originalPrice > opt.price ? opt.price : void 0,
-        stock: 100,
-        sku: `MLW-${p.id.slice(0, 4).toUpperCase()}-${opt.weight.replace(/\s+/g, "").toUpperCase()}`,
-        active: true,
-        sortOrder: vIdx
-      }));
-      const productPayload = {
-        name: p.name,
-        slug: pSlug,
-        hindiName: p.hindiName || "",
-        tagline: p.tagline || "",
-        description: p.description,
-        story: p.story || "",
-        ingredients: p.ingredients || [],
-        spiceLevel: p.spiceLevel || "Medium",
-        shelfLife: p.shelfLife || "90 Days",
-        oilUsed: p.oilUsed || "Pure Groundnut Oil",
-        isVegetarian: p.isVegetarian ?? true,
-        category: catId,
-        images: Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image],
-        badge: p.badge || (p.isBestSeller ? "Bestseller" : ""),
-        featured: Boolean(p.featured),
-        isBestSeller: Boolean(p.isBestSeller),
-        bestSellerAt: p.isBestSeller ? new Date(Date.now() - idx * 6e4) : null,
-        active: p.isAvailable ?? true,
-        rating: p.rating || 4.9,
-        reviewCount: p.reviewCount || 42,
-        variants
-      };
-      await Product.findOneAndUpdate(
-        { slug: pSlug },
-        { $set: productPayload },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
+      const existing = await Product.findOne({ slug: pSlug });
+      if (!existing) {
+        const variants = p.options.map((opt, vIdx) => ({
+          label: opt.weight,
+          value: parseFloat(opt.weight) || 250,
+          unit: opt.weight.replace(/^[0-9.]+/, "").trim() || "g",
+          price: opt.price,
+          salePrice: opt.originalPrice && opt.originalPrice > opt.price ? opt.price : void 0,
+          stock: 100,
+          sku: `MLW-${p.id.slice(0, 4).toUpperCase()}-${opt.weight.replace(/\s+/g, "").toUpperCase()}`,
+          active: true,
+          sortOrder: vIdx
+        }));
+        const productPayload = {
+          name: p.name,
+          slug: pSlug,
+          hindiName: p.hindiName || "",
+          tagline: p.tagline || "",
+          description: p.description,
+          story: p.story || "",
+          ingredients: p.ingredients || [],
+          spiceLevel: p.spiceLevel || "Medium",
+          shelfLife: p.shelfLife || "90 Days",
+          oilUsed: p.oilUsed || "Pure Groundnut Oil",
+          isVegetarian: p.isVegetarian ?? true,
+          category: catId,
+          images: Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image],
+          badge: p.badge || (p.isBestSeller ? "Bestseller" : ""),
+          featured: Boolean(p.featured),
+          isBestSeller: Boolean(p.isBestSeller),
+          bestSellerAt: p.isBestSeller ? new Date(Date.now() - idx * 6e4) : null,
+          active: p.isAvailable ?? true,
+          rating: p.rating || 4.9,
+          reviewCount: p.reviewCount || 42,
+          variants
+        };
+        await Product.create(productPayload);
+      }
     }
-    await Product.deleteMany({ slug: { $nin: PRODUCTS.map((p) => p.slug || p.id) } });
-    console.log(`[MongoDB] Database catalog synchronized: ${validCategories.length} categories, ${PRODUCTS.length} products (4 bestsellers).`);
+    console.log(`[MongoDB] Database catalog synchronized: ${validCategories.length} categories verified.`);
   } catch (err) {
     console.warn("[MongoDB] Database catalog sync warning:", err instanceof Error ? err.message : err);
   }
 }
 async function connectMongoDB() {
   if (isConnected) return;
-  const uri = process.env.MONGODB_URI;
+  const isProd2 = process.env.NODE_ENV === "production";
+  let uri = process.env.MONGODB_URI;
   if (!uri) {
-    console.warn("[MongoDB] MONGODB_URI not set \u2014 skipping MongoDB connection.");
-    return;
+    if (!isProd2) {
+      console.warn("[MongoDB] MONGODB_URI not set. In development, attempting local MongoDB at mongodb://127.0.0.1:27017/malwa_namkeen");
+      uri = "mongodb://127.0.0.1:27017/malwa_namkeen";
+    } else {
+      console.error("[MongoDB Error] MONGODB_URI is not set in production. Database connection aborted.");
+      return;
+    }
+  } else if (!isProd2 && uri.includes("mock:mock")) {
+    console.warn("[MongoDB] Mock Atlas URI detected in development. Using local MongoDB at mongodb://127.0.0.1:27017/malwa_namkeen");
+    uri = "mongodb://127.0.0.1:27017/malwa_namkeen";
   }
   try {
     await mongoose4.connect(uri, {
@@ -930,7 +937,11 @@ async function connectMongoDB() {
     await syncDatabaseCatalog();
   } catch (err) {
     const message2 = err instanceof Error ? err.message : String(err);
-    console.error("[MongoDB] Connection failed:", message2);
+    if (isProd2) {
+      console.error("[MongoDB Error] Production database connection failed:", message2);
+    } else {
+      console.warn("[MongoDB Warning] Database connection failed:", message2);
+    }
     throw err;
   }
 }
@@ -985,568 +996,110 @@ var VALID_CATEGORIES = ENQUIRY_CATEGORIES.map((c) => c.value);
 var VALID_LOCATION_IDS = ["bengaluru-sarjapur"];
 
 // server/routes/auth.ts
+import crypto from "crypto";
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 
-// server/lib/auth.ts
-import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
-import dotenv from "dotenv";
-import path from "path";
-dotenv.config();
-dotenv.config({ path: path.resolve(process.cwd(), ".env.local"), override: true });
-function getJwtSecret() {
-  const secret = process.env.JWT_SECRET;
-  const isProd2 = process.env.NODE_ENV === "production";
-  if (isProd2) {
-    if (!secret || secret.trim().length < 32) {
-      throw new Error("[Security Error] Production JWT_SECRET is required and must be at least 32 characters long.");
+// server/models/OtpVerification.ts
+import mongoose5, { Schema as Schema4 } from "mongoose";
+var otpVerificationSchema = new Schema4(
+  {
+    userId: {
+      type: Schema4.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true
+    },
+    purpose: {
+      type: String,
+      enum: ["password-change"],
+      required: true,
+      index: true
+    },
+    otpHash: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    pendingPasswordHash: {
+      type: String,
+      required: true,
+      select: false
+    },
+    expiresAt: {
+      type: Date,
+      required: true,
+      index: { expires: 0 }
+      // MongoDB TTL index to automatically purge expired records
+    },
+    attempts: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    resendAvailableAt: {
+      type: Date,
+      required: true,
+      default: () => new Date(Date.now() + 60 * 1e3)
+      // Default 60s cooldown
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
     }
-    return secret.trim();
+  },
+  {
+    timestamps: false
   }
-  return secret?.trim() || "malwa-namkeen-dev-only-secret-key-2026";
-}
-var TOKEN_EXPIRY = "7d";
-var AUTH_COOKIE_NAME = "malwa_auth_token";
-async function hashPassword(plainText) {
-  const salt = await bcrypt.genSalt(10);
-  return bcrypt.hash(plainText, salt);
-}
-async function comparePassword(plainText, hash) {
-  return bcrypt.compare(plainText, hash);
-}
-function generateToken(payload) {
-  return jwt.sign(payload, getJwtSecret(), { expiresIn: TOKEN_EXPIRY });
-}
-function verifyToken(token) {
-  try {
-    return jwt.verify(token, getJwtSecret());
-  } catch {
-    return null;
-  }
-}
-function extractToken(req) {
-  if (req.cookies && req.cookies[AUTH_COOKIE_NAME]) {
-    return req.cookies[AUTH_COOKIE_NAME];
-  }
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    return authHeader.substring(7).trim();
-  }
-  return null;
-}
-function setAuthCookie(res, token) {
-  const isProd2 = process.env.NODE_ENV === "production";
-  res.cookie(AUTH_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: isProd2,
-    sameSite: "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1e3,
-    // 7 days
-    path: "/"
-  });
-}
-function clearAuthCookie(res) {
-  const isProd2 = process.env.NODE_ENV === "production";
-  res.clearCookie(AUTH_COOKIE_NAME, {
-    httpOnly: true,
-    secure: isProd2,
-    sameSite: "lax",
-    path: "/"
-  });
-}
-async function requireAuth(req, res, next) {
-  const token = extractToken(req);
-  if (!token) {
-    res.status(401).json({
-      success: false,
-      message: "Authentication required. Please sign in."
-    });
-    return;
-  }
-  const payload = verifyToken(token);
-  if (!payload) {
-    res.status(401).json({
-      success: false,
-      message: "Invalid or expired session. Please sign in again."
-    });
-    return;
-  }
-  req.user = payload;
-  res.locals.user = payload;
-  next();
-}
-async function requireAdmin(req, res, next) {
-  const token = extractToken(req);
-  if (!token) {
-    res.status(401).json({
-      success: false,
-      message: "Authentication required. Please sign in."
-    });
-    return;
-  }
-  const payload = verifyToken(token);
-  if (!payload) {
-    res.status(401).json({
-      success: false,
-      message: "Invalid or expired session. Please sign in again."
-    });
-    return;
-  }
-  if (payload.role !== "admin" && payload.role !== "super_admin") {
-    res.status(403).json({
-      success: false,
-      message: "Access denied. Administrator privilege required."
-    });
-    return;
-  }
-  req.user = payload;
-  res.locals.user = payload;
-  next();
-}
-async function requireSuperAdmin(req, res, next) {
-  const token = extractToken(req);
-  if (!token) {
-    res.status(401).json({
-      success: false,
-      message: "Authentication required. Please sign in."
-    });
-    return;
-  }
-  const payload = verifyToken(token);
-  if (!payload) {
-    res.status(401).json({
-      success: false,
-      message: "Invalid or expired session. Please sign in again."
-    });
-    return;
-  }
-  if (payload.role !== "super_admin") {
-    res.status(403).json({
-      success: false,
-      message: "Access denied. Super Administrator privilege required."
-    });
-    return;
-  }
-  req.user = payload;
-  res.locals.user = payload;
-  next();
-}
+);
+otpVerificationSchema.index({ userId: 1, purpose: 1 });
+var OtpVerification = mongoose5.models.OtpVerification || mongoose5.model("OtpVerification", otpVerificationSchema);
 
-// server/routes/auth.ts
-var router = Router();
-var loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1e3,
-  // 15 minutes
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    message: "Too many sign in attempts. Please try again after 15 minutes."
+// server/models/AuditLog.ts
+import mongoose6, { Schema as Schema5 } from "mongoose";
+var auditLogSchema = new Schema5(
+  {
+    action: {
+      type: String,
+      required: true,
+      enum: ["PASSWORD_CHANGE_REQUESTED", "PASSWORD_CHANGED", "ROLE_CHANGED"],
+      index: true
+    },
+    actorId: {
+      type: Schema5.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true
+    },
+    targetUserId: {
+      type: Schema5.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true
+    },
+    metadata: {
+      type: Schema5.Types.Mixed,
+      default: {}
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+      index: true
+    }
+  },
+  {
+    timestamps: false
   }
-});
-var adminLoginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1e3,
-  // 15 minutes
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    message: "Too many admin sign in attempts. Please try again after 15 minutes."
-  }
-});
-var registerLimiter = rateLimit({
-  windowMs: 60 * 60 * 1e3,
-  // 1 hour
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    message: "Too many registration requests from this network. Please try again later."
-  }
-});
-var EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-router.post("/register", registerLimiter, async (req, res) => {
-  try {
-    const { name: name2, email: email2, phone: phone2, password } = req.body;
-    if (!name2 || typeof name2 !== "string" || name2.trim().length < 2) {
-      res.status(400).json({ success: false, message: "Please provide your full name (minimum 2 characters)." });
-      return;
-    }
-    if (!email2 || typeof email2 !== "string" || !EMAIL_REGEX.test(email2.trim().toLowerCase())) {
-      res.status(400).json({ success: false, message: "Please provide a valid email address." });
-      return;
-    }
-    if (!password || typeof password !== "string" || password.length < 6) {
-      res.status(400).json({
-        success: false,
-        message: "Password must be at least 6 characters long."
-      });
-      return;
-    }
-    const cleanEmail = email2.trim().toLowerCase();
-    const cleanName = name2.trim();
-    const cleanPhone = phone2 && typeof phone2 === "string" ? phone2.trim() : "";
-    const existing = await User.findOne({ email: cleanEmail });
-    if (existing) {
-      res.status(409).json({
-        success: false,
-        message: "An account with this email address already exists. Please sign in."
-      });
-      return;
-    }
-    const hashedPassword = await hashPassword(password);
-    const newUser = await User.create({
-      name: cleanName,
-      email: cleanEmail,
-      phone: cleanPhone,
-      password: hashedPassword,
-      role: "customer",
-      active: true
-    });
-    const token = generateToken({
-      userId: newUser._id.toString(),
-      email: newUser.email,
-      role: newUser.role
-    });
-    setAuthCookie(res, token);
-    res.status(201).json({
-      success: true,
-      message: "Account created successfully.",
-      user: {
-        id: newUser._id.toString(),
-        name: newUser.name,
-        email: newUser.email,
-        phone: newUser.phone,
-        role: newUser.role
-      },
-      token
-    });
-  } catch (err) {
-    console.error("[Auth Register Error]", err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: "Unable to complete registration. Please verify your connection or try again shortly."
-    });
-  }
-});
-router.post("/login", loginLimiter, async (req, res) => {
-  try {
-    const { email: email2, password } = req.body;
-    if (!email2 || !password) {
-      res.status(400).json({
-        success: false,
-        message: "Email and password are required."
-      });
-      return;
-    }
-    const cleanEmail = String(email2).trim().toLowerCase();
-    const user = await User.findOne({ email: cleanEmail }).select("+password");
-    if (!user || !user.password) {
-      res.status(401).json({
-        success: false,
-        message: "Email or password is incorrect."
-      });
-      return;
-    }
-    if (!user.active) {
-      res.status(403).json({
-        success: false,
-        message: "Your account is currently inactive. Please contact support."
-      });
-      return;
-    }
-    const isValid = await comparePassword(String(password), user.password);
-    if (!isValid) {
-      res.status(401).json({
-        success: false,
-        message: "Email or password is incorrect."
-      });
-      return;
-    }
-    user.lastLoginAt = /* @__PURE__ */ new Date();
-    await user.save();
-    const token = generateToken({
-      userId: user._id.toString(),
-      email: user.email,
-      role: user.role
-    });
-    setAuthCookie(res, token);
-    res.json({
-      success: true,
-      message: "Signed in successfully.",
-      user: {
-        id: user._id.toString(),
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role
-      },
-      token
-    });
-  } catch (err) {
-    console.error("[Auth Login Error]", err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: "Unable to connect to the authentication service. Please try again shortly."
-    });
-  }
-});
-router.get("/google/config", (_req, res) => {
-  const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
-  res.json({
-    success: true,
-    clientId,
-    isConfigured: Boolean(clientId)
-  });
-});
-async function verifyGoogleToken(credential) {
-  if (!credential || typeof credential !== "string" || credential.trim().length < 10) {
-    return null;
-  }
-  try {
-    const configuredClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
-    const response = await fetch(
-      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential.trim())}`
-    );
-    if (!response.ok) {
-      console.warn("[Google Auth Error] Token verification failed with status:", response.status);
-      return null;
-    }
-    const payload = await response.json();
-    if (!payload || !payload.email || !payload.sub) {
-      return null;
-    }
-    const validIssuers = ["accounts.google.com", "https://accounts.google.com"];
-    if (payload.iss && !validIssuers.includes(payload.iss)) {
-      console.warn("[Google Auth Error] Invalid token issuer:", payload.iss);
-      return null;
-    }
-    if (configuredClientId && payload.aud && payload.aud !== configuredClientId) {
-      console.warn("[Google Auth Error] Audience mismatch. Expected:", configuredClientId, "Got:", payload.aud);
-      return null;
-    }
-    const isEmailVerified = payload.email_verified === "true" || payload.email_verified === true;
-    if (!isEmailVerified) {
-      console.warn("[Google Auth Error] Google email is not verified.");
-      return null;
-    }
-    return {
-      sub: payload.sub,
-      email: String(payload.email).toLowerCase().trim(),
-      name: payload.name || payload.given_name || String(payload.email).split("@")[0],
-      picture: payload.picture || "",
-      email_verified: true
-    };
-  } catch (err) {
-    console.error("[Google Auth Verification Exception]:", err instanceof Error ? err.message : err);
-    return null;
-  }
-}
-router.post("/google", loginLimiter, async (req, res) => {
-  try {
-    const { credential, idToken } = req.body;
-    const tokenToVerify = credential || idToken;
-    if (!tokenToVerify || typeof tokenToVerify !== "string") {
-      res.status(400).json({
-        success: false,
-        message: "Google credential token is required."
-      });
-      return;
-    }
-    const googleUser = await verifyGoogleToken(tokenToVerify);
-    if (!googleUser || !googleUser.email) {
-      res.status(401).json({
-        success: false,
-        message: "Invalid or expired Google authentication token. Please try again."
-      });
-      return;
-    }
-    const cleanEmail = googleUser.email.trim().toLowerCase();
-    let user = await User.findOne({
-      $or: [{ email: cleanEmail }, { googleId: googleUser.sub }]
-    });
-    if (user) {
-      if (!user.active) {
-        res.status(403).json({
-          success: false,
-          message: "Your account is currently inactive. Please contact support."
-        });
-        return;
-      }
-      if (!user.googleId) user.googleId = googleUser.sub;
-      if (googleUser.picture && !user.avatar) user.avatar = googleUser.picture;
-      user.lastLoginAt = /* @__PURE__ */ new Date();
-      if (!user.emailVerifiedAt) user.emailVerifiedAt = /* @__PURE__ */ new Date();
-      await user.save();
-    } else {
-      user = await User.create({
-        name: googleUser.name.trim(),
-        email: cleanEmail,
-        googleId: googleUser.sub,
-        avatar: googleUser.picture || "",
-        role: "customer",
-        active: true,
-        lastLoginAt: /* @__PURE__ */ new Date(),
-        emailVerifiedAt: /* @__PURE__ */ new Date()
-      });
-    }
-    const token = generateToken({
-      userId: user._id.toString(),
-      email: user.email,
-      role: user.role
-    });
-    setAuthCookie(res, token);
-    res.json({
-      success: true,
-      message: "Google Sign-In successful.",
-      token,
-      user: {
-        id: user._id.toString(),
-        name: user.name,
-        email: user.email,
-        phone: user.phone || "",
-        avatar: user.avatar || "",
-        role: user.role
-      }
-    });
-  } catch (err) {
-    console.error("[Google Auth Error]", err);
-    res.status(500).json({
-      success: false,
-      message: "Google authentication failed. Please try again or use email sign in."
-    });
-  }
-});
-router.post("/admin/login", adminLoginLimiter, async (req, res) => {
-  try {
-    const { email: email2, password } = req.body;
-    if (!email2 || !password) {
-      res.status(400).json({
-        success: false,
-        message: "Email and password are required."
-      });
-      return;
-    }
-    const cleanEmail = String(email2).trim().toLowerCase();
-    const user = await User.findOne({ email: cleanEmail }).select("+password");
-    if (!user || !user.password) {
-      res.status(401).json({
-        success: false,
-        message: "Invalid credentials."
-      });
-      return;
-    }
-    const isValid = await comparePassword(String(password), user.password);
-    if (!isValid) {
-      res.status(401).json({
-        success: false,
-        message: "Invalid credentials."
-      });
-      return;
-    }
-    if (user.role !== "admin" && user.role !== "super_admin") {
-      res.status(403).json({
-        success: false,
-        message: "Access denied. You do not have administrator permissions."
-      });
-      return;
-    }
-    if (!user.active) {
-      res.status(403).json({
-        success: false,
-        message: "Your administrator account has been deactivated. Please contact your super administrator."
-      });
-      return;
-    }
-    user.lastLoginAt = /* @__PURE__ */ new Date();
-    await user.save();
-    const token = generateToken({
-      userId: user._id.toString(),
-      email: user.email,
-      role: user.role
-    });
-    setAuthCookie(res, token);
-    res.json({
-      success: true,
-      message: "Admin authentication successful.",
-      user: {
-        id: user._id.toString(),
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role
-      },
-      token
-    });
-  } catch (err) {
-    console.error("[Admin Auth Login Error]", err instanceof Error ? err.message : err);
-    res.status(500).json({
-      success: false,
-      message: "Admin sign in failed. Please try again later."
-    });
-  }
-});
-router.post("/logout", (_req, res) => {
-  clearAuthCookie(res);
-  res.json({
-    success: true,
-    message: "Logged out successfully."
-  });
-});
-router.get("/me", requireAuth, async (req, res) => {
-  try {
-    if (!req.user) {
-      res.status(401).json({ success: false, message: "Not authenticated." });
-      return;
-    }
-    const user = await User.findById(req.user.userId);
-    if (!user) {
-      clearAuthCookie(res);
-      res.status(404).json({ success: false, message: "User profile not found." });
-      return;
-    }
-    res.json({
-      success: true,
-      user: {
-        id: user._id.toString(),
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role
-      }
-    });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to retrieve profile."
-    });
-  }
-});
-router.get("/admin/verify", requireAdmin, (req, res) => {
-  res.json({
-    success: true,
-    message: "Admin access verified.",
-    admin: req.user
-  });
-});
-var auth_default = router;
-
-// server/routes/authRecovery.ts
-import { Router as Router2 } from "express";
-import crypto from "crypto";
-import rateLimit2 from "express-rate-limit";
+);
+var AuditLog = mongoose6.models.AuditLog || mongoose6.model("AuditLog", auditLogSchema);
 
 // server/lib/emailService.ts
 import { Resend } from "resend";
-import mongoose6 from "mongoose";
+import mongoose8 from "mongoose";
 
 // server/models/EmailLog.ts
-import mongoose5, { Schema as Schema4 } from "mongoose";
-var emailLogSchema = new Schema4(
+import mongoose7, { Schema as Schema6 } from "mongoose";
+var emailLogSchema = new Schema6(
   {
     eventType: {
       type: String,
@@ -1555,6 +1108,9 @@ var emailLogSchema = new Schema4(
         "admin_invitation",
         "admin_password_reset",
         "customer_password_reset",
+        "password_change_otp",
+        "password_changed_notification",
+        "role_changed_notification",
         "order_confirmation",
         "order_status_update",
         "inquiry_acknowledgement",
@@ -1602,7 +1158,7 @@ var emailLogSchema = new Schema4(
       default: null
     },
     metadata: {
-      type: Schema4.Types.Mixed,
+      type: Schema6.Types.Mixed,
       default: {}
     },
     attemptedAt: {
@@ -1616,7 +1172,7 @@ var emailLogSchema = new Schema4(
   }
 );
 emailLogSchema.index({ eventType: 1, relatedId: 1, recipient: 1 });
-var EmailLog = mongoose5.models.EmailLog || mongoose5.model("EmailLog", emailLogSchema);
+var EmailLog = mongoose7.models.EmailLog || mongoose7.model("EmailLog", emailLogSchema);
 
 // server/lib/emailService.ts
 function getEmailConfig() {
@@ -1740,7 +1296,7 @@ ${text || html.replace(/<[^>]*>?/gm, "").slice(0, 300)}...`);
     console.log("===========================================================\n");
     result = { success: true, provider: "simulated", simulated: true };
   }
-  if (eventType && mongoose6.connection.readyState === 1) {
+  if (eventType && mongoose8.connection.readyState === 1) {
     try {
       await EmailLog.create({
         eventType,
@@ -2171,10 +1727,1054 @@ async function sendNewInquiryAdminAlert({
   }
   return results;
 }
+async function sendPasswordChangeOtp({
+  email: email2,
+  name: name2,
+  otp,
+  minutesValid = 10
+}) {
+  const safeName = name2 ? name2.trim() : "Customer";
+  const html = wrapEmailTemplate({
+    title: "Verify Password Change",
+    preheader: `Your verification code is: ${otp}`,
+    contentHtml: `
+      <h2 style="color: #3C0815; font-size: 18px; margin-top: 0;">Hello ${safeName},</h2>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        We received a request to change the password for your Malwa Namkeen House account.
+      </p>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        Your verification code is:
+      </p>
+      <div style="text-align: center; margin: 24px 0;">
+        <div style="display: inline-block; background: #FAF7F2; border: 2px dashed #C89A3D; border-radius: 12px; padding: 16px 36px;">
+          <span style="font-family: monospace, Courier, sans-serif; font-size: 32px; font-weight: 800; letter-spacing: 0.25em; color: #3C0815;">
+            ${otp}
+          </span>
+        </div>
+      </div>
+      <p style="font-size: 13.5px; line-height: 1.5; color: #57534E; text-align: center;">
+        This code expires in <strong>${minutesValid} minutes</strong>.
+      </p>
+      <p style="font-size: 12.5px; color: #6B7280; line-height: 1.5; margin-top: 24px; border-top: 1px solid #EAE5D9; padding-top: 16px;">
+        <strong>Security Notice:</strong> If you did not request this change, you can safely ignore this email. Malwa Namkeen House will never ask for your verification code.
+      </p>
+    `
+  });
+  const text = `Hello ${safeName},
+
+We received a request to change the password for your Malwa Namkeen House account.
+
+Your verification code is:
+
+${otp}
+
+This code expires in ${minutesValid} minutes.
+
+If you did not request this change, you can ignore this email.
+
+Malwa Namkeen House`;
+  return sendEmail({
+    to: email2,
+    subject: "Malwa Namkeen House - Verify Password Change",
+    html,
+    text,
+    eventType: "password_change_otp",
+    relatedId: email2
+  });
+}
+async function sendPasswordChangedConfirmation({
+  email: email2,
+  name: name2
+}) {
+  const safeName = name2 ? name2.trim() : "Customer";
+  const timeFormatted = (/* @__PURE__ */ new Date()).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    dateStyle: "medium",
+    timeStyle: "short"
+  });
+  const html = wrapEmailTemplate({
+    title: "Password Successfully Changed",
+    preheader: "Your Malwa Namkeen House account password was changed.",
+    contentHtml: `
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="background: #D1FAE5; color: #065F46; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; text-transform: uppercase;">
+          Security Alert \xB7 Password Changed
+        </span>
+      </div>
+      <h2 style="color: #3C0815; font-size: 18px; margin-top: 0; text-align: center;">
+        Hello ${safeName},
+      </h2>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151; text-align: center;">
+        Your Malwa Namkeen House account password was successfully changed on <strong>${timeFormatted} (IST)</strong>.
+      </p>
+      <div style="background: #FAF7F2; border: 1px solid #EAE5D9; border-radius: 10px; padding: 16px; margin: 20px 0; font-size: 13px; color: #4B5563; line-height: 1.6;">
+        <strong style="color: #991B1B;">Did not perform this change?</strong><br>
+        If you did not perform this change, please contact our support team immediately at <a href="mailto:malwanamkeenhouse@gmail.com" style="color: #3C0815; font-weight: 600;">malwanamkeenhouse@gmail.com</a> or call <strong>+91 7987732765</strong> to secure your account.
+      </div>
+    `
+  });
+  const text = `Hello ${safeName},
+
+Your Malwa Namkeen House account password was successfully changed on ${timeFormatted} (IST).
+
+If you did not perform this change, please contact our support team immediately at malwanamkeenhouse@gmail.com or +91 7987732765.
+
+Malwa Namkeen House`;
+  return sendEmail({
+    to: email2,
+    subject: "Your Malwa Namkeen House Password Was Changed",
+    html,
+    text,
+    eventType: "password_changed_notification",
+    relatedId: email2
+  });
+}
+async function sendRoleChangedNotification({
+  email: email2,
+  name: name2,
+  oldRole,
+  newRole
+}) {
+  const { appBaseUrl } = getEmailConfig();
+  const safeName = name2 ? name2.trim() : "User";
+  let subject = "Access Role Updated - Malwa Namkeen House";
+  let bodyHtml = "";
+  let bodyText = "";
+  if (newRole === "super_admin") {
+    subject = "You Have Been Made a Super Admin - Malwa Namkeen House";
+    bodyHtml = `
+      <h2 style="color: #3C0815; font-size: 18px; margin-top: 0;">Hello ${safeName},</h2>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        Your Malwa Namkeen House account has been granted <strong>Super Administrator</strong> access.
+      </p>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        Your account now has elevated administrative permissions across the platform, including team access control, staff management, and system-level configuration.
+      </p>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${appBaseUrl}/admin/staff" class="btn">Manage Staff Portal</a>
+      </div>
+      <p style="font-size: 12.5px; color: #6B7280; line-height: 1.5; margin-top: 24px; border-top: 1px solid #EAE5D9; padding-top: 16px;">
+        If you believe this change was made by mistake, please contact the site administrator.
+      </p>
+    `;
+    bodyText = `Hello ${safeName},
+
+Your Malwa Namkeen House account now has elevated administrative permissions as Super Administrator.
+
+Portal: ${appBaseUrl}/admin/staff
+
+If you believe this change was made by mistake, please contact the site administrator.
+
+Malwa Namkeen House`;
+  } else if (newRole === "admin" && oldRole !== "super_admin") {
+    subject = "You Have Been Made an Admin - Malwa Namkeen House";
+    bodyHtml = `
+      <h2 style="color: #3C0815; font-size: 18px; margin-top: 0;">Hello ${safeName},</h2>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        Your Malwa Namkeen House account has been granted <strong>Admin</strong> access.
+      </p>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        You can now access the Admin Dashboard and the permissions assigned to the Admin role.
+      </p>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${appBaseUrl}/admin/dashboard" class="btn">Go to Admin Dashboard</a>
+      </div>
+      <p style="font-size: 12.5px; color: #6B7280; line-height: 1.5; margin-top: 24px; border-top: 1px solid #EAE5D9; padding-top: 16px;">
+        If you believe this change was made by mistake, please contact the site administrator.
+      </p>
+    `;
+    bodyText = `Hello ${safeName},
+
+Your Malwa Namkeen House account has been granted Admin access.
+
+You can now access the Admin Dashboard and the permissions assigned to the Admin role.
+
+If you believe this change was made by mistake, please contact the site administrator.
+
+Malwa Namkeen House`;
+  } else {
+    subject = "Access Role Updated - Malwa Namkeen House";
+    const oldRoleTitle = oldRole === "super_admin" ? "Super Administrator" : oldRole === "admin" ? "Administrator" : oldRole;
+    const newRoleTitle = newRole === "admin" ? "Administrator" : newRole === "customer" ? "Customer" : newRole;
+    bodyHtml = `
+      <h2 style="color: #3C0815; font-size: 18px; margin-top: 0;">Hello ${safeName},</h2>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        Your Malwa Namkeen House access role has been updated from <strong>${oldRoleTitle}</strong> to <strong>${newRoleTitle}</strong>.
+      </p>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        Your administrative privileges and permissions have been updated accordingly.
+      </p>
+      <p style="font-size: 12.5px; color: #6B7280; line-height: 1.5; margin-top: 24px; border-top: 1px solid #EAE5D9; padding-top: 16px;">
+        If you have questions regarding this change, please contact the store administrator.
+      </p>
+    `;
+    bodyText = `Hello ${safeName},
+
+Your Malwa Namkeen House access role has been updated from ${oldRoleTitle} to ${newRoleTitle}.
+
+If you believe this was in error, please contact the store administrator.
+
+Malwa Namkeen House`;
+  }
+  const html = wrapEmailTemplate({
+    title: subject,
+    preheader: `Your account role has been updated to ${newRole}.`,
+    contentHtml: bodyHtml
+  });
+  return sendEmail({
+    to: email2,
+    subject,
+    html,
+    text: bodyText,
+    eventType: "role_changed_notification",
+    relatedId: `${email2}_${newRole}`
+  });
+}
 var sendAdminInvitationEmail = sendAdminInvitation;
 var sendPasswordResetEmail = sendAdminPasswordReset;
 
+// server/lib/auth.ts
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+import dotenv from "dotenv";
+import path from "path";
+dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), ".env.local"), override: true });
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  const isProd2 = process.env.NODE_ENV === "production";
+  if (isProd2) {
+    if (!secret || secret.trim().length < 32) {
+      throw new Error("[Security Error] Production JWT_SECRET is required and must be at least 32 characters long.");
+    }
+    return secret.trim();
+  }
+  return secret?.trim() || "malwa-namkeen-dev-only-secret-key-2026";
+}
+var TOKEN_EXPIRY = "7d";
+var AUTH_COOKIE_NAME = "malwa_auth_token";
+async function hashPassword(plainText) {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(plainText, salt);
+}
+async function comparePassword(plainText, hash) {
+  return bcrypt.compare(plainText, hash);
+}
+function generateToken(payload) {
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: TOKEN_EXPIRY });
+}
+function verifyToken(token) {
+  try {
+    return jwt.verify(token, getJwtSecret());
+  } catch {
+    return null;
+  }
+}
+function extractToken(req) {
+  if (req.cookies && req.cookies[AUTH_COOKIE_NAME]) {
+    return req.cookies[AUTH_COOKIE_NAME];
+  }
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    return authHeader.substring(7).trim();
+  }
+  return null;
+}
+function setAuthCookie(res, token) {
+  const isProd2 = process.env.NODE_ENV === "production";
+  res.cookie(AUTH_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: isProd2,
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1e3,
+    // 7 days
+    path: "/"
+  });
+}
+function clearAuthCookie(res) {
+  const isProd2 = process.env.NODE_ENV === "production";
+  res.clearCookie(AUTH_COOKIE_NAME, {
+    httpOnly: true,
+    secure: isProd2,
+    sameSite: "lax",
+    path: "/"
+  });
+}
+async function requireAuth(req, res, next) {
+  const token = extractToken(req);
+  if (!token) {
+    res.status(401).json({
+      success: false,
+      message: "Authentication required. Please sign in."
+    });
+    return;
+  }
+  const payload = verifyToken(token);
+  if (!payload) {
+    res.status(401).json({
+      success: false,
+      message: "Invalid or expired session. Please sign in again."
+    });
+    return;
+  }
+  req.user = payload;
+  res.locals.user = payload;
+  next();
+}
+async function requireAdmin(req, res, next) {
+  const token = extractToken(req);
+  if (!token) {
+    res.status(401).json({
+      success: false,
+      message: "Authentication required. Please sign in."
+    });
+    return;
+  }
+  const payload = verifyToken(token);
+  if (!payload) {
+    res.status(401).json({
+      success: false,
+      message: "Invalid or expired session. Please sign in again."
+    });
+    return;
+  }
+  if (payload.role !== "admin" && payload.role !== "super_admin") {
+    res.status(403).json({
+      success: false,
+      message: "Access denied. Administrator privilege required."
+    });
+    return;
+  }
+  req.user = payload;
+  res.locals.user = payload;
+  next();
+}
+async function requireSuperAdmin(req, res, next) {
+  const token = extractToken(req);
+  if (!token) {
+    res.status(401).json({
+      success: false,
+      message: "Authentication required. Please sign in."
+    });
+    return;
+  }
+  const payload = verifyToken(token);
+  if (!payload) {
+    res.status(401).json({
+      success: false,
+      message: "Invalid or expired session. Please sign in again."
+    });
+    return;
+  }
+  if (payload.role !== "super_admin") {
+    res.status(403).json({
+      success: false,
+      message: "Access denied. Super Administrator privilege required."
+    });
+    return;
+  }
+  req.user = payload;
+  res.locals.user = payload;
+  next();
+}
+
+// server/routes/auth.ts
+var router = Router();
+function maskEmail(email2) {
+  if (!email2 || !email2.includes("@")) return "******";
+  const [local, domain] = email2.split("@");
+  if (!local || !domain) return "******";
+  return `${local.charAt(0)}*****@${domain}`;
+}
+var passwordChangeRequestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1e3,
+  // 15 minutes
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many password change requests. Please try again after 15 minutes."
+  }
+});
+var passwordChangeVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1e3,
+  // 15 minutes
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many verification attempts. Please try again after 15 minutes."
+  }
+});
+var loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1e3,
+  // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many sign in attempts. Please try again after 15 minutes."
+  }
+});
+var adminLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1e3,
+  // 15 minutes
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many admin sign in attempts. Please try again after 15 minutes."
+  }
+});
+var registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1e3,
+  // 1 hour
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many registration requests from this network. Please try again later."
+  }
+});
+var EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+router.post("/register", registerLimiter, async (req, res) => {
+  try {
+    const { name: name2, email: email2, phone: phone2, password } = req.body;
+    if (!name2 || typeof name2 !== "string" || name2.trim().length < 2) {
+      res.status(400).json({ success: false, message: "Please provide your full name (minimum 2 characters)." });
+      return;
+    }
+    if (!email2 || typeof email2 !== "string" || !EMAIL_REGEX.test(email2.trim().toLowerCase())) {
+      res.status(400).json({ success: false, message: "Please provide a valid email address." });
+      return;
+    }
+    if (!password || typeof password !== "string" || password.length < 6) {
+      res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters long."
+      });
+      return;
+    }
+    const cleanEmail = email2.trim().toLowerCase();
+    const cleanName = name2.trim();
+    const cleanPhone = phone2 && typeof phone2 === "string" ? phone2.trim() : "";
+    const existing = await User.findOne({ email: cleanEmail });
+    if (existing) {
+      res.status(409).json({
+        success: false,
+        message: "An account with this email address already exists. Please sign in."
+      });
+      return;
+    }
+    const hashedPassword = await hashPassword(password);
+    const newUser = await User.create({
+      name: cleanName,
+      email: cleanEmail,
+      phone: cleanPhone,
+      password: hashedPassword,
+      role: "customer",
+      active: true
+    });
+    const token = generateToken({
+      userId: newUser._id.toString(),
+      email: newUser.email,
+      role: newUser.role
+    });
+    setAuthCookie(res, token);
+    res.status(201).json({
+      success: true,
+      message: "Account created successfully.",
+      user: {
+        id: newUser._id.toString(),
+        name: newUser.name,
+        email: newUser.email,
+        phone: newUser.phone,
+        role: newUser.role
+      },
+      token
+    });
+  } catch (err) {
+    console.error("[Auth Register Error]", err instanceof Error ? err.message : err);
+    res.status(500).json({
+      success: false,
+      message: "Unable to complete registration. Please verify your connection or try again shortly."
+    });
+  }
+});
+router.post("/login", loginLimiter, async (req, res) => {
+  try {
+    const { email: email2, password } = req.body;
+    if (!email2 || !password) {
+      res.status(400).json({
+        success: false,
+        message: "Email and password are required."
+      });
+      return;
+    }
+    const cleanEmail = String(email2).trim().toLowerCase();
+    const user = await User.findOne({ email: cleanEmail }).select("+password");
+    if (!user || !user.password) {
+      res.status(401).json({
+        success: false,
+        message: "Email or password is incorrect."
+      });
+      return;
+    }
+    if (!user.active) {
+      res.status(403).json({
+        success: false,
+        message: "Your account is currently inactive. Please contact support."
+      });
+      return;
+    }
+    const isValid = await comparePassword(String(password), user.password);
+    if (!isValid) {
+      res.status(401).json({
+        success: false,
+        message: "Email or password is incorrect."
+      });
+      return;
+    }
+    user.lastLoginAt = /* @__PURE__ */ new Date();
+    await user.save();
+    const token = generateToken({
+      userId: user._id.toString(),
+      email: user.email,
+      role: user.role
+    });
+    setAuthCookie(res, token);
+    res.json({
+      success: true,
+      message: "Signed in successfully.",
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role
+      },
+      token
+    });
+  } catch (err) {
+    console.error("[Auth Login Error]", err instanceof Error ? err.message : err);
+    res.status(500).json({
+      success: false,
+      message: "Unable to connect to the authentication service. Please try again shortly."
+    });
+  }
+});
+router.get("/google/config", (_req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
+  res.json({
+    success: true,
+    clientId,
+    isConfigured: Boolean(clientId)
+  });
+});
+async function verifyGoogleToken(credential) {
+  if (!credential || typeof credential !== "string" || credential.trim().length < 10) {
+    return null;
+  }
+  try {
+    const configuredClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
+    const response = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential.trim())}`
+    );
+    if (!response.ok) {
+      console.warn("[Google Auth Error] Token verification failed with status:", response.status);
+      return null;
+    }
+    const payload = await response.json();
+    if (!payload || !payload.email || !payload.sub) {
+      return null;
+    }
+    const validIssuers = ["accounts.google.com", "https://accounts.google.com"];
+    if (payload.iss && !validIssuers.includes(payload.iss)) {
+      console.warn("[Google Auth Error] Invalid token issuer:", payload.iss);
+      return null;
+    }
+    if (configuredClientId && payload.aud && payload.aud !== configuredClientId) {
+      console.warn("[Google Auth Error] Audience mismatch. Expected:", configuredClientId, "Got:", payload.aud);
+      return null;
+    }
+    const isEmailVerified = payload.email_verified === "true" || payload.email_verified === true;
+    if (!isEmailVerified) {
+      console.warn("[Google Auth Error] Google email is not verified.");
+      return null;
+    }
+    return {
+      sub: payload.sub,
+      email: String(payload.email).toLowerCase().trim(),
+      name: payload.name || payload.given_name || String(payload.email).split("@")[0],
+      picture: payload.picture || "",
+      email_verified: true
+    };
+  } catch (err) {
+    console.error("[Google Auth Verification Exception]:", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+router.post("/google", loginLimiter, async (req, res) => {
+  try {
+    const { credential, idToken } = req.body;
+    const tokenToVerify = credential || idToken;
+    if (!tokenToVerify || typeof tokenToVerify !== "string") {
+      res.status(400).json({
+        success: false,
+        message: "Google credential token is required."
+      });
+      return;
+    }
+    const googleUser = await verifyGoogleToken(tokenToVerify);
+    if (!googleUser || !googleUser.email) {
+      res.status(401).json({
+        success: false,
+        message: "Invalid or expired Google authentication token. Please try again."
+      });
+      return;
+    }
+    const cleanEmail = googleUser.email.trim().toLowerCase();
+    let user = await User.findOne({
+      $or: [{ email: cleanEmail }, { googleId: googleUser.sub }]
+    });
+    if (user) {
+      if (!user.active) {
+        res.status(403).json({
+          success: false,
+          message: "Your account is currently inactive. Please contact support."
+        });
+        return;
+      }
+      if (!user.googleId) user.googleId = googleUser.sub;
+      if (googleUser.picture && !user.avatar) user.avatar = googleUser.picture;
+      user.lastLoginAt = /* @__PURE__ */ new Date();
+      if (!user.emailVerifiedAt) user.emailVerifiedAt = /* @__PURE__ */ new Date();
+      await user.save();
+    } else {
+      user = await User.create({
+        name: googleUser.name.trim(),
+        email: cleanEmail,
+        googleId: googleUser.sub,
+        avatar: googleUser.picture || "",
+        role: "customer",
+        active: true,
+        lastLoginAt: /* @__PURE__ */ new Date(),
+        emailVerifiedAt: /* @__PURE__ */ new Date()
+      });
+    }
+    const token = generateToken({
+      userId: user._id.toString(),
+      email: user.email,
+      role: user.role
+    });
+    setAuthCookie(res, token);
+    res.json({
+      success: true,
+      message: "Google Sign-In successful.",
+      token,
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        phone: user.phone || "",
+        avatar: user.avatar || "",
+        role: user.role
+      }
+    });
+  } catch (err) {
+    console.error("[Google Auth Error]", err);
+    res.status(500).json({
+      success: false,
+      message: "Google authentication failed. Please try again or use email sign in."
+    });
+  }
+});
+router.post("/admin/login", adminLoginLimiter, async (req, res) => {
+  try {
+    const { email: email2, password } = req.body;
+    if (!email2 || !password) {
+      res.status(400).json({
+        success: false,
+        message: "Email and password are required."
+      });
+      return;
+    }
+    const cleanEmail = String(email2).trim().toLowerCase();
+    const user = await User.findOne({ email: cleanEmail }).select("+password");
+    if (!user || !user.password) {
+      res.status(401).json({
+        success: false,
+        message: "Invalid credentials."
+      });
+      return;
+    }
+    const isValid = await comparePassword(String(password), user.password);
+    if (!isValid) {
+      res.status(401).json({
+        success: false,
+        message: "Invalid credentials."
+      });
+      return;
+    }
+    if (user.role !== "admin" && user.role !== "super_admin") {
+      res.status(403).json({
+        success: false,
+        message: "Access denied. You do not have administrator permissions."
+      });
+      return;
+    }
+    if (!user.active) {
+      res.status(403).json({
+        success: false,
+        message: "Your administrator account has been deactivated. Please contact your super administrator."
+      });
+      return;
+    }
+    user.lastLoginAt = /* @__PURE__ */ new Date();
+    await user.save();
+    const token = generateToken({
+      userId: user._id.toString(),
+      email: user.email,
+      role: user.role
+    });
+    setAuthCookie(res, token);
+    res.json({
+      success: true,
+      message: "Admin authentication successful.",
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role
+      },
+      token
+    });
+  } catch (err) {
+    console.error("[Admin Auth Login Error]", err instanceof Error ? err.message : err);
+    res.status(500).json({
+      success: false,
+      message: "Admin sign in failed. Please try again later."
+    });
+  }
+});
+router.post("/logout", (_req, res) => {
+  clearAuthCookie(res);
+  res.json({
+    success: true,
+    message: "Logged out successfully."
+  });
+});
+router.get("/me", requireAuth, async (req, res) => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: "Not authenticated." });
+      return;
+    }
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      clearAuthCookie(res);
+      res.status(404).json({ success: false, message: "User profile not found." });
+      return;
+    }
+    res.json({
+      success: true,
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role
+      }
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to retrieve profile."
+    });
+  }
+});
+router.get("/admin/verify", requireAdmin, (req, res) => {
+  res.json({
+    success: true,
+    message: "Admin access verified.",
+    admin: req.user
+  });
+});
+router.post(
+  "/password-change/request",
+  requireAuth,
+  passwordChangeRequestLimiter,
+  async (req, res) => {
+    try {
+      if (!req.user?.userId) {
+        res.status(401).json({ success: false, message: "Authentication required." });
+        return;
+      }
+      const { currentPassword, newPassword, confirmPassword } = req.body;
+      if (!currentPassword || typeof currentPassword !== "string") {
+        res.status(400).json({ success: false, message: "Current password is required." });
+        return;
+      }
+      if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
+        res.status(400).json({
+          success: false,
+          message: "New password must be at least 6 characters long."
+        });
+        return;
+      }
+      if (confirmPassword !== void 0 && newPassword !== confirmPassword) {
+        res.status(400).json({ success: false, message: "New passwords do not match." });
+        return;
+      }
+      if (currentPassword === newPassword) {
+        res.status(400).json({
+          success: false,
+          message: "New password must be different from your current password."
+        });
+        return;
+      }
+      const user = await User.findById(req.user.userId).select("+password");
+      if (!user || !user.active) {
+        res.status(404).json({ success: false, message: "Account not found or deactivated." });
+        return;
+      }
+      if (!user.password) {
+        res.status(400).json({
+          success: false,
+          message: "This account signs in with Google and does not have an active password."
+        });
+        return;
+      }
+      const isMatch = await comparePassword(currentPassword, user.password);
+      if (!isMatch) {
+        res.status(400).json({ success: false, message: "Incorrect current password." });
+        return;
+      }
+      const existingOtp = await OtpVerification.findOne({
+        userId: user._id,
+        purpose: "password-change",
+        expiresAt: { $gt: /* @__PURE__ */ new Date() }
+      });
+      const now = /* @__PURE__ */ new Date();
+      if (existingOtp && existingOtp.resendAvailableAt && existingOtp.resendAvailableAt > now) {
+        const remaining = Math.ceil((existingOtp.resendAvailableAt.getTime() - now.getTime()) / 1e3);
+        res.status(429).json({
+          success: false,
+          message: `Please wait ${remaining} second(s) before requesting another code.`,
+          cooldownSeconds: remaining
+        });
+        return;
+      }
+      const otp = crypto.randomInt(1e5, 1e6).toString();
+      const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+      const pendingPasswordHash = await hashPassword(newPassword);
+      await OtpVerification.deleteMany({ userId: user._id, purpose: "password-change" });
+      await OtpVerification.create({
+        userId: user._id,
+        purpose: "password-change",
+        otpHash,
+        pendingPasswordHash,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1e3),
+        // 10 minutes
+        attempts: 0,
+        resendAvailableAt: new Date(Date.now() + 60 * 1e3)
+        // 60s cooldown
+      });
+      await sendPasswordChangeOtp({
+        email: user.email,
+        name: user.name,
+        otp,
+        minutesValid: 10
+      });
+      try {
+        await AuditLog.create({
+          action: "PASSWORD_CHANGE_REQUESTED",
+          targetUserId: user._id,
+          metadata: { email: user.email }
+        });
+      } catch (logErr) {
+        console.warn("[AuditLog] Failed to record password change request:", logErr);
+      }
+      res.json({
+        success: true,
+        message: "Verification code sent to your registered email address.",
+        maskedEmail: maskEmail(user.email),
+        cooldownSeconds: 60
+      });
+    } catch (err) {
+      console.error("[Password Change Request Error]", err);
+      res.status(500).json({
+        success: false,
+        message: "Unable to initiate password change. Please try again shortly."
+      });
+    }
+  }
+);
+router.post(
+  "/password-change/verify",
+  requireAuth,
+  passwordChangeVerifyLimiter,
+  async (req, res) => {
+    try {
+      if (!req.user?.userId) {
+        res.status(401).json({ success: false, message: "Authentication required." });
+        return;
+      }
+      const { otp } = req.body;
+      if (!otp || typeof otp !== "string" || !/^\d{6}$/.test(otp.trim())) {
+        res.status(400).json({
+          success: false,
+          message: "Please enter a valid 6-digit verification code."
+        });
+        return;
+      }
+      const cleanOtp = otp.trim();
+      const otpDoc = await OtpVerification.findOne({
+        userId: req.user.userId,
+        purpose: "password-change",
+        expiresAt: { $gt: /* @__PURE__ */ new Date() }
+      }).select("+pendingPasswordHash");
+      if (!otpDoc) {
+        res.status(400).json({
+          success: false,
+          message: "Verification code has expired or was not requested. Please request a new code."
+        });
+        return;
+      }
+      if (otpDoc.attempts >= 5) {
+        await OtpVerification.deleteOne({ _id: otpDoc._id });
+        res.status(400).json({
+          success: false,
+          message: "Too many incorrect attempts. This code has been invalidated. Please request a new code."
+        });
+        return;
+      }
+      otpDoc.attempts += 1;
+      await otpDoc.save();
+      const submittedHash = crypto.createHash("sha256").update(cleanOtp).digest("hex");
+      const submittedBuf = Buffer.from(submittedHash, "hex");
+      const storedBuf = Buffer.from(otpDoc.otpHash, "hex");
+      const isMatch = submittedBuf.length === storedBuf.length && crypto.timingSafeEqual(submittedBuf, storedBuf);
+      if (!isMatch) {
+        const remaining = Math.max(0, 5 - otpDoc.attempts);
+        res.status(400).json({
+          success: false,
+          message: remaining > 0 ? `Incorrect verification code. ${remaining} attempt(s) remaining.` : "Too many incorrect attempts. This code has been invalidated. Please request a new code.",
+          attemptsRemaining: remaining
+        });
+        return;
+      }
+      const user = await User.findById(req.user.userId);
+      if (!user) {
+        res.status(404).json({ success: false, message: "User profile not found." });
+        return;
+      }
+      user.password = otpDoc.pendingPasswordHash;
+      await user.save();
+      await OtpVerification.deleteOne({ _id: otpDoc._id });
+      await sendPasswordChangedConfirmation({
+        email: user.email,
+        name: user.name
+      });
+      try {
+        await AuditLog.create({
+          action: "PASSWORD_CHANGED",
+          targetUserId: user._id,
+          metadata: { email: user.email }
+        });
+      } catch (logErr) {
+        console.warn("[AuditLog] Failed to record password changed:", logErr);
+      }
+      res.json({
+        success: true,
+        message: "Password changed successfully. Your account is now secured with your new password."
+      });
+    } catch (err) {
+      console.error("[Password Change Verify Error]", err);
+      res.status(500).json({
+        success: false,
+        message: "Failed to complete password verification. Please try again."
+      });
+    }
+  }
+);
+router.post(
+  "/password-change/resend",
+  requireAuth,
+  passwordChangeRequestLimiter,
+  async (req, res) => {
+    try {
+      if (!req.user?.userId) {
+        res.status(401).json({ success: false, message: "Authentication required." });
+        return;
+      }
+      const otpDoc = await OtpVerification.findOne({
+        userId: req.user.userId,
+        purpose: "password-change",
+        expiresAt: { $gt: /* @__PURE__ */ new Date() }
+      }).select("+pendingPasswordHash");
+      if (!otpDoc) {
+        res.status(400).json({
+          success: false,
+          message: "No active password change session found. Please enter your passwords again."
+        });
+        return;
+      }
+      const now = /* @__PURE__ */ new Date();
+      if (otpDoc.resendAvailableAt && otpDoc.resendAvailableAt > now) {
+        const remainingSeconds = Math.ceil((otpDoc.resendAvailableAt.getTime() - now.getTime()) / 1e3);
+        res.status(429).json({
+          success: false,
+          message: `Please wait ${remainingSeconds} second(s) before requesting another code.`,
+          cooldownSeconds: remainingSeconds
+        });
+        return;
+      }
+      const newOtp = crypto.randomInt(1e5, 1e6).toString();
+      const newOtpHash = crypto.createHash("sha256").update(newOtp).digest("hex");
+      otpDoc.otpHash = newOtpHash;
+      otpDoc.attempts = 0;
+      otpDoc.expiresAt = new Date(Date.now() + 10 * 60 * 1e3);
+      otpDoc.resendAvailableAt = new Date(Date.now() + 60 * 1e3);
+      await otpDoc.save();
+      const user = await User.findById(req.user.userId);
+      if (!user) {
+        res.status(404).json({ success: false, message: "User profile not found." });
+        return;
+      }
+      await sendPasswordChangeOtp({
+        email: user.email,
+        name: user.name,
+        otp: newOtp,
+        minutesValid: 10
+      });
+      res.json({
+        success: true,
+        message: "A fresh verification code has been sent to your email.",
+        maskedEmail: maskEmail(user.email),
+        cooldownSeconds: 60
+      });
+    } catch (err) {
+      console.error("[Password Change Resend Error]", err);
+      res.status(500).json({
+        success: false,
+        message: "Failed to resend verification code. Please try again."
+      });
+    }
+  }
+);
+var auth_default = router;
+
 // server/routes/authRecovery.ts
+import { Router as Router2 } from "express";
+import crypto2 from "crypto";
+import rateLimit2 from "express-rate-limit";
 var router2 = Router2();
 var forgotPasswordLimiter = rateLimit2({
   windowMs: 15 * 60 * 1e3,
@@ -2218,8 +2818,8 @@ router2.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
       res.json(genericSuccess);
       return;
     }
-    const rawToken = crypto.randomBytes(32).toString("hex");
-    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const rawToken = crypto2.randomBytes(32).toString("hex");
+    const tokenHash = crypto2.createHash("sha256").update(rawToken).digest("hex");
     const expiresAt = new Date(Date.now() + 60 * 60 * 1e3);
     user.passwordResetTokenHash = tokenHash;
     user.passwordResetExpiresAt = expiresAt;
@@ -2259,8 +2859,8 @@ router2.post("/admin/forgot-password", forgotPasswordLimiter, async (req, res) =
       res.json(genericSuccess);
       return;
     }
-    const rawToken = crypto.randomBytes(32).toString("hex");
-    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const rawToken = crypto2.randomBytes(32).toString("hex");
+    const tokenHash = crypto2.createHash("sha256").update(rawToken).digest("hex");
     const expiresAt = new Date(Date.now() + 60 * 60 * 1e3);
     user.passwordResetTokenHash = tokenHash;
     user.passwordResetExpiresAt = expiresAt;
@@ -2286,7 +2886,7 @@ router2.get("/verify-reset-token", async (req, res) => {
       res.status(400).json({ valid: false, message: "Invalid or missing recovery token." });
       return;
     }
-    const tokenHash = crypto.createHash("sha256").update(token.trim()).digest("hex");
+    const tokenHash = crypto2.createHash("sha256").update(token.trim()).digest("hex");
     const user = await User.findOne({
       passwordResetTokenHash: tokenHash,
       passwordResetExpiresAt: { $gt: /* @__PURE__ */ new Date() }
@@ -2322,7 +2922,7 @@ router2.post("/reset-password", tokenSubmissionLimiter, async (req, res) => {
       });
       return;
     }
-    const tokenHash = crypto.createHash("sha256").update(token.trim()).digest("hex");
+    const tokenHash = crypto2.createHash("sha256").update(token.trim()).digest("hex");
     const user = await User.findOne({
       passwordResetTokenHash: tokenHash,
       passwordResetExpiresAt: { $gt: /* @__PURE__ */ new Date() }
@@ -2354,7 +2954,7 @@ router2.get("/verify-invite-token", async (req, res) => {
       res.status(400).json({ valid: false, message: "Invalid or missing invitation token." });
       return;
     }
-    const tokenHash = crypto.createHash("sha256").update(token.trim()).digest("hex");
+    const tokenHash = crypto2.createHash("sha256").update(token.trim()).digest("hex");
     const user = await User.findOne({
       invitationTokenHash: tokenHash,
       invitationExpiresAt: { $gt: /* @__PURE__ */ new Date() }
@@ -2391,7 +2991,7 @@ router2.post("/accept-invite", tokenSubmissionLimiter, async (req, res) => {
       });
       return;
     }
-    const tokenHash = crypto.createHash("sha256").update(token.trim()).digest("hex");
+    const tokenHash = crypto2.createHash("sha256").update(token.trim()).digest("hex");
     const user = await User.findOne({
       invitationTokenHash: tokenHash,
       invitationExpiresAt: { $gt: /* @__PURE__ */ new Date() }
@@ -2438,7 +3038,7 @@ var authRecovery_default = router2;
 
 // server/routes/products.ts
 import { Router as Router3 } from "express";
-import mongoose7 from "mongoose";
+import mongoose9 from "mongoose";
 var router3 = Router3();
 function formatPublicProduct(p) {
   const primaryImage = Array.isArray(p.images) && p.images[0] || p.image || "/hero-banner-1.png";
@@ -2463,6 +3063,8 @@ function formatPublicProduct(p) {
     }
   ];
   const totalStock = options.reduce((sum, o) => sum + (o.stock || 0), 0);
+  const basePrice = options[0]?.price || 0;
+  const baseOrigPrice = options[0]?.originalPrice;
   return {
     id: String(p._id),
     _id: String(p._id),
@@ -2486,6 +3088,9 @@ function formatPublicProduct(p) {
     categoryLabel: p.category?.name || "Heritage Namkeens",
     images: Array.isArray(p.images) && p.images.length > 0 ? p.images : [primaryImage],
     image: primaryImage,
+    price: basePrice,
+    originalPrice: baseOrigPrice,
+    stock: totalStock,
     badge: p.badge || (p.isBestSeller ? "Best Seller" : p.featured ? "Signature" : void 0),
     rating: typeof p.rating === "number" ? p.rating : 4.9,
     reviewCount: typeof p.reviewCount === "number" ? p.reviewCount : 124,
@@ -2497,7 +3102,7 @@ function formatPublicProduct(p) {
 }
 router3.get("/categories", async (_req, res) => {
   try {
-    if (mongoose7.connection.readyState === 1) {
+    if (mongoose9.connection.readyState === 1) {
       const categories = await Category.find({ active: true }).sort({ sortOrder: 1, name: 1 }).lean();
       if (categories.length > 0) {
         res.setHeader("Cache-Control", "public, max-age=120, stale-while-revalidate=300");
@@ -2535,7 +3140,7 @@ router3.get("/categories", async (_req, res) => {
 });
 router3.get("/products/best-sellers", async (_req, res) => {
   try {
-    if (mongoose7.connection.readyState === 1) {
+    if (mongoose9.connection.readyState === 1) {
       let bestSellers = await Product.find({ active: true, isBestSeller: true }).populate({ path: "category", select: "name slug image", strictPopulate: false }).sort({ bestSellerAt: -1, updatedAt: -1, createdAt: -1 }).limit(4).lean();
       if (bestSellers.length < 4) {
         const existingIds = bestSellers.map((p) => p._id);
@@ -2576,21 +3181,25 @@ router3.get("/products", async (req, res) => {
       page = "1",
       limit = "100"
     } = req.query;
-    if (mongoose7.connection.readyState === 1) {
+    if (mongoose9.connection.readyState === 1) {
       const filter = { active: true };
       if (category2 && category2 !== "all") {
-        if (mongoose7.Types.ObjectId.isValid(category2)) {
-          filter.category = new mongoose7.Types.ObjectId(category2);
+        if (mongoose9.Types.ObjectId.isValid(category2)) {
+          filter.category = new mongoose9.Types.ObjectId(category2);
         } else {
           const catDoc = await Category.findOne({ slug: category2.toLowerCase(), active: true }).maxTimeMS(2e3).lean();
           if (catDoc) {
             filter.category = catDoc._id;
           } else {
-            const hasAnyCat = await Category.countDocuments().maxTimeMS(2e3);
-            if (hasAnyCat > 0) {
-              res.json({ success: true, products: [], total: 0 });
-              return;
-            }
+            res.json({
+              success: true,
+              products: [],
+              categories: [],
+              total: 0,
+              page: 1,
+              totalPages: 1
+            });
+            return;
           }
         }
       }
@@ -2630,25 +3239,27 @@ router3.get("/products", async (req, res) => {
         Product.find(filter).populate({ path: "category", select: "name slug image", strictPopulate: false }).sort(sortObj).skip(skip2).limit(limitNum2).maxTimeMS(2e3).lean(),
         Category.find({ active: true }).sort({ sortOrder: 1 }).maxTimeMS(2e3).lean()
       ]);
-      if (total > 0 || rawProducts.length > 0) {
-        const formattedProducts = rawProducts.map(formatPublicProduct);
-        res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
-        res.json({
-          success: true,
-          products: formattedProducts,
-          categories: allCategories.map((c) => ({
-            id: c.slug,
-            _id: String(c._id),
-            slug: c.slug,
-            name: c.name,
-            label: c.name
-          })),
-          total,
-          page: pageNum2,
-          totalPages: Math.ceil(total / limitNum2) || 1
-        });
-        return;
+      const formattedProducts = rawProducts.map(formatPublicProduct);
+      if (process.env.NODE_ENV === "production") {
+        res.setHeader("Cache-Control", "public, max-age=10, stale-while-revalidate=30");
+      } else {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       }
+      res.json({
+        success: true,
+        products: formattedProducts,
+        categories: allCategories.map((c) => ({
+          id: c.slug,
+          _id: String(c._id),
+          slug: c.slug,
+          name: c.name,
+          label: c.name
+        })),
+        total,
+        page: pageNum2,
+        totalPages: Math.ceil(total / limitNum2) || 1
+      });
+      return;
     }
   } catch (_err) {
   }
@@ -2688,27 +3299,34 @@ router3.get("/products", async (req, res) => {
 });
 router3.get("/products/:slugOrId", async (req, res) => {
   const { slugOrId } = req.params;
+  const cleanParam = (slugOrId || "").trim();
   try {
-    if (mongoose7.connection.readyState === 1) {
+    if (mongoose9.connection.readyState === 1) {
       let productDoc = null;
-      if (mongoose7.Types.ObjectId.isValid(slugOrId)) {
-        productDoc = await Product.findOne({ _id: slugOrId, active: true }).populate({ path: "category", select: "name slug image", strictPopulate: false }).lean();
+      if (mongoose9.Types.ObjectId.isValid(cleanParam)) {
+        productDoc = await Product.findOne({ _id: cleanParam, active: true }).populate({ path: "category", select: "name slug image", strictPopulate: false }).lean();
       }
       if (!productDoc) {
-        productDoc = await Product.findOne({ slug: slugOrId.toLowerCase(), active: true }).populate({ path: "category", select: "name slug image", strictPopulate: false }).lean();
+        productDoc = await Product.findOne({ slug: cleanParam.toLowerCase(), active: true }).populate({ path: "category", select: "name slug image", strictPopulate: false }).lean();
       }
       if (productDoc) {
         const product = formatPublicProduct(productDoc);
-        res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
+        if (process.env.NODE_ENV === "production") {
+          res.setHeader("Cache-Control", "public, max-age=10, stale-while-revalidate=30");
+        } else {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        }
         res.json({ success: true, product });
         return;
       }
+      res.status(404).json({ success: false, message: "Product delicacy not found or unavailable." });
+      return;
     }
   } catch (_err) {
   }
-  const cleanSlug = slugOrId.toLowerCase().trim();
+  const cleanSlug = cleanParam.toLowerCase();
   const fallback = PRODUCTS.find(
-    (p) => (p.slug || p.id).toLowerCase() === cleanSlug || p.id === cleanSlug || p.name.toLowerCase().replace(/\s+/g, "-").includes(cleanSlug) || cleanSlug.includes(p.id)
+    (p) => (p.slug || p.id).toLowerCase() === cleanSlug || p.id.toLowerCase() === cleanSlug
   );
   if (fallback) {
     res.json({ success: true, product: fallback });
@@ -2720,14 +3338,14 @@ var products_default = router3;
 
 // server/routes/cartWishlist.ts
 import { Router as Router4 } from "express";
-import mongoose10 from "mongoose";
+import mongoose12 from "mongoose";
 
 // server/lib/discounts.ts
-import mongoose9 from "mongoose";
+import mongoose11 from "mongoose";
 
 // server/models/Discount.ts
-import mongoose8, { Schema as Schema5 } from "mongoose";
-var discountSchema = new Schema5(
+import mongoose10, { Schema as Schema7 } from "mongoose";
+var discountSchema = new Schema7(
   {
     code: {
       type: String,
@@ -2796,7 +3414,7 @@ var discountSchema = new Schema5(
     timestamps: true
   }
 );
-var Discount = mongoose8.models.Discount || mongoose8.model("Discount", discountSchema);
+var Discount = mongoose10.models.Discount || mongoose10.model("Discount", discountSchema);
 
 // server/lib/discounts.ts
 async function validateAndCalculateDiscount(rawCode, subtotal, cartItems) {
@@ -2854,7 +3472,7 @@ async function validateAndCalculateDiscount(rawCode, subtotal, cartItems) {
         discountAmount: 0
       };
     }
-    const productIds = cartItems.map((item) => item.productId).filter((id) => id && mongoose9.Types.ObjectId.isValid(String(id)));
+    const productIds = cartItems.map((item) => item.productId).filter((id) => id && mongoose11.Types.ObjectId.isValid(String(id)));
     let dbProductMap = /* @__PURE__ */ new Map();
     if (productIds.length > 0) {
       const dbProducts = await Product.find({ _id: { $in: productIds } }).select("_id isCombo name").lean();
@@ -2928,18 +3546,35 @@ router4.post("/revalidate", async (req, res) => {
       });
       return;
     }
-    const productIds = [
-      ...new Set(items.map((it) => it.productId).filter((id) => mongoose10.Types.ObjectId.isValid(id)))
+    const objectIds = [
+      ...new Set(items.map((it) => it.productId).filter((id) => id && mongoose12.Types.ObjectId.isValid(id)))
     ];
-    const products = await Product.find({
-      _id: { $in: productIds },
+    const slugs = [
+      ...new Set(items.map((it) => it.productId).filter((id) => id && !mongoose12.Types.ObjectId.isValid(id)))
+    ];
+    const orClauses = [];
+    if (objectIds.length > 0) {
+      orClauses.push({ _id: { $in: objectIds } });
+    }
+    if (slugs.length > 0) {
+      orClauses.push({ slug: { $in: slugs.map((s) => String(s).toLowerCase().trim()) } });
+    }
+    const products = orClauses.length > 0 ? await Product.find({
+      $or: orClauses,
       active: true
-    }).lean();
-    const productMap = new Map(products.map((p) => [String(p._id), p]));
+    }).lean() : [];
+    const productMap = /* @__PURE__ */ new Map();
+    for (const p of products) {
+      productMap.set(String(p._id), p);
+      if (p.slug) {
+        productMap.set(p.slug.toLowerCase().trim(), p);
+      }
+    }
     const validatedItems = [];
     const adjustments = [];
     for (const item of items) {
-      const product = productMap.get(item.productId);
+      const lookupKey = typeof item.productId === "string" ? item.productId.trim() : String(item.productId);
+      const product = productMap.get(lookupKey) || productMap.get(lookupKey.toLowerCase());
       if (!product) {
         adjustments.push(`A product in your cart is no longer available and has been removed.`);
         continue;
@@ -2982,14 +3617,16 @@ router4.post("/revalidate", async (req, res) => {
         quantity = availableStock;
       }
       const livePrice = typeof variant.salePrice === "number" && variant.salePrice > 0 ? variant.salePrice : variant.price;
-      if (livePrice !== item.price) {
+      const submittedPrice = typeof item.price === "number" ? item.price : typeof item.unitPrice === "number" ? item.unitPrice : void 0;
+      if (submittedPrice !== void 0 && livePrice !== submittedPrice) {
         adjustments.push(
-          `Price for "${product.name} (${variant.label})" was updated from \u20B9${item.price} to current price \u20B9${livePrice}.`
+          `Price for "${product.name} (${variant.label})" was updated from \u20B9${submittedPrice} to current price \u20B9${livePrice}.`
         );
       }
       const primaryImage = Array.isArray(product.images) && product.images[0] || product.image || "/hero-banner-1.png";
       validatedItems.push({
         productId: String(product._id),
+        slug: product.slug || "",
         variantId: String(variant._id || variant.sku || variant.label),
         productName: product.name,
         hindiName: product.hindiName || "",
@@ -3063,7 +3700,7 @@ router4.get("/wishlist", requireAuth, async (req, res) => {
 router4.post("/wishlist/toggle", requireAuth, async (req, res) => {
   try {
     const { productId } = req.body;
-    if (!productId || !mongoose10.Types.ObjectId.isValid(productId)) {
+    if (!productId || !mongoose12.Types.ObjectId.isValid(productId)) {
       res.status(400).json({ success: false, message: "Valid productId is required." });
       return;
     }
@@ -3077,7 +3714,7 @@ router4.post("/wishlist/toggle", requireAuth, async (req, res) => {
     if (exists) {
       user.wishlist = (user.wishlist || []).filter((id) => String(id) !== productId);
     } else {
-      user.wishlist = [...user.wishlist || [], new mongoose10.Types.ObjectId(productId)];
+      user.wishlist = [...user.wishlist || [], new mongoose12.Types.ObjectId(productId)];
     }
     await user.save();
     res.json({
@@ -3094,7 +3731,7 @@ router4.post("/wishlist/toggle", requireAuth, async (req, res) => {
 router4.post("/wishlist/sync", requireAuth, async (req, res) => {
   try {
     const { productIds = [] } = req.body;
-    const validIds = productIds.filter((id) => mongoose10.Types.ObjectId.isValid(id));
+    const validIds = productIds.filter((id) => mongoose12.Types.ObjectId.isValid(id));
     const user = await User.findById(req.user?.userId);
     if (!user) {
       res.status(404).json({ success: false, message: "Customer account not found." });
@@ -3103,7 +3740,7 @@ router4.post("/wishlist/sync", requireAuth, async (req, res) => {
     const existingStrings = new Set((user.wishlist || []).map((id) => String(id)));
     for (const id of validIds) {
       if (!existingStrings.has(id)) {
-        user.wishlist?.push(new mongoose10.Types.ObjectId(id));
+        user.wishlist?.push(new mongoose12.Types.ObjectId(id));
         existingStrings.add(id);
       }
     }
@@ -3122,14 +3759,14 @@ var cartWishlist_default = router4;
 
 // server/routes/customerAccount.ts
 import { Router as Router5 } from "express";
-import mongoose12 from "mongoose";
+import mongoose14 from "mongoose";
 
 // server/models/Order.ts
-import mongoose11, { Schema as Schema6 } from "mongoose";
-var orderItemSchema = new Schema6(
+import mongoose13, { Schema as Schema8 } from "mongoose";
+var orderItemSchema = new Schema8(
   {
     productId: {
-      type: Schema6.Types.ObjectId,
+      type: Schema8.Types.ObjectId,
       ref: "Product"
     },
     productName: {
@@ -3168,7 +3805,7 @@ var orderItemSchema = new Schema6(
   },
   { _id: false }
 );
-var shippingAddressSchema = new Schema6(
+var shippingAddressSchema = new Schema8(
   {
     name: { type: String, required: true, trim: true },
     phone: { type: String, required: true, trim: true },
@@ -3181,7 +3818,7 @@ var shippingAddressSchema = new Schema6(
   },
   { _id: false }
 );
-var orderSchema = new Schema6(
+var orderSchema = new Schema8(
   {
     orderNumber: {
       type: String,
@@ -3192,7 +3829,7 @@ var orderSchema = new Schema6(
       index: true
     },
     customer: {
-      type: Schema6.Types.ObjectId,
+      type: Schema8.Types.ObjectId,
       ref: "User",
       index: true
     },
@@ -3287,7 +3924,7 @@ orderSchema.index({ customer: 1, createdAt: -1 });
 orderSchema.index({ "customerInfo.email": 1, createdAt: -1 });
 orderSchema.index({ orderStatus: 1, createdAt: -1 });
 orderSchema.index({ paymentStatus: 1, createdAt: -1 });
-var Order = mongoose11.models.Order || mongoose11.model("Order", orderSchema);
+var Order = mongoose13.models.Order || mongoose13.model("Order", orderSchema);
 
 // server/routes/customerAccount.ts
 var router5 = Router5();
@@ -3353,44 +3990,11 @@ router5.put("/profile", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to update profile." });
   }
 });
-router5.put("/password", async (req, res) => {
-  try {
-    const { currentPassword, newPassword } = req.body;
-    if (!currentPassword || !newPassword) {
-      res.status(400).json({
-        success: false,
-        message: "Current password and new password are required."
-      });
-      return;
-    }
-    if (typeof newPassword !== "string" || newPassword.length < 6) {
-      res.status(400).json({
-        success: false,
-        message: "New password must be at least 6 characters long."
-      });
-      return;
-    }
-    const user = await User.findById(req.user?.userId).select("+password");
-    if (!user || !user.active) {
-      res.status(404).json({ success: false, message: "Account not found or inactive." });
-      return;
-    }
-    if (!user.password) {
-      res.status(400).json({ success: false, message: "Account has no password set." });
-      return;
-    }
-    const isMatch = await comparePassword(currentPassword, user.password);
-    if (!isMatch) {
-      res.status(400).json({ success: false, message: "Incorrect current password." });
-      return;
-    }
-    user.password = await hashPassword(newPassword);
-    await user.save();
-    res.json({ success: true, message: "Password changed successfully." });
-  } catch (err) {
-    console.error("[Customer Password Change Error]", err);
-    res.status(500).json({ success: false, message: "Failed to change password." });
-  }
+router5.put("/password", async (_req, res) => {
+  res.status(400).json({
+    success: false,
+    message: "Direct password change is disabled for account security. Please use the secure email OTP flow via /api/auth/password-change/request."
+  });
 });
 router5.get("/addresses", async (req, res) => {
   try {
@@ -3476,7 +4080,7 @@ router5.put("/addresses/:addressId", async (req, res) => {
   try {
     const { addressId } = req.params;
     const { name: name2, phone: phone2, addressLine1, addressLine2, city, state, pincode, landmark, isDefault } = req.body;
-    if (!mongoose12.Types.ObjectId.isValid(addressId)) {
+    if (!mongoose14.Types.ObjectId.isValid(addressId)) {
       res.status(400).json({ success: false, message: "Invalid address ID format." });
       return;
     }
@@ -3528,7 +4132,7 @@ router5.put("/addresses/:addressId", async (req, res) => {
 router5.delete("/addresses/:addressId", async (req, res) => {
   try {
     const { addressId } = req.params;
-    if (!mongoose12.Types.ObjectId.isValid(addressId)) {
+    if (!mongoose14.Types.ObjectId.isValid(addressId)) {
       res.status(400).json({ success: false, message: "Invalid address ID format." });
       return;
     }
@@ -3561,7 +4165,7 @@ router5.delete("/addresses/:addressId", async (req, res) => {
 router5.put("/addresses/:addressId/default", async (req, res) => {
   try {
     const { addressId } = req.params;
-    if (!mongoose12.Types.ObjectId.isValid(addressId)) {
+    if (!mongoose14.Types.ObjectId.isValid(addressId)) {
       res.status(400).json({ success: false, message: "Invalid address ID format." });
       return;
     }
@@ -3616,7 +4220,7 @@ router5.get("/orders/:orderId", async (req, res) => {
       res.status(404).json({ success: false, message: "Account not found or inactive." });
       return;
     }
-    const query = mongoose12.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderNumber: orderId };
+    const query = mongoose14.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderNumber: orderId };
     const order = await Order.findOne(query).lean();
     if (!order) {
       res.status(404).json({ success: false, message: "Order not found." });
@@ -3643,11 +4247,11 @@ var customerAccount_default = router5;
 
 // server/routes/customerOrders.ts
 import { Router as Router6 } from "express";
-import mongoose14 from "mongoose";
+import mongoose16 from "mongoose";
 
 // server/models/StoreSettings.ts
-import mongoose13, { Schema as Schema7 } from "mongoose";
-var storeSettingsSchema = new Schema7(
+import mongoose15, { Schema as Schema9 } from "mongoose";
+var storeSettingsSchema = new Schema9(
   {
     storeName: {
       type: String,
@@ -3732,7 +4336,7 @@ var storeSettingsSchema = new Schema7(
     timestamps: true
   }
 );
-var StoreSettings = mongoose13.models.StoreSettings || mongoose13.model("StoreSettings", storeSettingsSchema);
+var StoreSettings = mongoose15.models.StoreSettings || mongoose15.model("StoreSettings", storeSettingsSchema);
 
 // server/routes/customerOrders.ts
 var router6 = Router6();
@@ -3800,7 +4404,7 @@ router6.post("/", requireAuth, async (req, res) => {
     }
     const productIds = [
       ...new Set(
-        items.map((it) => it.productId).filter((id) => mongoose14.Types.ObjectId.isValid(id))
+        items.map((it) => it.productId).filter((id) => mongoose16.Types.ObjectId.isValid(id))
       )
     ];
     const products = await Product.find({
@@ -4110,7 +4714,7 @@ var customerOrders_default = router6;
 
 // server/routes/adminProducts.ts
 import { Router as Router7 } from "express";
-import mongoose15 from "mongoose";
+import mongoose17 from "mongoose";
 var router7 = Router7();
 router7.use(requireAdmin);
 async function enforceMaxBestSellers(currentProductId) {
@@ -4154,7 +4758,7 @@ async function ensureInitialSeed() {
       const catId = catMap.get(p.category) || allCats[0]._id;
       return {
         name: p.name,
-        slug: `${p.id}-${Date.now().toString(36).slice(-4)}`,
+        slug: p.slug || p.id,
         hindiName: p.hindiName || "",
         tagline: p.tagline || "",
         description: p.description,
@@ -4228,8 +4832,8 @@ router7.get("/", async (req, res) => {
       ];
     }
     if (category && category !== "all") {
-      if (mongoose15.Types.ObjectId.isValid(category)) {
-        filter.category = new mongoose15.Types.ObjectId(category);
+      if (mongoose17.Types.ObjectId.isValid(category)) {
+        filter.category = new mongoose17.Types.ObjectId(category);
       } else {
         const cat = await Category.findOne({ slug: category });
         if (cat) filter.category = cat._id;
@@ -4272,7 +4876,7 @@ router7.get("/", async (req, res) => {
 router7.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose15.Types.ObjectId.isValid(id)) {
+    if (!mongoose17.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID format." });
       return;
     }
@@ -4286,9 +4890,18 @@ router7.get("/:id", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to retrieve product details." });
   }
 });
-function createSlug(name2) {
-  const base = name2.toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/[\s_-]+/g, "-").replace(/^-+|-+$/g, "");
-  return `${base}-${Date.now().toString(36).slice(-4)}`;
+function slugify(text) {
+  return text.toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/[\s_-]+/g, "-").replace(/^-+|-+$/g, "");
+}
+async function generateUniqueAutoSlug(name2) {
+  const base = slugify(name2) || "delicacy";
+  let candidate = base;
+  let counter = 1;
+  while (await Product.exists({ slug: candidate })) {
+    counter += 1;
+    candidate = `${base}-${counter}`;
+  }
+  return candidate;
 }
 router7.post("/", async (req, res) => {
   try {
@@ -4325,7 +4938,7 @@ router7.post("/", async (req, res) => {
       res.status(400).json({ success: false, message: "Product name is required (min 2 characters)." });
       return;
     }
-    if (!description || typeof description !== "string" || description.trim().length < 5) {
+    if (!description || typeof description !== "string" || description.trim().length < 2) {
       res.status(400).json({ success: false, message: "Product description is required." });
       return;
     }
@@ -4334,7 +4947,7 @@ router7.post("/", async (req, res) => {
       return;
     }
     let categoryId = category;
-    if (!mongoose15.Types.ObjectId.isValid(category)) {
+    if (!mongoose17.Types.ObjectId.isValid(category)) {
       const cat = await Category.findOne({ slug: category });
       if (!cat) {
         res.status(400).json({ success: false, message: "Invalid category specified." });
@@ -4342,11 +4955,27 @@ router7.post("/", async (req, res) => {
       }
       categoryId = cat._id;
     }
-    if (!Array.isArray(variants) || variants.length === 0) {
+    let resolvedVariants = variants;
+    if ((!Array.isArray(resolvedVariants) || resolvedVariants.length === 0) && (typeof req.body.price !== "undefined" || typeof req.body.stock !== "undefined")) {
+      const p = Number(req.body.price) || 0;
+      const s = typeof req.body.stock !== "undefined" ? Number(req.body.stock) : 50;
+      resolvedVariants = [{
+        label: "Standard Pack (250g)",
+        value: 250,
+        unit: "g",
+        price: p,
+        salePrice: req.body.salePrice ? Number(req.body.salePrice) : void 0,
+        stock: Math.max(0, s),
+        sku: `MLW-${(name2 || "PRD").slice(0, 3).toUpperCase()}-250G`,
+        active: true,
+        sortOrder: 0
+      }];
+    }
+    if (!Array.isArray(resolvedVariants) || resolvedVariants.length === 0) {
       res.status(400).json({ success: false, message: "At least one product variant (pricing and packaging) is required." });
       return;
     }
-    const cleanedVariants = variants.map((v, idx) => {
+    const cleanedVariants = resolvedVariants.map((v, idx) => {
       const label = String(v.label || "").trim();
       const price = Number(v.price);
       const stock = parseInt(String(v.stock ?? 0), 10) || 0;
@@ -4369,9 +4998,23 @@ router7.post("/", async (req, res) => {
         sortOrder: typeof v.sortOrder === "number" ? v.sortOrder : idx
       };
     });
-    const finalSlug = slug && typeof slug === "string" && slug.trim() ? slug.trim().toLowerCase().replace(/[\s_]+/g, "-") : createSlug(name2);
-    const existing = await Product.findOne({ slug: finalSlug });
-    const productSlug = existing ? `${finalSlug}-${Date.now().toString(36).slice(-4)}` : finalSlug;
+    const hasCustomSlug = Boolean(slug && typeof slug === "string" && slug.trim());
+    let productSlug;
+    if (hasCustomSlug) {
+      const cleanCustom = slugify(slug);
+      if (!cleanCustom) {
+        res.status(400).json({ success: false, message: "Invalid slug format provided." });
+        return;
+      }
+      const exists = await Product.exists({ slug: cleanCustom });
+      if (exists) {
+        res.status(409).json({ success: false, message: "Slug is already in use." });
+        return;
+      }
+      productSlug = cleanCustom;
+    } else {
+      productSlug = await generateUniqueAutoSlug(name2);
+    }
     const cleanedSpecs = Array.isArray(customSpecifications) ? customSpecifications.filter((s) => s && typeof s.label === "string" && s.label.trim() && typeof s.value === "string" && s.value.trim()).map((s) => ({ label: s.label.trim(), value: s.value.trim() })) : [];
     const newProduct = await Product.create({
       name: name2.trim(),
@@ -4407,6 +5050,10 @@ router7.post("/", async (req, res) => {
       product: populated
     });
   } catch (err) {
+    if (err?.code === 11e3 || err?.name === "MongoServerError") {
+      res.status(409).json({ success: false, message: "Slug is already in use." });
+      return;
+    }
     console.error("[Create Product Error]", err);
     const msg = err instanceof Error ? err.message : "Failed to create product.";
     res.status(400).json({ success: false, message: msg });
@@ -4415,7 +5062,7 @@ router7.post("/", async (req, res) => {
 router7.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose15.Types.ObjectId.isValid(id)) {
+    if (!mongoose17.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID format." });
       return;
     }
@@ -4451,7 +5098,21 @@ router7.put("/:id", async (req, res) => {
       return;
     }
     if (name2) existingProduct.name = String(name2).trim();
-    if (slug) existingProduct.slug = String(slug).trim().toLowerCase().replace(/[\s_]+/g, "-");
+    if (slug !== void 0 && typeof slug === "string" && slug.trim()) {
+      const cleanSlug = slugify(slug);
+      if (!cleanSlug) {
+        res.status(400).json({ success: false, message: "Invalid slug format provided." });
+        return;
+      }
+      if (cleanSlug !== existingProduct.slug) {
+        const duplicate = await Product.exists({ slug: cleanSlug, _id: { $ne: existingProduct._id } });
+        if (duplicate) {
+          res.status(409).json({ success: false, message: "Slug is already in use." });
+          return;
+        }
+        existingProduct.slug = cleanSlug;
+      }
+    }
     if (hindiName !== void 0) existingProduct.hindiName = String(hindiName).trim();
     if (tagline !== void 0) existingProduct.tagline = String(tagline).trim();
     if (description) existingProduct.description = String(description).trim();
@@ -4483,8 +5144,8 @@ router7.put("/:id", async (req, res) => {
       }
     }
     if (category) {
-      if (mongoose15.Types.ObjectId.isValid(category)) {
-        existingProduct.category = new mongoose15.Types.ObjectId(category);
+      if (mongoose17.Types.ObjectId.isValid(category)) {
+        existingProduct.category = new mongoose17.Types.ObjectId(category);
       } else {
         const cat = await Category.findOne({ slug: category });
         if (cat) existingProduct.category = cat._id;
@@ -4518,6 +5179,24 @@ router7.put("/:id", async (req, res) => {
           sortOrder: typeof v.sortOrder === "number" ? v.sortOrder : idx
         };
       });
+    } else if (typeof req.body.price !== "undefined" || typeof req.body.stock !== "undefined") {
+      const p = Number(req.body.price);
+      const s = typeof req.body.stock !== "undefined" ? Number(req.body.stock) : void 0;
+      if (existingProduct.variants && existingProduct.variants.length > 0) {
+        if (!isNaN(p)) existingProduct.variants[0].price = p;
+        if (s !== void 0 && !isNaN(s)) existingProduct.variants[0].stock = Math.max(0, s);
+      } else {
+        existingProduct.variants = [{
+          label: "Standard Pack (250g)",
+          value: 250,
+          unit: "g",
+          price: !isNaN(p) ? p : 199,
+          stock: s !== void 0 && !isNaN(s) ? Math.max(0, s) : 50,
+          sku: `MLW-${(existingProduct.name || "PRD").slice(0, 3).toUpperCase()}-250G`,
+          active: true,
+          sortOrder: 0
+        }];
+      }
     }
     await existingProduct.save();
     const updated = await Product.findById(id).populate("category", "name slug");
@@ -4527,6 +5206,10 @@ router7.put("/:id", async (req, res) => {
       product: updated
     });
   } catch (err) {
+    if (err?.code === 11e3 || err?.name === "MongoServerError") {
+      res.status(409).json({ success: false, message: "Slug is already in use." });
+      return;
+    }
     console.error("[Update Product Error]", err);
     const msg = err instanceof Error ? err.message : "Failed to update product.";
     res.status(400).json({ success: false, message: msg });
@@ -4535,7 +5218,7 @@ router7.put("/:id", async (req, res) => {
 router7.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose15.Types.ObjectId.isValid(id)) {
+    if (!mongoose17.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -4558,7 +5241,7 @@ router7.patch("/:id/toggle", async (req, res) => {
 router7.patch("/:id/toggle-bestseller", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose15.Types.ObjectId.isValid(id)) {
+    if (!mongoose17.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -4592,7 +5275,7 @@ router7.patch("/:id/toggle-bestseller", async (req, res) => {
 router7.patch("/:id/toggle-combo", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose15.Types.ObjectId.isValid(id)) {
+    if (!mongoose17.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -4616,7 +5299,7 @@ router7.patch("/:id/toggle-combo", async (req, res) => {
 router7.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose15.Types.ObjectId.isValid(id)) {
+    if (!mongoose17.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -4637,7 +5320,7 @@ var adminProducts_default = router7;
 
 // server/routes/adminCategories.ts
 import { Router as Router8 } from "express";
-import mongoose16 from "mongoose";
+import mongoose18 from "mongoose";
 var router8 = Router8();
 router8.use(requireAdmin);
 async function ensureCategoriesSeeded() {
@@ -4703,7 +5386,7 @@ router8.get("/", async (req, res) => {
 router8.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose16.Types.ObjectId.isValid(id)) {
+    if (!mongoose18.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -4766,7 +5449,7 @@ router8.post("/", async (req, res) => {
 router8.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose16.Types.ObjectId.isValid(id)) {
+    if (!mongoose18.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -4809,7 +5492,7 @@ router8.put("/:id", async (req, res) => {
 router8.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose16.Types.ObjectId.isValid(id)) {
+    if (!mongoose18.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID." });
       return;
     }
@@ -4832,7 +5515,7 @@ router8.patch("/:id/toggle", async (req, res) => {
 router8.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose16.Types.ObjectId.isValid(id)) {
+    if (!mongoose18.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -4868,7 +5551,7 @@ var adminCategories_default = router8;
 
 // server/routes/adminOrders.ts
 import { Router as Router9 } from "express";
-import mongoose17 from "mongoose";
+import mongoose19 from "mongoose";
 var router9 = Router9();
 router9.use(requireAdmin);
 router9.get("/", async (req, res) => {
@@ -4967,7 +5650,7 @@ router9.get("/", async (req, res) => {
 router9.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose17.Types.ObjectId.isValid(id)) {
+    if (!mongoose19.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -4984,7 +5667,7 @@ router9.get("/:id", async (req, res) => {
 router9.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose17.Types.ObjectId.isValid(id)) {
+    if (!mongoose19.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID." });
       return;
     }
@@ -5082,7 +5765,7 @@ router9.put("/:id", async (req, res) => {
 router9.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose17.Types.ObjectId.isValid(id)) {
+    if (!mongoose19.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID." });
       return;
     }
@@ -5103,7 +5786,7 @@ var adminOrders_default = router9;
 
 // server/routes/adminCustomers.ts
 import { Router as Router10 } from "express";
-import mongoose18 from "mongoose";
+import mongoose20 from "mongoose";
 var router10 = Router10();
 router10.use(requireAdmin);
 router10.get("/", async (req, res) => {
@@ -5219,7 +5902,7 @@ router10.get("/", async (req, res) => {
 router10.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose18.Types.ObjectId.isValid(id)) {
+    if (!mongoose20.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -5249,7 +5932,7 @@ router10.get("/:id", async (req, res) => {
 router10.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose18.Types.ObjectId.isValid(id)) {
+    if (!mongoose20.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -5272,7 +5955,7 @@ router10.patch("/:id/toggle", async (req, res) => {
 router10.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose18.Types.ObjectId.isValid(id)) {
+    if (!mongoose20.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -5310,7 +5993,7 @@ var adminCustomers_default = router10;
 
 // server/routes/adminDiscounts.ts
 import { Router as Router11 } from "express";
-import mongoose19 from "mongoose";
+import mongoose21 from "mongoose";
 var router11 = Router11();
 router11.post("/validate", async (req, res) => {
   try {
@@ -5382,7 +6065,7 @@ router11.get("/", async (req, res) => {
 router11.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -5464,7 +6147,7 @@ router11.post("/", async (req, res) => {
 router11.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -5545,7 +6228,7 @@ router11.put("/:id", async (req, res) => {
 router11.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -5568,7 +6251,7 @@ router11.patch("/:id/toggle", async (req, res) => {
 router11.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -5589,11 +6272,11 @@ var adminDiscounts_default = router11;
 
 // server/routes/adminInquiries.ts
 import { Router as Router12 } from "express";
-import mongoose21 from "mongoose";
+import mongoose23 from "mongoose";
 
 // server/models/Inquiry.ts
-import mongoose20, { Schema as Schema8 } from "mongoose";
-var inquirySchema = new Schema8(
+import mongoose22, { Schema as Schema10 } from "mongoose";
+var inquirySchema = new Schema10(
   {
     name: {
       type: String,
@@ -5638,7 +6321,7 @@ var inquirySchema = new Schema8(
     timestamps: true
   }
 );
-var Inquiry = mongoose20.models.Inquiry || mongoose20.model("Inquiry", inquirySchema);
+var Inquiry = mongoose22.models.Inquiry || mongoose22.model("Inquiry", inquirySchema);
 
 // server/routes/adminInquiries.ts
 var router12 = Router12();
@@ -5657,9 +6340,9 @@ var handlePublicInquiry = async (req, res) => {
       res.status(400).json({ success: false, message: "Please provide a descriptive inquiry message." });
       return;
     }
-    if (mongoose21.connection.readyState !== 1) {
+    if (mongoose23.connection.readyState !== 1) {
       const fallbackInquiry = {
-        _id: new mongoose21.Types.ObjectId(),
+        _id: new mongoose23.Types.ObjectId(),
         name: name2.trim(),
         email: email2.trim().toLowerCase(),
         phone: phone2 ? String(phone2).trim() : "",
@@ -5800,7 +6483,7 @@ router12.get("/", async (req, res) => {
 router12.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -5817,7 +6500,7 @@ router12.get("/:id", async (req, res) => {
 router12.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -5848,7 +6531,7 @@ router12.put("/:id", async (req, res) => {
 router12.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -5869,8 +6552,8 @@ var adminInquiries_default = router12;
 
 // server/routes/adminStaff.ts
 import { Router as Router13 } from "express";
-import crypto2 from "crypto";
-import mongoose22 from "mongoose";
+import crypto3 from "crypto";
+import mongoose24 from "mongoose";
 var router13 = Router13();
 router13.use(requireSuperAdmin);
 var EMAIL_REGEX2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -5931,8 +6614,8 @@ router13.post("/invite", async (req, res) => {
       });
       return;
     }
-    const rawToken = crypto2.randomBytes(32).toString("hex");
-    const tokenHash = crypto2.createHash("sha256").update(rawToken).digest("hex");
+    const rawToken = crypto3.randomBytes(32).toString("hex");
+    const tokenHash = crypto3.createHash("sha256").update(rawToken).digest("hex");
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1e3);
     const newStaff = await User.create({
       name: cleanName,
@@ -5941,7 +6624,7 @@ router13.post("/invite", async (req, res) => {
       active: true,
       invitationTokenHash: tokenHash,
       invitationExpiresAt: expiresAt,
-      invitedBy: req.user?.userId ? new mongoose22.Types.ObjectId(req.user.userId) : void 0,
+      invitedBy: req.user?.userId ? new mongoose24.Types.ObjectId(req.user.userId) : void 0,
       invitedAt: /* @__PURE__ */ new Date()
     });
     const emailResult = await sendAdminInvitationEmail({
@@ -5974,7 +6657,7 @@ router13.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const { name: name2, role, active } = req.body;
-    if (!mongoose22.Types.ObjectId.isValid(id)) {
+    if (!mongoose24.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid staff ID." });
       return;
     }
@@ -5983,8 +6666,10 @@ router13.patch("/:id", async (req, res) => {
       res.status(404).json({ success: false, message: "Administrator record not found." });
       return;
     }
+    const oldRole = staffMember.role;
+    const isRoleChanging = Boolean(role) && (role === "admin" || role === "super_admin") && role !== oldRole;
     const isTargetSuperAdmin = staffMember.role === "super_admin";
-    const isDemotingOrDeactivating = role && role !== "super_admin" && isTargetSuperAdmin || active === false && isTargetSuperAdmin && staffMember.active;
+    const isDemotingOrDeactivating = isRoleChanging && role !== "super_admin" && isTargetSuperAdmin || active === false && isTargetSuperAdmin && staffMember.active;
     if (isDemotingOrDeactivating) {
       const activeSuperAdmins = await User.countDocuments({
         role: "super_admin",
@@ -5999,12 +6684,46 @@ router13.patch("/:id", async (req, res) => {
       }
     }
     if (name2 && typeof name2 === "string") staffMember.name = name2.trim();
-    if (role && (role === "admin" || role === "super_admin")) staffMember.role = role;
+    if (isRoleChanging) staffMember.role = role;
     if (typeof active === "boolean") staffMember.active = active;
     await staffMember.save();
+    let emailDispatched = false;
+    let simulatedEmail = false;
+    if (isRoleChanging) {
+      try {
+        await AuditLog.create({
+          action: "ROLE_CHANGED",
+          actorId: req.user?.userId ? new mongoose24.Types.ObjectId(req.user.userId) : void 0,
+          targetUserId: staffMember._id,
+          metadata: {
+            oldRole,
+            newRole: staffMember.role,
+            email: staffMember.email,
+            timestamp: /* @__PURE__ */ new Date()
+          }
+        });
+      } catch (logErr) {
+        console.warn("[AuditLog Warning] Failed to log role change:", logErr);
+      }
+      try {
+        const emailRes = await sendRoleChangedNotification({
+          email: staffMember.email,
+          name: staffMember.name,
+          oldRole,
+          newRole: staffMember.role
+        });
+        emailDispatched = Boolean(emailRes.success);
+        simulatedEmail = Boolean(emailRes.simulated);
+      } catch (emailErr) {
+        console.error("[Role Change Email Error]", emailErr);
+      }
+    }
     res.json({
       success: true,
       message: "Administrator account updated successfully.",
+      roleChanged: isRoleChanging,
+      emailDispatched,
+      simulated: simulatedEmail,
       staff: {
         _id: String(staffMember._id),
         name: staffMember.name,
@@ -6019,10 +6738,106 @@ router13.patch("/:id", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to update administrator record." });
   }
 });
+router13.post("/promote", async (req, res) => {
+  try {
+    const { userId, email: email2, role } = req.body;
+    if (!role || role !== "admin" && role !== "super_admin") {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid target role. Must be either "admin" or "super_admin".'
+      });
+      return;
+    }
+    let query = {};
+    if (userId && mongoose24.Types.ObjectId.isValid(userId)) {
+      query = { _id: userId };
+    } else if (email2 && typeof email2 === "string" && EMAIL_REGEX2.test(email2.trim().toLowerCase())) {
+      query = { email: email2.trim().toLowerCase() };
+    } else {
+      res.status(400).json({
+        success: false,
+        message: "A valid user ID or registered email address is required for promotion."
+      });
+      return;
+    }
+    const targetUser = await User.findOne(query);
+    if (!targetUser) {
+      res.status(404).json({
+        success: false,
+        message: "User account not found. Please verify the user ID or email address."
+      });
+      return;
+    }
+    if (!targetUser.active) {
+      res.status(400).json({
+        success: false,
+        message: "Cannot promote an inactive or deactivated user account."
+      });
+      return;
+    }
+    const oldRole = targetUser.role;
+    if (oldRole === role) {
+      res.status(400).json({
+        success: false,
+        message: `This user already possesses the "${role === "super_admin" ? "Super Administrator" : "Administrator"}" role.`
+      });
+      return;
+    }
+    targetUser.role = role;
+    await targetUser.save();
+    try {
+      await AuditLog.create({
+        action: "ROLE_CHANGED",
+        actorId: req.user?.userId ? new mongoose24.Types.ObjectId(req.user.userId) : void 0,
+        targetUserId: targetUser._id,
+        metadata: {
+          oldRole,
+          newRole: targetUser.role,
+          email: targetUser.email,
+          timestamp: /* @__PURE__ */ new Date()
+        }
+      });
+    } catch (logErr) {
+      console.warn("[AuditLog Warning] Failed to log role promotion:", logErr);
+    }
+    let emailDispatched = false;
+    let simulatedEmail = false;
+    try {
+      const emailRes = await sendRoleChangedNotification({
+        email: targetUser.email,
+        name: targetUser.name,
+        oldRole,
+        newRole: targetUser.role
+      });
+      emailDispatched = Boolean(emailRes.success);
+      simulatedEmail = Boolean(emailRes.simulated);
+    } catch (emailErr) {
+      console.error("[Role Promotion Email Error]", emailErr);
+    }
+    res.json({
+      success: true,
+      message: `User ${targetUser.email} has been promoted to ${role === "super_admin" ? "Super Administrator" : "Administrator"}.`,
+      roleChanged: true,
+      emailDispatched,
+      simulated: simulatedEmail,
+      staff: {
+        _id: String(targetUser._id),
+        name: targetUser.name,
+        email: targetUser.email,
+        role: targetUser.role,
+        active: targetUser.active,
+        updatedAt: targetUser.updatedAt
+      }
+    });
+  } catch (err) {
+    console.error("[Admin Staff Promote Error]", err);
+    res.status(500).json({ success: false, message: "Failed to promote user account." });
+  }
+});
 router13.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose22.Types.ObjectId.isValid(id)) {
+    if (!mongoose24.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid staff ID." });
       return;
     }
@@ -6062,7 +6877,7 @@ var adminStaff_default = router13;
 
 // server/routes/adminSettings.ts
 import { Router as Router14 } from "express";
-import mongoose23 from "mongoose";
+import mongoose25 from "mongoose";
 var router14 = Router14();
 async function getOrCreateSingletonSettings() {
   let settings = await StoreSettings.findOne();
@@ -6114,7 +6929,7 @@ var DEFAULT_PUBLIC_SETTINGS = {
 var handlePublicSettings = async (_req, res) => {
   try {
     let settings = null;
-    if (mongoose23.connection.readyState === 1) {
+    if (mongoose25.connection.readyState === 1) {
       settings = await StoreSettings.findOne().lean();
     }
     if (!settings) {
@@ -6586,7 +7401,7 @@ var uploads_default = router16;
 // server/routes/enquiries.ts
 import { Router as Router17 } from "express";
 import { ZodError } from "zod";
-import mongoose24 from "mongoose";
+import mongoose26 from "mongoose";
 
 // server/validate.ts
 import { z } from "zod";
@@ -6987,7 +7802,7 @@ router17.post("/contact", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose24.Types.ObjectId().toString();
+  let id = new mongoose26.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -7045,7 +7860,7 @@ router17.post(["/enquiries/bulk", "/enquiry/bulk", "/bulk-enquiry"], async (req,
     }
     throw err;
   }
-  let id = new mongoose24.Types.ObjectId().toString();
+  let id = new mongoose26.Types.ObjectId().toString();
   const summaryMessage = [
     `Requirement: ${parsed.requirement_type}`,
     `Quantity: ${parsed.approx_quantity}`,
@@ -7112,7 +7927,7 @@ router17.post("/reservation", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose24.Types.ObjectId().toString();
+  let id = new mongoose26.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.customer_name,
@@ -7171,7 +7986,7 @@ router17.post("/katering", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose24.Types.ObjectId().toString();
+  let id = new mongoose26.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -7213,7 +8028,7 @@ router17.post("/gifting", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose24.Types.ObjectId().toString();
+  let id = new mongoose26.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -7240,8 +8055,8 @@ var enquiries_default = router17;
 import { Router as Router18 } from "express";
 
 // server/models/Banner.ts
-import mongoose25, { Schema as Schema9 } from "mongoose";
-var bannerSchema = new Schema9(
+import mongoose27, { Schema as Schema11 } from "mongoose";
+var bannerSchema = new Schema11(
   {
     title: {
       type: String,
@@ -7297,7 +8112,7 @@ var bannerSchema = new Schema9(
 );
 bannerSchema.index({ active: 1, sortOrder: 1 });
 bannerSchema.index({ sortOrder: 1 });
-var Banner = mongoose25.models.Banner || mongoose25.model("Banner", bannerSchema);
+var Banner = mongoose27.models.Banner || mongoose27.model("Banner", bannerSchema);
 
 // server/routes/adminBanners.ts
 var router18 = Router18();

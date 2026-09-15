@@ -64,7 +64,7 @@ async function ensureInitialSeed() {
       const catId = catMap.get(p.category) || allCats[0]._id;
       return {
         name: p.name,
-        slug: `${p.id}-${Date.now().toString(36).slice(-4)}`,
+        slug: p.slug || p.id,
         hindiName: p.hindiName || '',
         tagline: p.tagline || '',
         description: p.description,
@@ -231,16 +231,31 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 /**
- * Helper to generate slug from name
+ * Helper to generate a clean, URL-friendly kebab-case slug
  */
-function createSlug(name: string): string {
-  const base = name
+export function slugify(text: string): string {
+  return text
     .toLowerCase()
     .trim()
     .replace(/[^\w\s-]/g, '')
     .replace(/[\s_-]+/g, '-')
     .replace(/^-+|-+$/g, '');
-  return `${base}-${Date.now().toString(36).slice(-4)}`;
+}
+
+/**
+ * Generates an auto-incrementing unique slug across all products in MongoDB
+ */
+async function generateUniqueAutoSlug(name: string): Promise<string> {
+  const base = slugify(name) || 'delicacy';
+  let candidate = base;
+  let counter = 1;
+
+  // Check across ALL products (active, inactive, draft, etc.)
+  while (await Product.exists({ slug: candidate })) {
+    counter += 1;
+    candidate = `${base}-${counter}`;
+  }
+  return candidate;
 }
 
 /**
@@ -284,7 +299,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       return;
     }
 
-    if (!description || typeof description !== 'string' || description.trim().length < 5) {
+    if (!description || typeof description !== 'string' || description.trim().length < 2) {
       res.status(400).json({ success: false, message: 'Product description is required.' });
       return;
     }
@@ -305,13 +320,31 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       categoryId = cat._id;
     }
 
+    // Resolve Variants: support rich variants array or synthesize default from top-level price/stock
+    let resolvedVariants = variants;
+    if ((!Array.isArray(resolvedVariants) || resolvedVariants.length === 0) && (typeof req.body.price !== 'undefined' || typeof req.body.stock !== 'undefined')) {
+      const p = Number(req.body.price) || 0;
+      const s = typeof req.body.stock !== 'undefined' ? Number(req.body.stock) : 50;
+      resolvedVariants = [{
+        label: 'Standard Pack (250g)',
+        value: 250,
+        unit: 'g',
+        price: p,
+        salePrice: req.body.salePrice ? Number(req.body.salePrice) : undefined,
+        stock: Math.max(0, s),
+        sku: `MLW-${(name || 'PRD').slice(0, 3).toUpperCase()}-250G`,
+        active: true,
+        sortOrder: 0,
+      }];
+    }
+
     // Validate Variants
-    if (!Array.isArray(variants) || variants.length === 0) {
+    if (!Array.isArray(resolvedVariants) || resolvedVariants.length === 0) {
       res.status(400).json({ success: false, message: 'At least one product variant (pricing and packaging) is required.' });
       return;
     }
 
-    const cleanedVariants: IProductVariant[] = variants.map((v: Record<string, unknown>, idx: number) => {
+    const cleanedVariants: IProductVariant[] = resolvedVariants.map((v: Record<string, unknown>, idx: number) => {
       const label = String(v.label || '').trim();
       const price = Number(v.price);
       const stock = parseInt(String(v.stock ?? 0), 10) || 0;
@@ -337,13 +370,28 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       };
     });
 
-    const finalSlug = slug && typeof slug === 'string' && slug.trim()
-      ? slug.trim().toLowerCase().replace(/[\s_]+/g, '-')
-      : createSlug(name);
+    // Slug validation and generation:
+    // If admin provides a custom slug, validate format and verify uniqueness across ALL products (active, inactive, etc.)
+    // If custom slug collision occurs, return 409 Conflict.
+    // If auto-generated, append -2 / -3 deterministically if collision exists.
+    const hasCustomSlug = Boolean(slug && typeof slug === 'string' && slug.trim());
+    let productSlug: string;
 
-    // Check unique slug
-    const existing = await Product.findOne({ slug: finalSlug });
-    const productSlug = existing ? `${finalSlug}-${Date.now().toString(36).slice(-4)}` : finalSlug;
+    if (hasCustomSlug) {
+      const cleanCustom = slugify(slug);
+      if (!cleanCustom) {
+        res.status(400).json({ success: false, message: 'Invalid slug format provided.' });
+        return;
+      }
+      const exists = await Product.exists({ slug: cleanCustom });
+      if (exists) {
+        res.status(409).json({ success: false, message: 'Slug is already in use.' });
+        return;
+      }
+      productSlug = cleanCustom;
+    } else {
+      productSlug = await generateUniqueAutoSlug(name);
+    }
 
     const cleanedSpecs = Array.isArray(customSpecifications)
       ? customSpecifications
@@ -390,7 +438,11 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       message: 'Product created successfully.',
       product: populated,
     });
-  } catch (err: unknown) {
+  } catch (err: any) {
+    if (err?.code === 11000 || err?.name === 'MongoServerError') {
+      res.status(409).json({ success: false, message: 'Slug is already in use.' });
+      return;
+    }
     console.error('[Create Product Error]', err);
     const msg = err instanceof Error ? err.message : 'Failed to create product.';
     res.status(400).json({ success: false, message: msg });
@@ -442,7 +494,23 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
     }
 
     if (name) existingProduct.name = String(name).trim();
-    if (slug) existingProduct.slug = String(slug).trim().toLowerCase().replace(/[\s_]+/g, '-');
+
+    // Slug remains stable unless admin explicitly provides a new non-empty slug
+    if (slug !== undefined && typeof slug === 'string' && slug.trim()) {
+      const cleanSlug = slugify(slug);
+      if (!cleanSlug) {
+        res.status(400).json({ success: false, message: 'Invalid slug format provided.' });
+        return;
+      }
+      if (cleanSlug !== existingProduct.slug) {
+        const duplicate = await Product.exists({ slug: cleanSlug, _id: { $ne: existingProduct._id } });
+        if (duplicate) {
+          res.status(409).json({ success: false, message: 'Slug is already in use.' });
+          return;
+        }
+        existingProduct.slug = cleanSlug;
+      }
+    }
     if (hindiName !== undefined) existingProduct.hindiName = String(hindiName).trim();
     if (tagline !== undefined) existingProduct.tagline = String(tagline).trim();
     if (description) existingProduct.description = String(description).trim();
@@ -519,6 +587,24 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
           sortOrder: typeof v.sortOrder === 'number' ? v.sortOrder : idx,
         };
       });
+    } else if (typeof req.body.price !== 'undefined' || typeof req.body.stock !== 'undefined') {
+      const p = Number(req.body.price);
+      const s = typeof req.body.stock !== 'undefined' ? Number(req.body.stock) : undefined;
+      if (existingProduct.variants && existingProduct.variants.length > 0) {
+        if (!isNaN(p)) existingProduct.variants[0].price = p;
+        if (s !== undefined && !isNaN(s)) existingProduct.variants[0].stock = Math.max(0, s);
+      } else {
+        existingProduct.variants = [{
+          label: 'Standard Pack (250g)',
+          value: 250,
+          unit: 'g',
+          price: !isNaN(p) ? p : 199,
+          stock: s !== undefined && !isNaN(s) ? Math.max(0, s) : 50,
+          sku: `MLW-${(existingProduct.name || 'PRD').slice(0, 3).toUpperCase()}-250G`,
+          active: true,
+          sortOrder: 0,
+        }] as any;
+      }
     }
 
     await existingProduct.save();
@@ -529,7 +615,11 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
       message: 'Product updated successfully.',
       product: updated,
     });
-  } catch (err: unknown) {
+  } catch (err: any) {
+    if (err?.code === 11000 || err?.name === 'MongoServerError') {
+      res.status(409).json({ success: false, message: 'Slug is already in use.' });
+      return;
+    }
     console.error('[Update Product Error]', err);
     const msg = err instanceof Error ? err.message : 'Failed to update product.';
     res.status(400).json({ success: false, message: msg });
