@@ -62,14 +62,15 @@ export async function syncDatabaseCatalog(): Promise<void> {
       categoryDocMap.set(catData.id, cat._id as mongoose.Types.ObjectId);
     }
 
-    // 2. Only seed initial products if no products exist in the database
-    const productCount = await Product.countDocuments();
-    if (productCount === 0) {
-      for (let idx = 0; idx < PRODUCTS.length; idx++) {
-        const p = PRODUCTS[idx];
-        const catId = categoryDocMap.get(p.category) || Array.from(categoryDocMap.values())[0];
-        const pSlug = p.slug || p.id;
+    // 2. Seed initial Products if missing (never overwrite admin changes or delete admin products)
+    let seededCount = 0;
+    for (let idx = 0; idx < PRODUCTS.length; idx++) {
+      const p = PRODUCTS[idx];
+      const catId = categoryDocMap.get(p.category) || Array.from(categoryDocMap.values())[0];
+      const pSlug = p.slug || p.id;
 
+      const existing = await Product.findOne({ slug: pSlug });
+      if (!existing) {
         const variants = p.options.map((opt, vIdx) => ({
           label: opt.weight,
           value: parseFloat(opt.weight) || 250,
@@ -107,10 +108,15 @@ export async function syncDatabaseCatalog(): Promise<void> {
         };
 
         await Product.create(productPayload);
+        seededCount++;
       }
-      console.log(`[MongoDB] Database catalog initialized with ${PRODUCTS.length} seed products.`);
+    }
+
+    const totalProducts = await Product.countDocuments();
+    if (seededCount > 0) {
+      console.log(`[MongoDB] Database catalog initialized with ${seededCount} missing seed products. Total products: ${totalProducts}.`);
     } else {
-      console.log(`[MongoDB] Database catalog verified: ${productCount} existing products intact.`);
+      console.log(`[MongoDB] Database catalog synchronized: ${totalProducts} products verified (admin items preserved).`);
     }
   } catch (err: unknown) {
     console.warn('[MongoDB] Database catalog sync warning:', err instanceof Error ? err.message : err);
@@ -118,17 +124,28 @@ export async function syncDatabaseCatalog(): Promise<void> {
 }
 
 /**
- * Connect to MongoDB Atlas.
- * Logs success/failure without exposing credentials.
+ * Connect to MongoDB.
+ * In production: strictly uses explicit MONGODB_URI and fails safely if connection fails.
+ * In development: can use local MongoDB placeholder if MONGODB_URI is not set or mock.
  * Safe to call multiple times — subsequent calls are no-ops.
  */
 export async function connectMongoDB(): Promise<void> {
   if (isConnected) return;
 
-  const uri = process.env.MONGODB_URI;
+  const isProd = process.env.NODE_ENV === 'production';
+  let uri = process.env.MONGODB_URI;
+
   if (!uri) {
-    console.warn('[MongoDB] MONGODB_URI not set — skipping MongoDB connection.');
-    return;
+    if (!isProd) {
+      console.warn('[MongoDB] MONGODB_URI not set. In development, attempting local MongoDB at mongodb://127.0.0.1:27017/malwa_namkeen');
+      uri = 'mongodb://127.0.0.1:27017/malwa_namkeen';
+    } else {
+      console.error('[MongoDB Error] MONGODB_URI is not set in production. Database connection aborted.');
+      return;
+    }
+  } else if (!isProd && uri.includes('mock:mock')) {
+    console.warn('[MongoDB] Mock Atlas URI detected in development. Using local MongoDB at mongodb://127.0.0.1:27017/malwa_namkeen');
+    uri = 'mongodb://127.0.0.1:27017/malwa_namkeen';
   }
 
   try {
@@ -142,8 +159,11 @@ export async function connectMongoDB(): Promise<void> {
     await syncDatabaseCatalog();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    // Never log the full URI — it contains credentials
-    console.error('[MongoDB] Connection failed:', message);
+    if (isProd) {
+      console.error('[MongoDB Error] Production database connection failed:', message);
+    } else {
+      console.warn('[MongoDB Warning] Database connection failed:', message);
+    }
     throw err;
   }
 }

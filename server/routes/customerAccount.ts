@@ -91,55 +91,18 @@ router.put('/profile', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 /**
- * PUT /api/customer/password
- * Changes customer account password.
+ * PUT /api/customer/password (DEPRECATED & DISABLED)
+ * Direct password changes without OTP verification are strictly prohibited for account security.
+ * Clients must use the secure verification flow via POST /api/auth/password-change/request.
  */
-router.put('/password', async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      res.status(400).json({
-        success: false,
-        message: 'Current password and new password are required.',
-      });
-      return;
-    }
-
-    if (typeof newPassword !== 'string' || newPassword.length < 6) {
-      res.status(400).json({
-        success: false,
-        message: 'New password must be at least 6 characters long.',
-      });
-      return;
-    }
-
-    const user = await User.findById(req.user?.userId).select('+password');
-    if (!user || !user.active) {
-      res.status(404).json({ success: false, message: 'Account not found or inactive.' });
-      return;
-    }
-
-    if (!user.password) {
-      res.status(400).json({ success: false, message: 'Account has no password set.' });
-      return;
-    }
-
-    const isMatch = await comparePassword(currentPassword, user.password);
-    if (!isMatch) {
-      res.status(400).json({ success: false, message: 'Incorrect current password.' });
-      return;
-    }
-
-    user.password = await hashPassword(newPassword);
-    await user.save();
-
-    res.json({ success: true, message: 'Password changed successfully.' });
-  } catch (err: unknown) {
-    console.error('[Customer Password Change Error]', err);
-    res.status(500).json({ success: false, message: 'Failed to change password.' });
-  }
+router.put('/password', async (_req: AuthenticatedRequest, res: Response) => {
+  res.status(400).json({
+    success: false,
+    message:
+      'Direct password change is disabled for account security. Please use the secure email OTP flow via /api/auth/password-change/request.',
+  });
 });
+
 
 // ─── Saved Address Book CRUD ─────────────────────────────────────────────────
 

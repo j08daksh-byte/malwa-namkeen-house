@@ -712,7 +712,209 @@ export async function sendNewInquiryAdminAlert({
   return results;
 }
 
-// Aliases for backwards-compatibility
+// ── Password Change OTP & Role Notification Email Services ───────────────────
+
+/**
+ * 8. Customer/User Password Change OTP Verification Email
+ */
+export async function sendPasswordChangeOtp({
+  email,
+  name,
+  otp,
+  minutesValid = 10,
+}: {
+  email: string;
+  name: string;
+  otp: string;
+  minutesValid?: number;
+}): Promise<EmailResult> {
+  const safeName = name ? name.trim() : 'Customer';
+  const html = wrapEmailTemplate({
+    title: 'Verify Password Change',
+    preheader: `Your verification code is: ${otp}`,
+    contentHtml: `
+      <h2 style="color: #3C0815; font-size: 18px; margin-top: 0;">Hello ${safeName},</h2>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        We received a request to change the password for your Malwa Namkeen House account.
+      </p>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        Your verification code is:
+      </p>
+      <div style="text-align: center; margin: 24px 0;">
+        <div style="display: inline-block; background: #FAF7F2; border: 2px dashed #C89A3D; border-radius: 12px; padding: 16px 36px;">
+          <span style="font-family: monospace, Courier, sans-serif; font-size: 32px; font-weight: 800; letter-spacing: 0.25em; color: #3C0815;">
+            ${otp}
+          </span>
+        </div>
+      </div>
+      <p style="font-size: 13.5px; line-height: 1.5; color: #57534E; text-align: center;">
+        This code expires in <strong>${minutesValid} minutes</strong>.
+      </p>
+      <p style="font-size: 12.5px; color: #6B7280; line-height: 1.5; margin-top: 24px; border-top: 1px solid #EAE5D9; padding-top: 16px;">
+        <strong>Security Notice:</strong> If you did not request this change, you can safely ignore this email. Malwa Namkeen House will never ask for your verification code.
+      </p>
+    `,
+  });
+
+  const text = `Hello ${safeName},\n\nWe received a request to change the password for your Malwa Namkeen House account.\n\nYour verification code is:\n\n${otp}\n\nThis code expires in ${minutesValid} minutes.\n\nIf you did not request this change, you can ignore this email.\n\nMalwa Namkeen House`;
+
+  return sendEmail({
+    to: email,
+    subject: 'Malwa Namkeen House - Verify Password Change',
+    html,
+    text,
+    eventType: 'password_change_otp',
+    relatedId: email,
+  });
+}
+
+/**
+ * 9. Password Changed Confirmation Alert Email
+ */
+export async function sendPasswordChangedConfirmation({
+  email,
+  name,
+}: {
+  email: string;
+  name: string;
+}): Promise<EmailResult> {
+  const safeName = name ? name.trim() : 'Customer';
+  const timeFormatted = new Date().toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+
+  const html = wrapEmailTemplate({
+    title: 'Password Successfully Changed',
+    preheader: 'Your Malwa Namkeen House account password was changed.',
+    contentHtml: `
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="background: #D1FAE5; color: #065F46; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; text-transform: uppercase;">
+          Security Alert · Password Changed
+        </span>
+      </div>
+      <h2 style="color: #3C0815; font-size: 18px; margin-top: 0; text-align: center;">
+        Hello ${safeName},
+      </h2>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151; text-align: center;">
+        Your Malwa Namkeen House account password was successfully changed on <strong>${timeFormatted} (IST)</strong>.
+      </p>
+      <div style="background: #FAF7F2; border: 1px solid #EAE5D9; border-radius: 10px; padding: 16px; margin: 20px 0; font-size: 13px; color: #4B5563; line-height: 1.6;">
+        <strong style="color: #991B1B;">Did not perform this change?</strong><br>
+        If you did not perform this change, please contact our support team immediately at <a href="mailto:malwanamkeenhouse@gmail.com" style="color: #3C0815; font-weight: 600;">malwanamkeenhouse@gmail.com</a> or call <strong>+91 7987732765</strong> to secure your account.
+      </div>
+    `,
+  });
+
+  const text = `Hello ${safeName},\n\nYour Malwa Namkeen House account password was successfully changed on ${timeFormatted} (IST).\n\nIf you did not perform this change, please contact our support team immediately at malwanamkeenhouse@gmail.com or +91 7987732765.\n\nMalwa Namkeen House`;
+
+  return sendEmail({
+    to: email,
+    subject: 'Your Malwa Namkeen House Password Was Changed',
+    html,
+    text,
+    eventType: 'password_changed_notification',
+    relatedId: email,
+  });
+}
+
+/**
+ * 10. Role Changed / Promotion Notification Email
+ */
+export async function sendRoleChangedNotification({
+  email,
+  name,
+  oldRole,
+  newRole,
+}: {
+  email: string;
+  name: string;
+  oldRole: string;
+  newRole: string;
+}): Promise<EmailResult> {
+  const { appBaseUrl } = getEmailConfig();
+  const safeName = name ? name.trim() : 'User';
+
+  let subject = 'Access Role Updated - Malwa Namkeen House';
+  let bodyHtml = '';
+  let bodyText = '';
+
+  if (newRole === 'super_admin') {
+    subject = 'You Have Been Made a Super Admin - Malwa Namkeen House';
+    bodyHtml = `
+      <h2 style="color: #3C0815; font-size: 18px; margin-top: 0;">Hello ${safeName},</h2>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        Your Malwa Namkeen House account has been granted <strong>Super Administrator</strong> access.
+      </p>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        Your account now has elevated administrative permissions across the platform, including team access control, staff management, and system-level configuration.
+      </p>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${appBaseUrl}/admin/staff" class="btn">Manage Staff Portal</a>
+      </div>
+      <p style="font-size: 12.5px; color: #6B7280; line-height: 1.5; margin-top: 24px; border-top: 1px solid #EAE5D9; padding-top: 16px;">
+        If you believe this change was made by mistake, please contact the site administrator.
+      </p>
+    `;
+    bodyText = `Hello ${safeName},\n\nYour Malwa Namkeen House account now has elevated administrative permissions as Super Administrator.\n\nPortal: ${appBaseUrl}/admin/staff\n\nIf you believe this change was made by mistake, please contact the site administrator.\n\nMalwa Namkeen House`;
+  } else if (newRole === 'admin' && oldRole !== 'super_admin') {
+    subject = 'You Have Been Made an Admin - Malwa Namkeen House';
+    bodyHtml = `
+      <h2 style="color: #3C0815; font-size: 18px; margin-top: 0;">Hello ${safeName},</h2>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        Your Malwa Namkeen House account has been granted <strong>Admin</strong> access.
+      </p>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        You can now access the Admin Dashboard and the permissions assigned to the Admin role.
+      </p>
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${appBaseUrl}/admin/dashboard" class="btn">Go to Admin Dashboard</a>
+      </div>
+      <p style="font-size: 12.5px; color: #6B7280; line-height: 1.5; margin-top: 24px; border-top: 1px solid #EAE5D9; padding-top: 16px;">
+        If you believe this change was made by mistake, please contact the site administrator.
+      </p>
+    `;
+    bodyText = `Hello ${safeName},\n\nYour Malwa Namkeen House account has been granted Admin access.\n\nYou can now access the Admin Dashboard and the permissions assigned to the Admin role.\n\nIf you believe this change was made by mistake, please contact the site administrator.\n\nMalwa Namkeen House`;
+  } else {
+    // Downgrade / revocation (e.g. super_admin -> admin, admin -> customer, super_admin -> customer)
+    subject = 'Access Role Updated - Malwa Namkeen House';
+    const oldRoleTitle = oldRole === 'super_admin' ? 'Super Administrator' : oldRole === 'admin' ? 'Administrator' : oldRole;
+    const newRoleTitle = newRole === 'admin' ? 'Administrator' : newRole === 'customer' ? 'Customer' : newRole;
+    bodyHtml = `
+      <h2 style="color: #3C0815; font-size: 18px; margin-top: 0;">Hello ${safeName},</h2>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        Your Malwa Namkeen House access role has been updated from <strong>${oldRoleTitle}</strong> to <strong>${newRoleTitle}</strong>.
+      </p>
+      <p style="font-size: 14px; line-height: 1.6; color: #374151;">
+        Your administrative privileges and permissions have been updated accordingly.
+      </p>
+      <p style="font-size: 12.5px; color: #6B7280; line-height: 1.5; margin-top: 24px; border-top: 1px solid #EAE5D9; padding-top: 16px;">
+        If you have questions regarding this change, please contact the store administrator.
+      </p>
+    `;
+    bodyText = `Hello ${safeName},\n\nYour Malwa Namkeen House access role has been updated from ${oldRoleTitle} to ${newRoleTitle}.\n\nIf you believe this was in error, please contact the store administrator.\n\nMalwa Namkeen House`;
+  }
+
+  const html = wrapEmailTemplate({
+    title: subject,
+    preheader: `Your account role has been updated to ${newRole}.`,
+    contentHtml: bodyHtml,
+  });
+
+  return sendEmail({
+    to: email,
+    subject,
+    html,
+    text: bodyText,
+    eventType: 'role_changed_notification',
+    relatedId: `${email}_${newRole}`,
+  });
+}
+
+// Aliases for backwards-compatibility & convenience
 export const sendAdminInvitationEmail = sendAdminInvitation;
 export const sendPasswordResetEmail = sendAdminPasswordReset;
-
+export const sendPasswordChangeOtpEmail = sendPasswordChangeOtp;
+export const sendPasswordChangedEmail = sendPasswordChangedConfirmation;
+export const sendRoleChangedEmail = sendRoleChangedNotification;

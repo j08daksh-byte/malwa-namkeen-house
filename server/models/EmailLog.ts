@@ -4,6 +4,9 @@ export type EmailEventType =
   | 'admin_invitation'
   | 'admin_password_reset'
   | 'customer_password_reset'
+  | 'password_change_otp'
+  | 'password_changed_notification'
+  | 'role_changed_notification'
   | 'order_confirmation'
   | 'order_status_update'
   | 'inquiry_acknowledgement'
@@ -36,6 +39,9 @@ const emailLogSchema = new Schema<IEmailLog>(
         'admin_invitation',
         'admin_password_reset',
         'customer_password_reset',
+        'password_change_otp',
+        'password_changed_notification',
+        'role_changed_notification',
         'order_confirmation',
         'order_status_update',
         'inquiry_acknowledgement',

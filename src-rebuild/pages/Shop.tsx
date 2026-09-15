@@ -12,7 +12,7 @@ import ShopToast from '../components/shop/ShopToast';
 import SEOHead from '../components/seo/SEOHead';
 import { PRODUCTS as FALLBACK_PRODUCTS, SHOP_CATEGORIES as FALLBACK_CATEGORIES, type Product, type ShopCategory } from '../data/products';
 
-const PAGE_SIZE = 9; // Clean 3x3 grid on desktop
+const PAGE_SIZE = 24; // Clean 3x3 grid on desktop (8 rows)
 
 export default function Shop() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -101,6 +101,7 @@ export default function Shop() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const isMountedRef = useRef<boolean>(true);
+  const hasLoadedFromApiRef = useRef<boolean>(false);
 
   // Synchronous URL Parameter Updater
   const updateFilters = useCallback(
@@ -144,6 +145,7 @@ export default function Shop() {
 
   // Scroll to top once on initial mount
   useEffect(() => {
+    isMountedRef.current = true;
     window.scrollTo({ top: 0, behavior: 'instant' });
     return () => {
       isMountedRef.current = false;
@@ -181,18 +183,23 @@ export default function Shop() {
   // Core product fetching function
   const fetchProductsBatch = useCallback(
     async (pageToFetch: number, isReset: boolean) => {
+      isMountedRef.current = true;
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
-      // Always apply instant static filtering for zero latency
       const staticResult = filterStaticCatalog(pageToFetch);
       if (isReset) {
-        setProducts(staticResult.products);
-        setTotalCount(staticResult.total);
-        setHasMore(staticResult.hasMore);
+        // Only use static catalog on cold start before API responds
+        if (!hasLoadedFromApiRef.current) {
+          setProducts(staticResult.products);
+          setTotalCount(staticResult.total);
+          setHasMore(staticResult.hasMore);
+        } else {
+          setInitialLoading(true);
+        }
         setPage(pageToFetch);
       } else {
         setLoadingMore(true);
@@ -223,6 +230,7 @@ export default function Shop() {
         if (res.ok) {
           const data = await res.json();
           if (data.success && Array.isArray(data.products)) {
+            hasLoadedFromApiRef.current = true;
             setTotalCount(data.total ?? data.products.length);
             setHasMore(Boolean(data.page < data.totalPages));
             setPage(pageToFetch);
@@ -231,9 +239,9 @@ export default function Shop() {
               setProducts(data.products);
             } else {
               setProducts(prev => {
-                const existingIds = new Set(prev.map(p => p.id || (p as any)._id));
+                const existingIds = new Set(prev.map(p => p.id || (p as any)._id || p.slug));
                 const newItems = data.products.filter(
-                  (p: Product) => !existingIds.has(p.id || (p as any)._id)
+                  (p: Product) => !existingIds.has(p.id || (p as any)._id || p.slug)
                 );
                 return [...prev, ...newItems];
               });
@@ -244,16 +252,18 @@ export default function Shop() {
       } catch (err: any) {
         if (err.name === 'AbortError') return;
 
-        // Fallback already rendered synchronously on reset; handle append case
-        if (!isReset) {
-          setProducts(prev => {
-            const existingIds = new Set(prev.map(p => p.id || (p as any)._id));
-            const newItems = staticResult.products.filter(
-              p => !existingIds.has(p.id || (p as any)._id)
-            );
-            return [...prev, ...newItems];
-          });
-          setHasMore(staticResult.hasMore);
+        // Fallback only if offline / database disconnected
+        if (!hasLoadedFromApiRef.current) {
+          if (!isReset) {
+            setProducts(prev => {
+              const existingIds = new Set(prev.map(p => p.id || (p as any)._id || p.slug));
+              const newItems = staticResult.products.filter(
+                p => !existingIds.has(p.id || (p as any)._id || p.slug)
+              );
+              return [...prev, ...newItems];
+            });
+            setHasMore(staticResult.hasMore);
+          }
         }
       } finally {
         if (isMountedRef.current) {
@@ -532,6 +542,9 @@ export default function Shop() {
         }
 
         @media (max-width: 640px) {
+          .eb-shop-main-content {
+            padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px) + 24px);
+          }
           .eb-product-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 12px;

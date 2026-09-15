@@ -206,16 +206,19 @@ export default function CategoryShortcutRow({
             display: none;
           }
           .cat-row-wrapper {
-            margin-bottom: 16px;
+            margin-bottom: 14px;
           }
           .cat-row-scroll-container {
-            gap: 8px;
-            padding: 4px 4px 8px;
+            gap: 10px;
+            padding: 4px 14px 10px;
+            scroll-padding-left: 14px;
+            scroll-padding-right: 14px;
           }
           .cat-card-btn {
-            padding: 6px 12px 6px 6px;
+            padding: 6px 14px 6px 6px;
             border-radius: 14px;
             gap: 10px;
+            flex-shrink: 0;
           }
           .cat-card-img-wrap {
             width: 38px;
@@ -225,6 +228,7 @@ export default function CategoryShortcutRow({
           .cat-card-title {
             font-size: 11px;
             letter-spacing: 0.04em;
+            white-space: nowrap;
           }
           .cat-card-count {
             font-size: 9.5px;
@@ -234,16 +238,18 @@ export default function CategoryShortcutRow({
         @media (max-width: 420px) {
           .cat-row-scroll-container {
             gap: 8px;
-            padding: 2px 2px 8px;
+            padding: 4px 12px 10px;
+            scroll-padding-left: 12px;
+            scroll-padding-right: 12px;
           }
           .cat-card-btn {
-            padding: 5px 10px 5px 5px;
+            padding: 5px 12px 5px 5px;
             border-radius: 12px;
             gap: 8px;
           }
           .cat-card-img-wrap {
-            width: 34px;
-            height: 34px;
+            width: 36px;
+            height: 36px;
             border-radius: 8px;
           }
           .cat-card-title {
@@ -252,33 +258,6 @@ export default function CategoryShortcutRow({
           }
           .cat-card-count {
             font-size: 9px;
-          }
-        }
-
-        @media (max-width: 360px) {
-          .cat-row-wrapper {
-            margin-bottom: 12px;
-          }
-          .cat-row-scroll-container {
-            gap: 6px;
-            padding: 2px 0 6px;
-          }
-          .cat-card-btn {
-            padding: 4px 8px 4px 4px;
-            border-radius: 10px;
-            gap: 6px;
-          }
-          .cat-card-img-wrap {
-            width: 30px;
-            height: 30px;
-            border-radius: 6px;
-          }
-          .cat-card-title {
-            font-size: 9.5px;
-            letter-spacing: 0.01em;
-          }
-          .cat-card-count {
-            font-size: 8.5px;
           }
         }
       `}</style>

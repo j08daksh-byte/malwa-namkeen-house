@@ -6,3 +6,6 @@ export * from './Discount.ts';
 export * from './Inquiry.ts';
 export * from './StoreSettings.ts';
 export * from './Banner.ts';
+export * from './EmailLog.ts';
+export * from './OtpVerification.ts';
+export * from './AuditLog.ts';

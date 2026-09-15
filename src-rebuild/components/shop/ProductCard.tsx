@@ -80,6 +80,7 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           width: 100%;
           height: 100%;
           object-fit: cover;
+          object-position: right center;
           display: block;
           transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
         }

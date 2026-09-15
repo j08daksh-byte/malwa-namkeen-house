@@ -119,6 +119,7 @@ export default function AdminProducts() {
 
   // Form Fields - Tab 1: General & Story
   const [formName, setFormName] = useState('');
+  const [formSlug, setFormSlug] = useState('');
   const [formHindiName, setFormHindiName] = useState('');
   const [formTagline, setFormTagline] = useState('');
   const [formCategory, setFormCategory] = useState('');
@@ -243,6 +244,7 @@ export default function AdminProducts() {
     setEditingProduct(null);
     setActiveTab('general');
     setFormName('');
+    setFormSlug('');
     setFormHindiName('');
     setFormTagline('');
     setFormCategory(categories[0]?._id || '');
@@ -285,6 +287,7 @@ export default function AdminProducts() {
     setEditingProduct(p);
     setActiveTab('general');
     setFormName(p.name);
+    setFormSlug(p.slug || '');
     setFormHindiName(p.hindiName || '');
     setFormTagline(p.tagline || '');
     setFormCategory(typeof p.category === 'object' ? p.category._id : p.category);
@@ -541,6 +544,7 @@ export default function AdminProducts() {
 
     const payload = {
       name: formName.trim(),
+      slug: formSlug.trim() || undefined,
       hindiName: formHindiName.trim(),
       tagline: formTagline.trim(),
       category: formCategory,
@@ -816,6 +820,7 @@ export default function AdminProducts() {
                               )}
                             </div>
                             {p.hindiName && <div style={{ fontSize: '11.5px', color: '#8C756B', marginTop: '1px' }}>{p.hindiName}</div>}
+                            <div style={{ fontSize: '11px', color: '#9CA3AF', fontFamily: 'monospace', marginTop: '1px' }}>/product/{p.slug}</div>
                             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '4px' }}>
                               {p.isBestSeller && (
                                 <button
@@ -1126,6 +1131,19 @@ export default function AdminProducts() {
                           placeholder="e.g. रतलामी सेंव, खस्ता मेथी मठरी"
                           style={inputStyle}
                         />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={labelStyle}>URL Slug</label>
+                      <input
+                        value={formSlug}
+                        onChange={e => setFormSlug(e.target.value)}
+                        placeholder="e.g. special-ratlami-sev (leave empty to auto-generate)"
+                        style={inputStyle}
+                      />
+                      <div style={{ fontSize: '11.5px', color: '#6B7280', marginTop: '4px' }}>
+                        Used in the product URL. Leave blank when creating a product to generate automatically. Changing it later will change the product URL.
                       </div>
                     </div>
 

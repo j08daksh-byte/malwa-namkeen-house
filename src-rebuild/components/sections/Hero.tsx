@@ -242,28 +242,39 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
           left: 50%;
           transform: translateX(-50%);
           display: flex;
+          flex-direction: row;
           align-items: center;
-          gap: 8px;
+          gap: 7px;
           z-index: 10;
-          padding: 6px 12px;
+          padding: 5px 12px;
           border-radius: 999px;
-          background: rgba(43, 33, 30, 0.35);
+          background: rgba(43, 33, 30, 0.45);
           backdrop-filter: blur(6px);
+          pointer-events: auto;
         }
 
         .hero-dot-btn {
-          width: 10px;
-          height: 10px;
+          width: 8px;
+          height: 8px;
+          min-height: 0 !important;
+          max-height: 8px !important;
+          min-width: 0 !important;
           border-radius: 999px;
           background: rgba(255, 255, 255, 0.55);
           border: none;
           cursor: pointer;
           padding: 0;
+          margin: 0;
+          flex-shrink: 0;
           transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         .hero-dot-btn--active {
-          width: 28px;
+          width: 24px;
+          height: 8px;
+          min-height: 0 !important;
+          max-height: 8px !important;
+          min-width: 0 !important;
           background: #FFF8EC;
           box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
         }
@@ -280,14 +291,21 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
           .hero-carousel-dots {
             bottom: 12px;
             gap: 6px;
-            padding: 4px 8px;
+            padding: 4px 10px;
           }
           .hero-dot-btn {
-            width: 8px;
-            height: 8px;
+            width: 7px;
+            height: 7px;
+            min-height: 0 !important;
+            max-height: 7px !important;
+            min-width: 0 !important;
           }
           .hero-dot-btn--active {
             width: 20px;
+            height: 7px;
+            min-height: 0 !important;
+            max-height: 7px !important;
+            min-width: 0 !important;
           }
         }
 
@@ -308,13 +326,13 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
             width: 100%;
             height: 100%;
             object-fit: cover;
-            object-position: 78% center;
+            object-position: right center;
           }
           .hero-mobile-overlay {
             display: block;
             position: absolute;
             inset: 0;
-            background: linear-gradient(180deg, rgba(35, 3, 10, 0.20) 0%, rgba(35, 3, 10, 0.52) 40%, rgba(35, 3, 10, 0.92) 100%);
+            background: linear-gradient(180deg, rgba(35, 3, 10, 0.15) 0%, rgba(35, 3, 10, 0.60) 42%, rgba(35, 3, 10, 0.95) 100%);
             pointer-events: none;
             z-index: 2;
           }
@@ -325,7 +343,7 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
             justify-content: flex-end;
             position: absolute;
             inset: 0;
-            padding: 20px 20px 38px;
+            padding: 20px 20px 42px;
             gap: 8px;
             z-index: 3;
             pointer-events: none;
