@@ -24,6 +24,8 @@ import ImageCropperModal from '../../components/admin/ImageCropperModal.tsx';
 export interface BannerItem {
   _id: string;
   title: string;
+  subtitle?: string;
+  ctaText?: string;
   alt?: string;
   image: string;
   mobileImage?: string;

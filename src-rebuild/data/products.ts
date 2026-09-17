@@ -42,10 +42,11 @@ export interface Product {
 }
 
 export interface ShopCategory {
-  id: 'all' | 'sev-namkeen' | 'mixtures-chivda' | 'khasta-mathri' | 'mithai-sweets' | 'gift-hampers' | 'falahari-fasting';
+  id: 'all' | 'sev-namkeen' | 'mixtures-chivda' | 'khasta-mathri' | 'mithai-sweets' | 'gift-hampers' | 'falahari-fasting' | string;
   label: string;
   shortLabel: string;
   description: string;
+  image?: string;
 }
 
 export const SHOP_CATEGORIES: ShopCategory[] = [

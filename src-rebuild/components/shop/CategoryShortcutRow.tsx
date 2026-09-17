@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { type ShopCategory } from '../../data/products';
 
 interface CategoryShortcutRowProps {
