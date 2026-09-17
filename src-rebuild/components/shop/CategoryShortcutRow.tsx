@@ -279,7 +279,7 @@ export default function CategoryShortcutRow({
         {categories.map(cat => {
           const isActive = selectedCategory === cat.id;
           const displayTitle = CATEGORY_DISPLAY_TITLES[cat.id] || cat.shortLabel?.toUpperCase() || cat.label?.toUpperCase();
-          const imageUrl = CATEGORY_IMAGES[cat.id] || '/hero-banner-1.png';
+          const imageUrl = (cat as any).image || CATEGORY_IMAGES[cat.id] || '/mishtichaat/hero-food.jpg';
           const count = categoryCounts[cat.id];
 
           return (
@@ -298,7 +298,10 @@ export default function CategoryShortcutRow({
                   className="cat-card-img"
                   loading="eager"
                   onError={e => {
-                    (e.currentTarget as HTMLImageElement).src = '/hero-banner-1.png';
+                    const el = e.currentTarget as HTMLImageElement;
+                    if (!el.src.includes('/mishtichaat/hero-food.jpg')) {
+                      el.src = '/mishtichaat/hero-food.jpg';
+                    }
                   }}
                 />
               </div>

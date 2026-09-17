@@ -79,6 +79,31 @@ export default function AdminBanners() {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
 
+  // Helper to immediately sync active banners to storefront cache
+  const syncStorefrontBanners = (bannerList: BannerItem[]) => {
+    try {
+      const active = bannerList
+        .filter(b => b.active)
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+        .map((b, idx) => ({
+          id: b._id || idx + 1,
+          image: b.image,
+          mobileImage: b.mobileImage,
+          title: b.title || b.alt,
+          subtitle: b.subtitle,
+          badge: b.badge || 'MALWA HERITAGE',
+          ctaText: b.ctaText || 'SHOP NOW',
+          alt: b.alt || b.title || 'Malwa Namkeen House Hero Banner',
+          link: b.link || '/shop',
+        }));
+      localStorage.setItem('mnh_active_banners', JSON.stringify(active));
+      sessionStorage.setItem('mnh_active_banners', JSON.stringify(active));
+      window.dispatchEvent(new Event('mnh_banners_updated'));
+    } catch {
+      // Ignore storage issues
+    }
+  };
+
   // Fetch Banners
   const fetchBanners = useCallback(async () => {
     setLoading(true);
@@ -102,7 +127,9 @@ export default function AdminBanners() {
 
       const data = await res.json();
       if (data.success) {
-        setBanners(data.banners || []);
+        const loaded = data.banners || [];
+        setBanners(loaded);
+        syncStorefrontBanners(loaded);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error loading banners.');

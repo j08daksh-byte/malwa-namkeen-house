@@ -97,6 +97,35 @@ h1, h2, h3, h4, h5, h6 {
   text-wrap: balance;
 }
 
+/* Modal header & dark container heading overrides */
+.admin-modal-header h1,
+.admin-modal-header h2,
+.admin-modal-header h3,
+.admin-modal-header h4,
+.admin-modal-header p,
+[style*="background: #3C0815"] h1,
+[style*="background: #3C0815"] h2,
+[style*="background: #3C0815"] h3,
+[style*="background: #3C0815"] h4,
+[style*="background: #3C0815"] p,
+[style*="background:#3C0815"] h1,
+[style*="background:#3C0815"] h2,
+[style*="background:#3C0815"] h3,
+[style*="background:#3C0815"] h4,
+[style*="background:#3C0815"] p,
+[style*="background: #55000A"] h1,
+[style*="background: #55000A"] h2,
+[style*="background: #55000A"] h3,
+[style*="background: #55000A"] h4,
+[style*="background: #55000A"] p,
+[style*="background:#55000A"] h1,
+[style*="background:#55000A"] h2,
+[style*="background:#55000A"] h3,
+[style*="background:#55000A"] h4,
+[style*="background:#55000A"] p {
+  color: #FFF9EF !important;
+}
+
 h1 {
   font-size: clamp(38px, 4.8vw, 68px);
   font-weight: 700;

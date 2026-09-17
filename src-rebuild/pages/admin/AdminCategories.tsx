@@ -608,16 +608,16 @@ export default function AdminCategories() {
             {/* Modal Header */}
             <div style={{ padding: '18px 24px', background: '#3C0815', color: '#FFF9EF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 800 }}>
+                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#FFF9EF' }}>
                   {editingCategory ? 'Edit Category' : 'Add New Category'}
                 </h2>
-                <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: 'rgba(255,248,236,0.7)' }}>
+                <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'rgba(255,248,236,0.8)' }}>
                   Organize namkeen items and sweets into storefront sections
                 </p>
               </div>
               <button
                 onClick={() => setModalOpen(false)}
-                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
+                style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
               >
                 <X size={16} />
               </button>
@@ -706,25 +706,30 @@ export default function AdminCategories() {
                   <button
                     type="button"
                     onClick={addImageUrl}
-                    style={{ background: '#F3F4F6', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '0 12px', fontSize: '12px', fontWeight: 600, height: '38px', cursor: 'pointer' }}
+                    style={{ background: '#3C0815', color: '#FFF', border: 'none', borderRadius: '8px', padding: '0 14px', fontSize: '12px', fontWeight: 700, height: '38px', cursor: 'pointer' }}
                   >
-                    Add
+                    Add URL
                   </button>
                 </div>
 
                 {formImage && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#FAF6EF', padding: '8px 12px', borderRadius: '8px', border: '1px solid #EAE3D2' }}>
-                    <img src={formImage} alt="Preview" style={{ width: '44px', height: '44px', borderRadius: '6px', objectFit: 'cover' }} />
-                    <div style={{ flex: 1, minWidth: 0, fontSize: '11.5px', color: '#4B5563', wordBreak: 'break-all' }}>
-                      {formImage}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#FAF6EF', padding: '10px 14px', borderRadius: '10px', border: '1px solid #EAE3D2' }}>
+                    <img src={formImage} alt="Preview" style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #D4AA45' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#3C0815' }}>
+                        {formImage.startsWith('data:') ? 'Custom Category Image' : (formImage.length > 50 ? `${formImage.slice(0, 47)}…` : formImage)}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#059669', fontWeight: 600, marginTop: '2px' }}>
+                        ✓ Image attached &amp; ready to save
+                      </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => setFormImage('')}
-                      style={{ background: '#FEE2E2', border: 'none', borderRadius: '4px', width: '24px', height: '24px', color: '#991B1B', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
+                      style={{ background: '#FEE2E2', border: 'none', borderRadius: '6px', width: '28px', height: '28px', color: '#991B1B', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
                       title="Remove image"
                     >
-                      <X size={13} />
+                      <X size={14} />
                     </button>
                   </div>
                 )}

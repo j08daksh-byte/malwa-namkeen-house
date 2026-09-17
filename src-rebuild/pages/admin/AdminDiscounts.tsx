@@ -615,16 +615,16 @@ export default function AdminDiscounts() {
             {/* Modal Header */}
             <div style={{ padding: '18px 24px', background: '#3C0815', color: '#FFF9EF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 800 }}>
+                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#FFF9EF' }}>
                   {editingDiscount ? 'Edit Promotional Coupon' : 'Create Promotional Coupon'}
                 </h2>
-                <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: 'rgba(255,248,236,0.7)' }}>
+                <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'rgba(255,248,236,0.85)' }}>
                   Configure discount percentages, caps, minimum spend and expiration dates
                 </p>
               </div>
               <button
                 onClick={() => setModalOpen(false)}
-                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
+                style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
               >
                 <X size={16} />
               </button>

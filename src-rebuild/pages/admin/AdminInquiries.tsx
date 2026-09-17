@@ -486,19 +486,19 @@ export default function AdminInquiries() {
             <div style={{ padding: '18px 24px', background: '#3C0815', color: '#FFF9EF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 800 }}>Inquiry from {selectedInquiry.name}</h2>
+                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#FFF9EF' }}>Inquiry from {selectedInquiry.name}</h2>
                   <span style={{ background: '#F0C74E', color: '#3C0815', fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', textTransform: 'capitalize' }}>
                     {selectedInquiry.category || 'General'}
                   </span>
                 </div>
-                <div style={{ fontSize: '11.5px', color: 'rgba(255,248,236,0.7)', marginTop: '2px' }}>
+                <div style={{ fontSize: '12px', color: 'rgba(255,248,236,0.85)', marginTop: '3px' }}>
                   Received on {new Date(selectedInquiry.createdAt).toLocaleString('en-IN')}
                 </div>
               </div>
 
               <button
                 onClick={() => setSelectedInquiry(null)}
-                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
+                style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
               >
                 <X size={16} />
               </button>

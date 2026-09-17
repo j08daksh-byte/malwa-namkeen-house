@@ -289,11 +289,7 @@ router.get('/products', async (req: Request, res: Response) => {
 
       // When MongoDB is connected, return DB results directly even if 0 results match
       const formattedProducts = rawProducts.map(formatPublicProduct);
-      if (process.env.NODE_ENV === 'production') {
-        res.setHeader('Cache-Control', 'public, max-age=10, stale-while-revalidate=30');
-      } else {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      }
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.json({
         success: true,
         products: formattedProducts,

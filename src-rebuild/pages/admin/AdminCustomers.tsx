@@ -452,8 +452,8 @@ export default function AdminCustomers() {
                   {selectedCustomer.name.slice(0, 2).toUpperCase()}
                 </div>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>{selectedCustomer.name}</h2>
-                  <div style={{ fontSize: '12px', color: 'rgba(255,248,236,0.7)', marginTop: '2px' }}>
+                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#FFF9EF' }}>{selectedCustomer.name}</h2>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,248,236,0.85)', marginTop: '3px' }}>
                     Member since {new Date(selectedCustomer.createdAt).toLocaleDateString('en-IN')}
                   </div>
                 </div>
@@ -461,7 +461,7 @@ export default function AdminCustomers() {
 
               <button
                 onClick={() => setSelectedCustomer(null)}
-                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
+                style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
               >
                 <X size={18} />
               </button>

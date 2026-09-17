@@ -77,13 +77,18 @@ export function uploadImageBuffer(
   configureCloudinary();
   return new Promise((resolve, reject) => {
     const folder = getUploadFolder(target);
+    const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const baseName = customFilename
+      ? customFilename.replace(/\.[^/.]+$/, '').replace(/[^\w-]/g, '_')
+      : 'img';
+    const publicId = `${baseName}_${uniqueSuffix}`;
 
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder,
         resource_type: 'image',
-        public_id: customFilename ? customFilename.replace(/\.[^/.]+$/, '') : undefined,
-        overwrite: true,
+        public_id: publicId,
+        overwrite: false,
       },
       (error, result: UploadApiResponse | undefined) => {
         if (error || !result) {
@@ -115,10 +120,14 @@ export async function uploadImageBase64(
 ): Promise<UploadResult> {
   configureCloudinary();
   const folder = getUploadFolder(target);
+  const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const publicId = `img_${uniqueSuffix}`;
 
   const result = await cloudinary.uploader.upload(base64Data, {
     folder,
     resource_type: 'image',
+    public_id: publicId,
+    overwrite: false,
   });
 
   return {

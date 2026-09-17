@@ -169,6 +169,7 @@ export default function Shop() {
               label: c.name || c.label,
               shortLabel: c.shortLabel || c.name,
               description: c.description || 'Artisanal authentic recipe extruded and prepared in pure groundnut oil.',
+              image: c.image || '',
             }));
             setCategories(loadedCats);
           }

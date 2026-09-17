@@ -1010,16 +1010,16 @@ export default function AdminProducts() {
             {/* Modal Header */}
             <div style={{ padding: '18px 24px', background: '#3C0815', color: '#FFF9EF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, letterSpacing: '-0.02em', color: '#FFF9EF' }}>
                   {editingProduct ? `Edit Delicacy: ${formName || 'Untitled'}` : 'Create New Malwa Delicacy'}
                 </h2>
-                <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'rgba(255,248,236,0.75)' }}>
+                <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'rgba(255,248,236,0.85)' }}>
                   Easily configure product details, packaging weights, authentic ingredients &amp; custom specifications
                 </p>
               </div>
               <button
                 onClick={() => setModalOpen(false)}
-                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
+                style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
               >
                 <X size={18} />
               </button>

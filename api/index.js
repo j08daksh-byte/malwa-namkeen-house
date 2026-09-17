@@ -3248,11 +3248,7 @@ router3.get("/products", async (req, res) => {
         Category.find({ active: { $ne: false } }).sort({ sortOrder: 1 }).maxTimeMS(2e3).lean()
       ]);
       const formattedProducts = rawProducts.map(formatPublicProduct);
-      if (process.env.NODE_ENV === "production") {
-        res.setHeader("Cache-Control", "public, max-age=10, stale-while-revalidate=30");
-      } else {
-        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      }
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       res.json({
         success: true,
         products: formattedProducts,
@@ -7263,12 +7259,15 @@ function uploadImageBuffer(buffer, target = "products", customFilename) {
   configureCloudinary();
   return new Promise((resolve, reject) => {
     const folder = getUploadFolder(target);
+    const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const baseName = customFilename ? customFilename.replace(/\.[^/.]+$/, "").replace(/[^\w-]/g, "_") : "img";
+    const publicId = `${baseName}_${uniqueSuffix}`;
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder,
         resource_type: "image",
-        public_id: customFilename ? customFilename.replace(/\.[^/.]+$/, "") : void 0,
-        overwrite: true
+        public_id: publicId,
+        overwrite: false
       },
       (error, result) => {
         if (error || !result) {
@@ -7291,9 +7290,13 @@ function uploadImageBuffer(buffer, target = "products", customFilename) {
 async function uploadImageBase64(base64Data, target = "products") {
   configureCloudinary();
   const folder = getUploadFolder(target);
+  const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const publicId = `img_${uniqueSuffix}`;
   const result = await cloudinary.uploader.upload(base64Data, {
     folder,
-    resource_type: "image"
+    resource_type: "image",
+    public_id: publicId,
+    overwrite: false
   });
   return {
     secureUrl: result.secure_url,

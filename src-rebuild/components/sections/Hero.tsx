@@ -40,7 +40,7 @@ const AUTOPLAY_INTERVAL = 5000; // 5 seconds per slide
 
 function getCachedBanners(): BannerSlide[] | null {
   try {
-    const raw = sessionStorage.getItem('mnh_active_banners');
+    const raw = localStorage.getItem('mnh_active_banners') || sessionStorage.getItem('mnh_active_banners');
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -54,51 +54,64 @@ function getCachedBanners(): BannerSlide[] | null {
 export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void }) {
   const navigate = useNavigate();
   const cached = getCachedBanners();
-  const [slides, setSlides] = useState<BannerSlide[]>(cached || DEFAULT_BANNER_SLIDES);
+  const [slides, setSlides] = useState<BannerSlide[]>(cached || []);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const touchStartXRef = useRef<number | null>(null);
 
   // Fetch active banners from API (always fresh)
-  useEffect(() => {
-    let isMounted = true;
-    async function fetchBanners() {
-      try {
-        const res = await fetch('/api/banners', { cache: 'no-store' });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.success && Array.isArray(data.banners) && data.banners.length > 0) {
-          if (isMounted) {
-            const freshSlides: BannerSlide[] = data.banners.map((b: any, idx: number) => ({
-              id: b.id || b._id || idx + 1,
-              image: b.image,
-              mobileImage: b.mobileImage,
-              title: b.title || b.alt,
-              subtitle: b.subtitle,
-              badge: b.badge || 'MALWA HERITAGE',
-              ctaText: b.ctaText || 'SHOP NOW',
-              alt: b.alt || b.title || 'Malwa Namkeen House Hero Banner',
-              link: b.link || '/shop',
-            }));
+  const fetchBanners = useCallback(async () => {
+    try {
+      const res = await fetch('/api/banners', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.success && Array.isArray(data.banners) && data.banners.length > 0) {
+        const freshSlides: BannerSlide[] = data.banners.map((b: any, idx: number) => ({
+          id: b.id || b._id || idx + 1,
+          image: b.image,
+          mobileImage: b.mobileImage,
+          title: b.title || b.alt,
+          subtitle: b.subtitle,
+          badge: b.badge || 'MALWA HERITAGE',
+          ctaText: b.ctaText || 'SHOP NOW',
+          alt: b.alt || b.title || 'Malwa Namkeen House Hero Banner',
+          link: b.link || '/shop',
+        }));
 
-            setSlides(freshSlides);
-            try {
-              sessionStorage.setItem('mnh_active_banners', JSON.stringify(freshSlides));
-            } catch {
-              // Ignore
-            }
-            setCurrentSlide(0);
-          }
+        setSlides(freshSlides);
+        try {
+          localStorage.setItem('mnh_active_banners', JSON.stringify(freshSlides));
+          sessionStorage.setItem('mnh_active_banners', JSON.stringify(freshSlides));
+        } catch {
+          // Ignore
         }
-      } catch (err) {
-        console.warn('Could not fetch dynamic banners:', err);
       }
+    } catch (err) {
+      console.warn('Could not fetch dynamic banners:', err);
     }
-    fetchBanners();
-    return () => {
-      isMounted = false;
-    };
   }, []);
+
+  useEffect(() => {
+    fetchBanners();
+
+    // Listen to real-time banner update events triggered by Admin portal
+    const handleBannerUpdate = () => {
+      const freshCached = getCachedBanners();
+      if (freshCached && freshCached.length > 0) {
+        setSlides(freshCached);
+        setCurrentSlide(0);
+      } else {
+        fetchBanners();
+      }
+    };
+
+    window.addEventListener('mnh_banners_updated', handleBannerUpdate);
+    window.addEventListener('storage', handleBannerUpdate);
+    return () => {
+      window.removeEventListener('mnh_banners_updated', handleBannerUpdate);
+      window.removeEventListener('storage', handleBannerUpdate);
+    };
+  }, [fetchBanners]);
 
   const totalSlides = slides.length;
 

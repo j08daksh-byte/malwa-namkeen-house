@@ -573,21 +573,21 @@ export default function AdminOrders() {
             <div style={{ padding: '20px 24px', background: '#3C0815', color: '#FFF9EF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>
+                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#FFF9EF' }}>
                     Order #{selectedOrder.orderNumber}
                   </h2>
                   <span style={{ background: '#F0C74E', color: '#3C0815', fontSize: '10.5px', fontWeight: 800, padding: '2px 7px', borderRadius: '4px', textTransform: 'uppercase' }}>
                     {selectedOrder.orderStatus}
                   </span>
                 </div>
-                <div style={{ fontSize: '12px', color: 'rgba(255,248,236,0.7)', marginTop: '4px' }}>
+                <div style={{ fontSize: '12px', color: 'rgba(255,248,236,0.85)', marginTop: '4px' }}>
                   Placed on {new Date(selectedOrder.createdAt).toLocaleString('en-IN')}
                 </div>
               </div>
 
               <button
                 onClick={() => setSelectedOrder(null)}
-                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
+                style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
               >
                 <X size={18} />
               </button>
