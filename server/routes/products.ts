@@ -94,15 +94,29 @@ function formatPublicProduct(p: any) {
 router.get('/categories', async (_req: Request, res: Response) => {
   try {
     if (mongoose.connection.readyState === 1) {
-      const categories = await Category.find({ active: true })
-        .sort({ sortOrder: 1, name: 1 })
-        .lean();
+      const [categories, productCountGroups, totalActiveProducts] = await Promise.all([
+        Category.find({ active: true }).sort({ sortOrder: 1, name: 1 }).lean(),
+        Product.aggregate([
+          { $match: { active: { $ne: false } } },
+          { $group: { _id: '$category', count: { $sum: 1 } } },
+        ]),
+        Product.countDocuments({ active: { $ne: false } }),
+      ]);
 
       if (categories.length > 0) {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.json({
-          success: true,
-          categories: categories.map(c => ({
+        const countMap: Record<string, number> = {};
+        for (const grp of productCountGroups) {
+          if (grp._id) {
+            countMap[String(grp._id)] = grp.count;
+          }
+        }
+
+        const categoryCounts: Record<string, number> = { all: totalActiveProducts };
+        const formattedCategories = categories.map(c => {
+          const count = countMap[String(c._id)] ?? 0;
+          categoryCounts[c.slug] = count;
+          categoryCounts[String(c._id)] = count;
+          return {
             id: c.slug,
             _id: String(c._id),
             slug: c.slug,
@@ -111,7 +125,16 @@ router.get('/categories', async (_req: Request, res: Response) => {
             shortLabel: c.name.replace(/(Signature|Heritage|Royal|Crisp)\s+/i, ''),
             description: c.description || '',
             image: c.image || '',
-          })),
+            productCount: count,
+          };
+        });
+
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.json({
+          success: true,
+          totalProducts: totalActiveProducts,
+          categoryCounts,
+          categories: formattedCategories,
         });
         return;
       }
@@ -121,9 +144,18 @@ router.get('/categories', async (_req: Request, res: Response) => {
   }
 
   // Fallback to static categories only if MongoDB is disconnected in development
+  const staticCounts: Record<string, number> = { all: FALLBACK_PRODUCTS.length };
+  for (const p of FALLBACK_PRODUCTS) {
+    if (p.category) {
+      staticCounts[p.category] = (staticCounts[p.category] ?? 0) + 1;
+    }
+  }
+
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.json({
     success: true,
+    totalProducts: FALLBACK_PRODUCTS.length,
+    categoryCounts: staticCounts,
     categories: FALLBACK_CATEGORIES.map(c => ({
       id: c.id,
       _id: c.id,
@@ -133,6 +165,7 @@ router.get('/categories', async (_req: Request, res: Response) => {
       shortLabel: c.shortLabel,
       description: c.description,
       image: '',
+      productCount: staticCounts[c.id] ?? 0,
     })),
   });
 });

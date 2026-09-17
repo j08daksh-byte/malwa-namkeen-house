@@ -3103,12 +3103,27 @@ function formatPublicProduct(p) {
 router3.get("/categories", async (_req, res) => {
   try {
     if (mongoose9.connection.readyState === 1) {
-      const categories = await Category.find({ active: true }).sort({ sortOrder: 1, name: 1 }).lean();
+      const [categories, productCountGroups, totalActiveProducts] = await Promise.all([
+        Category.find({ active: true }).sort({ sortOrder: 1, name: 1 }).lean(),
+        Product.aggregate([
+          { $match: { active: { $ne: false } } },
+          { $group: { _id: "$category", count: { $sum: 1 } } }
+        ]),
+        Product.countDocuments({ active: { $ne: false } })
+      ]);
       if (categories.length > 0) {
-        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-        res.json({
-          success: true,
-          categories: categories.map((c) => ({
+        const countMap = {};
+        for (const grp of productCountGroups) {
+          if (grp._id) {
+            countMap[String(grp._id)] = grp.count;
+          }
+        }
+        const categoryCounts = { all: totalActiveProducts };
+        const formattedCategories = categories.map((c) => {
+          const count = countMap[String(c._id)] ?? 0;
+          categoryCounts[c.slug] = count;
+          categoryCounts[String(c._id)] = count;
+          return {
             id: c.slug,
             _id: String(c._id),
             slug: c.slug,
@@ -3116,17 +3131,33 @@ router3.get("/categories", async (_req, res) => {
             label: c.name,
             shortLabel: c.name.replace(/(Signature|Heritage|Royal|Crisp)\s+/i, ""),
             description: c.description || "",
-            image: c.image || ""
-          }))
+            image: c.image || "",
+            productCount: count
+          };
+        });
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        res.json({
+          success: true,
+          totalProducts: totalActiveProducts,
+          categoryCounts,
+          categories: formattedCategories
         });
         return;
       }
     }
   } catch (_err) {
   }
+  const staticCounts = { all: PRODUCTS.length };
+  for (const p of PRODUCTS) {
+    if (p.category) {
+      staticCounts[p.category] = (staticCounts[p.category] ?? 0) + 1;
+    }
+  }
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   res.json({
     success: true,
+    totalProducts: PRODUCTS.length,
+    categoryCounts: staticCounts,
     categories: SHOP_CATEGORIES.map((c) => ({
       id: c.id,
       _id: c.id,
@@ -3135,7 +3166,8 @@ router3.get("/categories", async (_req, res) => {
       label: c.label,
       shortLabel: c.shortLabel,
       description: c.description,
-      image: ""
+      image: "",
+      productCount: staticCounts[c.id] ?? 0
     }))
   });
 });

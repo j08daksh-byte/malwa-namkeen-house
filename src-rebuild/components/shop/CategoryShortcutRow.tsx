@@ -37,11 +37,42 @@ export default function CategoryShortcutRow({
   categoryCounts = {},
 }: CategoryShortcutRowProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScrollability = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setCanScrollLeft(scrollLeft > 4);
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    checkScrollability();
+    el.addEventListener('scroll', checkScrollability, { passive: true });
+    window.addEventListener('resize', checkScrollability);
+
+    // Initial check after rendering
+    const timer = setTimeout(checkScrollability, 150);
+
+    return () => {
+      clearTimeout(timer);
+      el.removeEventListener('scroll', checkScrollability);
+      window.removeEventListener('resize', checkScrollability);
+    };
+  }, [checkScrollability, categories]);
 
   const handleScroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
-      const scrollAmount = direction === 'left' ? -280 : 280;
-      scrollContainerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+      const el = scrollContainerRef.current;
+      const scrollDistance = Math.max(260, Math.floor(el.clientWidth * 0.65));
+      const target = direction === 'left' ? -scrollDistance : scrollDistance;
+      el.scrollBy({ left: target, behavior: 'smooth' });
+      setTimeout(checkScrollability, 350);
     }
   };
 
@@ -63,7 +94,7 @@ export default function CategoryShortcutRow({
           scrollbar-width: none;
           -ms-overflow-style: none;
           padding: 6px 4px 14px;
-          scroll-snap-type: x proximity;
+          scroll-behavior: smooth;
         }
 
         .cat-row-scroll-container::-webkit-scrollbar {
@@ -263,16 +294,18 @@ export default function CategoryShortcutRow({
       `}</style>
 
       {/* Left Scroll Button for Desktop */}
-      <button
-        type="button"
-        className="cat-row-nav-btn cat-row-nav-btn--left"
-        onClick={() => handleScroll('left')}
-        aria-label="Scroll categories left"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="15 18 9 12 15 6" />
-        </svg>
-      </button>
+      {canScrollLeft && (
+        <button
+          type="button"
+          className="cat-row-nav-btn cat-row-nav-btn--left"
+          onClick={() => handleScroll('left')}
+          aria-label="Scroll categories left"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+      )}
 
       {/* Scrollable Categories List */}
       <div className="cat-row-scroll-container" ref={scrollContainerRef} role="tablist">
@@ -308,7 +341,7 @@ export default function CategoryShortcutRow({
               <div className="cat-card-info">
                 <span className="cat-card-title">{displayTitle}</span>
                 {count !== undefined && count > 0 && (
-                  <span className="cat-card-count">{count} items</span>
+                  <span className="cat-card-count">{count} {count === 1 ? 'item' : 'items'}</span>
                 )}
               </div>
             </button>
@@ -317,16 +350,18 @@ export default function CategoryShortcutRow({
       </div>
 
       {/* Right Scroll Button for Desktop */}
-      <button
-        type="button"
-        className="cat-row-nav-btn cat-row-nav-btn--right"
-        onClick={() => handleScroll('right')}
-        aria-label="Scroll categories right"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-      </button>
+      {canScrollRight && (
+        <button
+          type="button"
+          className="cat-row-nav-btn cat-row-nav-btn--right"
+          onClick={() => handleScroll('right')}
+          aria-label="Scroll categories right"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }

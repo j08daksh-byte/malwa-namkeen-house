@@ -143,6 +143,8 @@ export default function Shop() {
   const handleSpiceChange = (spice: string) => updateFilters({ spice });
   const handleSortChange = (sort: string) => updateFilters({ sort });
 
+  const [dynamicCategoryCounts, setDynamicCategoryCounts] = useState<Record<string, number>>({});
+
   // Scroll to top once on initial mount
   useEffect(() => {
     isMountedRef.current = true;
@@ -163,6 +165,10 @@ export default function Shop() {
         if (res.ok) {
           const data = await res.json();
           if (data.success && Array.isArray(data.categories) && data.categories.length > 0) {
+            if (data.categoryCounts) {
+              setDynamicCategoryCounts(data.categoryCounts);
+            }
+
             const apiCats = data.categories.filter((c: any) => (c.slug || c.id) !== 'all');
             const loadedCats: ShopCategory[] = apiCats.map((c: any) => ({
               id: c.slug || c.id,
@@ -171,7 +177,16 @@ export default function Shop() {
               description: c.description || 'Artisanal authentic recipe extruded and prepared in pure groundnut oil.',
               image: c.image || '',
             }));
-            setCategories(loadedCats);
+
+            const allCategoryOption: ShopCategory = {
+              id: 'all',
+              label: 'All Delicacies',
+              shortLabel: 'All',
+              description: 'Explore our complete heritage collection of small-batch savouries, sweets, and curated gift boxes.',
+              image: '/mishtichaat/hero-food.jpg',
+            };
+
+            setCategories([allCategoryOption, ...loadedCats]);
           }
         }
       } catch (err) {
@@ -309,8 +324,11 @@ export default function Shop() {
     };
   }, [hasMore, initialLoading, loadingMore, page, fetchProductsBatch]);
 
-  // Accurate category counts for shortcut cards and filter drawer
+  // Accurate category counts for shortcut cards and filter drawer (from live MongoDB)
   const categoryCounts = useMemo(() => {
+    if (Object.keys(dynamicCategoryCounts).length > 0) {
+      return dynamicCategoryCounts;
+    }
     const counts: Record<string, number> = { all: FALLBACK_PRODUCTS.length };
     for (const p of FALLBACK_PRODUCTS) {
       if (p.category) {
@@ -318,7 +336,7 @@ export default function Shop() {
       }
     }
     return counts;
-  }, []);
+  }, [dynamicCategoryCounts]);
 
   const handleResetFilters = () => {
     setSearchParams(new URLSearchParams(), { replace: true });
