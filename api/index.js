@@ -3100,6 +3100,9 @@ function formatPublicProduct(p) {
     options
   };
 }
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 router3.get("/categories", async (_req, res) => {
   try {
     if (mongoose9.connection.readyState === 1) {
@@ -3250,7 +3253,8 @@ router3.get("/products", async (req, res) => {
         filter.featured = true;
       }
       if (search2 && search2.trim()) {
-        const q = search2.trim();
+        const raw = search2.trim().slice(0, 200);
+        const q = escapeRegex(raw);
         filter.$or = [
           { name: { $regex: q, $options: "i" } },
           { hindiName: { $regex: q, $options: "i" } },
@@ -4285,6 +4289,7 @@ var customerAccount_default = router5;
 
 // server/routes/customerOrders.ts
 import { Router as Router6 } from "express";
+import rateLimit3 from "express-rate-limit";
 import mongoose16 from "mongoose";
 
 // server/models/StoreSettings.ts
@@ -4384,7 +4389,31 @@ function generateOrderNumber() {
   const randomSuffix = Math.floor(1e3 + Math.random() * 9e3);
   return `MN-${dateStr}-${randomSuffix}`;
 }
-router6.post("/", requireAuth, async (req, res) => {
+var orderCreationLimiter = rateLimit3({
+  windowMs: 15 * 60 * 1e3,
+  // 15 minutes
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    return req.user?.userId ? `user_${req.user.userId}` : req.ip;
+  },
+  skip: (req) => {
+    const idempotencyKey = req.body?.idempotencyKey;
+    if (idempotencyKey && typeof idempotencyKey === "string") {
+      const cached = recentSubmissions.get(idempotencyKey);
+      if (cached && Date.now() - cached.timestamp < 3e5) {
+        return true;
+      }
+    }
+    return false;
+  },
+  message: {
+    success: false,
+    message: "Too many orders placed recently. Please try again after 15 minutes."
+  }
+});
+router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
   let appliedDiscountCode = "";
   const reservedStockUpdates = [];
   try {
@@ -6034,9 +6063,21 @@ var adminCustomers_default = router10;
 
 // server/routes/adminDiscounts.ts
 import { Router as Router11 } from "express";
+import rateLimit4 from "express-rate-limit";
 import mongoose21 from "mongoose";
 var router11 = Router11();
-router11.post("/validate", async (req, res) => {
+var couponValidateLimiter = rateLimit4({
+  windowMs: 15 * 60 * 1e3,
+  // 15 minutes
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many coupon validation attempts. Please try again after 15 minutes."
+  }
+});
+router11.post("/validate", couponValidateLimiter, async (req, res) => {
   try {
     const { code, subtotal, items = [] } = req.body;
     const result = await validateAndCalculateDiscount(code, Number(subtotal) || 0, items);
@@ -6538,7 +6579,7 @@ router12.get("/:id", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to retrieve inquiry details." });
   }
 });
-router12.put("/:id", async (req, res) => {
+var updateInquiryHandler = async (req, res) => {
   try {
     const { id } = req.params;
     if (!mongoose23.Types.ObjectId.isValid(id)) {
@@ -6568,7 +6609,10 @@ router12.put("/:id", async (req, res) => {
     console.error("[Update Inquiry Error]", err);
     res.status(400).json({ success: false, message: "Failed to update inquiry." });
   }
-});
+};
+router12.put("/:id", updateInquiryHandler);
+router12.patch("/:id", updateInquiryHandler);
+router12.patch("/:id/status", updateInquiryHandler);
 router12.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -7341,10 +7385,14 @@ async function uploadImageBase64(base64Data, target = "products") {
 }
 async function deleteImage(publicId) {
   configureCloudinary();
-  if (!publicId || !publicId.startsWith("malwa-namkeen-house/")) {
+  if (!publicId || typeof publicId !== "string") {
+    throw new Error("publicId is required.");
+  }
+  const clean = publicId.trim().replace(/\\/g, "/");
+  if (!clean.startsWith("malwa-namkeen-house/") || clean.includes("..") || clean.includes("%2e") || clean.includes("%2E") || !/^malwa-namkeen-house\/[a-zA-Z0-9_\-\/]+$/.test(clean)) {
     throw new Error("Deletion restricted: publicId must belong to malwa-namkeen-house namespace.");
   }
-  const res = await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
+  const res = await cloudinary.uploader.destroy(clean, { resource_type: "image" });
   return {
     success: res.result === "ok",
     result: res.result

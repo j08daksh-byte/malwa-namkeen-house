@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
 import { Discount, type DiscountType } from '../models/Discount.ts';
 import { requireAdmin, type AuthenticatedRequest } from '../lib/auth.ts';
@@ -8,10 +9,32 @@ import { validateAndCalculateDiscount } from '../lib/discounts.ts';
 const router = Router();
 
 /**
+ * Rate limiter for the public coupon validation endpoint.
+ * Unauthenticated — keyed by client IP (express-rate-limit default).
+ * Threshold: 30 requests per 15-minute window.
+ * Rationale: A legitimate checkout session rarely validates more than
+ * 3–5 codes; 30/15min absorbs retries comfortably while making
+ * automated coupon enumeration (needing thousands of requests)
+ * infeasible within a single rate-limit window.
+ * NOTE: Uses in-memory MemoryStore (see PH-016 for serverless limitation).
+ */
+const couponValidateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many coupon validation attempts. Please try again after 15 minutes.',
+  },
+});
+
+/**
  * Public/Customer coupon validation route
  * POST /api/discounts/validate (or /api/admin/discounts/validate)
+ * Rate-limited: 30 requests per 15 minutes per IP (PH-002 fix).
  */
-router.post('/validate', async (req, res: Response) => {
+router.post('/validate', couponValidateLimiter, async (req, res: Response) => {
   try {
     const { code, subtotal, items = [] } = req.body;
     const result = await validateAndCalculateDiscount(code, Number(subtotal) || 0, items);

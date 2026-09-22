@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
 import { User, type IUserAddress } from '../models/User.ts';
 import { Product } from '../models/Product.ts';
@@ -22,11 +23,47 @@ function generateOrderNumber(): string {
 }
 
 /**
+ * Rate limiter for order creation.
+ * Keyed by authenticated user ID (fallback to IP).
+ * Threshold: 5 requests per 15-minute window.
+ * Rationale: 5 genuine distinct orders per 15 mins is extremely generous for a single user,
+ * preventing junk-order flooding without impacting legitimate shopping behavior.
+ * Skips counting legitimate idempotent retries (where order is already cached).
+ * NOTE: Uses in-memory MemoryStore (PH-016 limitation applies).
+ */
+const orderCreationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: any) => {
+    // Key by user ID since this is an authenticated route
+    return req.user?.userId ? `user_${req.user.userId}` : req.ip;
+  },
+  skip: (req: any) => {
+    // Do not count legitimate idempotent retries against the rate limit
+    const idempotencyKey = req.body?.idempotencyKey;
+    if (idempotencyKey && typeof idempotencyKey === 'string') {
+      const cached = recentSubmissions.get(idempotencyKey);
+      if (cached && Date.now() - cached.timestamp < 300000) {
+        return true; // Skip limiting for exact retries
+      }
+    }
+    return false;
+  },
+  message: {
+    success: false,
+    message: 'Too many orders placed recently. Please try again after 15 minutes.',
+  },
+});
+
+/**
  * POST /api/orders
  * Protected customer order creation endpoint.
  * Validates inventory, prices, discounts, and shipping server-side.
+ * Rate-limited: 5 requests per 15 minutes per customer (PH-003 fix).
  */
-router.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedRequest, res: Response) => {
   let appliedDiscountCode = '';
   const reservedStockUpdates: Array<{ productId: any; variantId: any; decrement: number }> = [];
 

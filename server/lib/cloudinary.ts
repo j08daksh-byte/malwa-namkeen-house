@@ -143,15 +143,29 @@ export async function uploadImageBase64(
 /**
  * Delete an image by publicId.
  * SECURITY GUARD: Strictly verifies that the asset begins with 'malwa-namkeen-house/'
- * so foreign assets (e.g. Amaze assets) can NEVER be deleted.
+ * and contains no path traversal sequences (..), ensuring foreign/external assets can NEVER be deleted.
  */
 export async function deleteImage(publicId: string): Promise<{ success: boolean; result?: string }> {
   configureCloudinary();
-  if (!publicId || !publicId.startsWith('malwa-namkeen-house/')) {
+
+  if (!publicId || typeof publicId !== 'string') {
+    throw new Error('publicId is required.');
+  }
+
+  const clean = publicId.trim().replace(/\\/g, '/');
+
+  // Strict namespace boundary & anti-traversal validation
+  if (
+    !clean.startsWith('malwa-namkeen-house/') ||
+    clean.includes('..') ||
+    clean.includes('%2e') ||
+    clean.includes('%2E') ||
+    !/^malwa-namkeen-house\/[a-zA-Z0-9_\-\/]+$/.test(clean)
+  ) {
     throw new Error('Deletion restricted: publicId must belong to malwa-namkeen-house namespace.');
   }
 
-  const res = await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
+  const res = await cloudinary.uploader.destroy(clean, { resource_type: 'image' });
   return {
     success: res.result === 'ok',
     result: res.result,

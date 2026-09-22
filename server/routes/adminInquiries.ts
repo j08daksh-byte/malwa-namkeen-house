@@ -223,10 +223,10 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 /**
- * PUT /api/admin/inquiries/:id
+ * PUT /api/admin/inquiries/:id or PATCH /api/admin/inquiries/:id
  * Update status and admin notes
  */
-router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
+const updateInquiryHandler = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -262,7 +262,11 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
     console.error('[Update Inquiry Error]', err);
     res.status(400).json({ success: false, message: 'Failed to update inquiry.' });
   }
-});
+};
+
+router.put('/:id', updateInquiryHandler);
+router.patch('/:id', updateInquiryHandler);
+router.patch('/:id/status', updateInquiryHandler);
 
 /**
  * DELETE /api/admin/inquiries/:id

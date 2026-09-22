@@ -88,6 +88,16 @@ function formatPublicProduct(p: any) {
 }
 
 /**
+ * Escapes all special PCRE metacharacters in a string so that it is treated
+ * as literal text when used inside a MongoDB $regex query.
+ * This prevents user-supplied input from being interpreted as executable regex
+ * syntax (ReDoS / unexpected broad-match vector — PH-001 fix).
+ */
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * GET /api/categories
  * Returns active categories for customer storefront
  */
@@ -281,7 +291,12 @@ router.get('/products', async (req: Request, res: Response) => {
       }
 
       if (search && search.trim()) {
-        const q = search.trim();
+        // PH-001: escape all PCRE metacharacters so that the user's search
+        // string is treated as literal text, never as executable regex syntax.
+        // Also cap input length to prevent pathological patterns regardless of
+        // the maxTimeMS guard already present on the surrounding query.
+        const raw = search.trim().slice(0, 200);
+        const q = escapeRegex(raw);
         filter.$or = [
           { name: { $regex: q, $options: 'i' } },
           { hindiName: { $regex: q, $options: 'i' } },
