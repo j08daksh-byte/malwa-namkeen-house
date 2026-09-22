@@ -67,7 +67,7 @@ router.get('/stats', async (req: AuthenticatedRequest, res: Response) => {
             paidCount: { $sum: 1 },
           },
         },
-      ]),
+      ]).option({ maxTimeMS: 5000 }),
 
       // Total registered customers
       User.countDocuments({ role: 'customer' }),
@@ -93,7 +93,7 @@ router.get('/stats', async (req: AuthenticatedRequest, res: Response) => {
             count: { $sum: 1 },
           },
         },
-      ]),
+      ]).option({ maxTimeMS: 5000 }),
 
       // Recent 6 orders
       Order.find()
@@ -117,7 +117,7 @@ router.get('/stats', async (req: AuthenticatedRequest, res: Response) => {
         .lean(),
 
       // Products for low-stock scanning
-      Product.find({ active: true }).select('name slug variants').lean(),
+      Product.find({ active: true }).select('name slug variants').maxTimeMS(5000).lean(),
 
       // Daily trends for the selected range
       Order.aggregate([
@@ -134,7 +134,7 @@ router.get('/stats', async (req: AuthenticatedRequest, res: Response) => {
           },
         },
         { $sort: { _id: 1 } },
-      ]),
+      ]).option({ maxTimeMS: 5000 }),
     ]);
 
     const totalRevenue = paidRevenueAgg[0]?.totalRevenue || 0;

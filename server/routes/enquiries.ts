@@ -18,7 +18,7 @@ import {
   sendContactAdminEmail,
   sendReservationCustomerEmail,
   sendReservationAdminEmail,
-} from '../lib/email.ts';
+} from '../lib/emailService.ts';
 
 import { getWaUrlForCategory, WA_URLS } from '../lib/whatsapp.ts';
 import { ENQUIRY_CATEGORIES } from '../config.ts';

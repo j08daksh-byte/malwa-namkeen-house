@@ -120,7 +120,19 @@ async function startServer() {
   // ── Security middleware ───────────────────────────────────────────────────
 
   app.use(helmet({
-    contentSecurityPolicy: false, // Vite injects inline scripts in dev
+    contentSecurityPolicy: isProd ? {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "https://accounts.google.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://*.googleusercontent.com", "https://accounts.google.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        connectSrc: ["'self'", "https://accounts.google.com"],
+        frameSrc: ["'self'", "https://accounts.google.com"],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      }
+    } : false, // Vite injects inline scripts/eval in dev
     crossOriginEmbedderPolicy: false,
   }));
 

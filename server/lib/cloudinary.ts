@@ -74,6 +74,9 @@ export function uploadImageBuffer(
   target: UploadTarget | string = 'products',
   customFilename?: string
 ): Promise<UploadResult> {
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    return Promise.reject(new Error('Cloudinary credentials are not configured. Upload is unavailable.'));
+  }
   configureCloudinary();
   return new Promise((resolve, reject) => {
     const folder = getUploadFolder(target);
@@ -118,6 +121,9 @@ export async function uploadImageBase64(
   base64Data: string,
   target: UploadTarget | string = 'products'
 ): Promise<UploadResult> {
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    throw new Error('Cloudinary credentials are not configured. Upload is unavailable.');
+  }
   configureCloudinary();
   const folder = getUploadFolder(target);
   const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -146,6 +152,9 @@ export async function uploadImageBase64(
  * and contains no path traversal sequences (..), ensuring foreign/external assets can NEVER be deleted.
  */
 export async function deleteImage(publicId: string): Promise<{ success: boolean; result?: string }> {
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    throw new Error('Cloudinary credentials are not configured. Deletion is unavailable.');
+  }
   configureCloudinary();
 
   if (!publicId || typeof publicId !== 'string') {

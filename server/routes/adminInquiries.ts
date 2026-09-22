@@ -21,7 +21,21 @@ const handlePublicInquiry = async (req: Request, res: Response) => {
       return;
     }
 
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
+    if (!email || typeof email !== 'string') {
+      res.status(400).json({ success: false, message: 'Please provide a valid email address.' });
+      return;
+    }
+
+    const cleanEmail = email.trim();
+    if (cleanEmail.length === 0 || cleanEmail.length > 254) {
+      res.status(400).json({ success: false, message: 'Please provide a valid email address.' });
+      return;
+    }
+
+    // Practical, ReDoS-safe validation: requires local part, single @, domain part, and a dot in domain.
+    // Rejects whitespace, multiple @s, missing local/domain, and empty strings.
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
       res.status(400).json({ success: false, message: 'Please provide a valid email address.' });
       return;
     }
@@ -154,8 +168,8 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const [total, inquiries, statsAgg] = await Promise.all([
-      Inquiry.countDocuments(filter),
-      Inquiry.find(filter).sort(sortObj).skip(skip).limit(limitNum).lean(),
+      Inquiry.countDocuments(filter).maxTimeMS(5000),
+      Inquiry.find(filter).sort(sortObj).skip(skip).limit(limitNum).maxTimeMS(5000).lean(),
       Inquiry.aggregate([
         {
           $group: {
@@ -172,7 +186,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
             },
           },
         },
-      ]),
+      ]).option({ maxTimeMS: 5000 }),
     ]);
 
     const stats = statsAgg[0] || {

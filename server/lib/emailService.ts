@@ -918,3 +918,265 @@ export const sendPasswordResetEmail = sendAdminPasswordReset;
 export const sendPasswordChangeOtpEmail = sendPasswordChangeOtp;
 export const sendPasswordChangedEmail = sendPasswordChangedConfirmation;
 export const sendRoleChangedEmail = sendRoleChangedNotification;
+
+// --- Migrated from email.ts ---
+
+import { BUSINESS } from '../config.ts';
+
+function esc(s: unknown): string {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function row(label: string, value: string): string {
+  return `<tr>
+    <td style="padding:6px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#C89A3D;width:140px;vertical-align:top;">${esc(label)}</td>
+    <td style="padding:6px 0;font-size:14px;color:#34211D;line-height:1.55;">${esc(value)}</td>
+  </tr>`;
+}
+
+function dataTable(rows: [string, string][]): string {
+  return `<table cellpadding="0" cellspacing="0" width="100%" style="margin:20px 0;border-collapse:collapse;">
+    ${rows.map(([l, v]) => row(l, v)).join('')}
+  </table>`;
+}
+
+const ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL || BUSINESS.email;
+export interface ContactEmailData {
+  referenceId:  string;
+  customerName: string;
+  customerEmail:string;
+  phone:        string;
+  category:     string;
+  categoryLabel:string;
+  message:      string;
+  locationId:   string;
+  submittedAt:  string;
+}
+
+export async function sendContactCustomerEmail(d: ContactEmailData): Promise<EmailResult> {
+  const body = `
+    <h2 style="margin:0 0 6px;font-family:Georgia,serif;font-size:24px;color:#3C0815;">
+      Thank you, ${esc(d.customerName)}!
+    </h2>
+    <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#5E4940;">
+      We have received your enquiry and our team will get back to you shortly.
+    </p>
+    ${dataTable([
+      ['Reference',  d.referenceId],
+      ['Category',   d.categoryLabel],
+      ['Your Name',  d.customerName],
+      ['Your Email', d.customerEmail],
+      ['Phone',      d.phone || '—'],
+    ])}
+    <p style="margin:20px 0 0;font-size:14px;line-height:1.7;color:#5E4940;">
+      <strong>Your message:</strong><br/>
+      <span style="color:#75645C;">${esc(d.message)}</span>
+    </p>
+    <p style="margin:24px 0 0;font-size:14px;line-height:1.65;color:#5E4940;">
+      <strong>What happens next?</strong><br/>
+      Our team typically responds within one business day. For urgent matters,
+      reach us directly at
+      <a href="mailto:${esc(BUSINESS.email)}" style="color:#C89A3D;">${esc(BUSINESS.email)}</a>
+      or WhatsApp <a href="https://wa.me/${esc(BUSINESS.whatsappNumber)}" style="color:#C89A3D;">${esc(BUSINESS.phone)}</a>.
+    </p>`;
+
+  return sendEmail({
+    eventType: 'inquiry_acknowledgement',
+    to:      d.customerEmail,
+    subject: `We received your enquiry — ${BUSINESS.name}`,
+    html:    wrapEmailTemplate({
+      title: `Enquiry Received — ${BUSINESS.name}`,
+      contentHtml:  body
+    }),
+  });
+}
+
+export async function sendContactAdminEmail(d: ContactEmailData): Promise<EmailResult> {
+  const body = `
+    <h2 style="margin:0 0 6px;font-family:Georgia,serif;font-size:22px;color:#FFF8EC;">
+      New ${esc(d.categoryLabel)} Enquiry
+    </h2>
+    <p style="margin:0 0 20px;font-size:13px;color:rgba(255,248,236,0.70);">
+      Ref: <strong style="color:#F0C74E;">${esc(d.referenceId)}</strong> ·
+      ${esc(d.submittedAt)}
+    </p>
+    ${dataTable([
+      ['Reference', d.referenceId],
+      ['Category',  d.categoryLabel],
+      ['Name',      d.customerName],
+      ['Email',     d.customerEmail],
+      ['Phone',     d.phone || '—'],
+      ['Location',  d.locationId],
+    ])}
+    <p style="margin:16px 0 0;font-size:14px;line-height:1.7;color:rgba(255,248,236,0.85);">
+      <strong style="color:#F0C74E;">Message:</strong><br/>
+      ${esc(d.message)}
+    </p>
+    <p style="margin:24px 0 0;">
+      <a href="https://wa.me/${esc(BUSINESS.whatsappNumber)}?text=${encodeURIComponent(`Hello ${d.customerName}, thank you for reaching out to MALWA NAMKEEN HOUSE (Ref: ${d.referenceId}). We are happy to assist you!`)}"
+         style="display:inline-block;background:#25D366;color:#fff;text-decoration:none;
+                padding:10px 22px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">
+        Reply via WhatsApp
+      </a>
+    </p>`;
+
+  return sendEmail({
+    eventType: 'admin_new_inquiry_alert',
+    to:      ADMIN_EMAIL,
+    subject: `[${d.categoryLabel}] ${d.customerName} — ${BUSINESS.name}`,
+    html:    wrapEmailTemplate({
+      title: `New Enquiry — ${BUSINESS.name}`,
+      contentHtml:  body
+    }),
+  });
+}
+
+// ── Reservation emails ──────────────────────────────────────────────────────
+
+export interface ReservationEmailData {
+  referenceId:      string;
+  customerName:     string;
+  customerEmail:    string;
+  phone:            string;
+  reservationDate:  string;
+  preferredTime:    string;
+  guestCount:       string | number;
+  specialRequest:   string;
+  locationId:       string;
+  submittedAt:      string;
+}
+
+export async function sendReservationCustomerEmail(d: ReservationEmailData): Promise<EmailResult> {
+  const body = `
+    <h2 style="margin:0 0 6px;font-family:Georgia,serif;font-size:24px;color:#3C0815;">
+      Reservation Enquiry Received
+    </h2>
+    <p style="margin:0 0 6px;font-size:15px;line-height:1.65;color:#5E4940;">
+      Thank you, <strong>${esc(d.customerName)}</strong>. We have received your reservation enquiry.
+    </p>
+    <div style="background:#FFF3CD;border:1px solid #C89A3D;border-radius:10px;padding:14px 18px;margin:18px 0;">
+      <p style="margin:0;font-size:13px;font-weight:600;color:#856404;line-height:1.6;">
+        ⚠ This is a reservation <em>enquiry</em> — not a confirmed booking.
+        Our team will contact you to confirm availability.
+      </p>
+    </div>
+    ${dataTable([
+      ['Reference',       d.referenceId],
+      ['Name',            d.customerName],
+      ['Date Requested',  d.reservationDate],
+      ['Preferred Time',  d.preferredTime],
+      ['Guests',          String(d.guestCount)],
+      ['Special Request', d.specialRequest || '—'],
+    ])}
+    <p style="margin:20px 0 0;font-size:14px;line-height:1.65;color:#5E4940;">
+      <strong>What happens next?</strong><br/>
+      Our team will call or message you to confirm your table.
+      For same-day enquiries, please also WhatsApp us at
+      <a href="https://wa.me/${esc(BUSINESS.whatsappNumber)}" style="color:#C89A3D;">${esc(BUSINESS.phone)}</a>.
+    </p>`;
+
+  return sendEmail({
+    eventType: 'inquiry_acknowledgement',
+    to:      d.customerEmail,
+    subject: `Reservation enquiry received — ${BUSINESS.name}`,
+    html:    wrapEmailTemplate({
+      title: `Reservation Enquiry — ${BUSINESS.name}`,
+      contentHtml:  body
+    }),
+  });
+}
+
+export async function sendReservationAdminEmail(d: ReservationEmailData): Promise<EmailResult> {
+  const body = `
+    <h2 style="margin:0 0 6px;font-family:Georgia,serif;font-size:22px;color:#FFF8EC;">
+      New Reservation Enquiry
+    </h2>
+    <p style="margin:0 0 20px;font-size:13px;color:rgba(255,248,236,0.70);">
+      Ref: <strong style="color:#F0C74E;">${esc(d.referenceId)}</strong> ·
+      ${esc(d.submittedAt)}
+    </p>
+    ${dataTable([
+      ['Reference',      d.referenceId],
+      ['Name',           d.customerName],
+      ['Email',          d.customerEmail],
+      ['Phone',          d.phone],
+      ['Date',           d.reservationDate],
+      ['Time',           d.preferredTime],
+      ['Guests',         String(d.guestCount)],
+      ['Special Req.',   d.specialRequest || '—'],
+      ['Location',       d.locationId],
+    ])}
+    <p style="margin:24px 0 0;">
+      <a href="https://wa.me/${esc(BUSINESS.whatsappNumber.replace(d.phone, ''))}${encodeURIComponent(d.phone.replace(/\D/g, ''))}?text=${encodeURIComponent(`Hello ${d.customerName}, this is MALWA NAMKEEN HOUSE confirming your enquiry (Ref: ${d.referenceId}) for ${d.reservationDate} at ${d.preferredTime}.`)}"
+         style="display:inline-block;background:#25D366;color:#fff;text-decoration:none;
+                padding:10px 22px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">
+        Reply via WhatsApp
+      </a>
+    </p>`;
+
+  return sendEmail({
+    eventType: 'admin_new_inquiry_alert',
+    to:      ADMIN_EMAIL,
+    subject: `[Reservation] ${d.customerName} · ${d.reservationDate} · ${d.guestCount} guests`,
+    html:    wrapEmailTemplate({
+      title: `New Reservation — ${BUSINESS.name}`,
+      contentHtml:  body
+    }),
+  });
+}
+
+// ── Admin-triggered: reservation confirmed ──────────────────────────────────
+
+interface ReservationConfirmationData {
+  referenceId:     string;
+  customerName:    string;
+  customerEmail:   string;
+  phone:           string;
+  reservationDate: string;
+  preferredTime:   string;
+  guestCount:      number;
+  specialRequest:  string;
+  locationId:      string;
+  adminUser:       string;
+}
+
+export async function sendReservationConfirmationEmail(d: ReservationConfirmationData): Promise<EmailResult> {
+  if (!d.customerEmail) return { success: false, provider: 'none', error: 'no_email' };
+
+  const body = `
+    <h2 style="margin:0 0 8px;font-family:Georgia,serif;font-size:22px;color:#3A211D;">
+      Your Table is Confirmed
+    </h2>
+    <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#5E4940;">
+      Dear ${esc(d.customerName)}, your reservation at <strong>${esc(BUSINESS.name)}</strong> has been confirmed.
+    </p>
+    ${dataTable([
+      ['Reference',      d.referenceId],
+      ['Date',           d.reservationDate],
+      ['Time',           d.preferredTime],
+      ['Guests',         String(d.guestCount)],
+      ['Special Request', d.specialRequest || '—'],
+      ['Location',       'Sarjapur Road, Bengaluru'],
+    ])}
+    <p style="margin:20px 0 0;font-size:14px;line-height:1.65;color:#5E4940;">
+      We look forward to welcoming you. If you need to cancel or make changes,
+      please WhatsApp us at <a href="https://wa.me/${esc(BUSINESS.whatsappNumber)}" style="color:#C89A3D;">${esc(BUSINESS.phone)}</a>
+      at least 2 hours in advance.
+    </p>`;
+
+  return sendEmail({
+    eventType: 'inquiry_acknowledgement',
+    to:      d.customerEmail,
+    subject: `Reservation Confirmed — ${d.reservationDate} at ${d.preferredTime} · ${BUSINESS.name}`,
+    html:    wrapEmailTemplate({
+      title: `Reservation Confirmed — ${BUSINESS.name}`,
+      contentHtml:  body
+    }),
+  });
+}

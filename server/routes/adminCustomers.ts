@@ -52,12 +52,13 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const [total, customersList] = await Promise.all([
-      User.countDocuments(filter),
+      User.countDocuments(filter).maxTimeMS(5000),
       User.find(filter)
         .select('-password')
         .sort(sortObj)
         .skip(skip)
         .limit(limitNum)
+        .maxTimeMS(5000)
         .lean(),
     ]);
 
@@ -92,7 +93,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
           lastOrderDate: { $max: '$createdAt' },
         },
       },
-    ]);
+    ]).option({ maxTimeMS: 5000 });
 
     const orderMap = new Map();
     orderAggregations.forEach(item => {

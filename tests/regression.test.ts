@@ -176,4 +176,64 @@ describe('Malwa Namkeen House — Core Business & Validation Regression Suite', 
     });
   });
 
+  describe('7. PH-012: Cloudinary Configuration Safety', () => {
+    it('rejects uploadImageBuffer when credentials are missing', async () => {
+      const { uploadImageBuffer } = await import('../server/lib/cloudinary.ts');
+      const originalName = process.env.CLOUDINARY_CLOUD_NAME;
+      delete process.env.CLOUDINARY_CLOUD_NAME;
+      delete process.env.CLOUDINARY_API_KEY;
+      delete process.env.CLOUDINARY_API_SECRET;
+
+      await assert.rejects(
+        () => uploadImageBuffer(Buffer.from('test')),
+        { message: 'Cloudinary credentials are not configured. Upload is unavailable.' }
+      );
+      process.env.CLOUDINARY_CLOUD_NAME = originalName;
+    });
+  });
+
+  describe('8. PH-013: Email Service Safety', () => {
+    it('safely drops email in production when API key is missing', async () => {
+      const { sendEmail } = await import('../server/lib/emailService.ts');
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      delete process.env.RESEND_API_KEY;
+      delete process.env.EMAIL_PROVIDER;
+
+      const result = await sendEmail({
+        to: 'test@example.com',
+        subject: 'Test Drop',
+        html: '<p>Test</p>',
+        eventType: 'inquiry_acknowledgement'
+      });
+
+      assert.equal(result.success, false);
+      assert.equal(result.provider, 'unconfigured');
+      assert.equal(result.error, 'Email provider unconfigured.');
+
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    it('simulates email in development when API key is missing', async () => {
+      const { sendEmail } = await import('../server/lib/emailService.ts');
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'development';
+      delete process.env.RESEND_API_KEY;
+      delete process.env.EMAIL_PROVIDER;
+
+      const result = await sendEmail({
+        to: 'test@example.com',
+        subject: 'Test Sim',
+        html: '<p>Test</p>',
+        eventType: 'inquiry_acknowledgement'
+      });
+
+      assert.equal(result.success, true);
+      assert.equal(result.provider, 'simulated');
+      assert.equal(result.simulated, true);
+
+      process.env.NODE_ENV = originalEnv;
+    });
+  });
+
 });

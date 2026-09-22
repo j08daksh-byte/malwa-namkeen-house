@@ -182,12 +182,13 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const [total, products] = await Promise.all([
-      Product.countDocuments(filter),
+      Product.countDocuments(filter).maxTimeMS(5000),
       Product.find(filter)
         .populate('category', 'name slug')
         .sort(sortObj)
         .skip(skip)
         .limit(limitNum)
+        .maxTimeMS(5000)
         .lean(),
     ]);
 

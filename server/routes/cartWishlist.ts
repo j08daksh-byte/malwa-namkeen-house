@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
 import { Product } from '../models/Product.ts';
 import { User } from '../models/User.ts';
@@ -19,11 +20,31 @@ export interface CartRevalidateItemInput {
 }
 
 /**
+ * Rate limiter for cart revalidation.
+ * Keyed by client IP (unauthenticated endpoint).
+ * Threshold: 20 requests per 15-minute window.
+ * Rationale: Frontend calls this only on "Checkout" clicks. 20 attempts
+ * per 15 minutes is extremely generous for normal shopping while stopping abuse.
+ * NOTE: Uses in-memory MemoryStore (PH-016 limitation applies).
+ */
+const cartRevalidateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many cart revalidations. Please wait a moment before trying again.',
+  },
+});
+
+/**
  * Public Cart Revalidation Engine
  * POST /api/cart/revalidate
  * Checks live existence, active status, variant pricing, and stock limits.
+ * Rate-limited to prevent abuse (PH-004 fix).
  */
-router.post('/revalidate', async (req: Request, res: Response) => {
+router.post('/revalidate', cartRevalidateLimiter, async (req: Request, res: Response) => {
   try {
     const { items = [], couponCode = '' } = req.body as {
       items: CartRevalidateItemInput[];

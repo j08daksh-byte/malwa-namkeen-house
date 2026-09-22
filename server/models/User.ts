@@ -156,6 +156,9 @@ const userSchema = new Schema<IUser>(
   }
 );
 
+// PH-009: Admin Customer List Optimization (Supports { role: 'customer' } + sort { createdAt: -1 })
+userSchema.index({ role: 1, createdAt: -1, active: 1 });
+
 export const User: Model<IUser> =
   mongoose.models.User || mongoose.model<IUser>('User', userSchema);
 

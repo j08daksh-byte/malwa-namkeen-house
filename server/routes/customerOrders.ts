@@ -16,6 +16,16 @@ const router = Router();
 // In-memory idempotency cache to prevent rapid duplicate double-click submissions (5-minute TTL)
 const recentSubmissions = new Map<string, { timestamp: number; orderId: string }>();
 
+// Passive cleanup function to prevent memory leak of expired idempotency keys
+function cleanupRecentSubmissions() {
+  const now = Date.now();
+  for (const [key, value] of recentSubmissions.entries()) {
+    if (now - value.timestamp >= 300000) {
+      recentSubmissions.delete(key);
+    }
+  }
+}
+
 function generateOrderNumber(): string {
   const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
   const randomSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -441,6 +451,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
 
     // Record submission key in idempotency cache
     if (idempotencyKey) {
+      cleanupRecentSubmissions();
       recentSubmissions.set(idempotencyKey, {
         timestamp: Date.now(),
         orderId: newOrder._id.toString(),

@@ -67,11 +67,12 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const [total, orders, statsAggregation] = await Promise.all([
-      Order.countDocuments(filter),
+      Order.countDocuments(filter).maxTimeMS(5000),
       Order.find(filter)
         .sort(sortObj)
         .skip(skip)
         .limit(limitNum)
+        .maxTimeMS(5000)
         .lean(),
       Order.aggregate([
         {
@@ -95,7 +96,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
             },
           },
         },
-      ]),
+      ]).option({ maxTimeMS: 5000 }),
     ]);
 
     const stats = statsAggregation[0] || {

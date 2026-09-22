@@ -47,7 +47,6 @@ const inquirySchema = new Schema<IInquiry>(
       type: String,
       enum: ['new', 'in_progress', 'resolved', 'closed', 'spam'],
       default: 'new',
-      index: true,
     },
     notes: {
       type: String,
@@ -59,6 +58,9 @@ const inquirySchema = new Schema<IInquiry>(
     timestamps: true,
   }
 );
+
+// PH-010: Inquiry status + createdAt optimization
+inquirySchema.index({ status: 1, createdAt: -1 });
 
 export const Inquiry: Model<IInquiry> =
   mongoose.models.Inquiry || mongoose.model<IInquiry>('Inquiry', inquirySchema);

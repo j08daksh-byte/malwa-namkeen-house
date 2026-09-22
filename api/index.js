@@ -122,6 +122,7 @@ var userSchema = new Schema(
     timestamps: true
   }
 );
+userSchema.index({ role: 1, createdAt: -1, active: 1 });
 var User = mongoose.models.User || mongoose.model("User", userSchema);
 
 // server/models/Category.ts
@@ -1932,6 +1933,171 @@ Malwa Namkeen House`;
 }
 var sendAdminInvitationEmail = sendAdminInvitation;
 var sendPasswordResetEmail = sendAdminPasswordReset;
+function esc(s) {
+  if (s == null) return "";
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function row(label, value) {
+  return `<tr>
+    <td style="padding:6px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#C89A3D;width:140px;vertical-align:top;">${esc(label)}</td>
+    <td style="padding:6px 0;font-size:14px;color:#34211D;line-height:1.55;">${esc(value)}</td>
+  </tr>`;
+}
+function dataTable(rows) {
+  return `<table cellpadding="0" cellspacing="0" width="100%" style="margin:20px 0;border-collapse:collapse;">
+    ${rows.map(([l, v]) => row(l, v)).join("")}
+  </table>`;
+}
+var ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL || BUSINESS.email;
+async function sendContactCustomerEmail(d) {
+  const body = `
+    <h2 style="margin:0 0 6px;font-family:Georgia,serif;font-size:24px;color:#3C0815;">
+      Thank you, ${esc(d.customerName)}!
+    </h2>
+    <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#5E4940;">
+      We have received your enquiry and our team will get back to you shortly.
+    </p>
+    ${dataTable([
+    ["Reference", d.referenceId],
+    ["Category", d.categoryLabel],
+    ["Your Name", d.customerName],
+    ["Your Email", d.customerEmail],
+    ["Phone", d.phone || "\u2014"]
+  ])}
+    <p style="margin:20px 0 0;font-size:14px;line-height:1.7;color:#5E4940;">
+      <strong>Your message:</strong><br/>
+      <span style="color:#75645C;">${esc(d.message)}</span>
+    </p>
+    <p style="margin:24px 0 0;font-size:14px;line-height:1.65;color:#5E4940;">
+      <strong>What happens next?</strong><br/>
+      Our team typically responds within one business day. For urgent matters,
+      reach us directly at
+      <a href="mailto:${esc(BUSINESS.email)}" style="color:#C89A3D;">${esc(BUSINESS.email)}</a>
+      or WhatsApp <a href="https://wa.me/${esc(BUSINESS.whatsappNumber)}" style="color:#C89A3D;">${esc(BUSINESS.phone)}</a>.
+    </p>`;
+  return sendEmail({
+    eventType: "inquiry_acknowledgement",
+    to: d.customerEmail,
+    subject: `We received your enquiry \u2014 ${BUSINESS.name}`,
+    html: wrapEmailTemplate({
+      title: `Enquiry Received \u2014 ${BUSINESS.name}`,
+      contentHtml: body
+    })
+  });
+}
+async function sendContactAdminEmail(d) {
+  const body = `
+    <h2 style="margin:0 0 6px;font-family:Georgia,serif;font-size:22px;color:#FFF8EC;">
+      New ${esc(d.categoryLabel)} Enquiry
+    </h2>
+    <p style="margin:0 0 20px;font-size:13px;color:rgba(255,248,236,0.70);">
+      Ref: <strong style="color:#F0C74E;">${esc(d.referenceId)}</strong> \xB7
+      ${esc(d.submittedAt)}
+    </p>
+    ${dataTable([
+    ["Reference", d.referenceId],
+    ["Category", d.categoryLabel],
+    ["Name", d.customerName],
+    ["Email", d.customerEmail],
+    ["Phone", d.phone || "\u2014"],
+    ["Location", d.locationId]
+  ])}
+    <p style="margin:16px 0 0;font-size:14px;line-height:1.7;color:rgba(255,248,236,0.85);">
+      <strong style="color:#F0C74E;">Message:</strong><br/>
+      ${esc(d.message)}
+    </p>
+    <p style="margin:24px 0 0;">
+      <a href="https://wa.me/${esc(BUSINESS.whatsappNumber)}?text=${encodeURIComponent(`Hello ${d.customerName}, thank you for reaching out to MALWA NAMKEEN HOUSE (Ref: ${d.referenceId}). We are happy to assist you!`)}"
+         style="display:inline-block;background:#25D366;color:#fff;text-decoration:none;
+                padding:10px 22px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">
+        Reply via WhatsApp
+      </a>
+    </p>`;
+  return sendEmail({
+    eventType: "admin_new_inquiry_alert",
+    to: ADMIN_EMAIL,
+    subject: `[${d.categoryLabel}] ${d.customerName} \u2014 ${BUSINESS.name}`,
+    html: wrapEmailTemplate({
+      title: `New Enquiry \u2014 ${BUSINESS.name}`,
+      contentHtml: body
+    })
+  });
+}
+async function sendReservationCustomerEmail(d) {
+  const body = `
+    <h2 style="margin:0 0 6px;font-family:Georgia,serif;font-size:24px;color:#3C0815;">
+      Reservation Enquiry Received
+    </h2>
+    <p style="margin:0 0 6px;font-size:15px;line-height:1.65;color:#5E4940;">
+      Thank you, <strong>${esc(d.customerName)}</strong>. We have received your reservation enquiry.
+    </p>
+    <div style="background:#FFF3CD;border:1px solid #C89A3D;border-radius:10px;padding:14px 18px;margin:18px 0;">
+      <p style="margin:0;font-size:13px;font-weight:600;color:#856404;line-height:1.6;">
+        \u26A0 This is a reservation <em>enquiry</em> \u2014 not a confirmed booking.
+        Our team will contact you to confirm availability.
+      </p>
+    </div>
+    ${dataTable([
+    ["Reference", d.referenceId],
+    ["Name", d.customerName],
+    ["Date Requested", d.reservationDate],
+    ["Preferred Time", d.preferredTime],
+    ["Guests", String(d.guestCount)],
+    ["Special Request", d.specialRequest || "\u2014"]
+  ])}
+    <p style="margin:20px 0 0;font-size:14px;line-height:1.65;color:#5E4940;">
+      <strong>What happens next?</strong><br/>
+      Our team will call or message you to confirm your table.
+      For same-day enquiries, please also WhatsApp us at
+      <a href="https://wa.me/${esc(BUSINESS.whatsappNumber)}" style="color:#C89A3D;">${esc(BUSINESS.phone)}</a>.
+    </p>`;
+  return sendEmail({
+    eventType: "inquiry_acknowledgement",
+    to: d.customerEmail,
+    subject: `Reservation enquiry received \u2014 ${BUSINESS.name}`,
+    html: wrapEmailTemplate({
+      title: `Reservation Enquiry \u2014 ${BUSINESS.name}`,
+      contentHtml: body
+    })
+  });
+}
+async function sendReservationAdminEmail(d) {
+  const body = `
+    <h2 style="margin:0 0 6px;font-family:Georgia,serif;font-size:22px;color:#FFF8EC;">
+      New Reservation Enquiry
+    </h2>
+    <p style="margin:0 0 20px;font-size:13px;color:rgba(255,248,236,0.70);">
+      Ref: <strong style="color:#F0C74E;">${esc(d.referenceId)}</strong> \xB7
+      ${esc(d.submittedAt)}
+    </p>
+    ${dataTable([
+    ["Reference", d.referenceId],
+    ["Name", d.customerName],
+    ["Email", d.customerEmail],
+    ["Phone", d.phone],
+    ["Date", d.reservationDate],
+    ["Time", d.preferredTime],
+    ["Guests", String(d.guestCount)],
+    ["Special Req.", d.specialRequest || "\u2014"],
+    ["Location", d.locationId]
+  ])}
+    <p style="margin:24px 0 0;">
+      <a href="https://wa.me/${esc(BUSINESS.whatsappNumber.replace(d.phone, ""))}${encodeURIComponent(d.phone.replace(/\D/g, ""))}?text=${encodeURIComponent(`Hello ${d.customerName}, this is MALWA NAMKEEN HOUSE confirming your enquiry (Ref: ${d.referenceId}) for ${d.reservationDate} at ${d.preferredTime}.`)}"
+         style="display:inline-block;background:#25D366;color:#fff;text-decoration:none;
+                padding:10px 22px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">
+        Reply via WhatsApp
+      </a>
+    </p>`;
+  return sendEmail({
+    eventType: "admin_new_inquiry_alert",
+    to: ADMIN_EMAIL,
+    subject: `[Reservation] ${d.customerName} \xB7 ${d.reservationDate} \xB7 ${d.guestCount} guests`,
+    html: wrapEmailTemplate({
+      title: `New Reservation \u2014 ${BUSINESS.name}`,
+      contentHtml: body
+    })
+  });
+}
 
 // server/lib/auth.ts
 import jwt from "jsonwebtoken";
@@ -2586,12 +2752,20 @@ router.post(
         resendAvailableAt: new Date(Date.now() + 60 * 1e3)
         // 60s cooldown
       });
-      await sendPasswordChangeOtp({
+      const emailResult = await sendPasswordChangeOtp({
         email: user.email,
         name: user.name,
         otp,
         minutesValid: 10
       });
+      if (!emailResult.success && !emailResult.simulated) {
+        await OtpVerification.deleteMany({ userId: user._id, purpose: "password-change" });
+        res.status(500).json({
+          success: false,
+          message: "Unable to dispatch verification email. Please try again later or contact support."
+        });
+        return;
+      }
       try {
         await AuditLog.create({
           action: "PASSWORD_CHANGE_REQUESTED",
@@ -3380,6 +3554,7 @@ var products_default = router3;
 
 // server/routes/cartWishlist.ts
 import { Router as Router4 } from "express";
+import rateLimit3 from "express-rate-limit";
 import mongoose12 from "mongoose";
 
 // server/lib/discounts.ts
@@ -3573,7 +3748,18 @@ async function validateAndCalculateDiscount(rawCode, subtotal, cartItems) {
 
 // server/routes/cartWishlist.ts
 var router4 = Router4();
-router4.post("/revalidate", async (req, res) => {
+var cartRevalidateLimiter = rateLimit3({
+  windowMs: 15 * 60 * 1e3,
+  // 15 minutes
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many cart revalidations. Please wait a moment before trying again."
+  }
+});
+router4.post("/revalidate", cartRevalidateLimiter, async (req, res) => {
   try {
     const { items = [], couponCode = "" } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
@@ -4289,7 +4475,7 @@ var customerAccount_default = router5;
 
 // server/routes/customerOrders.ts
 import { Router as Router6 } from "express";
-import rateLimit3 from "express-rate-limit";
+import rateLimit4 from "express-rate-limit";
 import mongoose16 from "mongoose";
 
 // server/models/StoreSettings.ts
@@ -4384,12 +4570,20 @@ var StoreSettings = mongoose15.models.StoreSettings || mongoose15.model("StoreSe
 // server/routes/customerOrders.ts
 var router6 = Router6();
 var recentSubmissions = /* @__PURE__ */ new Map();
+function cleanupRecentSubmissions() {
+  const now = Date.now();
+  for (const [key, value] of recentSubmissions.entries()) {
+    if (now - value.timestamp >= 3e5) {
+      recentSubmissions.delete(key);
+    }
+  }
+}
 function generateOrderNumber() {
   const dateStr = (/* @__PURE__ */ new Date()).toISOString().slice(2, 10).replace(/-/g, "");
   const randomSuffix = Math.floor(1e3 + Math.random() * 9e3);
   return `MN-${dateStr}-${randomSuffix}`;
 }
-var orderCreationLimiter = rateLimit3({
+var orderCreationLimiter = rateLimit4({
   windowMs: 15 * 60 * 1e3,
   // 15 minutes
   max: 5,
@@ -4711,6 +4905,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
       throw orderCreateErr;
     }
     if (idempotencyKey) {
+      cleanupRecentSubmissions();
       recentSubmissions.set(idempotencyKey, {
         timestamp: Date.now(),
         orderId: newOrder._id.toString()
@@ -4922,8 +5117,8 @@ router7.get("/", async (req, res) => {
       sortObj = { rating: -1 };
     }
     const [total, products] = await Promise.all([
-      Product.countDocuments(filter),
-      Product.find(filter).populate("category", "name slug").sort(sortObj).skip(skip).limit(limitNum).lean()
+      Product.countDocuments(filter).maxTimeMS(5e3),
+      Product.find(filter).populate("category", "name slug").sort(sortObj).skip(skip).limit(limitNum).maxTimeMS(5e3).lean()
     ]);
     res.json({
       success: true,
@@ -5669,8 +5864,8 @@ router9.get("/", async (req, res) => {
       sortObj = { total: 1 };
     }
     const [total, orders, statsAggregation] = await Promise.all([
-      Order.countDocuments(filter),
-      Order.find(filter).sort(sortObj).skip(skip).limit(limitNum).lean(),
+      Order.countDocuments(filter).maxTimeMS(5e3),
+      Order.find(filter).sort(sortObj).skip(skip).limit(limitNum).maxTimeMS(5e3).lean(),
       Order.aggregate([
         {
           $group: {
@@ -5693,7 +5888,7 @@ router9.get("/", async (req, res) => {
             }
           }
         }
-      ])
+      ]).option({ maxTimeMS: 5e3 })
     ]);
     const stats = statsAggregation[0] || {
       totalRevenue: 0,
@@ -5890,8 +6085,8 @@ router10.get("/", async (req, res) => {
       sortObj = { name: 1 };
     }
     const [total, customersList] = await Promise.all([
-      User.countDocuments(filter),
-      User.find(filter).select("-password").sort(sortObj).skip(skip).limit(limitNum).lean()
+      User.countDocuments(filter).maxTimeMS(5e3),
+      User.find(filter).select("-password").sort(sortObj).skip(skip).limit(limitNum).maxTimeMS(5e3).lean()
     ]);
     const customerIds = customersList.map((c) => c._id);
     const customerEmails = customersList.map((c) => c.email.toLowerCase());
@@ -5922,7 +6117,7 @@ router10.get("/", async (req, res) => {
           lastOrderDate: { $max: "$createdAt" }
         }
       }
-    ]);
+    ]).option({ maxTimeMS: 5e3 });
     const orderMap = /* @__PURE__ */ new Map();
     orderAggregations.forEach((item) => {
       orderMap.set(String(item._id), item);
@@ -6063,10 +6258,10 @@ var adminCustomers_default = router10;
 
 // server/routes/adminDiscounts.ts
 import { Router as Router11 } from "express";
-import rateLimit4 from "express-rate-limit";
+import rateLimit5 from "express-rate-limit";
 import mongoose21 from "mongoose";
 var router11 = Router11();
-var couponValidateLimiter = rateLimit4({
+var couponValidateLimiter = rateLimit5({
   windowMs: 15 * 60 * 1e3,
   // 15 minutes
   max: 30,
@@ -6390,8 +6585,7 @@ var inquirySchema = new Schema10(
     status: {
       type: String,
       enum: ["new", "in_progress", "resolved", "closed", "spam"],
-      default: "new",
-      index: true
+      default: "new"
     },
     notes: {
       type: String,
@@ -6403,6 +6597,7 @@ var inquirySchema = new Schema10(
     timestamps: true
   }
 );
+inquirySchema.index({ status: 1, createdAt: -1 });
 var Inquiry = mongoose22.models.Inquiry || mongoose22.model("Inquiry", inquirySchema);
 
 // server/routes/adminInquiries.ts
@@ -6414,7 +6609,17 @@ var handlePublicInquiry = async (req, res) => {
       res.status(400).json({ success: false, message: "Please provide your full name." });
       return;
     }
-    if (!email2 || typeof email2 !== "string" || !email2.includes("@")) {
+    if (!email2 || typeof email2 !== "string") {
+      res.status(400).json({ success: false, message: "Please provide a valid email address." });
+      return;
+    }
+    const cleanEmail = email2.trim();
+    if (cleanEmail.length === 0 || cleanEmail.length > 254) {
+      res.status(400).json({ success: false, message: "Please provide a valid email address." });
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
       res.status(400).json({ success: false, message: "Please provide a valid email address." });
       return;
     }
@@ -6520,8 +6725,8 @@ router12.get("/", async (req, res) => {
       sortObj = { createdAt: 1 };
     }
     const [total, inquiries, statsAgg] = await Promise.all([
-      Inquiry.countDocuments(filter),
-      Inquiry.find(filter).sort(sortObj).skip(skip).limit(limitNum).lean(),
+      Inquiry.countDocuments(filter).maxTimeMS(5e3),
+      Inquiry.find(filter).sort(sortObj).skip(skip).limit(limitNum).maxTimeMS(5e3).lean(),
       Inquiry.aggregate([
         {
           $group: {
@@ -6538,7 +6743,7 @@ router12.get("/", async (req, res) => {
             }
           }
         }
-      ])
+      ]).option({ maxTimeMS: 5e3 })
     ]);
     const stats = statsAgg[0] || {
       totalInquiries: 0,
@@ -7164,7 +7369,7 @@ router15.get("/stats", async (req, res) => {
             paidCount: { $sum: 1 }
           }
         }
-      ]),
+      ]).option({ maxTimeMS: 5e3 }),
       // Total registered customers
       User.countDocuments({ role: "customer" }),
       // Products
@@ -7184,7 +7389,7 @@ router15.get("/stats", async (req, res) => {
             count: { $sum: 1 }
           }
         }
-      ]),
+      ]).option({ maxTimeMS: 5e3 }),
       // Recent 6 orders
       Order.find().sort({ createdAt: -1 }).limit(6).select("orderNumber customerInfo total orderStatus paymentStatus items createdAt").lean(),
       // Recent 5 customers
@@ -7192,7 +7397,7 @@ router15.get("/stats", async (req, res) => {
       // Recent 5 inquiries
       Inquiry.find().sort({ createdAt: -1 }).limit(5).select("name email phone category message status createdAt").lean(),
       // Products for low-stock scanning
-      Product.find({ active: true }).select("name slug variants").lean(),
+      Product.find({ active: true }).select("name slug variants").maxTimeMS(5e3).lean(),
       // Daily trends for the selected range
       Order.aggregate([
         { $match: { createdAt: { $gte: startDate } } },
@@ -7208,7 +7413,7 @@ router15.get("/stats", async (req, res) => {
           }
         },
         { $sort: { _id: 1 } }
-      ])
+      ]).option({ maxTimeMS: 5e3 })
     ]);
     const totalRevenue = paidRevenueAgg[0]?.totalRevenue || 0;
     const paidCount = paidRevenueAgg[0]?.paidCount || 0;
@@ -7332,6 +7537,9 @@ function getUploadFolder(target) {
   return `malwa-namkeen-house/${target.replace(/^malwa-namkeen-house\/?/, "")}`;
 }
 function uploadImageBuffer(buffer, target = "products", customFilename) {
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    return Promise.reject(new Error("Cloudinary credentials are not configured. Upload is unavailable."));
+  }
   configureCloudinary();
   return new Promise((resolve, reject) => {
     const folder = getUploadFolder(target);
@@ -7364,6 +7572,9 @@ function uploadImageBuffer(buffer, target = "products", customFilename) {
   });
 }
 async function uploadImageBase64(base64Data, target = "products") {
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    throw new Error("Cloudinary credentials are not configured. Upload is unavailable.");
+  }
   configureCloudinary();
   const folder = getUploadFolder(target);
   const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -7384,6 +7595,9 @@ async function uploadImageBase64(base64Data, target = "products") {
   };
 }
 async function deleteImage(publicId) {
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    throw new Error("Cloudinary credentials are not configured. Deletion is unavailable.");
+  }
   configureCloudinary();
   if (!publicId || typeof publicId !== "string") {
     throw new Error("publicId is required.");
@@ -7611,237 +7825,6 @@ function zodToFieldErrors(err) {
     field: e.path.join(".") || "form",
     message: e.message
   }));
-}
-
-// server/lib/email.ts
-import { Resend as Resend2 } from "resend";
-var _resend = null;
-function getResend() {
-  if (_resend) return _resend;
-  const key = process.env.RESEND_API_KEY;
-  if (!key) return null;
-  _resend = new Resend2(key);
-  return _resend;
-}
-var FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? `no-reply@malwanamkeen.com`;
-var ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL ?? BUSINESS.email;
-function esc(s) {
-  if (s == null) return "";
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
-function wrap(title, body, isDark = false) {
-  const bg = isDark ? "#3C0815" : "#F6EFE3";
-  const card = isDark ? "#4F0A18" : "#FFFDF8";
-  const text = isDark ? "#FFF8EC" : "#34211D";
-  const muted = isDark ? "rgba(255,248,236,0.70)" : "#75645C";
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>${esc(title)}</title>
-</head>
-<body style="margin:0;padding:0;background:${bg};font-family:Inter,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:${bg};padding:40px 16px;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
-
-        <!-- Header -->
-        <tr><td style="background:${isDark ? "#3C0815" : "#3C0815"};border-radius:16px 16px 0 0;padding:28px 36px;text-align:center;">
-          <p style="margin:0;font-family:Georgia,serif;font-size:22px;font-weight:700;color:#FFF8EC;letter-spacing:-0.01em;">
-            ${esc(BUSINESS.name)}
-          </p>
-          <p style="margin:4px 0 0;font-size:11px;color:rgba(255,248,236,0.60);letter-spacing:0.18em;text-transform:uppercase;">
-            ${esc(BUSINESS.tagline)}
-          </p>
-        </td></tr>
-
-        <!-- Body -->
-        <tr><td style="background:${card};border-radius:0 0 16px 16px;padding:36px;color:${text};">
-          ${body}
-          <!-- Footer -->
-          <div style="margin-top:32px;padding-top:24px;border-top:1px solid rgba(200,154,61,0.24);">
-            <p style="margin:0;font-size:12px;color:${muted};line-height:1.6;">
-              ${esc(BUSINESS.name)} \xB7 ${esc(BUSINESS.address.full)}<br/>
-              <a href="mailto:${esc(BUSINESS.email)}" style="color:#C89A3D;">${esc(BUSINESS.email)}</a> \xB7
-              ${esc(BUSINESS.phone)}
-            </p>
-          </div>
-        </td></tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
-}
-function row(label, value) {
-  return `<tr>
-    <td style="padding:6px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#C89A3D;width:140px;vertical-align:top;">${esc(label)}</td>
-    <td style="padding:6px 0;font-size:14px;color:#34211D;line-height:1.55;">${esc(value)}</td>
-  </tr>`;
-}
-function dataTable(rows) {
-  return `<table cellpadding="0" cellspacing="0" width="100%" style="margin:20px 0;border-collapse:collapse;">
-    ${rows.map(([l, v]) => row(l, v)).join("")}
-  </table>`;
-}
-async function send(opts) {
-  const client = getResend();
-  if (!client) {
-    console.warn("[Email] RESEND_API_KEY not set \u2014 email skipped.");
-    return { sent: false, reason: "not_configured" };
-  }
-  try {
-    const { data, error } = await client.emails.send({
-      from: FROM_EMAIL,
-      to: [opts.to],
-      subject: opts.subject,
-      html: opts.html
-    });
-    if (error || !data?.id) {
-      console.error("[Email] Resend error:", error?.message ?? "no data");
-      return { sent: false, reason: "send_failed", error: error?.message };
-    }
-    return { sent: true, messageId: data.id };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "unknown";
-    console.error("[Email] send threw:", msg);
-    return { sent: false, reason: "send_failed", error: msg };
-  }
-}
-async function sendContactCustomerEmail(d) {
-  const body = `
-    <h2 style="margin:0 0 6px;font-family:Georgia,serif;font-size:24px;color:#3C0815;">
-      Thank you, ${esc(d.customerName)}!
-    </h2>
-    <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#5E4940;">
-      We have received your enquiry and our team will get back to you shortly.
-    </p>
-    ${dataTable([
-    ["Reference", d.referenceId],
-    ["Category", d.categoryLabel],
-    ["Your Name", d.customerName],
-    ["Your Email", d.customerEmail],
-    ["Phone", d.phone || "\u2014"]
-  ])}
-    <p style="margin:20px 0 0;font-size:14px;line-height:1.7;color:#5E4940;">
-      <strong>Your message:</strong><br/>
-      <span style="color:#75645C;">${esc(d.message)}</span>
-    </p>
-    <p style="margin:24px 0 0;font-size:14px;line-height:1.65;color:#5E4940;">
-      <strong>What happens next?</strong><br/>
-      Our team typically responds within one business day. For urgent matters,
-      reach us directly at
-      <a href="mailto:${esc(BUSINESS.email)}" style="color:#C89A3D;">${esc(BUSINESS.email)}</a>
-      or WhatsApp <a href="https://wa.me/${esc(BUSINESS.whatsappNumber)}" style="color:#C89A3D;">${esc(BUSINESS.phone)}</a>.
-    </p>`;
-  return send({
-    to: d.customerEmail,
-    subject: `We received your enquiry \u2014 ${BUSINESS.name}`,
-    html: wrap(`Enquiry Received \u2014 ${BUSINESS.name}`, body)
-  });
-}
-async function sendContactAdminEmail(d) {
-  const body = `
-    <h2 style="margin:0 0 6px;font-family:Georgia,serif;font-size:22px;color:#FFF8EC;">
-      New ${esc(d.categoryLabel)} Enquiry
-    </h2>
-    <p style="margin:0 0 20px;font-size:13px;color:rgba(255,248,236,0.70);">
-      Ref: <strong style="color:#F0C74E;">${esc(d.referenceId)}</strong> \xB7
-      ${esc(d.submittedAt)}
-    </p>
-    ${dataTable([
-    ["Reference", d.referenceId],
-    ["Category", d.categoryLabel],
-    ["Name", d.customerName],
-    ["Email", d.customerEmail],
-    ["Phone", d.phone || "\u2014"],
-    ["Location", d.locationId]
-  ])}
-    <p style="margin:16px 0 0;font-size:14px;line-height:1.7;color:rgba(255,248,236,0.85);">
-      <strong style="color:#F0C74E;">Message:</strong><br/>
-      ${esc(d.message)}
-    </p>
-    <p style="margin:24px 0 0;">
-      <a href="https://wa.me/${esc(BUSINESS.whatsappNumber)}?text=${encodeURIComponent(`Hello ${d.customerName}, thank you for reaching out to MALWA NAMKEEN HOUSE (Ref: ${d.referenceId}). We are happy to assist you!`)}"
-         style="display:inline-block;background:#25D366;color:#fff;text-decoration:none;
-                padding:10px 22px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">
-        Reply via WhatsApp
-      </a>
-    </p>`;
-  return send({
-    to: ADMIN_EMAIL,
-    subject: `[${d.categoryLabel}] ${d.customerName} \u2014 ${BUSINESS.name}`,
-    html: wrap(`New Enquiry \u2014 ${BUSINESS.name}`, body, true)
-  });
-}
-async function sendReservationCustomerEmail(d) {
-  const body = `
-    <h2 style="margin:0 0 6px;font-family:Georgia,serif;font-size:24px;color:#3C0815;">
-      Reservation Enquiry Received
-    </h2>
-    <p style="margin:0 0 6px;font-size:15px;line-height:1.65;color:#5E4940;">
-      Thank you, <strong>${esc(d.customerName)}</strong>. We have received your reservation enquiry.
-    </p>
-    <div style="background:#FFF3CD;border:1px solid #C89A3D;border-radius:10px;padding:14px 18px;margin:18px 0;">
-      <p style="margin:0;font-size:13px;font-weight:600;color:#856404;line-height:1.6;">
-        \u26A0 This is a reservation <em>enquiry</em> \u2014 not a confirmed booking.
-        Our team will contact you to confirm availability.
-      </p>
-    </div>
-    ${dataTable([
-    ["Reference", d.referenceId],
-    ["Name", d.customerName],
-    ["Date Requested", d.reservationDate],
-    ["Preferred Time", d.preferredTime],
-    ["Guests", String(d.guestCount)],
-    ["Special Request", d.specialRequest || "\u2014"]
-  ])}
-    <p style="margin:20px 0 0;font-size:14px;line-height:1.65;color:#5E4940;">
-      <strong>What happens next?</strong><br/>
-      Our team will call or message you to confirm your table.
-      For same-day enquiries, please also WhatsApp us at
-      <a href="https://wa.me/${esc(BUSINESS.whatsappNumber)}" style="color:#C89A3D;">${esc(BUSINESS.phone)}</a>.
-    </p>`;
-  return send({
-    to: d.customerEmail,
-    subject: `Reservation enquiry received \u2014 ${BUSINESS.name}`,
-    html: wrap(`Reservation Enquiry \u2014 ${BUSINESS.name}`, body)
-  });
-}
-async function sendReservationAdminEmail(d) {
-  const body = `
-    <h2 style="margin:0 0 6px;font-family:Georgia,serif;font-size:22px;color:#FFF8EC;">
-      New Reservation Enquiry
-    </h2>
-    <p style="margin:0 0 20px;font-size:13px;color:rgba(255,248,236,0.70);">
-      Ref: <strong style="color:#F0C74E;">${esc(d.referenceId)}</strong> \xB7
-      ${esc(d.submittedAt)}
-    </p>
-    ${dataTable([
-    ["Reference", d.referenceId],
-    ["Name", d.customerName],
-    ["Email", d.customerEmail],
-    ["Phone", d.phone],
-    ["Date", d.reservationDate],
-    ["Time", d.preferredTime],
-    ["Guests", String(d.guestCount)],
-    ["Special Req.", d.specialRequest || "\u2014"],
-    ["Location", d.locationId]
-  ])}
-    <p style="margin:24px 0 0;">
-      <a href="https://wa.me/${esc(BUSINESS.whatsappNumber.replace(d.phone, ""))}${encodeURIComponent(d.phone.replace(/\D/g, ""))}?text=${encodeURIComponent(`Hello ${d.customerName}, this is MALWA NAMKEEN HOUSE confirming your enquiry (Ref: ${d.referenceId}) for ${d.reservationDate} at ${d.preferredTime}.`)}"
-         style="display:inline-block;background:#25D366;color:#fff;text-decoration:none;
-                padding:10px 22px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">
-        Reply via WhatsApp
-      </a>
-    </p>`;
-  return send({
-    to: ADMIN_EMAIL,
-    subject: `[Reservation] ${d.customerName} \xB7 ${d.reservationDate} \xB7 ${d.guestCount} guests`,
-    html: wrap(`New Reservation \u2014 ${BUSINESS.name}`, body, true)
-  });
 }
 
 // server/lib/whatsapp.ts

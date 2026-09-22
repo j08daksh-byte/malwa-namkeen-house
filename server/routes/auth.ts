@@ -668,12 +668,22 @@ router.post(
       });
 
       // Dispatch OTP email (non-blocking)
-      await sendPasswordChangeOtp({
+      const emailResult = await sendPasswordChangeOtp({
         email: user.email,
         name: user.name,
         otp,
         minutesValid: 10,
       });
+
+      if (!emailResult.success && !emailResult.simulated) {
+        // Rollback OTP staged record since it cannot be delivered
+        await OtpVerification.deleteMany({ userId: user._id, purpose: 'password-change' });
+        res.status(500).json({
+          success: false,
+          message: 'Unable to dispatch verification email. Please try again later or contact support.',
+        });
+        return;
+      }
 
       // Audit log: PASSWORD_CHANGE_REQUESTED
       try {
