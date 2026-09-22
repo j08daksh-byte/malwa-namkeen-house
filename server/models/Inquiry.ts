@@ -26,7 +26,6 @@ const inquirySchema = new Schema<IInquiry>(
       required: [true, 'Inquirer email is required'],
       lowercase: true,
       trim: true,
-      index: true,
     },
     phone: {
       type: String,

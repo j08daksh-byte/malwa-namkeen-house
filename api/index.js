@@ -6576,8 +6576,7 @@ var inquirySchema = new Schema10(
       type: String,
       required: [true, "Inquirer email is required"],
       lowercase: true,
-      trim: true,
-      index: true
+      trim: true
     },
     phone: {
       type: String,

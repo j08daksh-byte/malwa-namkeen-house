@@ -23,14 +23,14 @@ import GuestReviews         from './components/sections/GuestReviews';
 import Contact              from './components/sections/Contact';
 import Footer               from './components/sections/Footer';
 import ReservationModal     from './components/sections/ReservationModal';
-import Shop                 from './pages/Shop';
-import ProductDetail        from './pages/ProductDetail';
-import ContactPage          from './pages/Contact';
-import AboutUs              from './pages/AboutUs';
-import FAQ                  from './pages/FAQ';
-import Account              from './pages/Account';
-import Dashboard            from './pages/Dashboard';
-import NotFound             from './pages/NotFound';
+const Shop          = lazy(() => import('./pages/Shop'));
+const ProductDetail = lazy(() => import('./pages/ProductDetail'));
+const ContactPage   = lazy(() => import('./pages/Contact'));
+const AboutUs       = lazy(() => import('./pages/AboutUs'));
+const FAQ           = lazy(() => import('./pages/FAQ'));
+const Account       = lazy(() => import('./pages/Account'));
+const Dashboard     = lazy(() => import('./pages/Dashboard'));
+const NotFound      = lazy(() => import('./pages/NotFound'));
 
 // Lazy-loaded Admin pages (reduces initial customer bundle size)
 const AdminLogin        = lazy(() => import('./pages/admin/AdminLogin'));
