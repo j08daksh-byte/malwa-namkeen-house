@@ -1,6 +1,7 @@
 // server/api-entry.ts
 import express from "express";
 import cookieParser from "cookie-parser";
+import mongoose28 from "mongoose";
 
 // server/lib/mongodb.ts
 import mongoose4 from "mongoose";
@@ -4642,6 +4643,17 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
       });
       return;
     }
+    const pendingOrderCount = await Order.countDocuments({
+      customer: user._id,
+      orderStatus: "pending"
+    });
+    if (pendingOrderCount >= 3) {
+      res.status(400).json({
+        success: false,
+        message: "You have too many pending orders. Please wait for them to be processed or contact support."
+      });
+      return;
+    }
     if (!Array.isArray(items) || items.length === 0) {
       res.status(400).json({
         success: false,
@@ -8605,13 +8617,25 @@ app.use(async (_req, _res, next) => {
   next();
 });
 app.use("/", sitemap_default);
-app.get(["/health", "/api/health"], (_req, res) => {
+app.get(["/health", "/api/health"], async (_req, res) => {
   const mongo = getMongoStatus();
-  res.json({
-    status: "ok",
+  let dbHealthy = false;
+  if (mongo.connected && mongoose28.connection.db) {
+    try {
+      await Promise.race([
+        mongoose28.connection.db.command({ ping: 1 }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 2e3))
+      ]);
+      dbHealthy = true;
+    } catch {
+      dbHealthy = false;
+    }
+  }
+  res.status(dbHealthy ? 200 : 503).json({
+    status: dbHealthy ? "ok" : "error",
     time: (/* @__PURE__ */ new Date()).toISOString(),
     service: BUSINESS.name,
-    mongodb: mongo.state
+    mongodb: dbHealthy ? "connected" : mongo.state
   });
 });
 var routeConfigs = [

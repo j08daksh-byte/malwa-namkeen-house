@@ -32,6 +32,9 @@ import cartWishlistRoutes from './server/routes/cartWishlist.ts';
 import customerAccountRoutes from './server/routes/customerAccount.ts';
 import customerOrdersRoutes from './server/routes/customerOrders.ts';
 import sitemapRoutes from './server/routes/sitemap.ts';
+import { fileURLToPath } from 'url';
+import mongoose from 'mongoose';
+
 import { BUSINESS } from './server/config.ts';
 import { connectMongoDB, getMongoStatus } from './server/lib/mongodb.ts';
 import cookieParser from 'cookie-parser';
@@ -201,9 +204,28 @@ async function startServer() {
 
   // ── API routes ────────────────────────────────────────────────────────────
 
-  app.get('/api/health', (_req, res) => {
+  app.get('/api/health', async (_req, res) => {
     const mongo = getMongoStatus();
-    res.json({ status: 'ok', time: new Date().toISOString(), service: BUSINESS.name, mongodb: mongo.state });
+    let dbHealthy = false;
+
+    if (mongo.connected && mongoose.connection.db) {
+      try {
+        await Promise.race([
+          mongoose.connection.db.command({ ping: 1 }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+        ]);
+        dbHealthy = true;
+      } catch {
+        dbHealthy = false;
+      }
+    }
+
+    res.status(dbHealthy ? 200 : 503).json({
+      status: dbHealthy ? 'ok' : 'error',
+      time: new Date().toISOString(),
+      service: BUSINESS.name,
+      mongodb: dbHealthy ? 'connected' : mongo.state,
+    });
   });
 
   // Public customer storefront catalog (Products & Categories from MongoDB)
@@ -279,6 +301,19 @@ async function startServer() {
       if (!messages || !Array.isArray(messages)) {
         res.status(400).json({ error: 'Messages array is required.' });
         return;
+      }
+
+      // PH-017: Enforce deterministic limits on history payload
+      if (messages.length > 50) {
+        res.status(400).json({ error: 'Conversation history too long. Please start a new session.' });
+        return;
+      }
+      
+      for (const m of messages) {
+        if (typeof m.text !== 'string' || m.text.length > 1000) {
+          res.status(400).json({ error: 'A message exceeds the maximum allowed length of 1000 characters.' });
+          return;
+        }
       }
 
       const lastUserMessage = String(messages[messages.length - 1]?.text ?? '').slice(0, 500);

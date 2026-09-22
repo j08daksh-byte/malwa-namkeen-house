@@ -114,6 +114,21 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
       return;
     }
 
+    // PH-020: Pending Order / COD Abuse Protection
+    // Check if the user already has 3 or more pending orders
+    const pendingOrderCount = await Order.countDocuments({
+      customer: user._id,
+      orderStatus: 'pending'
+    });
+    
+    if (pendingOrderCount >= 3) {
+      res.status(400).json({
+        success: false,
+        message: 'You have too many pending orders. Please wait for them to be processed or contact support.',
+      });
+      return;
+    }
+
     // 2. Validate Items
     if (!Array.isArray(items) || items.length === 0) {
       res.status(400).json({

@@ -1,6 +1,7 @@
 import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
+import mongoose from 'mongoose';
 import { connectMongoDB, getMongoStatus } from './lib/mongodb.ts';
 import { BUSINESS } from './config.ts';
 
@@ -80,13 +81,27 @@ app.use(async (_req: Request, _res: Response, next: NextFunction) => {
 app.use('/', sitemapRoutes);
 
 // Health check
-app.get(['/health', '/api/health'], (_req: Request, res: Response) => {
+app.get(['/health', '/api/health'], async (_req: Request, res: Response) => {
   const mongo = getMongoStatus();
-  res.json({
-    status: 'ok',
+  let dbHealthy = false;
+
+  if (mongo.connected && mongoose.connection.db) {
+    try {
+      await Promise.race([
+        mongoose.connection.db.command({ ping: 1 }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+      ]);
+      dbHealthy = true;
+    } catch {
+      dbHealthy = false;
+    }
+  }
+
+  res.status(dbHealthy ? 200 : 503).json({
+    status: dbHealthy ? 'ok' : 'error',
     time: new Date().toISOString(),
     service: BUSINESS.name,
-    mongodb: mongo.state,
+    mongodb: dbHealthy ? 'connected' : mongo.state,
   });
 });
 
