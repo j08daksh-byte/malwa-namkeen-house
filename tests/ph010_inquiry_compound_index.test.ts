@@ -33,10 +33,10 @@ describe('PH-010 — Inquiry Model Admin Compound Index', () => {
     );
   });
 
-  it('should preserve existing single-field email index', () => {
+  it('should verify single-field email index was removed under PH-018', () => {
     const indexes = Inquiry.schema.indexes();
 
     const hasEmail = indexes.some((idx: any) => idx[0].email === 1);
-    assert.ok(hasEmail, 'email index is missing');
+    assert.strictEqual(hasEmail, false, 'Redundant email index should not be present');
   });
 });
