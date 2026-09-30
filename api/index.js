@@ -4627,8 +4627,9 @@ var orderCreationLimiter = rateLimit4({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { keyGeneratorIpFallback: false },
   keyGenerator: (req) => {
-    return req.user?.userId ? `user_${req.user.userId}` : req.ip;
+    return req.user?.userId ? `user_${req.user.userId}` : req.ip || "127.0.0.1";
   },
   skip: (req) => {
     const idempotencyKey = req.body?.idempotencyKey;

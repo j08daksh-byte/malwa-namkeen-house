@@ -46,9 +46,10 @@ const orderCreationLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { keyGeneratorIpFallback: false },
   keyGenerator: (req: any) => {
     // Key by user ID since this is an authenticated route
-    return req.user?.userId ? `user_${req.user.userId}` : req.ip;
+    return req.user?.userId ? `user_${req.user.userId}` : (req.ip || '127.0.0.1');
   },
   skip: (req: any) => {
     // Do not count legitimate idempotent retries against the rate limit
