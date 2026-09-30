@@ -28,6 +28,7 @@ import publicBannerRoutes from './routes/banners.ts';
 import sitemapRoutes from './routes/sitemap.ts';
 
 const app = express();
+app.set('trust proxy', 1);
 const isProd = process.env.NODE_ENV === 'production';
 
 // Strict CORS configuration

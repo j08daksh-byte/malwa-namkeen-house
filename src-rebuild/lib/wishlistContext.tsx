@@ -37,6 +37,26 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
     }
   }, [wishlist]);
 
+  // Synchronize wishlist across multiple open tabs in real-time
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY) {
+        try {
+          if (e.newValue) {
+            setWishlist(JSON.parse(e.newValue));
+          } else {
+            setWishlist([]);
+          }
+        } catch {
+          // Ignore parse errors from concurrent tab writes
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   // When customer logs in, fetch MongoDB wishlist & sync local items
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY);

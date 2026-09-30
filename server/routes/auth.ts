@@ -552,6 +552,52 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response) 
 });
 
 /**
+ * POST /api/auth/refresh
+ * Renews an active session token and sets a fresh auth cookie.
+ */
+router.post('/refresh', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Not authenticated.' });
+      return;
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user || !user.active) {
+      clearAuthCookie(res);
+      res.status(401).json({ success: false, message: 'User account is inactive or not found.' });
+      return;
+    }
+
+    const token = generateToken({
+      userId: user._id.toString(),
+      email: user.email,
+      role: user.role,
+    });
+
+    setAuthCookie(res, token);
+
+    res.json({
+      success: true,
+      message: 'Session refreshed successfully.',
+      token,
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      },
+    });
+  } catch (err: unknown) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to refresh session.',
+    });
+  }
+});
+
+/**
  * GET /api/auth/admin/verify
  * Protected route to verify admin privileges.
  */

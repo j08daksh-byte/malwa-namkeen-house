@@ -2666,6 +2666,43 @@ router.get("/me", requireAuth, async (req, res) => {
     });
   }
 });
+router.post("/refresh", requireAuth, async (req, res) => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: "Not authenticated." });
+      return;
+    }
+    const user = await User.findById(req.user.userId);
+    if (!user || !user.active) {
+      clearAuthCookie(res);
+      res.status(401).json({ success: false, message: "User account is inactive or not found." });
+      return;
+    }
+    const token = generateToken({
+      userId: user._id.toString(),
+      email: user.email,
+      role: user.role
+    });
+    setAuthCookie(res, token);
+    res.json({
+      success: true,
+      message: "Session refreshed successfully.",
+      token,
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role
+      }
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to refresh session."
+    });
+  }
+});
 router.get("/admin/verify", requireAdmin, (req, res) => {
   res.json({
     success: true,
@@ -8576,6 +8613,7 @@ var sitemap_default = router20;
 
 // server/api-entry.ts
 var app = express();
+app.set("trust proxy", 1);
 var isProd = process.env.NODE_ENV === "production";
 var allowedOrigins = (() => {
   const configured = process.env.ALLOWED_ORIGINS ?? "";

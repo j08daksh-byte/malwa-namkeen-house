@@ -743,10 +743,15 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                   </div>
                 </div>
 
-                <div style={{ marginTop: '14px', background: '#FFFFFF', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(200,154,61,0.25)', fontSize: '12px' }}>
-                  <div style={{ fontWeight: 700, color: '#55000A', marginBottom: '4px' }}>Payment Mode</div>
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                <div style={{ marginTop: '14px', background: '#FFFFFF', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(200,154,61,0.25)', fontSize: '12px' }}>
+                  <div style={{ fontWeight: 700, color: '#55000A', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>Payment Mode</span>
+                    <span style={{ fontSize: '11px', color: '#059669', background: '#ECFDF5', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                      Pay On Delivery
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 500 }}>
                       <input
                         type="radio"
                         name="payMethod"
@@ -755,9 +760,9 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         onChange={() => setPaymentMethod('cod')}
                         style={{ accentColor: '#55000A' }}
                       />
-                      Cash on Delivery
+                      Cash on Delivery (COD)
                     </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 500 }}>
                       <input
                         type="radio"
                         name="payMethod"
@@ -766,8 +771,13 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         onChange={() => setPaymentMethod('upi')}
                         style={{ accentColor: '#55000A' }}
                       />
-                      UPI / QR (On Dispatch)
+                      UPI / QR (Pay Upon Arrival)
                     </label>
+                  </div>
+                  <div style={{ marginTop: '8px', fontSize: '11.5px', color: '#75645C', lineHeight: 1.4 }}>
+                    {paymentMethod === 'cod'
+                      ? 'Pay cash directly to the delivery partner upon parcel arrival.'
+                      : 'Scan delivery partner’s live UPI QR code via GPay, PhonePe, or Paytm upon parcel arrival.'}
                   </div>
                 </div>
 
