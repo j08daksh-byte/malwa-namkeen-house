@@ -56,7 +56,7 @@ const passwordChangeVerifyLimiter = rateLimit({
 // Rate limiters for brute-force protection
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
+  max: (process.env.NODE_ENV === 'production' && !process.env.CI) ? 10 : 200,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -67,7 +67,7 @@ const loginLimiter = rateLimit({
 
 const adminLoginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5,
+  max: (process.env.NODE_ENV === 'production' && !process.env.CI) ? 5 : 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -78,7 +78,7 @@ const adminLoginLimiter = rateLimit({
 
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10,
+  max: (process.env.NODE_ENV === 'production' && !process.env.CI) ? 10 : 200,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

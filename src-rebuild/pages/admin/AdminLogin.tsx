@@ -91,9 +91,13 @@ export default function AdminLogin() {
       <SEOHead title="Admin Portal Sign In" noIndex={true} />
       <div style={{ width: '100%', maxWidth: '400px' }}>
         {/* Logo area */}
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ color: '#F0C74E', fontSize: '22px', fontWeight: 800, letterSpacing: '0.04em' }}>MALWA NAMKEEN HOUSE</div>
-          <div style={{ color: 'rgba(255,248,236,0.45)', fontSize: '12px', marginTop: '4px', letterSpacing: '0.10em', textTransform: 'uppercase' }}>Admin Portal</div>
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+          <img
+            src="/logo-gold.png"
+            alt="MALWA NAMKEEN HOUSE"
+            style={{ height: '64px', width: 'auto', marginBottom: '16px' }}
+          />
+          <div style={{ color: 'rgba(255,248,236,0.60)', fontSize: '12px', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Admin Portal</div>
         </div>
 
         <div style={{ background: '#fff', borderRadius: '18px', padding: '36px', boxShadow: '0 24px 60px rgba(0,0,0,0.30)' }}>

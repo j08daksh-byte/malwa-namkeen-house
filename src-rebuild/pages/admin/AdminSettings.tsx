@@ -478,7 +478,7 @@ export default function AdminSettings() {
 
               {settings.logo && (
                 <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <img src={settings.logo} alt="Logo" style={{ height: '48px', objectFit: 'contain', background: '#3C0815', padding: '4px 8px', borderRadius: '6px' }} />
+                  <img src={settings.logo} alt="Logo" style={{ height: '58px', objectFit: 'contain', background: '#3C0815', padding: '6px 12px', borderRadius: '8px' }} />
                   <button
                     type="button"
                     onClick={() => updateSetting(s => ({ ...s, logo: '' }))}

@@ -1,18 +1,24 @@
 import React, { useEffect, useState, useCallback } from 'react';
 
-const INTRO_SESSION_KEY = 'malwa_intro_session_seen';
-const TOTAL_DURATION_MS = 3400; // Poised and relaxed pacing for luxury reveal
-const FADE_START_MS = 2700;     // Gives 0.8s hold after reveal before fading
-const REDUCED_MOTION_DURATION_MS = 700;
-const SAFETY_FALLBACK_MS = 4200;
+let hasShownIntroInSession = false;
+
+// Clear any legacy sessionStorage key on startup so preloader runs reliably
+if (typeof window !== 'undefined') {
+  try {
+    sessionStorage.removeItem('malwa_intro_session_seen');
+  } catch {
+    // Ignore
+  }
+}
+
+const TOTAL_DURATION_MS = 2200; // Refined luxury reveal
+const FADE_START_MS = 1600;     // Starts smooth dissolve at 1.6s
+const REDUCED_MOTION_DURATION_MS = 600;
+const SAFETY_FALLBACK_MS = 3000;
 
 function getInitialIntroState(): boolean {
   if (typeof window === 'undefined') return false;
-  try {
-    return !sessionStorage.getItem(INTRO_SESSION_KEY);
-  } catch {
-    return false;
-  }
+  return !hasShownIntroInSession;
 }
 
 export default function BrandIntro() {
@@ -21,11 +27,7 @@ export default function BrandIntro() {
   const [isFadingOut, setIsFadingOut] = useState(false);
 
   const dismissIntro = useCallback(() => {
-    try {
-      sessionStorage.setItem(INTRO_SESSION_KEY, 'true');
-    } catch {
-      // Ignore storage access errors
-    }
+    hasShownIntroInSession = true;
     setShouldRender(false);
   }, []);
 
@@ -197,9 +199,9 @@ export default function BrandIntro() {
         }
 
         .intro-logo-img {
-          height: clamp(88px, 14vw, 140px);
+          height: clamp(95px, 15vw, 150px);
           width: auto;
-          max-width: min(82vw, 360px);
+          max-width: min(85vw, 360px);
           object-fit: contain;
         }
 
@@ -292,9 +294,13 @@ export default function BrandIntro() {
 
       {/* Center Cinematic Brand Element */}
       <div className="intro-content">
-        <h1 className="intro-brand-name">
-          MALWA NAMKEEN HOUSE
-        </h1>
+        <div className="intro-logo-wrap">
+          <img
+            src="/logo.png"
+            alt="MALWA NAMKEEN HOUSE"
+            className="intro-logo-img"
+          />
+        </div>
 
         <div className="intro-divider-wrap">
           <div className="intro-line" />
