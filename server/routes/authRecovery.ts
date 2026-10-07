@@ -14,6 +14,7 @@ const forgotPasswordLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: true, // Maintain generic response even if rate limited
     message: 'If an account exists for this email, password reset instructions have been dispatched.',
@@ -26,6 +27,7 @@ const tokenSubmissionLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: 'Too many requests. Please try again after 15 minutes.',

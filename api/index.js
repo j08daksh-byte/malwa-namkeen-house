@@ -817,24 +817,181 @@ var PRODUCTS = [
   }
 ];
 
+// server/lib/auth.ts
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+import dotenv from "dotenv";
+import path from "path";
+dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), ".env.local"), override: true });
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  const isProd2 = process.env.NODE_ENV === "production";
+  if (isProd2) {
+    if (!secret || secret.trim().length < 32) {
+      throw new Error("[Security Error] Production JWT_SECRET is required and must be at least 32 characters long.");
+    }
+    return secret.trim();
+  }
+  return secret?.trim() || "malwa-namkeen-dev-only-secret-key-2026";
+}
+var TOKEN_EXPIRY = "7d";
+var AUTH_COOKIE_NAME = "malwa_auth_token";
+async function hashPassword(plainText) {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(plainText, salt);
+}
+async function comparePassword(plainText, hash) {
+  return bcrypt.compare(plainText, hash);
+}
+function generateToken(payload) {
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: TOKEN_EXPIRY });
+}
+function verifyToken(token) {
+  try {
+    return jwt.verify(token, getJwtSecret());
+  } catch {
+    return null;
+  }
+}
+function extractToken(req) {
+  if (req.cookies && req.cookies[AUTH_COOKIE_NAME]) {
+    return req.cookies[AUTH_COOKIE_NAME];
+  }
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    return authHeader.substring(7).trim();
+  }
+  return null;
+}
+function setAuthCookie(res, token) {
+  const isProd2 = process.env.NODE_ENV === "production";
+  res.cookie(AUTH_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: isProd2,
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1e3,
+    // 7 days
+    path: "/"
+  });
+}
+function clearAuthCookie(res) {
+  const isProd2 = process.env.NODE_ENV === "production";
+  res.clearCookie(AUTH_COOKIE_NAME, {
+    httpOnly: true,
+    secure: isProd2,
+    sameSite: "lax",
+    path: "/"
+  });
+}
+async function requireAuth(req, res, next) {
+  const token = extractToken(req);
+  if (!token) {
+    res.status(401).json({
+      success: false,
+      message: "Authentication required. Please sign in."
+    });
+    return;
+  }
+  const payload = verifyToken(token);
+  if (!payload) {
+    res.status(401).json({
+      success: false,
+      message: "Invalid or expired session. Please sign in again."
+    });
+    return;
+  }
+  req.user = payload;
+  res.locals.user = payload;
+  next();
+}
+async function requireAdmin(req, res, next) {
+  const token = extractToken(req);
+  if (!token) {
+    res.status(401).json({
+      success: false,
+      message: "Authentication required. Please sign in."
+    });
+    return;
+  }
+  const payload = verifyToken(token);
+  if (!payload) {
+    res.status(401).json({
+      success: false,
+      message: "Invalid or expired session. Please sign in again."
+    });
+    return;
+  }
+  if (payload.role !== "admin" && payload.role !== "super_admin") {
+    res.status(403).json({
+      success: false,
+      message: "Access denied. Administrator privilege required."
+    });
+    return;
+  }
+  req.user = payload;
+  res.locals.user = payload;
+  next();
+}
+async function requireSuperAdmin(req, res, next) {
+  const token = extractToken(req);
+  if (!token) {
+    res.status(401).json({
+      success: false,
+      message: "Authentication required. Please sign in."
+    });
+    return;
+  }
+  const payload = verifyToken(token);
+  if (!payload) {
+    res.status(401).json({
+      success: false,
+      message: "Invalid or expired session. Please sign in again."
+    });
+    return;
+  }
+  if (payload.role !== "super_admin") {
+    res.status(403).json({
+      success: false,
+      message: "Access denied. Super Administrator privilege required."
+    });
+    return;
+  }
+  req.user = payload;
+  res.locals.user = payload;
+  next();
+}
+
 // server/lib/mongodb.ts
 var isConnected = false;
 async function seedInitialAdmin() {
   try {
     const adminEmail = process.env.ADMIN_EMAIL ? process.env.ADMIN_EMAIL.toLowerCase().trim() : "";
-    const adminPassword = process.env.ADMIN_PASSWORD || "";
-    if (!adminEmail) return;
-    const existing = await User.findOne({ email: adminEmail });
-    if (existing) {
-      if (existing.role !== "super_admin" || !existing.active) {
-        existing.role = "super_admin";
-        existing.active = true;
-        await existing.save();
-        console.log(`[MongoDB] Designated owner <${adminEmail}> successfully designated as super_admin.`);
+    const adminPassword = process.env.ADMIN_PASSWORD || "MalwaAdmin@2026";
+    const designatedEmails = Array.from(
+      /* @__PURE__ */ new Set([adminEmail, "baljeetrajawat210@gmail.com", "malwanamkeenhouse@gmail.com"])
+    ).filter(Boolean);
+    for (const email2 of designatedEmails) {
+      const existing = await User.findOne({ email: email2 });
+      if (existing) {
+        if (existing.role !== "super_admin" || !existing.active) {
+          existing.role = "super_admin";
+          existing.active = true;
+          await existing.save();
+          console.log(`[MongoDB] Designated owner <${email2}> successfully designated as super_admin.`);
+        }
+      } else {
+        const hashedPassword = await hashPassword(adminPassword);
+        await User.create({
+          name: email2 === "baljeetrajawat210@gmail.com" ? "Baljeet Rajawat (Owner)" : "Super Admin",
+          email: email2,
+          password: hashedPassword,
+          role: "super_admin",
+          active: true
+        });
+        console.log(`[MongoDB] Initial super_admin account created for <${email2}>.`);
       }
-      return;
     }
-    console.log(`[MongoDB] ADMIN_EMAIL <${adminEmail}> is configured. Registered account will automatically receive super_admin privileges.`);
   } catch (err) {
     console.warn("[MongoDB] Initial admin check skipped:", err instanceof Error ? err.message : err);
   }
@@ -2100,151 +2257,6 @@ async function sendReservationAdminEmail(d) {
   });
 }
 
-// server/lib/auth.ts
-import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
-import dotenv from "dotenv";
-import path from "path";
-dotenv.config();
-dotenv.config({ path: path.resolve(process.cwd(), ".env.local"), override: true });
-function getJwtSecret() {
-  const secret = process.env.JWT_SECRET;
-  const isProd2 = process.env.NODE_ENV === "production";
-  if (isProd2) {
-    if (!secret || secret.trim().length < 32) {
-      throw new Error("[Security Error] Production JWT_SECRET is required and must be at least 32 characters long.");
-    }
-    return secret.trim();
-  }
-  return secret?.trim() || "malwa-namkeen-dev-only-secret-key-2026";
-}
-var TOKEN_EXPIRY = "7d";
-var AUTH_COOKIE_NAME = "malwa_auth_token";
-async function hashPassword(plainText) {
-  const salt = await bcrypt.genSalt(10);
-  return bcrypt.hash(plainText, salt);
-}
-async function comparePassword(plainText, hash) {
-  return bcrypt.compare(plainText, hash);
-}
-function generateToken(payload) {
-  return jwt.sign(payload, getJwtSecret(), { expiresIn: TOKEN_EXPIRY });
-}
-function verifyToken(token) {
-  try {
-    return jwt.verify(token, getJwtSecret());
-  } catch {
-    return null;
-  }
-}
-function extractToken(req) {
-  if (req.cookies && req.cookies[AUTH_COOKIE_NAME]) {
-    return req.cookies[AUTH_COOKIE_NAME];
-  }
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    return authHeader.substring(7).trim();
-  }
-  return null;
-}
-function setAuthCookie(res, token) {
-  const isProd2 = process.env.NODE_ENV === "production";
-  res.cookie(AUTH_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: isProd2,
-    sameSite: "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1e3,
-    // 7 days
-    path: "/"
-  });
-}
-function clearAuthCookie(res) {
-  const isProd2 = process.env.NODE_ENV === "production";
-  res.clearCookie(AUTH_COOKIE_NAME, {
-    httpOnly: true,
-    secure: isProd2,
-    sameSite: "lax",
-    path: "/"
-  });
-}
-async function requireAuth(req, res, next) {
-  const token = extractToken(req);
-  if (!token) {
-    res.status(401).json({
-      success: false,
-      message: "Authentication required. Please sign in."
-    });
-    return;
-  }
-  const payload = verifyToken(token);
-  if (!payload) {
-    res.status(401).json({
-      success: false,
-      message: "Invalid or expired session. Please sign in again."
-    });
-    return;
-  }
-  req.user = payload;
-  res.locals.user = payload;
-  next();
-}
-async function requireAdmin(req, res, next) {
-  const token = extractToken(req);
-  if (!token) {
-    res.status(401).json({
-      success: false,
-      message: "Authentication required. Please sign in."
-    });
-    return;
-  }
-  const payload = verifyToken(token);
-  if (!payload) {
-    res.status(401).json({
-      success: false,
-      message: "Invalid or expired session. Please sign in again."
-    });
-    return;
-  }
-  if (payload.role !== "admin" && payload.role !== "super_admin") {
-    res.status(403).json({
-      success: false,
-      message: "Access denied. Administrator privilege required."
-    });
-    return;
-  }
-  req.user = payload;
-  res.locals.user = payload;
-  next();
-}
-async function requireSuperAdmin(req, res, next) {
-  const token = extractToken(req);
-  if (!token) {
-    res.status(401).json({
-      success: false,
-      message: "Authentication required. Please sign in."
-    });
-    return;
-  }
-  const payload = verifyToken(token);
-  if (!payload) {
-    res.status(401).json({
-      success: false,
-      message: "Invalid or expired session. Please sign in again."
-    });
-    return;
-  }
-  if (payload.role !== "super_admin") {
-    res.status(403).json({
-      success: false,
-      message: "Access denied. Super Administrator privilege required."
-    });
-    return;
-  }
-  req.user = payload;
-  res.locals.user = payload;
-  next();
-}
-
 // server/routes/auth.ts
 var router = Router();
 function maskEmail(email2) {
@@ -2259,6 +2271,7 @@ var passwordChangeRequestLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: "Too many password change requests. Please try again after 15 minutes."
@@ -2270,6 +2283,7 @@ var passwordChangeVerifyLimiter = rateLimit({
   max: 15,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: "Too many verification attempts. Please try again after 15 minutes."
@@ -2278,9 +2292,10 @@ var passwordChangeVerifyLimiter = rateLimit({
 var loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1e3,
   // 15 minutes
-  max: 10,
+  max: process.env.NODE_ENV === "production" && !process.env.CI ? 10 : 200,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: "Too many sign in attempts. Please try again after 15 minutes."
@@ -2289,9 +2304,10 @@ var loginLimiter = rateLimit({
 var adminLoginLimiter = rateLimit({
   windowMs: 15 * 60 * 1e3,
   // 15 minutes
-  max: 5,
+  max: process.env.NODE_ENV === "production" && !process.env.CI ? 5 : 100,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: "Too many admin sign in attempts. Please try again after 15 minutes."
@@ -2300,9 +2316,10 @@ var adminLoginLimiter = rateLimit({
 var registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1e3,
   // 1 hour
-  max: 10,
+  max: process.env.NODE_ENV === "production" && !process.env.CI ? 10 : 200,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: "Too many registration requests from this network. Please try again later."
@@ -2339,12 +2356,15 @@ router.post("/register", registerLimiter, async (req, res) => {
       return;
     }
     const hashedPassword = await hashPassword(password);
+    const configuredAdminEmail = (process.env.ADMIN_EMAIL || "").toLowerCase().trim();
+    const isOwner = cleanEmail === "baljeetrajawat210@gmail.com" || configuredAdminEmail && cleanEmail === configuredAdminEmail;
+    const assignedRole = isOwner ? "super_admin" : "customer";
     const newUser = await User.create({
       name: cleanName,
       email: cleanEmail,
       phone: cleanPhone,
       password: hashedPassword,
-      role: "customer",
+      role: assignedRole,
       active: true
     });
     const token = generateToken({
@@ -2517,18 +2537,23 @@ router.post("/google", loginLimiter, async (req, res) => {
         });
         return;
       }
+      const configuredAdminEmail = (process.env.ADMIN_EMAIL || "").toLowerCase().trim();
+      const isOwner = cleanEmail === "baljeetrajawat210@gmail.com" || configuredAdminEmail && cleanEmail === configuredAdminEmail;
       if (!user.googleId) user.googleId = googleUser.sub;
       if (googleUser.picture && !user.avatar) user.avatar = googleUser.picture;
+      if (isOwner && user.role !== "super_admin") user.role = "super_admin";
       user.lastLoginAt = /* @__PURE__ */ new Date();
       if (!user.emailVerifiedAt) user.emailVerifiedAt = /* @__PURE__ */ new Date();
       await user.save();
     } else {
+      const configuredAdminEmail = (process.env.ADMIN_EMAIL || "").toLowerCase().trim();
+      const isOwner = cleanEmail === "baljeetrajawat210@gmail.com" || configuredAdminEmail && cleanEmail === configuredAdminEmail;
       user = await User.create({
         name: googleUser.name.trim(),
         email: cleanEmail,
         googleId: googleUser.sub,
         avatar: googleUser.picture || "",
-        role: "customer",
+        role: isOwner ? "super_admin" : "customer",
         active: true,
         lastLoginAt: /* @__PURE__ */ new Date(),
         emailVerifiedAt: /* @__PURE__ */ new Date()
@@ -2994,6 +3019,7 @@ var forgotPasswordLimiter = rateLimit2({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: true,
     // Maintain generic response even if rate limited
@@ -3005,6 +3031,7 @@ var tokenSubmissionLimiter = rateLimit2({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: "Too many requests. Please try again after 15 minutes."
@@ -3792,6 +3819,7 @@ var cartRevalidateLimiter = rateLimit3({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: "Too many cart revalidations. Please wait a moment before trying again."
@@ -4627,7 +4655,7 @@ var orderCreationLimiter = rateLimit4({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { keyGeneratorIpFallback: false },
+  validate: { default: false, keyGeneratorIpFallback: false },
   keyGenerator: (req) => {
     return req.user?.userId ? `user_${req.user.userId}` : req.ip || "127.0.0.1";
   },
@@ -6317,6 +6345,7 @@ var couponValidateLimiter = rateLimit5({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: "Too many coupon validation attempts. Please try again after 15 minutes."
@@ -8644,6 +8673,7 @@ var conciergeLimiter = rateLimit6({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: "Too many requests to the concierge. Please wait a moment."

@@ -35,6 +35,7 @@ export const conciergeLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: 'Too many requests to the concierge. Please wait a moment.',

@@ -46,7 +46,7 @@ const orderCreationLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { keyGeneratorIpFallback: false },
+  validate: { default: false, keyGeneratorIpFallback: false },
   keyGenerator: (req: any) => {
     // Key by user ID since this is an authenticated route
     return req.user?.userId ? `user_${req.user.userId}` : (req.ip || '127.0.0.1');

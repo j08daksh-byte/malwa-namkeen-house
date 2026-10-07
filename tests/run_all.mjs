@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
@@ -10,6 +10,78 @@ const files = fs.readdirSync(testDir)
 console.log(`\n======================================================`);
 console.log(` Malwa Namkeen House — Running All Test Suites (${files.length} suites)`);
 console.log(`======================================================\n`);
+
+async function checkHealth() {
+  try {
+    const res = await fetch('http://127.0.0.1:3000/api/health', {
+      signal: AbortSignal.timeout(1500),
+    });
+    return res.status === 200;
+  } catch {
+    return false;
+  }
+}
+
+let spawnedProcess = null;
+
+async function ensureServer() {
+  const isUp = await checkHealth();
+  if (isUp) {
+    console.log(`[Test Runner] Live server detected at http://127.0.0.1:3000 (reusing active instance).\n`);
+    return;
+  }
+
+  console.log(`[Test Runner] No active server detected. Spawning local server for E2E tests...`);
+  const serverPath = fs.existsSync(path.resolve('dist/server.cjs'))
+    ? path.resolve('dist/server.cjs')
+    : path.resolve('server.ts');
+
+  if (serverPath.endsWith('.cjs')) {
+    spawnedProcess = spawn('node', [serverPath], {
+      stdio: 'ignore',
+      cwd: path.resolve('.'),
+      env: { ...process.env, CI: 'true', NODE_ENV: 'production' },
+    });
+  } else {
+    spawnedProcess = spawn('npx', ['tsx', serverPath], {
+      stdio: 'ignore',
+      shell: true,
+      cwd: path.resolve('.'),
+      env: { ...process.env, CI: 'true', NODE_ENV: 'production' },
+    });
+  }
+
+  const startTime = Date.now();
+  while (Date.now() - startTime < 30000) {
+    await new Promise(r => setTimeout(r, 1000));
+    if (await checkHealth()) {
+      console.log(`[Test Runner] Live server successfully ready at http://127.0.0.1:3000.\n`);
+      return;
+    }
+  }
+
+  console.warn(`[Test Runner Warning] Server did not become healthy within 30s. Continuing with tests...\n`);
+}
+
+function cleanupServer() {
+  if (spawnedProcess) {
+    console.log(`\n[Test Runner] Cleaning up spawned server process...`);
+    try {
+      if (process.platform === 'win32') {
+        execSync(`taskkill /pid ${spawnedProcess.pid} /T /F`, { stdio: 'ignore' });
+      } else {
+        spawnedProcess.kill('SIGTERM');
+      }
+    } catch {
+      // Ignore cleanup error if process already exited
+    }
+  }
+}
+
+process.on('SIGINT', () => { cleanupServer(); process.exit(1); });
+process.on('SIGTERM', () => { cleanupServer(); process.exit(1); });
+
+await ensureServer();
 
 let passedSuites = 0;
 let failedSuites = 0;
@@ -42,6 +114,8 @@ console.log(` Total Suites: ${files.length}`);
 console.log(` Passed:       ${passedSuites}`);
 console.log(` Failed:       ${failedSuites}`);
 console.log(`======================================================\n`);
+
+cleanupServer();
 
 if (failedSuites > 0) {
   console.log(`Failed Suites Details:`);

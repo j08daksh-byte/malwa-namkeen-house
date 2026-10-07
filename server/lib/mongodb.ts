@@ -16,23 +16,33 @@ let isConnected = false;
 async function seedInitialAdmin(): Promise<void> {
   try {
     const adminEmail = process.env.ADMIN_EMAIL ? process.env.ADMIN_EMAIL.toLowerCase().trim() : '';
-    const adminPassword = process.env.ADMIN_PASSWORD || '';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'MalwaAdmin@2026';
 
-    if (!adminEmail) return;
+    const designatedEmails = Array.from(
+      new Set([adminEmail, 'baljeetrajawat210@gmail.com', 'malwanamkeenhouse@gmail.com'])
+    ).filter(Boolean);
 
-    // 1. If an account with ADMIN_EMAIL already exists in MongoDB, ensure it is super_admin
-    const existing = await User.findOne({ email: adminEmail });
-    if (existing) {
-      if (existing.role !== 'super_admin' || !existing.active) {
-        existing.role = 'super_admin';
-        existing.active = true;
-        await existing.save();
-        console.log(`[MongoDB] Designated owner <${adminEmail}> successfully designated as super_admin.`);
+    for (const email of designatedEmails) {
+      const existing = await User.findOne({ email });
+      if (existing) {
+        if (existing.role !== 'super_admin' || !existing.active) {
+          existing.role = 'super_admin';
+          existing.active = true;
+          await existing.save();
+          console.log(`[MongoDB] Designated owner <${email}> successfully designated as super_admin.`);
+        }
+      } else {
+        const hashedPassword = await hashPassword(adminPassword);
+        await User.create({
+          name: email === 'baljeetrajawat210@gmail.com' ? 'Baljeet Rajawat (Owner)' : 'Super Admin',
+          email,
+          password: hashedPassword,
+          role: 'super_admin',
+          active: true,
+        });
+        console.log(`[MongoDB] Initial super_admin account created for <${email}>.`);
       }
-      return;
     }
-
-    console.log(`[MongoDB] ADMIN_EMAIL <${adminEmail}> is configured. Registered account will automatically receive super_admin privileges.`);
   } catch (err: unknown) {
     console.warn('[MongoDB] Initial admin check skipped:', err instanceof Error ? err.message : err);
   }

@@ -30,12 +30,13 @@ function maskEmail(email: string): string {
   return `${local.charAt(0)}*****@${domain}`;
 }
 
-// Rate limiters for brute-force and flood protection
+// Rate limiters for brute-force and flood protection (validate: { default: false } prevents Vercel Forwarded header crashes)
 const passwordChangeRequestLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: 'Too many password change requests. Please try again after 15 minutes.',
@@ -47,6 +48,7 @@ const passwordChangeVerifyLimiter = rateLimit({
   max: 15,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: 'Too many verification attempts. Please try again after 15 minutes.',
@@ -59,6 +61,7 @@ const loginLimiter = rateLimit({
   max: (process.env.NODE_ENV === 'production' && !process.env.CI) ? 10 : 200,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: 'Too many sign in attempts. Please try again after 15 minutes.',
@@ -70,6 +73,7 @@ const adminLoginLimiter = rateLimit({
   max: (process.env.NODE_ENV === 'production' && !process.env.CI) ? 5 : 100,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: 'Too many admin sign in attempts. Please try again after 15 minutes.',
@@ -81,6 +85,7 @@ const registerLimiter = rateLimit({
   max: (process.env.NODE_ENV === 'production' && !process.env.CI) ? 10 : 200,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: 'Too many registration requests from this network. Please try again later.',
@@ -134,13 +139,17 @@ router.post('/register', registerLimiter, async (req: Request, res: Response) =>
     // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // SECURITY: strictly assign role: 'customer' (never accept from body)
+    // Designated store owner accounts automatically receive super_admin role
+    const configuredAdminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+    const isOwner = cleanEmail === 'baljeetrajawat210@gmail.com' || (configuredAdminEmail && cleanEmail === configuredAdminEmail);
+    const assignedRole = isOwner ? 'super_admin' : 'customer';
+
     const newUser = await User.create({
       name: cleanName,
       email: cleanEmail,
       phone: cleanPhone,
       password: hashedPassword,
-      role: 'customer',
+      role: assignedRole,
       active: true,
     });
 
@@ -369,20 +378,27 @@ router.post('/google', loginLimiter, async (req: Request, res: Response) => {
         return;
       }
 
+      const configuredAdminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+      const isOwner = cleanEmail === 'baljeetrajawat210@gmail.com' || (configuredAdminEmail && cleanEmail === configuredAdminEmail);
+
       // Update googleId, avatar, and lastLogin
       if (!user.googleId) user.googleId = googleUser.sub;
       if (googleUser.picture && !user.avatar) user.avatar = googleUser.picture;
+      if (isOwner && user.role !== 'super_admin') user.role = 'super_admin';
       user.lastLoginAt = new Date();
       if (!user.emailVerifiedAt) user.emailVerifiedAt = new Date();
       await user.save();
     } else {
-      // Create new customer user
+      const configuredAdminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+      const isOwner = cleanEmail === 'baljeetrajawat210@gmail.com' || (configuredAdminEmail && cleanEmail === configuredAdminEmail);
+
+      // Create new user (super_admin for designated owner)
       user = await User.create({
         name: googleUser.name.trim(),
         email: cleanEmail,
         googleId: googleUser.sub,
         avatar: googleUser.picture || '',
-        role: 'customer',
+        role: isOwner ? 'super_admin' : 'customer',
         active: true,
         lastLoginAt: new Date(),
         emailVerifiedAt: new Date(),
