@@ -1,12 +1,14 @@
 # Malwa Namkeen House — Release Verification Status
 
-**Document Version:** 1.1.0
+**Document Version:** 1.2.0
 **Updated:** 16 October 2026
 **Active Release Branch:** `release/malwa-production-ready`
-**Current HEAD SHA:** `a2dbdb9d93c085b507cd934fc6c48b6e8a3cf2d7` (with working-tree changes)
+**Current HEAD SHA:** `3e64c4d057e3395e5eab687e2d501e343931082c` (Synchronized with `daksh_repo/release/malwa-production-ready`)
 **Canonical Production Target:** `j08daksh-byte/malwa-namkeen-house` (`daksh_repo/main`)
 **Canonical Baseline SHA:** `8b8bbff7ff9e0a1a0c70d3863212c726d9310e94`
-**Vercel Production Project:** `malwa-namkeen`
+**Pull Request URL:** [Open PR on GitHub](https://github.com/j08daksh-byte/malwa-namkeen-house/compare/main...release/malwa-production-ready?expand=1)
+**Vercel Production Project:** `malwa-namkeen` (`dakshs-projects-45d693b3`)
+**Vercel Preview Deployment:** [`dpl_GsR8Th26tEUp8qqkhG8NrTSrRfYb`](https://malwa-namkeen-5n2w1orrg-dakshs-projects-45d693b3.vercel.app) (Branch alias: [`malwa-namkeen-git-release-malwa-19fc9c-dakshs-projects-45d693b3.vercel.app`](https://malwa-namkeen-git-release-malwa-19fc9c-dakshs-projects-45d693b3.vercel.app))
 **Active Isolated Test Database:** `malwa_namkeen_test` (MongoDB Atlas)
 
 ---
@@ -96,21 +98,26 @@ Before deploying `release/malwa-production-ready` to production Vercel (`malwa-n
 
 ---
 
-## 4. Next Safe Release Actions
+## 4. Current Release State & Remaining Release Actions
 
-Once this audit is approved, execute the following commands to push the verified release candidate branch and open a pull request into canonical `main`:
+Commit `3e64c4d` has been staged, committed, and pushed to `daksh_repo/release/malwa-production-ready`. Vercel automatically deployed preview build [`dpl_GsR8Th26tEUp8qqkhG8NrTSrRfYb`](https://malwa-namkeen-5n2w1orrg-dakshs-projects-45d693b3.vercel.app).
 
-```bash
-# 1. Stage and commit verified consolidation changes
-git add .env.example server/ src-rebuild/ tests/ CONSOLIDATION_AUDIT.md RELEASE_STATUS.md PROJECT_BIBLE.md api/index.js
-git commit -m "chore(release): complete release consolidation, security hardening, and test suites"
+### 4.1 Canonical Pull Request
+- **Target Remote:** `daksh_repo` (`https://github.com/j08daksh-byte/malwa-namkeen-house`)
+- **Base Branch:** `main`
+- **Compare Branch:** `release/malwa-production-ready`
+- **Creation Link:** [Create Pull Request on GitHub](https://github.com/j08daksh-byte/malwa-namkeen-house/compare/main...release/malwa-production-ready?expand=1)
 
-# 2. Push isolated release branch to canonical remote
-git push daksh_repo release/malwa-production-ready
+### 4.2 Empirical Vercel Configuration Audit (16 Oct 2026)
+- **Verified Present:** `MONGODB_URI`, `MONGODB_DB_NAME=malwa_namkeen`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_NOTIFICATION_EMAIL`, `APP_URL`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `ALLOWED_ORIGINS`, `BUSINESS_WHATSAPP_NUMBER`, `GOOGLE_CLIENT_ID`.
+- **CRITICAL MISSING (Blocker):** `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are **not configured** in Vercel. Real transactional emails cannot be delivered until these are added.
+- **Verified Absent (Safe):** `MONGODB_TEST_URI`, `MONGODB_TEST_DB_NAME`, `IS_E2E_TEST`, `TEST_ADMIN_EMAIL`, `TEST_ADMIN_PASSWORD` are strictly absent from Vercel settings.
 
-# 3. Create Pull Request from release/malwa-production-ready into daksh_repo/main
-# (Inspect diff and merge via GitHub PR interface after Vercel preview checks pass)
-```
+### 4.3 Operational Scope & Limitations
+- **Checkout & Payments:** Cash on Delivery (COD) / Direct Order Placement is the only active payment path. No third-party online payment gateway (Razorpay/Stripe/PhonePe) is integrated.
+- **Shipping:** Administrative tracking entry is manual (`courierName`, `trackingNumber`). No carrier API (Shiprocket/Delhivery) is integrated.
+- **Atlas Network Rule:** Keep `0.0.0.0/0` active in MongoDB Atlas Network Access until Vercel Dedicated Static IPs or AWS VPC Peering is provisioned. Removing it will break production serverless connectivity.
+- **Serverless Rate Limiting:** In-memory rate limiting and idempotency caching (`MemoryStore`) operate per hot lambda instance and do not share state across concurrent lambdas.
 
 ---
 

@@ -179,3 +179,10 @@ npx tsx tests/regression.test.ts              # 21 / 21 PASS
 ### 5.4 Atlas Network Access Policy (0.0.0.0/0 Precaution)
 - An entry for `0.0.0.0/0` in MongoDB Atlas Network Access is commonly present to accommodate dynamic IP allocation in Vercel serverless functions.
 - **Pre-removal Requirements:** Before deleting `0.0.0.0/0` from Atlas Network Access, verify whether Vercel is configured with Dedicated Static Outbound IPs or VPC Peering. Removing `0.0.0.0/0` without static peering will immediately sever Vercel production serverless API connections to MongoDB Atlas.
+
+### 5.5 Operational Scope & Release Readiness Boundaries
+1. **Transactional Email (Resend):** Verified in code and simulated tests, but unverified live. Vercel environment audit confirmed `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are not yet populated. Domain DNS (SPF/DKIM/DMARC) must be verified in Resend before enabling real delivery.
+2. **Payment Processing:** Operates strictly on Cash on Delivery (COD) / Direct Order placement (`orderStatus: 'pending'`, `paymentStatus: 'pending'`). No third-party online payment gateways (Razorpay, Stripe, PhonePe) are integrated.
+3. **Logistics & Shipping:** Administrative tracking entry is manual (`courierName`, `trackingNumber`, `trackingUrl`). No third-party carrier API (Shiprocket, Delhivery) is integrated.
+4. **Serverless Concurrency:** In-memory rate limiting and idempotency caching (`MemoryStore`) protect within a single warm lambda instance; distributed rate limiting across concurrent cold lambdas requires an external Redis cache (e.g. Upstash) in future milestones.
+5. **Active Preview Deployment:** Commit `3e64c4d` deployed to Vercel preview [`dpl_GsR8Th26tEUp8qqkhG8NrTSrRfYb`](https://malwa-namkeen-5n2w1orrg-dakshs-projects-45d693b3.vercel.app). Protected by Vercel Authentication SSO.
