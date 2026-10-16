@@ -27,6 +27,7 @@
 | **Gate 6** | Order Lifecycle & Inventory Restoration | **PASS (VERIFIED)** | Implemented safe, idempotent variant stock restock & coupon rollback on order cancellation (`orderRestoration.ts`). Customer cancellation added (`POST /api/customer/orders/:orderId/cancel`). Delete order guard added. `tests/order_cancellation_restock.test.ts` passed 23/23. |
 | **Gate 7** | Storefront Product Card Availability | **PASS (VERIFIED)** | Component-level availability indicators in `ProductCard.tsx` (`SOLD OUT` badges, disabled CTA, variant prop sync, `:focus-visible`). `tests/product_card_availability.test.ts` passed 23/23. |
 | **Gate 8** | Candidate Integration & Canonical Merge | **CONSOLIDATED & PUSHED** | Merged candidate `7fca7c3` into canonical `main` (`bf2ef58`) via `--no-ff`. All 18 suites passed on merged `main`. Fast-forward pushed strictly to `daksh_repo/main`. |
+| **Gate 9** | Implement Razorpay Payment Integration | **PASS (Completed & Verified)** | Server-side Razorpay order creation using strictly server-validated amounts in paise. Constant-time HMAC-SHA256 signature verification (`crypto.timingSafeEqual`). Idempotent webhook processing with replay attack protection. Unpaid order cancellation with stock/coupon restoration and retry support. COD regression preserved. 22/22 tests passing in `tests/razorpay_payment.test.ts`. Real live charges pending Vercel `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`. |
 
 ---
 
@@ -43,6 +44,7 @@
 | `e2e_safety_guard.test.ts` | Safety & URI Isolation Guard | **36 / 36 PASS** | `npx tsx tests/e2e_safety_guard.test.ts` |
 | `admin_permissions.test.ts` | Mocked / RBAC Matrix | **14 / 14 PASS** | `npx tsx tests/admin_permissions.test.ts` |
 | `transactional_email.test.ts` | Mocked / Email Engine | **22 / 22 PASS** | `npx tsx tests/transactional_email.test.ts` |
+| `razorpay_payment.test.ts` | Razorpay Gateway & Cryptographic Security | **22 / 22 PASS** | `npx tsx tests/razorpay_payment.test.ts` |
 | `regression.test.ts` | Unit Regression | **21 / 21 PASS** | `npx tsx tests/regression.test.ts` |
 | `ph001_regex_escape.test.ts` | Unit Security | **PASS** | `npx tsx tests/ph001_regex_escape.test.ts` |
 | `ph002_coupon_rate_limit.test.ts` | Unit Security | **PASS** | `npx tsx tests/ph002_coupon_rate_limit.test.ts` |
@@ -54,7 +56,7 @@
 | `ph008_csp_hardening.test.ts` | Unit HTTP Headers | **PASS** | `npx tsx tests/ph008_csp_hardening.test.ts` |
 | `ph009_user_compound_index.test.ts` | Schema Verification | **PASS** | `npx tsx tests/ph009_user_compound_index.test.ts` |
 | `ph010_inquiry_compound_index.test.ts` | Schema Verification | **PASS** | `npx tsx tests/ph010_inquiry_compound_index.test.ts` |
-| **Grand Total** | **All Live & Offline Suites (18 Suites)** | **215 / 215 PASS** (154/154 offline) | **100% Green** |
+| **Grand Total** | **All Live & Offline Suites (19 Suites)** | **237 / 237 PASS** (176/176 offline) | **100% Green** |
 
 ### 2.2 Compilation & Static Checks
 
@@ -101,6 +103,10 @@ Before deploying `release/malwa-production-ready` to production Vercel (`malwa-n
 | `CLOUDINARY_CLOUD_NAME` | Production / Preview | **YES** | Cloudinary product environment cloud name. |
 | `CLOUDINARY_API_KEY` | Production / Preview | **YES** | Cloudinary API key. |
 | `CLOUDINARY_API_SECRET` | Production / Preview | **YES** | Cloudinary API secret. |
+| `RAZORPAY_KEY_ID` | Production / Preview | **YES** | Razorpay public key ID (`rzp_live_...` or `rzp_test_...`). |
+| `RAZORPAY_KEY_SECRET` | Production / Preview | **YES** | Razorpay secret key (SERVER-ONLY). |
+| `RAZORPAY_WEBHOOK_SECRET`| Production / Preview | **YES** | Razorpay webhook verification secret (SERVER-ONLY). |
+| `RAZORPAY_SANDBOX` | Production / Preview | Optional | Set to `true` for sandbox / test charges, `false` for live production. |
 | `GEMINI_API_KEY` | Production / Preview | Optional | Google Gemini API key for culinary AI concierge. |
 
 ---

@@ -67,7 +67,12 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 app.use(cookieParser());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+  limit: '10mb',
+  verify: (req: any, _res: Response, buf: Buffer) => {
+    req.rawBody = buf;
+  },
+}));
 
 // Ensure MongoDB is connected on each incoming serverless request
 app.use(async (_req: Request, _res: Response, next: NextFunction) => {

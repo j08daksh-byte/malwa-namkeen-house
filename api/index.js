@@ -4825,7 +4825,16 @@ var orderSchema = new Schema8(
     paymentDetails: {
       transactionId: { type: String, trim: true },
       gateway: { type: String, trim: true },
-      paidAt: { type: Date }
+      paidAt: { type: Date },
+      razorpayOrderId: { type: String, trim: true },
+      razorpayPaymentId: { type: String, trim: true },
+      razorpaySignature: { type: String, trim: true },
+      webhookEventId: { type: String, trim: true },
+      failureReason: { type: String, trim: true }
+    },
+    processedWebhookEvents: {
+      type: [String],
+      default: []
     },
     shipmentStatus: {
       type: String,
@@ -4903,6 +4912,8 @@ orderSchema.index({ customer: 1, createdAt: -1 });
 orderSchema.index({ "customerInfo.email": 1, createdAt: -1 });
 orderSchema.index({ orderStatus: 1, createdAt: -1 });
 orderSchema.index({ paymentStatus: 1, createdAt: -1 });
+orderSchema.index({ "paymentDetails.razorpayOrderId": 1 }, { sparse: true });
+orderSchema.index({ processedWebhookEvents: 1 }, { sparse: true });
 var Order = mongoose14.models.Order || mongoose14.model("Order", orderSchema);
 
 // server/lib/orderRestoration.ts
@@ -5711,6 +5722,164 @@ var storeSettingsSchema = new Schema9(
 );
 var StoreSettings = mongoose17.models.StoreSettings || mongoose17.model("StoreSettings", storeSettingsSchema);
 
+// server/lib/razorpayService.ts
+import crypto3 from "crypto";
+var _testClient = null;
+function getRazorpayConfig() {
+  const isTest = process.env.NODE_ENV === "test" || process.env.IS_E2E_TEST === "true";
+  const keyId = (process.env.RAZORPAY_KEY_ID || "").trim();
+  const keySecret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
+  const webhookSecret = (process.env.RAZORPAY_WEBHOOK_SECRET || "").trim();
+  const isSandbox = process.env.RAZORPAY_SANDBOX === "true" || keyId.startsWith("rzp_test_") || isTest;
+  const isConfigured = Boolean(keyId && keySecret);
+  return {
+    keyId,
+    keySecret,
+    webhookSecret,
+    isConfigured,
+    isSandbox
+  };
+}
+function getPublicRazorpayKeyId() {
+  const config = getRazorpayConfig();
+  return config.keyId;
+}
+async function createRazorpayOrder(params) {
+  const config = getRazorpayConfig();
+  if (!Number.isInteger(params.amount) || params.amount <= 0) {
+    return {
+      success: false,
+      error: "Invalid order amount. Amount must be a positive integer in paise.",
+      statusCode: 400
+    };
+  }
+  const currency = (params.currency || "INR").toUpperCase();
+  if (currency !== "INR") {
+    return {
+      success: false,
+      error: `Unsupported currency: ${currency}. Only INR is currently supported.`,
+      statusCode: 400
+    };
+  }
+  if (!params.receipt || typeof params.receipt !== "string" || !params.receipt.trim()) {
+    return {
+      success: false,
+      error: "Order receipt identifier is required.",
+      statusCode: 400
+    };
+  }
+  if (_testClient) {
+    try {
+      const mockOrder = await _testClient.orders.create({
+        amount: params.amount,
+        currency,
+        receipt: params.receipt.trim(),
+        notes: params.notes || {}
+      });
+      return { success: true, data: mockOrder };
+    } catch (testErr) {
+      const errMsg = testErr instanceof Error ? testErr.message : String(testErr);
+      return { success: false, error: errMsg, statusCode: 500 };
+    }
+  }
+  if (!config.isConfigured) {
+    return {
+      success: false,
+      error: "Razorpay payment gateway is not configured on this server.",
+      statusCode: 503
+    };
+  }
+  const authHeader = `Basic ${Buffer.from(`${config.keyId}:${config.keySecret}`).toString("base64")}`;
+  const payload = {
+    amount: params.amount,
+    currency,
+    receipt: params.receipt.trim().slice(0, 40),
+    // Razorpay receipt max 40 chars
+    notes: params.notes || {},
+    payment_capture: 1
+    // Automatically capture authorized payments
+  };
+  try {
+    const res = await fetch("https://api.razorpay.com/v1/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: authHeader
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const errorDescription = data?.error?.description || data?.error?.message || "Razorpay order creation failed.";
+      console.error("[Razorpay Order Creation Error]:", errorDescription, data);
+      return {
+        success: false,
+        error: errorDescription,
+        statusCode: res.status
+      };
+    }
+    return {
+      success: true,
+      data
+    };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[Razorpay Network Exception]:", errMsg);
+    return {
+      success: false,
+      error: "Payment gateway connection error. Please try again.",
+      statusCode: 502
+    };
+  }
+}
+function verifyPaymentSignature(params) {
+  const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = params;
+  if (!razorpayOrderId || typeof razorpayOrderId !== "string" || !razorpayPaymentId || typeof razorpayPaymentId !== "string" || !razorpaySignature || typeof razorpaySignature !== "string") {
+    return false;
+  }
+  const config = getRazorpayConfig();
+  const secret = (params.secret || config.keySecret || "").trim();
+  if (!secret) {
+    return false;
+  }
+  try {
+    const payload = `${razorpayOrderId.trim()}|${razorpayPaymentId.trim()}`;
+    const expectedSignature = crypto3.createHmac("sha256", secret).update(payload).digest("hex");
+    const expectedBuf = Buffer.from(expectedSignature, "utf-8");
+    const actualBuf = Buffer.from(razorpaySignature.trim(), "utf-8");
+    if (expectedBuf.length !== actualBuf.length) {
+      return false;
+    }
+    return crypto3.timingSafeEqual(expectedBuf, actualBuf);
+  } catch (err) {
+    console.error("[Signature Verification Error]:", err);
+    return false;
+  }
+}
+function verifyWebhookSignature(params) {
+  const { rawBody, signature } = params;
+  if (!rawBody || !signature || typeof signature !== "string") {
+    return false;
+  }
+  const config = getRazorpayConfig();
+  const secret = (params.webhookSecret || config.webhookSecret || "").trim();
+  if (!secret) {
+    return false;
+  }
+  try {
+    const expectedSignature = crypto3.createHmac("sha256", secret).update(rawBody).digest("hex");
+    const expectedBuf = Buffer.from(expectedSignature, "utf-8");
+    const actualBuf = Buffer.from(signature.trim(), "utf-8");
+    if (expectedBuf.length !== actualBuf.length) {
+      return false;
+    }
+    return crypto3.timingSafeEqual(expectedBuf, actualBuf);
+  } catch (err) {
+    console.error("[Webhook Signature Verification Error]:", err);
+    return false;
+  }
+}
+
 // server/routes/customerOrders.ts
 var router6 = Router6();
 var recentSubmissions = /* @__PURE__ */ new Map();
@@ -6061,6 +6230,75 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
       }
       throw orderCreateErr;
     }
+    let razorpayPayload = null;
+    const isOnlinePayment = ["online", "upi", "card"].includes(newOrder.paymentMethod);
+    if (isOnlinePayment && newOrder.total > 0) {
+      const rzpRes = await createRazorpayOrder({
+        amount: Math.round(newOrder.total * 100),
+        currency: "INR",
+        receipt: newOrder.orderNumber,
+        notes: {
+          orderId: newOrder._id.toString(),
+          orderNumber: newOrder.orderNumber,
+          customerEmail: newOrder.customerInfo.email
+        }
+      });
+      if (!rzpRes.success || !rzpRes.data) {
+        for (const resv of reservedStockUpdates) {
+          try {
+            await Product.updateOne(
+              { _id: resv.productId, "variants._id": resv.variantId },
+              { $inc: { "variants.$.stock": resv.decrement } }
+            );
+          } catch {
+          }
+        }
+        if (appliedDiscountCode) {
+          try {
+            await Discount.updateOne(
+              { code: appliedDiscountCode },
+              { $inc: { usedCount: -1 } }
+            );
+          } catch {
+          }
+        }
+        try {
+          await Order.findByIdAndDelete(newOrder._id);
+        } catch {
+        }
+        res.status(502).json({
+          success: false,
+          message: rzpRes.error || "Failed to initialize payment gateway. Please choose Cash on Delivery or try again later."
+        });
+        return;
+      }
+      newOrder.paymentDetails = {
+        gateway: "razorpay",
+        razorpayOrderId: rzpRes.data.id
+      };
+      await newOrder.save();
+      razorpayPayload = {
+        keyId: getPublicRazorpayKeyId(),
+        orderId: rzpRes.data.id,
+        amount: rzpRes.data.amount,
+        currency: rzpRes.data.currency,
+        name: "Malwa Namkeen House",
+        description: `Order #${newOrder.orderNumber}`,
+        prefill: {
+          name: user.name || cleanShippingAddress.name,
+          email: user.email,
+          contact: cleanShippingAddress.phone || user.phone || ""
+        }
+      };
+    } else if (isOnlinePayment && newOrder.total === 0) {
+      newOrder.paymentStatus = "paid";
+      newOrder.orderStatus = "confirmed";
+      newOrder.paymentDetails = {
+        gateway: "promo",
+        paidAt: /* @__PURE__ */ new Date()
+      };
+      await newOrder.save();
+    }
     if (idempotencyKey) {
       cleanupRecentSubmissions();
       recentSubmissions.set(idempotencyKey, {
@@ -6068,28 +6306,12 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
         orderId: newOrder._id.toString()
       });
     }
-    (async () => {
-      try {
-        await sendCustomerOrderConfirmation({ order: newOrder });
-        const activeAdmins = await User.find({
-          role: { $in: ["admin", "super_admin"] },
-          active: true
-        }).select("email").lean();
-        const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL;
-        const adminEmails = [
-          ...activeAdmins.map((a) => a.email),
-          ...configuredAdmin ? [configuredAdmin] : []
-        ].filter(Boolean);
-        if (adminEmails.length > 0) {
-          await sendNewOrderAdminAlert({ order: newOrder, adminEmails });
-        }
-      } catch (notifyErr) {
-        console.warn("[Order Notification Warning] Failed to dispatch order emails:", notifyErr);
-      }
-    })();
+    if (newOrder.paymentMethod === "cod" || newOrder.paymentStatus === "paid") {
+      dispatchOrderConfirmationEmails(newOrder);
+    }
     res.status(201).json({
       success: true,
-      message: "Order created successfully.",
+      message: isOnlinePayment && newOrder.total > 0 ? "Order initialized. Please complete payment." : "Order created successfully.",
       order: {
         _id: newOrder._id.toString(),
         orderNumber: newOrder.orderNumber,
@@ -6105,7 +6327,8 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
         paymentMethod: newOrder.paymentMethod,
         shipmentStatus: newOrder.shipmentStatus,
         createdAt: newOrder.createdAt
-      }
+      },
+      ...razorpayPayload ? { razorpay: razorpayPayload } : {}
     });
   } catch (err) {
     console.error("[Create Order Error]", err);
@@ -6131,6 +6354,381 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
       success: false,
       message: "Failed to process order. Please try again."
     });
+  }
+});
+async function dispatchOrderConfirmationEmails(order) {
+  try {
+    await sendCustomerOrderConfirmation({ order });
+    const activeAdmins = await User.find({
+      role: { $in: ["admin", "super_admin"] },
+      active: true
+    }).select("email").lean();
+    const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL;
+    const adminEmails = [
+      ...activeAdmins.map((a) => a.email),
+      ...configuredAdmin ? [configuredAdmin] : []
+    ].filter(Boolean);
+    if (adminEmails.length > 0) {
+      await sendNewOrderAdminAlert({ order, adminEmails });
+    }
+  } catch (notifyErr) {
+    console.warn("[Order Notification Warning] Failed to dispatch order emails:", notifyErr);
+  }
+}
+router6.post("/verify-payment", requireAuth, async (req, res) => {
+  try {
+    const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body || {};
+    if (!orderId || typeof orderId !== "string" || !razorpayOrderId || typeof razorpayOrderId !== "string" || !razorpayPaymentId || typeof razorpayPaymentId !== "string" || !razorpaySignature || typeof razorpaySignature !== "string") {
+      res.status(400).json({
+        success: false,
+        message: "Missing or invalid payment verification parameters."
+      });
+      return;
+    }
+    if (!mongoose18.Types.ObjectId.isValid(orderId)) {
+      res.status(400).json({
+        success: false,
+        message: "Invalid order ID format."
+      });
+      return;
+    }
+    const order = await Order.findById(orderId);
+    if (!order) {
+      res.status(404).json({
+        success: false,
+        message: "Order not found."
+      });
+      return;
+    }
+    const isOwner = order.customer?.toString() === req.user?.userId || req.user?.role === "admin" || req.user?.role === "super_admin";
+    if (!isOwner) {
+      res.status(403).json({
+        success: false,
+        message: "You are not authorized to verify payment for this order."
+      });
+      return;
+    }
+    if (order.paymentStatus === "paid") {
+      res.json({
+        success: true,
+        message: "Payment has already been verified and recorded.",
+        order
+      });
+      return;
+    }
+    if (order.orderStatus === "cancelled") {
+      res.status(400).json({
+        success: false,
+        message: "Cannot verify payment for a cancelled order. Reserved inventory was already restored."
+      });
+      return;
+    }
+    if (order.paymentDetails?.razorpayOrderId && order.paymentDetails.razorpayOrderId !== razorpayOrderId.trim()) {
+      res.status(400).json({
+        success: false,
+        message: "Razorpay order ID does not match the order record."
+      });
+      return;
+    }
+    const isValidSignature = verifyPaymentSignature({
+      razorpayOrderId: razorpayOrderId.trim(),
+      razorpayPaymentId: razorpayPaymentId.trim(),
+      razorpaySignature: razorpaySignature.trim()
+    });
+    if (!isValidSignature) {
+      console.warn(`[Security Alert] Invalid payment signature attempt for order ${order.orderNumber}`);
+      res.status(400).json({
+        success: false,
+        message: "Invalid payment signature. Payment could not be verified."
+      });
+      return;
+    }
+    const updatedOrder = await Order.findOneAndUpdate(
+      {
+        _id: order._id,
+        paymentStatus: { $ne: "paid" },
+        orderStatus: { $ne: "cancelled" }
+      },
+      {
+        $set: {
+          paymentStatus: "paid",
+          orderStatus: "confirmed",
+          "paymentDetails.gateway": "razorpay",
+          "paymentDetails.transactionId": razorpayPaymentId.trim(),
+          "paymentDetails.razorpayPaymentId": razorpayPaymentId.trim(),
+          "paymentDetails.razorpaySignature": razorpaySignature.trim(),
+          "paymentDetails.paidAt": /* @__PURE__ */ new Date()
+        }
+      },
+      { new: true }
+    );
+    if (!updatedOrder) {
+      const current = await Order.findById(order._id);
+      if (current?.paymentStatus === "paid") {
+        res.json({
+          success: true,
+          message: "Payment already verified.",
+          order: current
+        });
+        return;
+      }
+      res.status(400).json({
+        success: false,
+        message: "Unable to update order payment state."
+      });
+      return;
+    }
+    dispatchOrderConfirmationEmails(updatedOrder);
+    res.json({
+      success: true,
+      message: "Payment verified successfully.",
+      order: updatedOrder
+    });
+  } catch (err) {
+    console.error("[Payment Verification Error]:", err);
+    res.status(500).json({
+      success: false,
+      message: "An error occurred during payment verification."
+    });
+  }
+});
+router6.post("/webhook/razorpay", async (req, res) => {
+  try {
+    const signature = req.headers["x-razorpay-signature"];
+    const rawBody = req.rawBody || JSON.stringify(req.body);
+    if (!signature || !verifyWebhookSignature({ rawBody, signature })) {
+      console.warn("[Razorpay Webhook Warning] Invalid webhook signature received.");
+      res.status(400).json({ success: false, message: "Invalid webhook signature." });
+      return;
+    }
+    const event = req.body?.event;
+    const eventId = req.headers["x-razorpay-event-id"] || req.body?.id || "";
+    if (eventId) {
+      const alreadyHandled = await Order.findOne({ processedWebhookEvents: eventId }).lean();
+      if (alreadyHandled) {
+        res.json({
+          success: true,
+          message: "Webhook event already processed.",
+          alreadyProcessed: true
+        });
+        return;
+      }
+    }
+    if (event === "order.paid" || event === "payment.captured") {
+      const paymentEntity = req.body?.payload?.payment?.entity;
+      const rzpOrderId = paymentEntity?.order_id || req.body?.payload?.order?.entity?.id;
+      const paymentId = paymentEntity?.id;
+      if (!rzpOrderId) {
+        res.status(400).json({ success: false, message: "Missing order_id in webhook payload." });
+        return;
+      }
+      const order = await Order.findOne({
+        $or: [
+          { "paymentDetails.razorpayOrderId": rzpOrderId },
+          ...paymentEntity?.notes?.orderId && mongoose18.Types.ObjectId.isValid(paymentEntity.notes.orderId) ? [{ _id: paymentEntity.notes.orderId }] : []
+        ]
+      });
+      if (!order) {
+        console.warn(`[Razorpay Webhook Warning] No order found for Razorpay order ID ${rzpOrderId}.`);
+        res.status(200).json({ success: true, message: "Order not found, ignored." });
+        return;
+      }
+      const expectedAmount = Math.round(order.total * 100);
+      if (paymentEntity?.amount !== expectedAmount || paymentEntity?.currency !== "INR") {
+        console.error(
+          `[Razorpay Security Alert] Webhook amount mismatch for order ${order.orderNumber}. Expected: ${expectedAmount} INR, Received: ${paymentEntity?.amount} ${paymentEntity?.currency}`
+        );
+        res.status(400).json({
+          success: false,
+          message: "Payment amount or currency mismatch."
+        });
+        return;
+      }
+      if (order.orderStatus === "cancelled") {
+        console.warn(
+          `[Razorpay Webhook Warning] Received captured payment for cancelled order ${order.orderNumber}. Merchant review required.`
+        );
+        if (eventId) {
+          await Order.updateOne({ _id: order._id }, { $addToSet: { processedWebhookEvents: eventId } });
+        }
+        res.status(200).json({ success: true, message: "Order was previously cancelled." });
+        return;
+      }
+      const updated = await Order.findOneAndUpdate(
+        {
+          _id: order._id,
+          paymentStatus: { $ne: "paid" },
+          orderStatus: { $ne: "cancelled" }
+        },
+        {
+          $set: {
+            paymentStatus: "paid",
+            orderStatus: "confirmed",
+            "paymentDetails.gateway": "razorpay",
+            "paymentDetails.transactionId": paymentId,
+            "paymentDetails.razorpayPaymentId": paymentId,
+            "paymentDetails.webhookEventId": eventId,
+            "paymentDetails.paidAt": /* @__PURE__ */ new Date()
+          },
+          ...eventId ? { $addToSet: { processedWebhookEvents: eventId } } : {}
+        },
+        { new: true }
+      );
+      if (updated) {
+        dispatchOrderConfirmationEmails(updated);
+      } else if (eventId) {
+        await Order.updateOne({ _id: order._id }, { $addToSet: { processedWebhookEvents: eventId } });
+      }
+      res.json({ success: true, message: "Payment recorded successfully." });
+      return;
+    }
+    if (event === "payment.failed") {
+      const paymentEntity = req.body?.payload?.payment?.entity;
+      const rzpOrderId = paymentEntity?.order_id;
+      const failureReason = paymentEntity?.error_description || paymentEntity?.error_code || "Payment failed";
+      if (rzpOrderId) {
+        const order = await Order.findOne({ "paymentDetails.razorpayOrderId": rzpOrderId });
+        if (order && order.paymentStatus !== "paid" && order.orderStatus !== "cancelled") {
+          await Order.updateOne(
+            { _id: order._id },
+            {
+              $set: { "paymentDetails.failureReason": failureReason },
+              ...eventId ? { $addToSet: { processedWebhookEvents: eventId } } : {}
+            }
+          );
+        }
+      }
+      res.json({ success: true, message: "Payment failure recorded." });
+      return;
+    }
+    res.json({ success: true, message: `Event ${event} acknowledged.` });
+  } catch (err) {
+    console.error("[Razorpay Webhook Error]:", err);
+    res.status(500).json({ success: false, message: "Webhook processing error." });
+  }
+});
+router6.post("/:orderId/retry-payment", requireAuth, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!mongoose18.Types.ObjectId.isValid(orderId)) {
+      res.status(400).json({ success: false, message: "Invalid order ID format." });
+      return;
+    }
+    const order = await Order.findById(orderId);
+    if (!order) {
+      res.status(404).json({ success: false, message: "Order not found." });
+      return;
+    }
+    const isOwner = order.customer?.toString() === req.user?.userId || req.user?.role === "admin" || req.user?.role === "super_admin";
+    if (!isOwner) {
+      res.status(403).json({ success: false, message: "Not authorized." });
+      return;
+    }
+    if (order.paymentStatus === "paid") {
+      res.status(400).json({ success: false, message: "This order is already paid." });
+      return;
+    }
+    if (order.orderStatus === "cancelled") {
+      res.status(400).json({ success: false, message: "Cannot retry payment for a cancelled order." });
+      return;
+    }
+    const rzpRes = await createRazorpayOrder({
+      amount: Math.round(order.total * 100),
+      currency: "INR",
+      receipt: order.orderNumber,
+      notes: {
+        orderId: order._id.toString(),
+        orderNumber: order.orderNumber,
+        customerEmail: order.customerInfo.email
+      }
+    });
+    if (!rzpRes.success || !rzpRes.data) {
+      res.status(502).json({
+        success: false,
+        message: rzpRes.error || "Failed to initialize payment gateway retry."
+      });
+      return;
+    }
+    order.paymentDetails = {
+      ...order.paymentDetails || {},
+      gateway: "razorpay",
+      razorpayOrderId: rzpRes.data.id
+    };
+    await order.save();
+    res.json({
+      success: true,
+      message: "Payment retry initialized.",
+      razorpay: {
+        keyId: getPublicRazorpayKeyId(),
+        orderId: rzpRes.data.id,
+        amount: rzpRes.data.amount,
+        currency: rzpRes.data.currency,
+        name: "Malwa Namkeen House",
+        description: `Order #${order.orderNumber}`,
+        prefill: {
+          name: order.customerInfo.name,
+          email: order.customerInfo.email,
+          contact: order.customerInfo.phone
+        }
+      }
+    });
+  } catch (err) {
+    console.error("[Retry Payment Error]:", err);
+    res.status(500).json({ success: false, message: "Failed to retry payment." });
+  }
+});
+router6.post("/:orderId/cancel-unpaid", requireAuth, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!mongoose18.Types.ObjectId.isValid(orderId)) {
+      res.status(400).json({ success: false, message: "Invalid order ID format." });
+      return;
+    }
+    const order = await Order.findById(orderId);
+    if (!order) {
+      res.status(404).json({ success: false, message: "Order not found." });
+      return;
+    }
+    const isOwner = order.customer?.toString() === req.user?.userId || req.user?.role === "admin" || req.user?.role === "super_admin";
+    if (!isOwner) {
+      res.status(403).json({ success: false, message: "Not authorized." });
+      return;
+    }
+    if (order.paymentStatus === "paid") {
+      res.status(400).json({
+        success: false,
+        message: "Paid orders cannot be cancelled through this endpoint."
+      });
+      return;
+    }
+    if (order.orderStatus === "cancelled") {
+      res.json({
+        success: true,
+        message: "Order was already cancelled and inventory restored.",
+        order
+      });
+      return;
+    }
+    const result = await cancelAndRestockOrder(order._id, {
+      cancelledBy: "customer",
+      reason: req.body?.reason || "Customer cancelled unpaid checkout",
+      allowedCurrentStatuses: ["pending"]
+    });
+    if (!result.success) {
+      res.status(400).json({
+        success: false,
+        message: result.message
+      });
+      return;
+    }
+    res.json({
+      success: true,
+      message: "Unpaid order cancelled and reserved inventory restored to stock.",
+      order: result.order
+    });
+  } catch (err) {
+    console.error("[Cancel Unpaid Order Error]:", err);
+    res.status(500).json({ success: false, message: "Failed to cancel unpaid order." });
   }
 });
 var customerOrders_default = router6;
@@ -8113,7 +8711,7 @@ var adminInquiries_default = router12;
 
 // server/routes/adminStaff.ts
 import { Router as Router13 } from "express";
-import crypto3 from "crypto";
+import crypto4 from "crypto";
 import mongoose26 from "mongoose";
 var router13 = Router13();
 router13.use(requireSuperAdmin);
@@ -8175,8 +8773,8 @@ router13.post("/invite", async (req, res) => {
       });
       return;
     }
-    const rawToken = crypto3.randomBytes(32).toString("hex");
-    const tokenHash = crypto3.createHash("sha256").update(rawToken).digest("hex");
+    const rawToken = crypto4.randomBytes(32).toString("hex");
+    const tokenHash = crypto4.createHash("sha256").update(rawToken).digest("hex");
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1e3);
     const newStaff = await User.create({
       name: cleanName,
@@ -9965,7 +10563,12 @@ app.use((req, res, next) => {
   next();
 });
 app.use(cookieParser());
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({
+  limit: "10mb",
+  verify: (req, _res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use(async (_req, _res, next) => {
   try {
     await connectMongoDB();

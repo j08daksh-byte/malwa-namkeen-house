@@ -131,12 +131,12 @@ async function startServer() {
     contentSecurityPolicy: isProd ? {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "https://accounts.google.com"],
+        scriptSrc: ["'self'", "https://accounts.google.com", "https://checkout.razorpay.com"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://*.googleusercontent.com", "https://accounts.google.com"],
+        imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://*.googleusercontent.com", "https://accounts.google.com", "https://*.razorpay.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        connectSrc: ["'self'", "https://accounts.google.com"],
-        frameSrc: ["'self'", "https://accounts.google.com"],
+        connectSrc: ["'self'", "https://accounts.google.com", "https://api.razorpay.com", "https://lumberjack.razorpay.com"],
+        frameSrc: ["'self'", "https://accounts.google.com", "https://api.razorpay.com"],
         objectSrc: ["'none'"],
         upgradeInsecureRequests: [],
       }
@@ -176,8 +176,13 @@ async function startServer() {
   // Cookie parser
   app.use(cookieParser());
 
-  // JSON & URL-encoded body — 10MB limit for image uploads and base64 payloads
-  app.use(express.json({ limit: '10mb' }));
+  // JSON & URL-encoded body — 10MB limit; verify hook preserves rawBody for webhook HMAC verification
+  app.use(express.json({
+    limit: '10mb',
+    verify: (req: any, _res: Response, buf: Buffer) => {
+      req.rawBody = buf;
+    },
+  }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // ── Rate limits ───────────────────────────────────────────────────────────

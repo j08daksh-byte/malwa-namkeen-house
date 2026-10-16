@@ -10,6 +10,13 @@ import { StoreSettings } from '../models/StoreSettings.ts';
 import { validateAndCalculateDiscount } from '../lib/discounts.ts';
 import { requireAuth, type AuthenticatedRequest } from '../lib/auth.ts';
 import { sendCustomerOrderConfirmation, sendNewOrderAdminAlert } from '../lib/emailService.ts';
+import {
+  createRazorpayOrder,
+  verifyPaymentSignature,
+  verifyWebhookSignature,
+  getPublicRazorpayKeyId,
+} from '../lib/razorpayService.ts';
+import { cancelAndRestockOrder } from '../lib/orderRestoration.ts';
 
 const router = Router();
 
@@ -466,6 +473,81 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
       throw orderCreateErr;
     }
 
+    // 11. Payment Gateway Handshake (For online / upi / card orders with finalTotal > 0)
+    let razorpayPayload: any = null;
+    const isOnlinePayment = ['online', 'upi', 'card'].includes(newOrder.paymentMethod);
+
+    if (isOnlinePayment && newOrder.total > 0) {
+      const rzpRes = await createRazorpayOrder({
+        amount: Math.round(newOrder.total * 100),
+        currency: 'INR',
+        receipt: newOrder.orderNumber,
+        notes: {
+          orderId: newOrder._id.toString(),
+          orderNumber: newOrder.orderNumber,
+          customerEmail: newOrder.customerInfo.email,
+        },
+      });
+
+      if (!rzpRes.success || !rzpRes.data) {
+        // Rollback stocks and coupon and remove the order
+        for (const resv of reservedStockUpdates) {
+          try {
+            await Product.updateOne(
+              { _id: resv.productId, 'variants._id': resv.variantId },
+              { $inc: { 'variants.$.stock': resv.decrement } }
+            );
+          } catch {}
+        }
+        if (appliedDiscountCode) {
+          try {
+            await Discount.updateOne(
+              { code: appliedDiscountCode },
+              { $inc: { usedCount: -1 } }
+            );
+          } catch {}
+        }
+        try {
+          await Order.findByIdAndDelete(newOrder._id);
+        } catch {}
+
+        res.status(502).json({
+          success: false,
+          message: rzpRes.error || 'Failed to initialize payment gateway. Please choose Cash on Delivery or try again later.',
+        });
+        return;
+      }
+
+      newOrder.paymentDetails = {
+        gateway: 'razorpay',
+        razorpayOrderId: rzpRes.data.id,
+      };
+      await newOrder.save();
+
+      razorpayPayload = {
+        keyId: getPublicRazorpayKeyId(),
+        orderId: rzpRes.data.id,
+        amount: rzpRes.data.amount,
+        currency: rzpRes.data.currency,
+        name: 'Malwa Namkeen House',
+        description: `Order #${newOrder.orderNumber}`,
+        prefill: {
+          name: user.name || cleanShippingAddress.name,
+          email: user.email,
+          contact: cleanShippingAddress.phone || user.phone || '',
+        },
+      };
+    } else if (isOnlinePayment && newOrder.total === 0) {
+      // 100% discounted order - automatically mark paid
+      newOrder.paymentStatus = 'paid';
+      newOrder.orderStatus = 'confirmed';
+      newOrder.paymentDetails = {
+        gateway: 'promo',
+        paidAt: new Date(),
+      };
+      await newOrder.save();
+    }
+
     // Record submission key in idempotency cache
     if (idempotencyKey) {
       cleanupRecentSubmissions();
@@ -475,34 +557,17 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
       });
     }
 
-    // Asynchronous non-blocking email notifications
-    (async () => {
-      try {
-        // 1. Customer Confirmation Email
-        await sendCustomerOrderConfirmation({ order: newOrder });
-
-        // 2. Active Admin Alerts
-        const activeAdmins = await User.find({
-          role: { $in: ['admin', 'super_admin'] },
-          active: true,
-        }).select('email').lean();
-
-        const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL;
-        const adminEmails = [
-          ...activeAdmins.map(a => a.email),
-          ...(configuredAdmin ? [configuredAdmin] : []),
-        ].filter(Boolean);
-        if (adminEmails.length > 0) {
-          await sendNewOrderAdminAlert({ order: newOrder, adminEmails });
-        }
-      } catch (notifyErr) {
-        console.warn('[Order Notification Warning] Failed to dispatch order emails:', notifyErr);
-      }
-    })();
+    // Only dispatch confirmation email immediately for COD or zero-total orders
+    // For pending online payment orders, email is dispatched upon payment verification
+    if (newOrder.paymentMethod === 'cod' || newOrder.paymentStatus === 'paid') {
+      dispatchOrderConfirmationEmails(newOrder);
+    }
 
     res.status(201).json({
       success: true,
-      message: 'Order created successfully.',
+      message: isOnlinePayment && newOrder.total > 0
+        ? 'Order initialized. Please complete payment.'
+        : 'Order created successfully.',
       order: {
         _id: newOrder._id.toString(),
         orderNumber: newOrder.orderNumber,
@@ -519,6 +584,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
         shipmentStatus: newOrder.shipmentStatus,
         createdAt: newOrder.createdAt,
       },
+      ...(razorpayPayload ? { razorpay: razorpayPayload } : {}),
     });
   } catch (err: unknown) {
     console.error('[Create Order Error]', err);
@@ -546,6 +612,489 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
       success: false,
       message: 'Failed to process order. Please try again.',
     });
+  }
+});
+
+// Helper: Dispatches order confirmation and admin alert emails non-blockingly
+async function dispatchOrderConfirmationEmails(order: any) {
+  try {
+    await sendCustomerOrderConfirmation({ order });
+
+    const activeAdmins = await User.find({
+      role: { $in: ['admin', 'super_admin'] },
+      active: true,
+    }).select('email').lean();
+
+    const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL;
+    const adminEmails = [
+      ...activeAdmins.map(a => a.email),
+      ...(configuredAdmin ? [configuredAdmin] : []),
+    ].filter(Boolean);
+
+    if (adminEmails.length > 0) {
+      await sendNewOrderAdminAlert({ order, adminEmails });
+    }
+  } catch (notifyErr) {
+    console.warn('[Order Notification Warning] Failed to dispatch order emails:', notifyErr);
+  }
+}
+
+/**
+ * POST /api/orders/verify-payment
+ * Cryptographically verifies Razorpay payment signature and transitions order to 'paid' and 'confirmed'.
+ */
+router.post('/verify-payment', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body || {};
+
+    if (
+      !orderId ||
+      typeof orderId !== 'string' ||
+      !razorpayOrderId ||
+      typeof razorpayOrderId !== 'string' ||
+      !razorpayPaymentId ||
+      typeof razorpayPaymentId !== 'string' ||
+      !razorpaySignature ||
+      typeof razorpaySignature !== 'string'
+    ) {
+      res.status(400).json({
+        success: false,
+        message: 'Missing or invalid payment verification parameters.',
+      });
+      return;
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid order ID format.',
+      });
+      return;
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      res.status(404).json({
+        success: false,
+        message: 'Order not found.',
+      });
+      return;
+    }
+
+    // Customer ownership verification (or admin)
+    const isOwner =
+      order.customer?.toString() === req.user?.userId ||
+      req.user?.role === 'admin' ||
+      req.user?.role === 'super_admin';
+
+    if (!isOwner) {
+      res.status(403).json({
+        success: false,
+        message: 'You are not authorized to verify payment for this order.',
+      });
+      return;
+    }
+
+    // If order was already marked paid (e.g. by fast webhook), return success idempotently
+    if (order.paymentStatus === 'paid') {
+      res.json({
+        success: true,
+        message: 'Payment has already been verified and recorded.',
+        order,
+      });
+      return;
+    }
+
+    // Cancelled orders cannot be paid (inventory was already restored!)
+    if (order.orderStatus === 'cancelled') {
+      res.status(400).json({
+        success: false,
+        message: 'Cannot verify payment for a cancelled order. Reserved inventory was already restored.',
+      });
+      return;
+    }
+
+    // Order ID association check
+    if (order.paymentDetails?.razorpayOrderId && order.paymentDetails.razorpayOrderId !== razorpayOrderId.trim()) {
+      res.status(400).json({
+        success: false,
+        message: 'Razorpay order ID does not match the order record.',
+      });
+      return;
+    }
+
+    // Cryptographic signature check
+    const isValidSignature = verifyPaymentSignature({
+      razorpayOrderId: razorpayOrderId.trim(),
+      razorpayPaymentId: razorpayPaymentId.trim(),
+      razorpaySignature: razorpaySignature.trim(),
+    });
+
+    if (!isValidSignature) {
+      console.warn(`[Security Alert] Invalid payment signature attempt for order ${order.orderNumber}`);
+      res.status(400).json({
+        success: false,
+        message: 'Invalid payment signature. Payment could not be verified.',
+      });
+      return;
+    }
+
+    // Atomic update to transition to paid
+    const updatedOrder = await Order.findOneAndUpdate(
+      {
+        _id: order._id,
+        paymentStatus: { $ne: 'paid' },
+        orderStatus: { $ne: 'cancelled' },
+      },
+      {
+        $set: {
+          paymentStatus: 'paid',
+          orderStatus: 'confirmed',
+          'paymentDetails.gateway': 'razorpay',
+          'paymentDetails.transactionId': razorpayPaymentId.trim(),
+          'paymentDetails.razorpayPaymentId': razorpayPaymentId.trim(),
+          'paymentDetails.razorpaySignature': razorpaySignature.trim(),
+          'paymentDetails.paidAt': new Date(),
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedOrder) {
+      // Re-fetch to see if concurrent request already completed payment
+      const current = await Order.findById(order._id);
+      if (current?.paymentStatus === 'paid') {
+        res.json({
+          success: true,
+          message: 'Payment already verified.',
+          order: current,
+        });
+        return;
+      }
+      res.status(400).json({
+        success: false,
+        message: 'Unable to update order payment state.',
+      });
+      return;
+    }
+
+    // Dispatch confirmation email non-blockingly
+    dispatchOrderConfirmationEmails(updatedOrder);
+
+    res.json({
+      success: true,
+      message: 'Payment verified successfully.',
+      order: updatedOrder,
+    });
+  } catch (err: unknown) {
+    console.error('[Payment Verification Error]:', err);
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred during payment verification.',
+    });
+  }
+});
+
+/**
+ * POST /api/orders/webhook/razorpay
+ * Idempotent Razorpay webhook listener for payment.captured, order.paid, and payment.failed.
+ */
+router.post('/webhook/razorpay', async (req: any, res: Response) => {
+  try {
+    const signature = req.headers['x-razorpay-signature'] as string;
+    const rawBody = req.rawBody || JSON.stringify(req.body);
+
+    if (!signature || !verifyWebhookSignature({ rawBody, signature })) {
+      console.warn('[Razorpay Webhook Warning] Invalid webhook signature received.');
+      res.status(400).json({ success: false, message: 'Invalid webhook signature.' });
+      return;
+    }
+
+    const event = req.body?.event;
+    const eventId = (req.headers['x-razorpay-event-id'] as string) || req.body?.id || '';
+
+    // Idempotency check: if this webhook event was already recorded, return 200 immediately
+    if (eventId) {
+      const alreadyHandled = await Order.findOne({ processedWebhookEvents: eventId }).lean();
+      if (alreadyHandled) {
+        res.json({
+          success: true,
+          message: 'Webhook event already processed.',
+          alreadyProcessed: true,
+        });
+        return;
+      }
+    }
+
+    if (event === 'order.paid' || event === 'payment.captured') {
+      const paymentEntity = req.body?.payload?.payment?.entity;
+      const rzpOrderId = paymentEntity?.order_id || req.body?.payload?.order?.entity?.id;
+      const paymentId = paymentEntity?.id;
+
+      if (!rzpOrderId) {
+        res.status(400).json({ success: false, message: 'Missing order_id in webhook payload.' });
+        return;
+      }
+
+      // Find order by razorpayOrderId or note orderId
+      const order = await Order.findOne({
+        $or: [
+          { 'paymentDetails.razorpayOrderId': rzpOrderId },
+          ...(paymentEntity?.notes?.orderId && mongoose.Types.ObjectId.isValid(paymentEntity.notes.orderId)
+            ? [{ _id: paymentEntity.notes.orderId }]
+            : []),
+        ],
+      });
+
+      if (!order) {
+        console.warn(`[Razorpay Webhook Warning] No order found for Razorpay order ID ${rzpOrderId}.`);
+        res.status(200).json({ success: true, message: 'Order not found, ignored.' });
+        return;
+      }
+
+      // Security check: amount and currency verification
+      const expectedAmount = Math.round(order.total * 100);
+      if (paymentEntity?.amount !== expectedAmount || paymentEntity?.currency !== 'INR') {
+        console.error(
+          `[Razorpay Security Alert] Webhook amount mismatch for order ${order.orderNumber}. Expected: ${expectedAmount} INR, Received: ${paymentEntity?.amount} ${paymentEntity?.currency}`
+        );
+        res.status(400).json({
+          success: false,
+          message: 'Payment amount or currency mismatch.',
+        });
+        return;
+      }
+
+      // Check if order was already cancelled
+      if (order.orderStatus === 'cancelled') {
+        console.warn(
+          `[Razorpay Webhook Warning] Received captured payment for cancelled order ${order.orderNumber}. Merchant review required.`
+        );
+        if (eventId) {
+          await Order.updateOne({ _id: order._id }, { $addToSet: { processedWebhookEvents: eventId } });
+        }
+        res.status(200).json({ success: true, message: 'Order was previously cancelled.' });
+        return;
+      }
+
+      // Atomic transition to paid if not already paid
+      const updated = await Order.findOneAndUpdate(
+        {
+          _id: order._id,
+          paymentStatus: { $ne: 'paid' },
+          orderStatus: { $ne: 'cancelled' },
+        },
+        {
+          $set: {
+            paymentStatus: 'paid',
+            orderStatus: 'confirmed',
+            'paymentDetails.gateway': 'razorpay',
+            'paymentDetails.transactionId': paymentId,
+            'paymentDetails.razorpayPaymentId': paymentId,
+            'paymentDetails.webhookEventId': eventId,
+            'paymentDetails.paidAt': new Date(),
+          },
+          ...(eventId ? { $addToSet: { processedWebhookEvents: eventId } } : {}),
+        },
+        { new: true }
+      );
+
+      if (updated) {
+        dispatchOrderConfirmationEmails(updated);
+      } else if (eventId) {
+        await Order.updateOne({ _id: order._id }, { $addToSet: { processedWebhookEvents: eventId } });
+      }
+
+      res.json({ success: true, message: 'Payment recorded successfully.' });
+      return;
+    }
+
+    if (event === 'payment.failed') {
+      const paymentEntity = req.body?.payload?.payment?.entity;
+      const rzpOrderId = paymentEntity?.order_id;
+      const failureReason = paymentEntity?.error_description || paymentEntity?.error_code || 'Payment failed';
+
+      if (rzpOrderId) {
+        const order = await Order.findOne({ 'paymentDetails.razorpayOrderId': rzpOrderId });
+        if (order && order.paymentStatus !== 'paid' && order.orderStatus !== 'cancelled') {
+          await Order.updateOne(
+            { _id: order._id },
+            {
+              $set: { 'paymentDetails.failureReason': failureReason },
+              ...(eventId ? { $addToSet: { processedWebhookEvents: eventId } } : {}),
+            }
+          );
+        }
+      }
+
+      res.json({ success: true, message: 'Payment failure recorded.' });
+      return;
+    }
+
+    // Default for other events
+    res.json({ success: true, message: `Event ${event} acknowledged.` });
+  } catch (err: unknown) {
+    console.error('[Razorpay Webhook Error]:', err);
+    res.status(500).json({ success: false, message: 'Webhook processing error.' });
+  }
+});
+
+/**
+ * POST /api/orders/:orderId/retry-payment
+ * Allows customer to generate a fresh Razorpay order for an unpaid, un-cancelled order.
+ */
+router.post('/:orderId/retry-payment', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { orderId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      res.status(400).json({ success: false, message: 'Invalid order ID format.' });
+      return;
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      res.status(404).json({ success: false, message: 'Order not found.' });
+      return;
+    }
+
+    const isOwner =
+      order.customer?.toString() === req.user?.userId ||
+      req.user?.role === 'admin' ||
+      req.user?.role === 'super_admin';
+
+    if (!isOwner) {
+      res.status(403).json({ success: false, message: 'Not authorized.' });
+      return;
+    }
+
+    if (order.paymentStatus === 'paid') {
+      res.status(400).json({ success: false, message: 'This order is already paid.' });
+      return;
+    }
+
+    if (order.orderStatus === 'cancelled') {
+      res.status(400).json({ success: false, message: 'Cannot retry payment for a cancelled order.' });
+      return;
+    }
+
+    const rzpRes = await createRazorpayOrder({
+      amount: Math.round(order.total * 100),
+      currency: 'INR',
+      receipt: order.orderNumber,
+      notes: {
+        orderId: order._id.toString(),
+        orderNumber: order.orderNumber,
+        customerEmail: order.customerInfo.email,
+      },
+    });
+
+    if (!rzpRes.success || !rzpRes.data) {
+      res.status(502).json({
+        success: false,
+        message: rzpRes.error || 'Failed to initialize payment gateway retry.',
+      });
+      return;
+    }
+
+    order.paymentDetails = {
+      ...(order.paymentDetails || {}),
+      gateway: 'razorpay',
+      razorpayOrderId: rzpRes.data.id,
+    };
+    await order.save();
+
+    res.json({
+      success: true,
+      message: 'Payment retry initialized.',
+      razorpay: {
+        keyId: getPublicRazorpayKeyId(),
+        orderId: rzpRes.data.id,
+        amount: rzpRes.data.amount,
+        currency: rzpRes.data.currency,
+        name: 'Malwa Namkeen House',
+        description: `Order #${order.orderNumber}`,
+        prefill: {
+          name: order.customerInfo.name,
+          email: order.customerInfo.email,
+          contact: order.customerInfo.phone,
+        },
+      },
+    });
+  } catch (err: unknown) {
+    console.error('[Retry Payment Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to retry payment.' });
+  }
+});
+
+/**
+ * POST /api/orders/:orderId/cancel-unpaid
+ * Allows customer to abandon/cancel an unpaid order and immediately release reserved inventory.
+ */
+router.post('/:orderId/cancel-unpaid', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { orderId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      res.status(400).json({ success: false, message: 'Invalid order ID format.' });
+      return;
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      res.status(404).json({ success: false, message: 'Order not found.' });
+      return;
+    }
+
+    const isOwner =
+      order.customer?.toString() === req.user?.userId ||
+      req.user?.role === 'admin' ||
+      req.user?.role === 'super_admin';
+
+    if (!isOwner) {
+      res.status(403).json({ success: false, message: 'Not authorized.' });
+      return;
+    }
+
+    if (order.paymentStatus === 'paid') {
+      res.status(400).json({
+        success: false,
+        message: 'Paid orders cannot be cancelled through this endpoint.',
+      });
+      return;
+    }
+
+    if (order.orderStatus === 'cancelled') {
+      res.json({
+        success: true,
+        message: 'Order was already cancelled and inventory restored.',
+        order,
+      });
+      return;
+    }
+
+    const result = await cancelAndRestockOrder(order._id, {
+      cancelledBy: 'customer',
+      reason: req.body?.reason || 'Customer cancelled unpaid checkout',
+      allowedCurrentStatuses: ['pending'],
+    });
+
+    if (!result.success) {
+      res.status(400).json({
+        success: false,
+        message: result.message,
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: 'Unpaid order cancelled and reserved inventory restored to stock.',
+      order: result.order,
+    });
+  } catch (err: unknown) {
+    console.error('[Cancel Unpaid Order Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to cancel unpaid order.' });
   }
 });
 

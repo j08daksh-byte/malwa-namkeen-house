@@ -61,7 +61,13 @@ export interface IOrder extends Document {
     transactionId?: string;
     gateway?: string;
     paidAt?: Date;
+    razorpayOrderId?: string;
+    razorpayPaymentId?: string;
+    razorpaySignature?: string;
+    webhookEventId?: string;
+    failureReason?: string;
   };
+  processedWebhookEvents?: string[];
   shipmentStatus: ShipmentStatus;
   trackingInfo?: {
     courierName?: string;
@@ -222,6 +228,15 @@ const orderSchema = new Schema<IOrder>(
       transactionId: { type: String, trim: true },
       gateway: { type: String, trim: true },
       paidAt: { type: Date },
+      razorpayOrderId: { type: String, trim: true },
+      razorpayPaymentId: { type: String, trim: true },
+      razorpaySignature: { type: String, trim: true },
+      webhookEventId: { type: String, trim: true },
+      failureReason: { type: String, trim: true },
+    },
+    processedWebhookEvents: {
+      type: [String],
+      default: [],
     },
     shipmentStatus: {
       type: String,
@@ -301,6 +316,8 @@ orderSchema.index({ customer: 1, createdAt: -1 });
 orderSchema.index({ 'customerInfo.email': 1, createdAt: -1 });
 orderSchema.index({ orderStatus: 1, createdAt: -1 });
 orderSchema.index({ paymentStatus: 1, createdAt: -1 });
+orderSchema.index({ 'paymentDetails.razorpayOrderId': 1 }, { sparse: true });
+orderSchema.index({ processedWebhookEvents: 1 }, { sparse: true });
 
 export const Order: Model<IOrder> =
   mongoose.models.Order || mongoose.model<IOrder>('Order', orderSchema);

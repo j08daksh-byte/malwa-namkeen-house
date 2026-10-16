@@ -35,6 +35,19 @@ interface SavedAddress {
   isDefault?: boolean;
 }
 
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise(resolve => {
+    if (typeof window === 'undefined') return resolve(false);
+    if ((window as any).Razorpay) return resolve(true);
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
+
 export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const navigate = useNavigate();
   const { settings } = useStoreSettings();
@@ -203,13 +216,74 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       });
 
       const data = await res.json();
-      if (res.ok && data.success && data.order) {
-        setCreatedOrder(data.order);
-        // Clear cart strictly after order confirmation
-        clearCart();
-      } else {
+      if (!res.ok || !data.success || !data.order) {
         setErrorMessage(data.message || 'Could not place order. Please try again.');
+        setIsSubmitting(false);
+        return;
       }
+
+      // If server returned a Razorpay order payload, launch Razorpay Checkout modal
+      if (data.razorpay && data.razorpay.orderId) {
+        const loaded = await loadRazorpayScript();
+        if (!loaded) {
+          setErrorMessage('Payment gateway failed to load. Please verify your connection or select Cash on Delivery.');
+          setIsSubmitting(false);
+          return;
+        }
+
+        const rzp = new (window as any).Razorpay({
+          key: data.razorpay.keyId,
+          amount: data.razorpay.amount,
+          currency: data.razorpay.currency || 'INR',
+          name: data.razorpay.name || 'Malwa Namkeen House',
+          description: data.razorpay.description,
+          order_id: data.razorpay.orderId,
+          prefill: data.razorpay.prefill || {},
+          theme: { color: '#3C0815' },
+          handler: async function (response: any) {
+            try {
+              setIsSubmitting(true);
+              const verifyRes = await fetch('/api/orders/verify-payment', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  orderId: data.order._id,
+                  razorpayOrderId: response.razorpay_order_id,
+                  razorpayPaymentId: response.razorpay_payment_id,
+                  razorpaySignature: response.razorpay_signature,
+                }),
+              });
+              const verifyData = await verifyRes.json();
+              if (verifyRes.ok && verifyData.success) {
+                setCreatedOrder(verifyData.order || data.order);
+                clearCart();
+              } else {
+                setErrorMessage(verifyData.message || 'Payment verification failed. Please contact support.');
+              }
+            } catch {
+              setErrorMessage('Network error during payment verification. Please check your order history.');
+            } finally {
+              setIsSubmitting(false);
+            }
+          },
+          modal: {
+            ondismiss: function () {
+              setIsSubmitting(false);
+              setErrorMessage('Payment was not completed. You can retry payment in your orders dashboard or place a new COD order.');
+            },
+          },
+        });
+
+        rzp.open();
+        return;
+      }
+
+      // Cash on Delivery or 100% promo order confirmed
+      setCreatedOrder(data.order);
+      clearCart();
     } catch {
       setErrorMessage('Network error during checkout. Please verify your connection.');
     } finally {
@@ -747,11 +821,22 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                   <div style={{ fontWeight: 700, color: '#55000A', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span>Payment Mode</span>
                     <span style={{ fontSize: '11px', color: '#059669', background: '#ECFDF5', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
-                      Pay On Delivery
+                      {paymentMethod === 'online' ? 'Instant Online' : 'Pay On Delivery'}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 500 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 500 }}>
+                      <input
+                        type="radio"
+                        name="payMethod"
+                        value="online"
+                        checked={paymentMethod === 'online'}
+                        onChange={() => setPaymentMethod('online')}
+                        style={{ accentColor: '#55000A' }}
+                      />
+                      <span><strong>Online Payment</strong> (UPI, Cards, NetBanking via Razorpay)</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 500 }}>
                       <input
                         type="radio"
                         name="payMethod"
@@ -760,9 +845,9 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         onChange={() => setPaymentMethod('cod')}
                         style={{ accentColor: '#55000A' }}
                       />
-                      Cash on Delivery (COD)
+                      <span>Cash on Delivery (COD)</span>
                     </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 500 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 500 }}>
                       <input
                         type="radio"
                         name="payMethod"
@@ -771,11 +856,13 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                         onChange={() => setPaymentMethod('upi')}
                         style={{ accentColor: '#55000A' }}
                       />
-                      UPI / QR (Pay Upon Arrival)
+                      <span>UPI / QR (Pay Upon Arrival)</span>
                     </label>
                   </div>
                   <div style={{ marginTop: '8px', fontSize: '11.5px', color: '#75645C', lineHeight: 1.4 }}>
-                    {paymentMethod === 'cod'
+                    {paymentMethod === 'online'
+                      ? 'Secure instant checkout via UPI (GPay/PhonePe), Credit/Debit Card, or NetBanking.'
+                      : paymentMethod === 'cod'
                       ? 'Pay cash directly to the delivery partner upon parcel arrival.'
                       : 'Scan delivery partner’s live UPI QR code via GPay, PhonePe, or Paytm upon parcel arrival.'}
                   </div>

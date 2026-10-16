@@ -222,6 +222,22 @@ The transactional email engine (`server/lib/emailService.ts`) provides centraliz
 5. **PII Masking in Diagnostic Logs:** `maskEmail()` shields recipient email addresses (e.g. `c***r@example.com`) across simulator and console logs to prevent PII exposure in logs and CI traces.
 6. **Production Unconfigured Safety:** If `RESEND_API_KEY` is omitted in production, messages safely drop (`provider: 'unconfigured'`, `delivered: false`) without throwing unhandled exceptions.
 
+### 5.3 Razorpay Payment Gateway & Cryptographic Security Architecture
+The platform integrates Razorpay for secure digital payments while preserving 100% backward compatibility with Cash on Delivery (COD).
+
+#### 1. Core Principles & Fraud Prevention
+1. **Server-Calculated Amounts Only:** Order totals, packaging prices, dynamic delivery charges, and coupon discounts are strictly calculated on the server from authoritative MongoDB documents. Amounts from the browser are completely discarded. Amounts transmitted to Razorpay Orders API are in integer paise (`Math.round(total * 100)`).
+2. **Cryptographic HMAC-SHA256 Verification:** Signatures (`razorpay_signature`) submitted by the client are verified using HMAC-SHA256 with `RAZORPAY_KEY_SECRET`. Signatures are evaluated in constant time using `crypto.timingSafeEqual` to eliminate timing attack vectors.
+3. **Idempotent Webhook Processing:** Webhooks at `POST /api/orders/webhook/razorpay` verify HMAC signatures using `RAZORPAY_WEBHOOK_SECRET` over raw body buffers. Processed event IDs are indexed and tracked in `processedWebhookEvents`. Replayed events return HTTP 200 with `alreadyProcessed: true` without double-mutating state or dispatching duplicate confirmation emails.
+4. **State Machine Invariants:**
+   - Unverified, unpaid, or forged orders are never marked `paymentStatus: 'paid'`.
+   - Cancelled orders (`orderStatus: 'cancelled'`) can never be marked paid or verified; payment verification strictly checks `orderStatus !== 'cancelled'`.
+   - Paid orders (`paymentStatus: 'paid'`) can never be cancelled or restocked by late payment failure events.
+   - Revenue analytics in the Admin Dashboard filter strictly for `paymentStatus === 'paid'`, ensuring financial integrity.
+5. **Abandoned Checkout & Restoration:** If a customer abandons payment or cancels their checkout, `POST /api/orders/:orderId/cancel-unpaid` leverages `cancelAndRestockOrder()` to atomically restock variant inventory and roll back coupon usage.
+6. **Retry Without Duplicate Stock Reservation:** Customers can retry payment on unpaid pending orders via `POST /api/orders/:orderId/retry-payment` without duplicating order documents or double-reserving inventory.
+7. **Sandbox & Test Isolation:** Automated test suites use `_setRazorpayClientForTesting` for mock injection. Unit and integration tests run 100% offline with zero live charges or real credit card calls. Unconfigured production mode safely returns HTTP 503 and never silently marks payments as successful.
+
 ---
 
 ## 6. Operations & Runbook
@@ -296,7 +312,7 @@ npx tsx tests/regression.test.ts                 # 21 / 21 PASS
 1. **Interactive Browser QA Incomplete:** While automated suites pass 100% (206/206 assertions across 18 suites), manual browser QA across multiple viewport sizes and browsers has not been executed. Do NOT claim manual QA passed.
 2. **Cancellation Inventory Restoration Pending Verification with Genuine Checkout Order:** The Gate 2A fixture pending order (`MN-QA-20261017-001`) was seeded directly via `Order.create` without decremented starting inventory. While unit tests (`order_cancellation_restock.test.ts`) verify mathematical and database restoration logic, full lifecycle verification of stock decrement during checkout followed by stock restoration upon cancellation against a genuine checkout-created order in the test database remains to be executed.
 3. **Transactional Email (Resend Delivery Unverified):** Verified in code and simulated tests, but unverified live. Vercel environment audit confirmed `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are not yet populated. Domain DNS (SPF/DKIM/DMARC) must be verified in Resend before enabling real delivery.
-4. **Payment Processing:** Operates strictly on Cash on Delivery (COD) / Direct Order placement (`orderStatus: 'pending'`, `paymentStatus: 'pending'`). No third-party online payment gateways (Razorpay, Stripe, PhonePe) are integrated.
+4. **Payment Processing (Razorpay Online & Cash on Delivery):** Fully architected and tested with 22/22 tests passing in `tests/razorpay_payment.test.ts`. Supports server-validated amounts in paise, constant-time HMAC-SHA256 signature verification, idempotent webhook processing, and retry/restoration protection. Real live charges require merchant account configuration (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`) in Vercel. Cash on Delivery (COD) remains fully operational.
 5. **Logistics & Shipping:** Administrative tracking entry is manual (`courierName`, `trackingNumber`, `trackingUrl`). No third-party carrier API (Shiprocket, Delhivery) is integrated.
 6. **Serverless Concurrency:** In-memory rate limiting and idempotency caching (`MemoryStore`) protect within a single warm lambda instance; distributed rate limiting across concurrent cold lambdas requires an external Redis cache (e.g. Upstash) in future milestones.
 7. **Canonical Release & Production Deployment Status:** Canonical `main` is consolidated at `bf2ef58d6a9e8b1c644f4d8072640f787a16bab9` and pushed to `daksh_repo/main`. Release branch `release/malwa-production-ready` remains strictly preserved at `73f3fd12ca254a295d8f8c630aae8bd83c7a988b`. Zero deployment was performed during this consolidation. Active Vercel production deployment remains on baseline `9fd812d` / `8dca758` ([`dpl_DayLHyctUicwMKCshgVRtsVLXFET`](https://malwa-namkeen.vercel.app)).
