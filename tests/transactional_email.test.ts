@@ -10,7 +10,7 @@
  * 6. Safe live smoke-test helper behavior.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   sendEmail,
@@ -27,6 +27,18 @@ import {
 } from '../server/lib/emailService.ts';
 
 describe('Gate 3: Transactional Email Service & Template Engine Suite', () => {
+  const origResendKey = process.env.RESEND_API_KEY;
+
+  before(() => {
+    // Enforce simulated transport during test suite execution to prevent actual network calls and guarantee zero spam
+    delete process.env.RESEND_API_KEY;
+  });
+
+  after(() => {
+    if (origResendKey) {
+      process.env.RESEND_API_KEY = origResendKey;
+    }
+  });
 
   // ── 1. Recipient Validation & Rejection ──────────────────────────────────────
   describe('1. Recipient Address Validation', () => {

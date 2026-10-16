@@ -127,3 +127,55 @@ If `JWT_SECRET` must be rotated:
 1. Generate a new cryptographically random 32+ character string.
 2. Update `JWT_SECRET` in Vercel Environment Variables.
 3. Trigger a production redeployment. All active JWT sessions will be invalidated, requiring users to log in again.
+
+### 5.3 Strict Test-Database Connection Isolation Architecture
+
+#### 1. Multi-Perimeter Architecture
+To eliminate all risk of mutating or polluting production data during test execution, the platform implements a four-tier defensive gate:
+1. **Perimeter 1 (`server/lib/dbGuard.ts`):** In test mode (`NODE_ENV=test` or `IS_E2E_TEST=true`), strictly requires a separate `MONGODB_TEST_URI`. Strictly prohibits all fallback to `MONGODB_URI` and rejects identical URIs (`MONGODB_TEST_URI === MONGODB_URI`). Requires `MONGODB_TEST_DB_NAME=malwa_namkeen_test`. Extracts the embedded database name from `MONGODB_TEST_URI` and validates that it matches `MONGODB_TEST_DB_NAME`. Rejects production database names (`malwa_namkeen`), system databases (`admin`, `local`, `config`, `prod`), and mismatches. Never logs or leaks the connection URI or credentials in errors. In non-test mode, preserves production connection behavior without changing production credentials or settings.
+2. **Perimeter 2 (`server/lib/mongodb.ts` & `server.ts`):** In test mode, `connectMongoDB()` resolves connection parameters via `getEffectiveMongoConfig()`. Upon establishing a connection, validates the actual connected database (`mongoose.connection.name === expectedDbName`). If mismatched, safely disconnects immediately and throws before any route handling. Exposes `database: mongoose.connection.name` via `/api/health`. In test mode, server process exits fast with code 1 upon DB connection failure.
+3. **Perimeter 3 (`tests/test_db_guard.ts`):** Test suites invoke `assertSafeTestDatabaseEnvironment()` and `verifyLiveServerDatabaseIsolation(BASE_URL)` in a top-level `before()` hook. If the live server is unconfigured or connected to `malwa_namkeen`, the suite aborts in <2ms before any network request or database write occurs.
+4. **Perimeter 4 (`tests/run_all.mjs`):** The test orchestrator verifies both `MONGODB_TEST_URI` and `MONGODB_TEST_DB_NAME`. If either is missing, live E2E tests are safely skipped under a hard lock, allowing all 14 deterministic offline unit/mocked suites to pass cleanly.
+
+#### 2. Scoped Lifecycle Teardown (`TestRecordTracker`)
+- Each E2E run generates a unique run identifier (`runId`).
+- Test records (customers, inquiries, orders, products, and admin fixtures) use run-unique tagged identifiers (e.g. `__test_user_<runId>@malwa-isolated.test`, `__test_admin_<runId>@malwa-isolated.test`).
+- In the suite `after()` hook, `tracker.performScopedCleanup()` connects strictly via `MONGODB_TEST_URI` (never falling back to `MONGODB_URI`) and deletes only documents matching the tracked IDs and run-tagged emails for that run.
+- Pre-existing accounts and production records are completely protected and never deleted.
+- If teardown fails or is interrupted, `reportUncleanedIdentifiers()` prints the affected identifiers with masked emails, completely sanitized of passwords or private credentials.
+
+#### 3. Test Execution Runbook & Verified Results
+```bash
+# 1. Run all offline unit/mocked suites (safe default; live E2E suites safely skipped under hard lock)
+node tests/run_all.mjs
+
+# 2. Run focused automated safety gate suite (36 defensive isolation tests — 100% PASS)
+npx tsx tests/e2e_safety_guard.test.ts
+
+# 3. Run individual isolated unit suites (100% PASS)
+npx tsx tests/admin_permissions.test.ts       # 14 / 14 PASS
+npx tsx tests/transactional_email.test.ts     # 13 / 13 PASS
+npx tsx tests/regression.test.ts              # 21 / 21 PASS
+
+# 4. Run Live E2E tests against an authorized test database (malwa_namkeen_test)
+# Terminal 1: Launch test server on port 3001
+# PORT=3001 IS_E2E_TEST=true npx tsx server.ts
+# Terminal 2: Run live suites
+# BASE_URL=http://127.0.0.1:3001 npx tsx tests/e2e_live_server.test.ts    # 18 / 18 PASS (3 records cleaned)
+# BASE_URL=http://127.0.0.1:3001 npx tsx tests/full_system_e2e.test.ts   # 43 / 43 PASS (4 records cleaned)
+# Grand Total: 145 / 145 Tests Passing Across All Suites
+```
+
+#### 4. Dedicated Test Database Setup in MongoDB Atlas
+1. Log in to [cloud.mongodb.com](https://cloud.mongodb.com).
+2. Go to **Security** → **Database Access** → **Add New Database User**.
+3. Create user `malwa_e2e_test_runner` with a strong password.
+4. Under **Database User Privileges**, select **Built-in Role** → **Specific Privileges**:
+   - Assign `readWrite` on database: `malwa_namkeen_test`.
+   - Explicitly do NOT grant access to `malwa_namkeen`.
+5. Under **Network Access**, verify current test runner/CI IP is active.
+6. Configure `MONGODB_TEST_URI` and `MONGODB_TEST_DB_NAME=malwa_namkeen_test` in local `.env.local`.
+
+### 5.4 Atlas Network Access Policy (0.0.0.0/0 Precaution)
+- An entry for `0.0.0.0/0` in MongoDB Atlas Network Access is commonly present to accommodate dynamic IP allocation in Vercel serverless functions.
+- **Pre-removal Requirements:** Before deleting `0.0.0.0/0` from Atlas Network Access, verify whether Vercel is configured with Dedicated Static Outbound IPs or VPC Peering. Removing `0.0.0.0/0` without static peering will immediately sever Vercel production serverless API connections to MongoDB Atlas.

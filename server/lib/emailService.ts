@@ -11,10 +11,11 @@ export interface EmailResult {
 }
 
 function getEmailConfig() {
+  const isTest = process.env.NODE_ENV === 'test' || process.env.IS_E2E_TEST === 'true';
   const rawBaseUrl = process.env.APP_URL || process.env.APP_BASE_URL || 'http://localhost:3000';
   return {
-    provider: process.env.EMAIL_PROVIDER || (process.env.RESEND_API_KEY ? 'resend' : 'simulated'),
-    resendApiKey: process.env.RESEND_API_KEY || '',
+    provider: isTest ? 'simulated' : (process.env.EMAIL_PROVIDER || (process.env.RESEND_API_KEY ? 'resend' : 'simulated')),
+    resendApiKey: isTest ? '' : (process.env.RESEND_API_KEY || ''),
     emailFrom: process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || 'Malwa Namkeen House <orders@malwanamkeen.com>',
     appBaseUrl: rawBaseUrl.replace(/\/+$/, ''),
   };

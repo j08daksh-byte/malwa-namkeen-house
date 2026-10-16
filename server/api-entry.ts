@@ -104,6 +104,7 @@ app.get(['/health', '/api/health'], async (_req: Request, res: Response) => {
     time: new Date().toISOString(),
     service: BUSINESS.name,
     mongodb: dbHealthy ? 'connected' : mongo.state,
+    database: mongoose.connection.name || null,
   });
 });
 

@@ -25,12 +25,47 @@
  * 18. Security Headers & CORS Policies
  */
 
-import { describe, it } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import dotenv from 'dotenv';
+import path from 'path';
+import {
+  assertSafeTestDatabaseEnvironment,
+  verifyLiveServerDatabaseIsolation,
+  TestRecordTracker,
+} from './test_db_guard.ts';
 
-const BASE_URL = 'http://127.0.0.1:3000';
+// Explicitly load .env and .env.local
+dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true });
+process.env.IS_E2E_TEST = 'true';
+process.env.NODE_ENV = 'test';
+
+const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:3000';
+const tracker = new TestRecordTracker('live_e2e');
 
 describe('Malwa Namkeen House — Comprehensive Live Server E2E Test Suite', () => {
+
+  // ── Pre-flight Hard Safety Gate ──────────────────────────────────────────────
+  before(async () => {
+    // 1. Process environment assertion
+    assertSafeTestDatabaseEnvironment();
+
+    // 2. Live server database isolation verification
+    const isolation = await verifyLiveServerDatabaseIsolation(BASE_URL);
+    if (!isolation.safe) {
+      throw new Error(`CRITICAL E2E SAFETY GATE ABORT:\n${isolation.error}`);
+    }
+  });
+
+  // ── Scoped Teardown Lifecycle ────────────────────────────────────────────────
+  after(async () => {
+    const { cleanedCount, failures } = await tracker.performScopedCleanup();
+    console.log(`[E2E Lifecycle] Scoped test teardown completed: ${cleanedCount} records removed.`);
+    if (failures.length > 0) {
+      console.warn('[E2E Lifecycle Warning] Some test records could not be removed:', failures);
+    }
+  });
 
   // ── 1. Health & Database Connectivity ────────────────────────────────────────
   it('1. Health check should return 200 OK with active MongoDB connection', async () => {
@@ -186,7 +221,7 @@ describe('Malwa Namkeen House — Comprehensive Live Server E2E Test Suite', () 
 
   // ── 9. Public Inquiry & Bulk Gifting Submission ──────────────────────────────
   it('9. Public inquiry submission should validate inputs and succeed', async () => {
-    const uniqueEmail = `inquiry_${Date.now()}@malwa-test.org`;
+    const uniqueEmail = tracker.getTestInquiryEmail();
     const res = await fetch(`${BASE_URL}/api/inquiries`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -207,7 +242,7 @@ describe('Malwa Namkeen House — Comprehensive Live Server E2E Test Suite', () 
   // ── 10. Customer Auth, Profile & Silent Refresh ──────────────────────────────
   let customerToken = '';
   let customerUserId = '';
-  const customerEmail = `e2e_shopper_${Date.now()}@malwa-client.org`;
+  const customerEmail = tracker.getTestUserEmail();
   const customerPassword = 'SecurePassword@123';
 
   it('10. Customer registration, me profile check and silent refresh should succeed', async () => {
@@ -229,6 +264,7 @@ describe('Malwa Namkeen House — Comprehensive Live Server E2E Test Suite', () 
     assert.ok(regData.token, 'Token must be present in registration response');
     customerToken = regData.token;
     customerUserId = regData.user?.id || regData.user?._id;
+    if (customerUserId) tracker.userIds.push(customerUserId);
 
     // B. Check Profile (/api/auth/me)
     const meRes = await fetch(`${BASE_URL}/api/auth/me`, {
@@ -353,7 +389,7 @@ describe('Malwa Namkeen House — Comprehensive Live Server E2E Test Suite', () 
   });
 
   // ── 14. Real Customer Order Placement (COD) ──────────────────────────────────
-  const testIdempotencyKey = `e2e_key_${Date.now()}`;
+  const testIdempotencyKey = tracker.getTestIdempotencyKey();
   let placedOrderNumber = '';
   let placedOrderId = '';
 
@@ -403,6 +439,8 @@ describe('Malwa Namkeen House — Comprehensive Live Server E2E Test Suite', () 
 
     placedOrderNumber = orderData.order.orderNumber;
     placedOrderId = orderData.order._id || orderData.order.id;
+    if (placedOrderNumber) tracker.orderNumbers.push(placedOrderNumber);
+    if (placedOrderId) tracker.orderIds.push(placedOrderId);
   });
 
   // ── 15. Order Idempotency / Duplicate Double-Click Prevention ────────────────

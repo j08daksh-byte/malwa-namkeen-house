@@ -5,30 +5,65 @@
  * authentication cycle, customer order flow, and super_admin portal route.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import path from 'path';
+import mongoose from 'mongoose';
+import { hashPassword } from '../server/lib/auth.ts';
+import {
+  assertSafeTestDatabaseEnvironment,
+  verifyLiveServerDatabaseIsolation,
+  TestRecordTracker,
+} from './test_db_guard.ts';
 
 dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true });
+process.env.IS_E2E_TEST = 'true';
+process.env.NODE_ENV = 'test';
 
-const BASE_URL = 'http://127.0.0.1:3000';
+const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:3000';
 const JWT_SECRET = process.env.JWT_SECRET || 'local-development-secret-key-at-least-32-chars-long-12345';
+const tracker = new TestRecordTracker('full_sys_e2e');
 
-// Super Admin token for administrative endpoint testing
-const superAdminToken = jwt.sign(
-  {
-    userId: '65f000000000000000000001',
-    email: 'malwanamkeenhouse@gmail.com',
-    role: 'super_admin',
-  },
-  JWT_SECRET,
-  { expiresIn: '2h' }
-);
+// Super Admin token for administrative endpoint testing (dynamically authenticated in Section 8)
+let superAdminToken = '';
 
 describe('Malwa Namkeen House — Exhaustive Full-System Verification', () => {
+
+  // ── Pre-flight Hard Safety Gate ──────────────────────────────────────────────
+  before(async () => {
+    // 1. Process environment assertion
+    assertSafeTestDatabaseEnvironment();
+
+    // 2. Dedicated admin test credentials requirement (no fallbacks to production or hardcoded)
+    const testAdminEmail = (process.env.TEST_ADMIN_EMAIL || '').trim();
+    const testAdminPassword = (process.env.TEST_ADMIN_PASSWORD || '').trim();
+    if (!testAdminEmail || !testAdminPassword) {
+      throw new Error(
+        'CRITICAL E2E SAFETY GATE ABORT: Dedicated TEST_ADMIN_EMAIL and TEST_ADMIN_PASSWORD must be configured in .env.local for full-system E2E testing. Fallback to production admin credentials (ADMIN_EMAIL, ADMIN_PASSWORD) or hardcoded passwords is strictly prohibited.'
+      );
+    }
+
+    // 3. Live server database isolation verification
+    const isolation = await verifyLiveServerDatabaseIsolation(BASE_URL);
+    if (!isolation.safe) {
+      throw new Error(`CRITICAL E2E SAFETY GATE ABORT:\n${isolation.error}`);
+    }
+  });
+
+  // ── Scoped Teardown Lifecycle ────────────────────────────────────────────────
+  after(async () => {
+    const { cleanedCount, failures } = await tracker.performScopedCleanup();
+    console.log(`[Full-System E2E Lifecycle] Scoped test teardown completed: ${cleanedCount} records removed.`);
+    if (failures.length > 0) {
+      console.warn('[Full-System E2E Lifecycle Warning] Some test records could not be removed:', failures);
+    }
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.disconnect();
+    }
+  });
 
   // =========================================================================
   // 1. HEALTH & INFRASTRUCTURE
@@ -218,12 +253,13 @@ describe('Malwa Namkeen House — Exhaustive Full-System Verification', () => {
     });
 
     it('POST /api/inquiries submits corporate / gifting enquiry', async () => {
+      const enquiryEmail = tracker.getTestInquiryEmail();
       const res = await fetch(`${BASE_URL}/api/inquiries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: 'Indore Heritage Sweets Partner',
-          email: `test_enquiry_${Date.now()}@example.com`,
+          email: enquiryEmail,
           phone: '9876543210',
           category: 'corporate_gifting',
           message: 'Bulk order enquiry for 150 signature festive gift hampers.',
@@ -239,12 +275,12 @@ describe('Malwa Namkeen House — Exhaustive Full-System Verification', () => {
   // 7. CUSTOMER LIFECYCLE & CHECKOUT
   // =========================================================================
   describe('7. Customer Authentication, Profile, Addresses & Order Flow', () => {
-    const customerEmail = `full_shopper_${Date.now()}@malwa-test.in`;
+    const customerEmail = tracker.getTestUserEmail();
     const customerPassword = 'SecurePassword@123';
     let customerToken = '';
     let customerId = '';
     let placedOrderNumber = '';
-    const idempotencyKey = `idem_${Date.now()}`;
+    const idempotencyKey = tracker.getTestIdempotencyKey();
 
     it('A. Registers new customer account', async () => {
       const res = await fetch(`${BASE_URL}/api/auth/register`, {
@@ -263,6 +299,7 @@ describe('Malwa Namkeen House — Exhaustive Full-System Verification', () => {
       assert.ok(data.token);
       customerToken = data.token;
       customerId = data.user.id || data.user._id;
+      if (customerId) tracker.userIds.push(customerId);
     });
 
     it('B. Logs in with the created credentials', async () => {
@@ -384,6 +421,7 @@ describe('Malwa Namkeen House — Exhaustive Full-System Verification', () => {
       assert.equal(data.success, true);
       assert.ok(data.order.orderNumber.startsWith('MN-'));
       placedOrderNumber = data.order.orderNumber;
+      if (placedOrderNumber) tracker.orderNumbers.push(placedOrderNumber);
     });
 
     it('H. Duplicate replay on identical idempotency key', async () => {
@@ -431,6 +469,65 @@ describe('Malwa Namkeen House — Exhaustive Full-System Verification', () => {
   // 8. ADMIN OPERATIONS & DASHBOARD (Protected by requireAdmin)
   // =========================================================================
   describe('8. Administrative Portal Endpoints & Operations', () => {
+    // Derive run-unique test admin email to guarantee zero cross-run collision and zero pollution
+    const adminEmail = tracker.getTestAdminEmail();
+    const adminPassword = (process.env.TEST_ADMIN_PASSWORD || '').trim();
+
+    before(async () => {
+      if (!adminPassword) {
+        throw new Error(
+          'CRITICAL CONFIGURATION ERROR: Full-system E2E admin testing requires dedicated TEST_ADMIN_PASSWORD in environment. Fallback to ADMIN_PASSWORD or hardcoded passwords is strictly prohibited.'
+        );
+      }
+
+      // 1. Connect to isolated test database to provision run-scoped test super_admin fixture
+      const effectiveDb = assertSafeTestDatabaseEnvironment();
+      if (mongoose.connection.readyState !== 1) {
+        await mongoose.connect(process.env.MONGODB_TEST_URI!, {
+          dbName: effectiveDb,
+          serverSelectionTimeoutMS: 5000,
+        });
+      }
+
+      const hashedPassword = await hashPassword(adminPassword);
+      const insertRes = await mongoose.connection.collection('users').insertOne({
+        name: 'Super Admin Test Fixture',
+        email: adminEmail,
+        phone: '9826000000',
+        password: hashedPassword,
+        role: 'super_admin',
+        active: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      const adminId = insertRes.insertedId.toString();
+      if (adminId) tracker.userIds.push(adminId);
+
+      // 2. Authenticate through the live server's official /api/auth/admin/login endpoint
+      const loginRes = await fetch(`${BASE_URL}/api/auth/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: adminEmail,
+          password: adminPassword,
+        }),
+      });
+
+      assert.equal(loginRes.status, 200, `Admin login endpoint must return HTTP 200, got ${loginRes.status}`);
+      const loginData = await loginRes.json();
+      assert.equal(loginData.success, true, 'Admin login response must indicate success');
+      superAdminToken = loginData.token;
+      const authenticatedRole = loginData.user?.role;
+
+      // 3. Verify the authenticated session is valid and possesses super_admin role before running admin operations
+      assert.ok(superAdminToken, 'Super admin authentication failed: session token not obtained');
+      assert.equal(
+        authenticatedRole,
+        'super_admin',
+        `Authenticated admin fixture must possess "super_admin" role, got "${authenticatedRole}"`
+      );
+    });
+
     it('GET /api/admin/dashboard/stats aggregates live metrics', async () => {
       const res = await fetch(`${BASE_URL}/api/admin/dashboard/stats`, {
         headers: { Authorization: `Bearer ${superAdminToken}` },
@@ -492,10 +589,11 @@ describe('Malwa Namkeen House — Exhaustive Full-System Verification', () => {
       assert.equal(data.success, true);
       assert.ok(data.product);
       createdProductId = data.product._id || data.product.id;
+      if (createdProductId) tracker.productIds.push(createdProductId);
     });
 
     it('DELETE /api/admin/products/:id deletes the created test product', async () => {
-      assert.ok(createdProductId);
+      assert.ok(createdProductId, 'Skipping deletion: createdProductId was not set because product creation failed');
       const res = await fetch(`${BASE_URL}/api/admin/products/${createdProductId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${superAdminToken}` },

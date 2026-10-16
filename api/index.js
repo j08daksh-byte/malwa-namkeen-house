@@ -1056,11 +1056,199 @@ async function requireSuperAdmin(req, res, next) {
   next();
 }
 
+// server/lib/dbGuard.ts
+var KNOWN_PRODUCTION_DB_NAMES = [
+  "malwa_namkeen",
+  "malwa-namkeen",
+  "malwanamkeen",
+  "production",
+  "prod",
+  "admin",
+  "local",
+  "config"
+];
+function extractDatabaseNameFromUri(uri) {
+  if (!uri || typeof uri !== "string") return null;
+  try {
+    const withoutQuery = uri.split("?")[0].split("#")[0].trim();
+    const match = withoutQuery.match(/^mongodb(?:\+srv)?:\/\/[^\/]+\/([^/\s]+)$/i);
+    if (match && match[1]) {
+      const decoded = decodeURIComponent(match[1]).trim();
+      return decoded || null;
+    }
+  } catch {
+  }
+  return null;
+}
+function validateTestDatabaseName({
+  testDbName,
+  prodDbName = process.env.MONGODB_DB_NAME || "malwa_namkeen"
+}) {
+  const cleanTest = (testDbName || "").trim();
+  const cleanProd = (prodDbName || "malwa_namkeen").trim();
+  if (!cleanTest) {
+    return {
+      safe: false,
+      effectiveDbName: "",
+      error: "CRITICAL SAFETY ABORT: MONGODB_TEST_DB_NAME is not configured. Live E2E tests cannot run against unspecified databases."
+    };
+  }
+  if (cleanTest.toLowerCase() === cleanProd.toLowerCase()) {
+    return {
+      safe: false,
+      effectiveDbName: cleanTest,
+      error: `CRITICAL SAFETY ABORT: MONGODB_TEST_DB_NAME ("${cleanTest}") matches production database MONGODB_DB_NAME ("${cleanProd}"). Tests would mutate production collections.`
+    };
+  }
+  if (KNOWN_PRODUCTION_DB_NAMES.includes(cleanTest.toLowerCase())) {
+    return {
+      safe: false,
+      effectiveDbName: cleanTest,
+      error: `CRITICAL SAFETY ABORT: "${cleanTest}" is recognized as a production or MongoDB system database name. Refusing execution.`
+    };
+  }
+  const hasTestIndicator = /(?:_|-|^)test(?:_|-|$)|sandbox|ci/i.test(cleanTest);
+  if (!hasTestIndicator) {
+    return {
+      safe: false,
+      effectiveDbName: cleanTest,
+      error: `CRITICAL SAFETY ABORT: MONGODB_TEST_DB_NAME ("${cleanTest}") must contain an explicit test indicator (e.g. "malwa_namkeen_test") to guarantee it is separated from production.`
+    };
+  }
+  return {
+    safe: true,
+    effectiveDbName: cleanTest
+  };
+}
+function validateTestConnectionConfig({
+  testUri = process.env.MONGODB_TEST_URI,
+  prodUri = process.env.MONGODB_URI,
+  testDbName = process.env.MONGODB_TEST_DB_NAME,
+  prodDbName = process.env.MONGODB_DB_NAME || "malwa_namkeen"
+}) {
+  const cleanTestUri = (testUri || "").trim();
+  const cleanProdUri = (prodUri || "").trim();
+  const cleanTestDb = (testDbName || "").trim();
+  const cleanProdDb = (prodDbName || "malwa_namkeen").trim();
+  if (!cleanTestUri) {
+    return {
+      safe: false,
+      effectiveUri: "",
+      effectiveDbName: "",
+      error: "CRITICAL SAFETY ABORT: MONGODB_TEST_URI is not configured in test mode. Falling back to MONGODB_URI is strictly prohibited to protect production data."
+    };
+  }
+  if (cleanProdUri && cleanTestUri.toLowerCase() === cleanProdUri.toLowerCase()) {
+    return {
+      safe: false,
+      effectiveUri: "",
+      effectiveDbName: "",
+      error: "CRITICAL SAFETY ABORT: MONGODB_TEST_URI matches production MONGODB_URI. Execution aborted to prevent mutating production database."
+    };
+  }
+  const dbValidation = validateTestDatabaseName({ testDbName: cleanTestDb, prodDbName: cleanProdDb });
+  if (!dbValidation.safe) {
+    return {
+      safe: false,
+      effectiveUri: "",
+      effectiveDbName: "",
+      error: dbValidation.error
+    };
+  }
+  const embeddedDb = extractDatabaseNameFromUri(cleanTestUri);
+  if (!embeddedDb) {
+    return {
+      safe: false,
+      effectiveUri: "",
+      effectiveDbName: dbValidation.effectiveDbName,
+      error: `CRITICAL SAFETY ABORT: MONGODB_TEST_URI does not have an embedded database name. It must explicitly include /${dbValidation.effectiveDbName} in the connection path to prevent falling back to default or production databases.`
+    };
+  }
+  if (embeddedDb.toLowerCase() === cleanProdDb.toLowerCase()) {
+    return {
+      safe: false,
+      effectiveUri: "",
+      effectiveDbName: "",
+      error: `CRITICAL SAFETY ABORT: Embedded database name ("${embeddedDb}") in MONGODB_TEST_URI matches production database name ("${cleanProdDb}"). Connection prohibited.`
+    };
+  }
+  if (KNOWN_PRODUCTION_DB_NAMES.includes(embeddedDb.toLowerCase())) {
+    return {
+      safe: false,
+      effectiveUri: "",
+      effectiveDbName: "",
+      error: `CRITICAL SAFETY ABORT: Embedded database name ("${embeddedDb}") in MONGODB_TEST_URI is a recognized production or system database. Connection prohibited.`
+    };
+  }
+  if (embeddedDb.toLowerCase() !== dbValidation.effectiveDbName.toLowerCase()) {
+    return {
+      safe: false,
+      effectiveUri: "",
+      effectiveDbName: "",
+      error: `CRITICAL SAFETY ABORT: Database name embedded in MONGODB_TEST_URI ("${embeddedDb}") does not match configured MONGODB_TEST_DB_NAME ("${dbValidation.effectiveDbName}").`
+    };
+  }
+  return {
+    safe: true,
+    effectiveUri: cleanTestUri,
+    effectiveDbName: dbValidation.effectiveDbName
+  };
+}
+function getEffectiveMongoConfig() {
+  const isTest = process.env.NODE_ENV === "test" || process.env.IS_E2E_TEST === "true";
+  if (isTest) {
+    const validation = validateTestConnectionConfig({
+      testUri: process.env.MONGODB_TEST_URI,
+      prodUri: process.env.MONGODB_URI,
+      testDbName: process.env.MONGODB_TEST_DB_NAME,
+      prodDbName: process.env.MONGODB_DB_NAME || "malwa_namkeen"
+    });
+    if (!validation.safe) {
+      throw new Error(validation.error);
+    }
+    return {
+      uri: validation.effectiveUri,
+      dbName: validation.effectiveDbName,
+      isTestMode: true
+    };
+  }
+  if (process.env.NODE_ENV === "production" && (process.env.MONGODB_TEST_URI || process.env.MONGODB_TEST_DB_NAME)) {
+    throw new Error(
+      "CRITICAL CONFIGURATION ERROR: MONGODB_TEST_URI or MONGODB_TEST_DB_NAME cannot be configured in NODE_ENV=production. Production deployments must not run against test databases."
+    );
+  }
+  const isProd2 = process.env.NODE_ENV === "production";
+  let uri = process.env.MONGODB_URI;
+  if (!uri) {
+    if (!isProd2) {
+      console.warn("[MongoDB] MONGODB_URI not set. In development, attempting local MongoDB at mongodb://127.0.0.1:27017/malwa_namkeen");
+      uri = "mongodb://127.0.0.1:27017/malwa_namkeen";
+    } else {
+      throw new Error("[MongoDB Error] MONGODB_URI is not set in production. Database connection aborted.");
+    }
+  } else if (!isProd2 && uri.includes("mock:mock")) {
+    console.warn("[MongoDB] Mock Atlas URI detected in development. Using local MongoDB at mongodb://127.0.0.1:27017/malwa_namkeen");
+    uri = "mongodb://127.0.0.1:27017/malwa_namkeen";
+  }
+  const dbName = (process.env.MONGODB_DB_NAME || "malwa_namkeen").trim();
+  return {
+    uri,
+    dbName,
+    isTestMode: false
+  };
+}
+
 // server/lib/mongodb.ts
 var isConnected = false;
 function getDesignatedAdminEmails() {
   const raw = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || "").toLowerCase();
   const list = raw.split(/[,;]+/).map((e) => e.trim()).filter((e) => e && e.includes("@"));
+  if (process.env.NODE_ENV === "test" || process.env.IS_E2E_TEST === "true") {
+    const testAdmin = (process.env.TEST_ADMIN_EMAIL || "").trim().toLowerCase();
+    if (testAdmin && testAdmin.includes("@")) {
+      list.push(testAdmin);
+    }
+  }
   if (list.length === 0) {
     list.push("malwanamkeenhouse@gmail.com");
   }
@@ -1069,7 +1257,8 @@ function getDesignatedAdminEmails() {
 async function seedInitialAdmin() {
   try {
     const designatedEmails = getDesignatedAdminEmails();
-    const adminPassword = process.env.ADMIN_PASSWORD;
+    const isTestMode = process.env.NODE_ENV === "test" || process.env.IS_E2E_TEST === "true";
+    const adminPassword = isTestMode ? process.env.TEST_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD : process.env.ADMIN_PASSWORD;
     for (const email2 of designatedEmails) {
       const existing = await User.findOne({ email: email2 });
       if (existing) {
@@ -1173,24 +1362,26 @@ async function syncDatabaseCatalog() {
 async function connectMongoDB() {
   if (isConnected) return;
   const isProd2 = process.env.NODE_ENV === "production";
-  let uri = process.env.MONGODB_URI;
-  if (!uri) {
-    if (!isProd2) {
-      console.warn("[MongoDB] MONGODB_URI not set. In development, attempting local MongoDB at mongodb://127.0.0.1:27017/malwa_namkeen");
-      uri = "mongodb://127.0.0.1:27017/malwa_namkeen";
-    } else {
-      console.error("[MongoDB Error] MONGODB_URI is not set in production. Database connection aborted.");
-      return;
-    }
-  } else if (!isProd2 && uri.includes("mock:mock")) {
-    console.warn("[MongoDB] Mock Atlas URI detected in development. Using local MongoDB at mongodb://127.0.0.1:27017/malwa_namkeen");
-    uri = "mongodb://127.0.0.1:27017/malwa_namkeen";
-  }
+  const config = getEffectiveMongoConfig();
   try {
-    await mongoose5.connect(uri, {
+    await mongoose5.connect(config.uri, {
       serverSelectionTimeoutMS: 5e3,
-      dbName: process.env.MONGODB_DB_NAME || "malwa_namkeen"
+      dbName: config.dbName
     });
+    const actualConnectedDb = mongoose5.connection.name;
+    if (config.isTestMode) {
+      if (actualConnectedDb !== config.dbName) {
+        await mongoose5.disconnect();
+        throw new Error(
+          `CRITICAL SAFETY ABORT: Mongoose connected to database "${actualConnectedDb}", but expected test database "${config.dbName}". Disconnected immediately.`
+        );
+      }
+      const validation = validateTestDatabaseName({ testDbName: actualConnectedDb });
+      if (!validation.safe) {
+        await mongoose5.disconnect();
+        throw new Error(`CRITICAL POST-CONNECT SAFETY ABORT: ${validation.error}`);
+      }
+    }
     isConnected = true;
     console.log(`[MongoDB] Connected successfully to database: "${mongoose5.connection.name}".`);
     await seedInitialAdmin();
@@ -1437,10 +1628,11 @@ var EmailLog = mongoose8.models.EmailLog || mongoose8.model("EmailLog", emailLog
 
 // server/lib/emailService.ts
 function getEmailConfig() {
+  const isTest = process.env.NODE_ENV === "test" || process.env.IS_E2E_TEST === "true";
   const rawBaseUrl = process.env.APP_URL || process.env.APP_BASE_URL || "http://localhost:3000";
   return {
-    provider: process.env.EMAIL_PROVIDER || (process.env.RESEND_API_KEY ? "resend" : "simulated"),
-    resendApiKey: process.env.RESEND_API_KEY || "",
+    provider: isTest ? "simulated" : process.env.EMAIL_PROVIDER || (process.env.RESEND_API_KEY ? "resend" : "simulated"),
+    resendApiKey: isTest ? "" : process.env.RESEND_API_KEY || "",
     emailFrom: process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || "Malwa Namkeen House <orders@malwanamkeen.com>",
     appBaseUrl: rawBaseUrl.replace(/\/+$/, "")
   };
@@ -8905,7 +9097,8 @@ app.get(["/health", "/api/health"], async (_req, res) => {
     status: dbHealthy ? "ok" : "error",
     time: (/* @__PURE__ */ new Date()).toISOString(),
     service: BUSINESS.name,
-    mongodb: dbHealthy ? "connected" : mongo.state
+    mongodb: dbHealthy ? "connected" : mongo.state,
+    database: mongoose29.connection.name || null
   });
 });
 var routeConfigs = [
