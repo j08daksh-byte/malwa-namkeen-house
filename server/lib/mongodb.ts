@@ -13,14 +13,23 @@ import { hashPassword } from './auth.ts';
 
 let isConnected = false;
 
+export function getDesignatedAdminEmails(): string[] {
+  const raw = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || '').toLowerCase();
+  const list = raw
+    .split(/[,;]+/)
+    .map(e => e.trim())
+    .filter(e => e && e.includes('@'));
+  // Default to business notification address if not explicitly set in environment
+  if (list.length === 0) {
+    list.push('malwanamkeenhouse@gmail.com');
+  }
+  return Array.from(new Set(list));
+}
+
 async function seedInitialAdmin(): Promise<void> {
   try {
-    const adminEmail = process.env.ADMIN_EMAIL ? process.env.ADMIN_EMAIL.toLowerCase().trim() : '';
-    const adminPassword = process.env.ADMIN_PASSWORD || 'MalwaAdmin@2026';
-
-    const designatedEmails = Array.from(
-      new Set([adminEmail, 'baljeetrajawat210@gmail.com', 'malwanamkeenhouse@gmail.com'])
-    ).filter(Boolean);
+    const designatedEmails = getDesignatedAdminEmails();
+    const adminPassword = process.env.ADMIN_PASSWORD;
 
     for (const email of designatedEmails) {
       const existing = await User.findOne({ email });
@@ -29,18 +38,20 @@ async function seedInitialAdmin(): Promise<void> {
           existing.role = 'super_admin';
           existing.active = true;
           await existing.save();
-          console.log(`[MongoDB] Designated owner <${email}> successfully designated as super_admin.`);
+          console.log(`[MongoDB] Designated owner <${email}> confirmed as active super_admin.`);
         }
-      } else {
-        const hashedPassword = await hashPassword(adminPassword);
+      } else if (adminPassword && adminPassword.trim().length >= 8) {
+        const hashedPassword = await hashPassword(adminPassword.trim());
         await User.create({
-          name: email === 'baljeetrajawat210@gmail.com' ? 'Baljeet Rajawat (Owner)' : 'Super Admin',
+          name: 'Super Admin',
           email,
           password: hashedPassword,
           role: 'super_admin',
           active: true,
         });
-        console.log(`[MongoDB] Initial super_admin account created for <${email}>.`);
+        console.log(`[MongoDB] Initial super_admin account provisioned for <${email}>.`);
+      } else {
+        console.log(`[MongoDB] Designated owner <${email}> is configured. Set ADMIN_PASSWORD in environment to auto-provision with credentials, or complete registration via Google OAuth/Portal.`);
       }
     }
   } catch (err: unknown) {

@@ -1,6 +1,12 @@
 import { execSync, spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
+
+dotenv.config();
+if (fs.existsSync(path.resolve('.env.local'))) {
+  dotenv.config({ path: path.resolve('.env.local'), override: true });
+}
 
 const testDir = path.resolve('tests');
 const files = fs.readdirSync(testDir)

@@ -8,6 +8,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+import path from 'path';
+
+dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true });
 
 const BASE_URL = 'http://127.0.0.1:3000';
 const JWT_SECRET = process.env.JWT_SECRET || 'local-development-secret-key-at-least-32-chars-long-12345';

@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { User } from '../models/User.ts';
 import { OtpVerification } from '../models/OtpVerification.ts';
 import { AuditLog } from '../models/AuditLog.ts';
+import { getDesignatedAdminEmails } from '../lib/mongodb.ts';
 import {
   sendPasswordChangeOtp,
   sendPasswordChangedConfirmation,
@@ -140,8 +141,7 @@ router.post('/register', registerLimiter, async (req: Request, res: Response) =>
     const hashedPassword = await hashPassword(password);
 
     // Designated store owner accounts automatically receive super_admin role
-    const configuredAdminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
-    const isOwner = cleanEmail === 'baljeetrajawat210@gmail.com' || (configuredAdminEmail && cleanEmail === configuredAdminEmail);
+    const isOwner = getDesignatedAdminEmails().includes(cleanEmail);
     const assignedRole = isOwner ? 'super_admin' : 'customer';
 
     const newUser = await User.create({
@@ -378,8 +378,7 @@ router.post('/google', loginLimiter, async (req: Request, res: Response) => {
         return;
       }
 
-      const configuredAdminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
-      const isOwner = cleanEmail === 'baljeetrajawat210@gmail.com' || (configuredAdminEmail && cleanEmail === configuredAdminEmail);
+      const isOwner = getDesignatedAdminEmails().includes(cleanEmail);
 
       // Update googleId, avatar, and lastLogin
       if (!user.googleId) user.googleId = googleUser.sub;
@@ -389,8 +388,7 @@ router.post('/google', loginLimiter, async (req: Request, res: Response) => {
       if (!user.emailVerifiedAt) user.emailVerifiedAt = new Date();
       await user.save();
     } else {
-      const configuredAdminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
-      const isOwner = cleanEmail === 'baljeetrajawat210@gmail.com' || (configuredAdminEmail && cleanEmail === configuredAdminEmail);
+      const isOwner = getDesignatedAdminEmails().includes(cleanEmail);
 
       // Create new user (super_admin for designated owner)
       user = await User.create({

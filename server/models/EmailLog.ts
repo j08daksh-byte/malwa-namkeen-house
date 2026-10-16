@@ -11,7 +11,8 @@ export type EmailEventType =
   | 'order_status_update'
   | 'inquiry_acknowledgement'
   | 'admin_new_order_alert'
-  | 'admin_new_inquiry_alert';
+  | 'admin_new_inquiry_alert'
+  | 'admin_security_alert';
 
 export type EmailDeliveryStatus = 'sent' | 'simulated' | 'failed' | 'unconfigured';
 
@@ -47,6 +48,7 @@ const emailLogSchema = new Schema<IEmailLog>(
         'inquiry_acknowledgement',
         'admin_new_order_alert',
         'admin_new_inquiry_alert',
+        'admin_security_alert',
       ],
       index: true,
     },

@@ -226,7 +226,7 @@ export default function AdminLogin() {
             <input
               type="email" required autoFocus
               value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="baljeetrajawat210@gmail.com"
+              placeholder="admin@malwanamkeen.com"
               style={inputStyle}
             />
 

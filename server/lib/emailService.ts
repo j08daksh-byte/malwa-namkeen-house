@@ -193,6 +193,39 @@ export async function sendEmail({
 }
 
 /**
+ * Safe live-email smoke test.
+ * Runs ONLY when explicitly invoked. Validates credentials and dispatches a test message.
+ */
+export async function runEmailSmokeTest(options: { targetEmail?: string } = {}): Promise<EmailResult> {
+  const config = getEmailConfig();
+  const recipient = options.targetEmail || process.env.ADMIN_NOTIFICATION_EMAIL || 'malwanamkeenhouse@gmail.com';
+
+  if (!config.resendApiKey) {
+    return {
+      success: false,
+      provider: 'none',
+      error: 'RESEND_API_KEY environment variable is not configured. Live smoke test cannot run without credentials.',
+    };
+  }
+
+  return sendEmail({
+    to: recipient,
+    subject: '[Malwa Namkeen House] Live Resend Smoke Test',
+    html: wrapEmailTemplate({
+      title: 'Email Delivery Smoke Test',
+      contentHtml: `
+        <h2 style="color: #3C0815; margin-top: 0;">Resend Integration Verification</h2>
+        <p>This is an automated smoke test confirming that the transactional email pipeline for <strong>Malwa Namkeen House</strong> is operational.</p>
+        <p style="font-size: 13px; color: #78716C;">Timestamp: ${new Date().toISOString()}</p>
+      `,
+    }),
+    text: `[Malwa Namkeen House] Live Resend Smoke Test. Timestamp: ${new Date().toISOString()}`,
+    eventType: 'admin_security_alert',
+    relatedId: `smoke_test_${Date.now()}`,
+  });
+}
+
+/**
  * 1. Admin Invitation Email
  */
 export async function sendAdminInvitation({

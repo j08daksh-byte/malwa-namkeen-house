@@ -4,7 +4,11 @@ import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { User } from '../models/User.ts';
 import { hashPassword, generateToken, setAuthCookie } from '../lib/auth.ts';
-import { sendPasswordResetEmail, sendCustomerPasswordReset } from '../lib/emailService.ts';
+import {
+  sendPasswordResetEmail,
+  sendCustomerPasswordReset,
+  sendPasswordChangedConfirmation,
+} from '../lib/emailService.ts';
 
 const router = Router();
 
@@ -234,6 +238,14 @@ router.post('/reset-password', tokenSubmissionLimiter, async (req: Request, res:
     user.passwordResetExpiresAt = undefined;
 
     await user.save();
+
+    // Dispatch confirmation email (non-blocking)
+    sendPasswordChangedConfirmation({
+      email: user.email,
+      name: user.name || 'Valued Customer',
+    }).catch((err) => {
+      console.warn('[Email Warning] Failed to dispatch password reset confirmation:', err);
+    });
 
     res.json({
       success: true,
