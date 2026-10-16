@@ -1,14 +1,15 @@
 # Malwa Namkeen House — Release Verification Status
 
-**Document Version:** 1.2.0
+**Document Version:** 1.3.0
 **Updated:** 16 October 2026
-**Active Release Branch:** `release/malwa-production-ready`
-**Current HEAD SHA:** `3e64c4d057e3395e5eab687e2d501e343931082c` (Synchronized with `daksh_repo/release/malwa-production-ready`)
-**Canonical Production Target:** `j08daksh-byte/malwa-namkeen-house` (`daksh_repo/main`)
-**Canonical Baseline SHA:** `8b8bbff7ff9e0a1a0c70d3863212c726d9310e94`
-**Pull Request URL:** [Open PR on GitHub](https://github.com/j08daksh-byte/malwa-namkeen-house/compare/main...release/malwa-production-ready?expand=1)
+**Target Branch:** `main`
+**Current Production SHA:** `9fd812d3117d9195a4b659f562efb705ee10affb` (Merged and pushed to `daksh_repo/main`)
+**Previous Production SHA:** `8b8bbff7ff9e0a1a0c70d3863212c726d9310e94`
+**Merge Commit SHA:** `9fd812d3117d9195a4b659f562efb705ee10affb`
 **Vercel Production Project:** `malwa-namkeen` (`dakshs-projects-45d693b3`)
-**Vercel Preview Deployment:** [`dpl_GsR8Th26tEUp8qqkhG8NrTSrRfYb`](https://malwa-namkeen-5n2w1orrg-dakshs-projects-45d693b3.vercel.app) (Branch alias: [`malwa-namkeen-git-release-malwa-19fc9c-dakshs-projects-45d693b3.vercel.app`](https://malwa-namkeen-git-release-malwa-19fc9c-dakshs-projects-45d693b3.vercel.app))
+**Vercel Production Deployment:** [`dpl_DayLHyctUicwMKCshgVRtsVLXFET`](https://malwa-namkeen-77c9d7yf7-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready**)
+**Canonical Production URL:** [https://malwa-namkeen.vercel.app](https://malwa-namkeen.vercel.app)
+**Production Database:** `malwa_namkeen` (MongoDB Atlas — Verified Connected)
 **Active Isolated Test Database:** `malwa_namkeen_test` (MongoDB Atlas)
 
 ---
@@ -17,12 +18,12 @@
 
 | Gate | Description | Status | Evidence / Notes |
 | :--- | :--- | :---: | :--- |
-| **Gate 1** | Consolidate Repositories Safely | **PASS** | Linear fast-forward consolidation onto `release/malwa-production-ready`. All 7 commits audited. Hardcoded emails and default passwords purged. Canonical baseline preserved. |
-| **Gate 2** | Fix Administrator Permissions | **PASS** | Fixed token extraction cookie shadowing bug in `server/lib/auth.ts`. Enforced least privilege: `PUT /api/admin/settings` restricted to `super_admin`. UI view-only guard implemented. `tests/admin_permissions.test.ts` passed 14/14. |
-| **Gate 3** | Implement Transactional Email | **PASS** | Centralized Resend email service with branded templates implemented. Single-use hash-based token lifecycle verified. Safe fallback in production/dev. `tests/transactional_email.test.ts` passed 13/13. |
+| **Gate 1** | Consolidate Repositories Safely | **PASS** | Linear consolidation merged cleanly into `main` (`9fd812d`). Canonical baseline preserved. |
+| **Gate 2** | Fix Administrator Permissions | **PASS** | Token extraction cookie shadowing bug fixed in `server/lib/auth.ts`. Enforced least privilege: `PUT /api/admin/settings` restricted to `super_admin`. UI view-only guard implemented. `tests/admin_permissions.test.ts` passed 14/14. |
+| **Gate 3** | Implement Transactional Email | **PASS (Code / Simulated)** | Centralized Resend email service with branded templates implemented. Real delivery pending Vercel `RESEND_API_KEY` configuration. |
 | **Gate 4** | Branding and UI Excellence | **PASS** | Authentic heritage assets verified (`/logo.png`, `/logo-gold.png`, `/logo-nav.png`). Stale email placeholders cleaned from UI. Playfair Display & DM Sans typography intact. |
-| **Gate 5** | Comprehensive Verification | **PASS (100% COMPLETE)** | TypeScript check (`npm run lint`): **PASS (0 errors)**. Production build (`npm run build`): **PASS (0 errors)**. Strict Test-DB URI Isolation (`tests/e2e_safety_guard.test.ts`): **PASS (36/36)**. Deterministic unit regression (`tests/regression.test.ts`): **PASS (21/21)**. Focused Gate 2 & 3 suites: **PASS (27/27)**. All 14 verified unit/mocked suites: **PASS (14/14)**. Live E2E Suite 1 (`tests/e2e_live_server.test.ts`): **PASS (18/18)** on port 3001 against `malwa_namkeen_test` with 3 records cleaned. Live E2E Suite 2 (`tests/full_system_e2e.test.ts`): **PASS (43/43)** on port 3001 against `malwa_namkeen_test` with 4 records cleaned. Scoped teardown verified. |
-| **Gate 6** | Release Review & Artifacts | **READY FOR STAGING** | Full audit, release status, and Project Bible documented. Zero remaining blockers. Ready for staging commit and canonical pull request. |
+| **Gate 5** | Comprehensive Verification | **PASS (100% COMPLETE)** | TypeScript check (`npm run lint`): **PASS (0 errors)**. Production build (`npm run build`): **PASS (0 errors)**. Strict Test-DB URI Isolation (`tests/e2e_safety_guard.test.ts`): **PASS (36/36)**. Deterministic unit regression (`tests/regression.test.ts`): **PASS (21/21)**. Focused Gate 2 & 3 suites: **PASS (27/27)**. All 14 verified unit/mocked suites: **PASS (14/14)**. Live E2E Suite 1 (`tests/e2e_live_server.test.ts`): **PASS (18/18)**. Live E2E Suite 2 (`tests/full_system_e2e.test.ts`): **PASS (43/43)**. |
+| **Gate 6** | Production Redeployment | **REDEPLOYED & VERIFIED** | Merged into `daksh_repo/main` (`9fd812d`). Vercel deployment `dpl_DayLHyctUicwMKCshgVRtsVLXFET` built and deployed to production. Public health check (`/api/health`) returned HTTP 200 OK (`mongodb: connected`, `database: malwa_namkeen`). |
 
 ---
 
