@@ -106,6 +106,33 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [coupon]);
 
+  // Synchronize cart state across multiple open tabs in real-time
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY) {
+        try {
+          if (e.newValue) {
+            setCart(JSON.parse(e.newValue));
+          } else {
+            setCart([]);
+          }
+        } catch {
+          // Ignore parse errors from concurrent tab writes
+        }
+      }
+      if (e.key === COUPON_STORAGE_KEY) {
+        try {
+          setCoupon(e.newValue ? JSON.parse(e.newValue) : null);
+        } catch {
+          // Ignore parse errors
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   const dismissToast = useCallback(() => {
     setToastMessage(null);
   }, []);

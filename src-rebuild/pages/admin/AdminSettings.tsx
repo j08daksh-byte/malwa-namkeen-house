@@ -125,6 +125,7 @@ export default function AdminSettings() {
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   // Fetch Token Helper
   const getAuthHeader = useCallback(() => {
@@ -132,10 +133,25 @@ export default function AdminSettings() {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
 
-  // Fetch Settings
+  // Fetch Settings & Check Super Admin Role
   const fetchSettings = useCallback(async () => {
     setLoading(true);
     try {
+      // 1. Verify role
+      try {
+        const verifyRes = await fetch('/api/auth/admin/verify', {
+          headers: getAuthHeader(),
+          credentials: 'include',
+        });
+        if (verifyRes.ok) {
+          const verifyData = await verifyRes.json();
+          setIsSuperAdmin(verifyData.admin?.role === 'super_admin');
+        }
+      } catch {
+        // Ignore verify failure in offline testing
+      }
+
+      // 2. Fetch settings
       const res = await fetch('/api/admin/settings', {
         headers: getAuthHeader(),
         credentials: 'include',
@@ -304,32 +320,38 @@ export default function AdminSettings() {
         subtitle="Manage public storefront metadata, GST/FSSAI licensing, delivery thresholds and store policies"
         action={
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            {hasUnsavedChanges && (
+            {hasUnsavedChanges && isSuperAdmin && (
               <span style={{ fontSize: '12px', color: '#D97706', fontWeight: 700, background: '#FEF3C7', padding: '4px 10px', borderRadius: '6px' }}>
                 ● Unsaved Changes
               </span>
             )}
-            <button
-              onClick={handleSaveSettings}
-              disabled={saving}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                background: '#3C0815',
-                color: '#FFF9EF',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '10px 20px',
-                fontSize: '13px',
-                fontWeight: 700,
-                cursor: saving ? 'wait' : 'pointer',
-                boxShadow: '0 2px 6px rgba(60,8,21,0.25)',
-              }}
-            >
-              <Save size={16} />
-              <span>{saving ? 'Saving Settings…' : 'Save Changes'}</span>
-            </button>
+            {!isSuperAdmin ? (
+              <span style={{ fontSize: '12px', color: '#57534E', background: '#F5F5F4', border: '1px solid #E7E5E4', padding: '8px 14px', borderRadius: '8px', fontWeight: 600 }}>
+                View-Only (Super Admin Required to Save)
+              </span>
+            ) : (
+              <button
+                onClick={handleSaveSettings}
+                disabled={saving}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: '#3C0815',
+                  color: '#FFF9EF',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '10px 20px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: saving ? 'wait' : 'pointer',
+                  boxShadow: '0 2px 6px rgba(60,8,21,0.25)',
+                }}
+              >
+                <Save size={16} />
+                <span>{saving ? 'Saving Settings…' : 'Save Changes'}</span>
+              </button>
+            )}
           </div>
         }
       />
@@ -478,7 +500,7 @@ export default function AdminSettings() {
 
               {settings.logo && (
                 <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <img src={settings.logo} alt="Logo" style={{ height: '48px', objectFit: 'contain', background: '#3C0815', padding: '4px 8px', borderRadius: '6px' }} />
+                  <img src={settings.logo} alt="Logo" style={{ height: '58px', objectFit: 'contain', background: '#3C0815', padding: '6px 12px', borderRadius: '8px' }} />
                   <button
                     type="button"
                     onClick={() => updateSetting(s => ({ ...s, logo: '' }))}

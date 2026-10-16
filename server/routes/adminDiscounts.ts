@@ -23,6 +23,7 @@ const couponValidateLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: 'Too many coupon validation attempts. Please try again after 15 minutes.',

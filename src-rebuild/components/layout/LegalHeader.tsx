@@ -41,9 +41,9 @@ export default function LegalHeader({ pageTitle }: Props) {
           cursor: pointer;
         }
         .lh-logo img {
-          height: 38px;
+          height: 46px;
           width: auto;
-          max-width: 150px;
+          max-width: 170px;
           object-fit: contain;
           flex-shrink: 0;
         }
@@ -100,7 +100,7 @@ export default function LegalHeader({ pageTitle }: Props) {
         /* Mobile ≤ 540px: hide separator + page name to avoid overflow */
         @media (max-width: 540px) {
           .lh-sep, .lh-page-name { display: none; }
-          .lh-logo img { height: 34px; max-width: 130px; }
+          .lh-logo img { height: 40px; max-width: 145px; }
           .lh-back {
             font-size: 11px;
             padding: 0 10px;
@@ -110,7 +110,7 @@ export default function LegalHeader({ pageTitle }: Props) {
         @media (max-width: 380px) {
           .lh-back-text-full { display: none; }
           .lh-back-text-short { display: inline; }
-          .lh-logo img { height: 30px; max-width: 110px; }
+          .lh-logo img { height: 34px; max-width: 125px; }
         }
       `}</style>
 

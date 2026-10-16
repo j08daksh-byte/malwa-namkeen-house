@@ -484,6 +484,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
           }
           .search-results { grid-template-columns: 1fr; }
           .search-shell { padding-top: 84px; }
+          .brand-logo__img { height: 48px !important; }
         }
         @media (max-width: 479px) {
           .nav-action--account { display: none !important; }
@@ -495,7 +496,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
             min-height: 44px;
           }
           .nav-action svg { width: 18px; height: 18px; }
-          .brand-logo__img { height: 32px !important; }
+          .brand-logo__img { height: 42px !important; }
         }
         @media (max-width: 360px) {
           .nav-actions { gap: 1px; }
@@ -506,7 +507,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
             min-height: 44px;
           }
           .nav-action svg { width: 17px; height: 17px; }
-          .brand-logo__img { height: 28px !important; }
+          .brand-logo__img { height: 36px !important; }
           .nav-hamburger { min-width: 40px !important; min-height: 44px !important; }
         }
       `}</style>
@@ -520,7 +521,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
           left: 0,
           right: 0,
           zIndex: 200,
-          height: '68px',
+          height: 'var(--nav-h, 78px)',
           backgroundColor: 'var(--brand-nav)',
           borderBottom: scrolled ? '1px solid rgba(200,154,61,.28)' : 'none',
           boxShadow: scrolled ? '0 6px 18px rgba(35,3,10,.16)' : 'none',
@@ -556,7 +557,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
               src="/logo-nav.png"
               alt="MALWA NAMKEEN HOUSE"
               className="brand-logo__img"
-              style={{ height: '38px', width: 'auto', objectFit: 'contain' }}
+              style={{ height: '58px', width: 'auto', maxHeight: '62px', objectFit: 'contain' }}
             />
           </a>
 
@@ -643,7 +644,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
         aria-label="Mobile navigation"
         style={{
           position: 'fixed',
-          top: '68px',
+          top: 'var(--nav-h, 78px)',
           left: 0,
           right: 0,
           zIndex: 199,
@@ -654,7 +655,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
           opacity: open ? 1 : 0,
           transition: 'transform .28s ease, opacity .24s ease',
           padding: '8px 18px calc(24px + env(safe-area-inset-bottom, 0px))',
-          maxHeight: 'calc(100dvh - 68px)',
+          maxHeight: 'calc(100dvh - var(--nav-h, 78px))',
           overflowY: 'auto',
           WebkitOverflowScrolling: 'touch',
           pointerEvents: open ? 'auto' : 'none',
@@ -708,7 +709,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
         ))}
       </div>
 
-      <div style={{ height: '68px' }} aria-hidden="true" />
+      <div style={{ height: 'var(--nav-h, 78px)' }} aria-hidden="true" />
 
       {/* Overlay for Search */}
       <div

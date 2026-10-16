@@ -4,6 +4,7 @@ import { type Product, type ProductWeightOption } from '../../data/products';
 import { useCart } from '../../lib/cartContext';
 import { BUSINESS } from '../../lib/business';
 import { useStoreSettings } from '../../lib/storeSettingsContext';
+import { optimizeCloudinary } from '../../lib/cloudinary';
 
 interface ProductQuickViewModalProps {
   product: Product | null;
@@ -458,7 +459,11 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
           style={{ cursor: 'pointer' }}
           title={`View full page for ${product.name}`}
         >
-          <img src={product.image} alt={product.name} className="qv-img" />
+          <img
+            src={optimizeCloudinary(product.image, { width: 800, quality: 'auto', format: 'auto' })}
+            alt={product.name}
+            className="qv-img"
+          />
           {Boolean(product.badge?.trim()) && <span className="qv-media-badge">{product.badge}</span>}
           <div
             style={{

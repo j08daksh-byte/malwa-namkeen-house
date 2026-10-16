@@ -4,7 +4,11 @@ import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { User } from '../models/User.ts';
 import { hashPassword, generateToken, setAuthCookie } from '../lib/auth.ts';
-import { sendPasswordResetEmail, sendCustomerPasswordReset } from '../lib/emailService.ts';
+import {
+  sendPasswordResetEmail,
+  sendCustomerPasswordReset,
+  sendPasswordChangedConfirmation,
+} from '../lib/emailService.ts';
 
 const router = Router();
 
@@ -14,6 +18,7 @@ const forgotPasswordLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: true, // Maintain generic response even if rate limited
     message: 'If an account exists for this email, password reset instructions have been dispatched.',
@@ -26,6 +31,7 @@ const tokenSubmissionLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: 'Too many requests. Please try again after 15 minutes.',
@@ -232,6 +238,14 @@ router.post('/reset-password', tokenSubmissionLimiter, async (req: Request, res:
     user.passwordResetExpiresAt = undefined;
 
     await user.save();
+
+    // Dispatch confirmation email (non-blocking)
+    sendPasswordChangedConfirmation({
+      email: user.email,
+      name: user.name || 'Valued Customer',
+    }).catch((err) => {
+      console.warn('[Email Warning] Failed to dispatch password reset confirmation:', err);
+    });
 
     res.json({
       success: true,

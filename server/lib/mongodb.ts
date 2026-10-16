@@ -10,29 +10,63 @@ import { Category } from '../models/Category.ts';
 import { Product } from '../models/Product.ts';
 import { SHOP_CATEGORIES, PRODUCTS } from '../../src-rebuild/data/products.ts';
 import { hashPassword } from './auth.ts';
+import { getEffectiveMongoConfig, validateTestDatabaseName } from './dbGuard.ts';
 
 let isConnected = false;
 
+export function getDesignatedAdminEmails(): string[] {
+  const raw = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || '').toLowerCase();
+  const list = raw
+    .split(/[,;]+/)
+    .map(e => e.trim())
+    .filter(e => e && e.includes('@'));
+
+  // In test / E2E mode, explicitly configure dedicated TEST_ADMIN_EMAIL as designated admin in the test server
+  if (process.env.NODE_ENV === 'test' || process.env.IS_E2E_TEST === 'true') {
+    const testAdmin = (process.env.TEST_ADMIN_EMAIL || '').trim().toLowerCase();
+    if (testAdmin && testAdmin.includes('@')) {
+      list.push(testAdmin);
+    }
+  }
+
+  // Default to business notification address if not explicitly set in environment
+  if (list.length === 0) {
+    list.push('malwanamkeenhouse@gmail.com');
+  }
+  return Array.from(new Set(list));
+}
+
 async function seedInitialAdmin(): Promise<void> {
   try {
-    const adminEmail = process.env.ADMIN_EMAIL ? process.env.ADMIN_EMAIL.toLowerCase().trim() : '';
-    const adminPassword = process.env.ADMIN_PASSWORD || '';
+    const designatedEmails = getDesignatedAdminEmails();
+    const isTestMode = process.env.NODE_ENV === 'test' || process.env.IS_E2E_TEST === 'true';
+    const adminPassword = isTestMode
+      ? (process.env.TEST_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD)
+      : process.env.ADMIN_PASSWORD;
 
-    if (!adminEmail) return;
-
-    // 1. If an account with ADMIN_EMAIL already exists in MongoDB, ensure it is super_admin
-    const existing = await User.findOne({ email: adminEmail });
-    if (existing) {
-      if (existing.role !== 'super_admin' || !existing.active) {
-        existing.role = 'super_admin';
-        existing.active = true;
-        await existing.save();
-        console.log(`[MongoDB] Designated owner <${adminEmail}> successfully designated as super_admin.`);
+    for (const email of designatedEmails) {
+      const existing = await User.findOne({ email });
+      if (existing) {
+        if (existing.role !== 'super_admin' || !existing.active) {
+          existing.role = 'super_admin';
+          existing.active = true;
+          await existing.save();
+          console.log(`[MongoDB] Designated owner <${email}> confirmed as active super_admin.`);
+        }
+      } else if (adminPassword && adminPassword.trim().length >= 8) {
+        const hashedPassword = await hashPassword(adminPassword.trim());
+        await User.create({
+          name: 'Super Admin',
+          email,
+          password: hashedPassword,
+          role: 'super_admin',
+          active: true,
+        });
+        console.log(`[MongoDB] Initial super_admin account provisioned for <${email}>.`);
+      } else {
+        console.log(`[MongoDB] Designated owner <${email}> is configured. Set ADMIN_PASSWORD in environment to auto-provision with credentials, or complete registration via Google OAuth/Portal.`);
       }
-      return;
     }
-
-    console.log(`[MongoDB] ADMIN_EMAIL <${adminEmail}> is configured. Registered account will automatically receive super_admin privileges.`);
   } catch (err: unknown) {
     console.warn('[MongoDB] Initial admin check skipped:', err instanceof Error ? err.message : err);
   }
@@ -133,26 +167,32 @@ export async function connectMongoDB(): Promise<void> {
   if (isConnected) return;
 
   const isProd = process.env.NODE_ENV === 'production';
-  let uri = process.env.MONGODB_URI;
 
-  if (!uri) {
-    if (!isProd) {
-      console.warn('[MongoDB] MONGODB_URI not set. In development, attempting local MongoDB at mongodb://127.0.0.1:27017/malwa_namkeen');
-      uri = 'mongodb://127.0.0.1:27017/malwa_namkeen';
-    } else {
-      console.error('[MongoDB Error] MONGODB_URI is not set in production. Database connection aborted.');
-      return;
-    }
-  } else if (!isProd && uri.includes('mock:mock')) {
-    console.warn('[MongoDB] Mock Atlas URI detected in development. Using local MongoDB at mongodb://127.0.0.1:27017/malwa_namkeen');
-    uri = 'mongodb://127.0.0.1:27017/malwa_namkeen';
-  }
+  // Strictly resolve effective MongoDB connection configuration via hard safety gate
+  const config = getEffectiveMongoConfig();
 
   try {
-    await mongoose.connect(uri, {
+    await mongoose.connect(config.uri, {
       serverSelectionTimeoutMS: 5000,
-      dbName: process.env.MONGODB_DB_NAME || 'malwa_namkeen',
+      dbName: config.dbName,
     });
+
+    // Validate post-connection database isolation
+    const actualConnectedDb = mongoose.connection.name;
+    if (config.isTestMode) {
+      if (actualConnectedDb !== config.dbName) {
+        await mongoose.disconnect();
+        throw new Error(
+          `CRITICAL SAFETY ABORT: Mongoose connected to database "${actualConnectedDb}", but expected test database "${config.dbName}". Disconnected immediately.`
+        );
+      }
+      const validation = validateTestDatabaseName({ testDbName: actualConnectedDb });
+      if (!validation.safe) {
+        await mongoose.disconnect();
+        throw new Error(`CRITICAL POST-CONNECT SAFETY ABORT: ${validation.error}`);
+      }
+    }
+
     isConnected = true;
     console.log(`[MongoDB] Connected successfully to database: "${mongoose.connection.name}".`);
     await seedInitialAdmin();

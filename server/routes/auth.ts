@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { User } from '../models/User.ts';
 import { OtpVerification } from '../models/OtpVerification.ts';
 import { AuditLog } from '../models/AuditLog.ts';
+import { getDesignatedAdminEmails } from '../lib/mongodb.ts';
 import {
   sendPasswordChangeOtp,
   sendPasswordChangedConfirmation,
@@ -30,12 +31,13 @@ function maskEmail(email: string): string {
   return `${local.charAt(0)}*****@${domain}`;
 }
 
-// Rate limiters for brute-force and flood protection
+// Rate limiters for brute-force and flood protection (validate: { default: false } prevents Vercel Forwarded header crashes)
 const passwordChangeRequestLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: 'Too many password change requests. Please try again after 15 minutes.',
@@ -47,6 +49,7 @@ const passwordChangeVerifyLimiter = rateLimit({
   max: 15,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: 'Too many verification attempts. Please try again after 15 minutes.',
@@ -56,9 +59,10 @@ const passwordChangeVerifyLimiter = rateLimit({
 // Rate limiters for brute-force protection
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
+  max: (process.env.NODE_ENV === 'production' && !process.env.CI) ? 10 : 200,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: 'Too many sign in attempts. Please try again after 15 minutes.',
@@ -67,9 +71,10 @@ const loginLimiter = rateLimit({
 
 const adminLoginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5,
+  max: (process.env.NODE_ENV === 'production' && !process.env.CI) ? 5 : 100,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: 'Too many admin sign in attempts. Please try again after 15 minutes.',
@@ -78,9 +83,10 @@ const adminLoginLimiter = rateLimit({
 
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10,
+  max: (process.env.NODE_ENV === 'production' && !process.env.CI) ? 10 : 200,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: 'Too many registration requests from this network. Please try again later.',
@@ -134,13 +140,16 @@ router.post('/register', registerLimiter, async (req: Request, res: Response) =>
     // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // SECURITY: strictly assign role: 'customer' (never accept from body)
+    // Designated store owner accounts automatically receive super_admin role
+    const isOwner = getDesignatedAdminEmails().includes(cleanEmail);
+    const assignedRole = isOwner ? 'super_admin' : 'customer';
+
     const newUser = await User.create({
       name: cleanName,
       email: cleanEmail,
       phone: cleanPhone,
       password: hashedPassword,
-      role: 'customer',
+      role: assignedRole,
       active: true,
     });
 
@@ -369,20 +378,25 @@ router.post('/google', loginLimiter, async (req: Request, res: Response) => {
         return;
       }
 
+      const isOwner = getDesignatedAdminEmails().includes(cleanEmail);
+
       // Update googleId, avatar, and lastLogin
       if (!user.googleId) user.googleId = googleUser.sub;
       if (googleUser.picture && !user.avatar) user.avatar = googleUser.picture;
+      if (isOwner && user.role !== 'super_admin') user.role = 'super_admin';
       user.lastLoginAt = new Date();
       if (!user.emailVerifiedAt) user.emailVerifiedAt = new Date();
       await user.save();
     } else {
-      // Create new customer user
+      const isOwner = getDesignatedAdminEmails().includes(cleanEmail);
+
+      // Create new user (super_admin for designated owner)
       user = await User.create({
         name: googleUser.name.trim(),
         email: cleanEmail,
         googleId: googleUser.sub,
         avatar: googleUser.picture || '',
-        role: 'customer',
+        role: isOwner ? 'super_admin' : 'customer',
         active: true,
         lastLoginAt: new Date(),
         emailVerifiedAt: new Date(),
@@ -547,6 +561,52 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response) 
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve profile.',
+    });
+  }
+});
+
+/**
+ * POST /api/auth/refresh
+ * Renews an active session token and sets a fresh auth cookie.
+ */
+router.post('/refresh', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Not authenticated.' });
+      return;
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user || !user.active) {
+      clearAuthCookie(res);
+      res.status(401).json({ success: false, message: 'User account is inactive or not found.' });
+      return;
+    }
+
+    const token = generateToken({
+      userId: user._id.toString(),
+      email: user.email,
+      role: user.role,
+    });
+
+    setAuthCookie(res, token);
+
+    res.json({
+      success: true,
+      message: 'Session refreshed successfully.',
+      token,
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      },
+    });
+  } catch (err: unknown) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to refresh session.',
     });
   }
 });

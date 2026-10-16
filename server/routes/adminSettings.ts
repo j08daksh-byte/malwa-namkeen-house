@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { StoreSettings, type IStoreSettings } from '../models/StoreSettings.ts';
-import { requireAdmin, type AuthenticatedRequest } from '../lib/auth.ts';
+import { requireAdmin, requireSuperAdmin, type AuthenticatedRequest } from '../lib/auth.ts';
 
 import { BUSINESS } from '../config.ts';
 
@@ -106,8 +106,9 @@ router.get('/', async (_req: AuthenticatedRequest, res: Response) => {
 /**
  * PUT /api/admin/settings
  * Admin endpoint to update the singleton StoreSettings.
+ * Strictly restricted to Super Administrators.
  */
-router.put('/', async (req: AuthenticatedRequest, res: Response) => {
+router.put('/', requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const payload = req.body;
     const settings = await getOrCreateSingletonSettings();
