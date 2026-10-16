@@ -21,8 +21,7 @@
 | Gate | Description | Status | Evidence / Notes |
 | :--- | :--- | :---: | :--- |
 | **Gate 1** | Consolidate Repositories Safely | **PASS** | Linear consolidation merged cleanly into `main` (`9fd812d`). Canonical baseline preserved. |
-| **Gate 2** | Fix Administrator Permissions | **PASS** | Token extraction cookie shadowing bug fixed in `server/lib/auth.ts`. Enforced least privilege: `PUT /api/admin/settings` restricted to `super_admin`. UI view-only guard implemented. `tests/admin_permissions.test.ts` passed 14/14. |
-| **Gate 3** | Implement Transactional Email | **PASS (Code / Simulated)** | Centralized Resend email service with branded templates implemented. Real delivery pending Vercel `RESEND_API_KEY` configuration. |
+| **Gate 3** | Implement Transactional Email | **PASS (Completed & Verified)** | Centralized Resend email service with 14 event types wired across order, auth, staff, and enquiry workflows. Clean plain text fallback (CSS/script stripped), PII masking in logs, delivered flag accounting, and non-blocking fault isolation. 22/22 tests passing in `tests/transactional_email.test.ts`. Real live delivery pending Vercel `RESEND_API_KEY` and domain DNS verification. |
 | **Gate 4** | Branding and UI Excellence | **PASS** | Authentic heritage assets verified (`/logo.png`, `/logo-gold.png`, `/logo-nav.png`). Stale email placeholders cleaned from UI. Playfair Display & DM Sans typography intact. |
 | **Gate 5** | Comprehensive Verification | **PASS (100% COMPLETE)** | TypeScript check (`npm run lint`): **PASS (0 errors)**. Production build (`npm run build`): **PASS (0 errors)**. 18 test suites passing: **PASS (179/179)**. |
 | **Gate 6** | Order Lifecycle & Inventory Restoration | **PASS (VERIFIED)** | Implemented safe, idempotent variant stock restock & coupon rollback on order cancellation (`orderRestoration.ts`). Customer cancellation added (`POST /api/customer/orders/:orderId/cancel`). Delete order guard added. `tests/order_cancellation_restock.test.ts` passed 23/23. |
@@ -43,7 +42,7 @@
 | `e2e_live_server.test.ts` | Controlled Live Server E2E (Port 3001) | **18 / 18 PASS** | `BASE_URL=http://127.0.0.1:3001 npx tsx tests/e2e_live_server.test.ts` |
 | `e2e_safety_guard.test.ts` | Safety & URI Isolation Guard | **36 / 36 PASS** | `npx tsx tests/e2e_safety_guard.test.ts` |
 | `admin_permissions.test.ts` | Mocked / RBAC Matrix | **14 / 14 PASS** | `npx tsx tests/admin_permissions.test.ts` |
-| `transactional_email.test.ts` | Mocked / Email Engine | **13 / 13 PASS** | `npx tsx tests/transactional_email.test.ts` |
+| `transactional_email.test.ts` | Mocked / Email Engine | **22 / 22 PASS** | `npx tsx tests/transactional_email.test.ts` |
 | `regression.test.ts` | Unit Regression | **21 / 21 PASS** | `npx tsx tests/regression.test.ts` |
 | `ph001_regex_escape.test.ts` | Unit Security | **PASS** | `npx tsx tests/ph001_regex_escape.test.ts` |
 | `ph002_coupon_rate_limit.test.ts` | Unit Security | **PASS** | `npx tsx tests/ph002_coupon_rate_limit.test.ts` |
@@ -55,7 +54,7 @@
 | `ph008_csp_hardening.test.ts` | Unit HTTP Headers | **PASS** | `npx tsx tests/ph008_csp_hardening.test.ts` |
 | `ph009_user_compound_index.test.ts` | Schema Verification | **PASS** | `npx tsx tests/ph009_user_compound_index.test.ts` |
 | `ph010_inquiry_compound_index.test.ts` | Schema Verification | **PASS** | `npx tsx tests/ph010_inquiry_compound_index.test.ts` |
-| **Grand Total** | **All Live & Offline Suites (18 Suites)** | **206 / 206 PASS** (145/145 offline) | **100% Green** |
+| **Grand Total** | **All Live & Offline Suites (18 Suites)** | **215 / 215 PASS** (154/154 offline) | **100% Green** |
 
 ### 2.2 Compilation & Static Checks
 
@@ -94,6 +93,7 @@ Before deploying `release/malwa-production-ready` to production Vercel (`malwa-n
 | `MONGODB_DB_NAME` | Production / Preview | **YES** | Target database name (`malwa_namkeen`). |
 | `JWT_SECRET` | Production / Preview | **YES** | Secure random key (minimum 32 characters) for signing JWTs. |
 | `ADMIN_EMAIL` | Production / Preview | **YES** | Designated store owner email(s), comma-separated. Automatically receives `super_admin`. |
+| `EMAIL_PROVIDER` | Production / Preview | Optional | Transactional email provider: set to `resend` (default in prod) or `simulated` for staging. |
 | `RESEND_API_KEY` | Production / Preview | **YES** | Resend API key for transactional emails (`re_...`). |
 | `RESEND_FROM_EMAIL` | Production / Preview | **YES** | Verified sender, e.g., `Malwa Namkeen House <orders@malwanamkeen.com>`. |
 | `ADMIN_NOTIFICATION_EMAIL`| Production / Preview | **YES** | Store owner recipient for new orders and inquiries (`malwanamkeenhouse@gmail.com`). |
@@ -269,5 +269,5 @@ npx tsx tests/full_system_e2e.test.ts
 3. **Mandatory Post-Consolidation Action Items:**
    - Execute a genuine test checkout in the QA environment to verify real stock decrement followed by cancellation restock.
    - Complete cross-device and cross-browser manual QA prior to public release.
-   - Configure `RESEND_API_KEY` and `RESEND_FROM_EMAIL` in Vercel before activating transactional email delivery.
+   - Configure `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `ADMIN_NOTIFICATION_EMAIL` in Vercel and verify DNS domain records (SPF, DKIM, DMARC) in Resend before activating transactional email delivery.
    - Implement real payment gateway integration (Razorpay / PhonePe) and automated shipping fulfillment (Shiprocket).

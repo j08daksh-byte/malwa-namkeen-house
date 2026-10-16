@@ -194,6 +194,34 @@ To prevent customer friction from attempting to order depleted stock, `ProductCa
 - **`StoreSettings`:** Singleton document storing public metadata, support contacts, GSTIN, FSSAI license numbers, free delivery threshold, and hero banner configurations.
 - **`EmailLog`:** Structured audit log recording every email delivery attempt (`eventType`, `recipient`, `subject`, `provider`, `status`, `attemptedAt`).
 
+### 5.2 Transactional Email Architecture & Event Catalog
+
+The transactional email engine (`server/lib/emailService.ts`) provides centralized, fault-isolated dispatching using Resend Node.js SDK with automated development/test simulation and MongoDB audit logging (`EmailLog`).
+
+#### 1. Supported Notification Events
+- **`customer_welcome`:** Heritage greeting dispatched upon customer registration via email or Google OAuth (`/api/auth/register`, `/api/auth/google`).
+- **`customer_password_reset`:** Secure 1-hour single-use token link for customer password recovery (`/api/auth/forgot-password`). Never transmits raw passwords.
+- **`admin_password_reset`:** Secure 1-hour single-use token link for staff/admin password recovery (`/api/auth/admin-forgot-password`).
+- **`admin_invitation`:** Cryptographically signed invitation link (48-hour expiration) for staff onboarding (`/api/admin/staff/invite`).
+- **`password_change_otp`:** 6-digit in-app verification code with 60-second cooldown and 10-minute validity (`/api/auth/password-change/request`).
+- **`password_changed_notification`:** Immediate security confirmation alert with Asia/Kolkata timestamp and emergency support contacts (`/api/auth/reset-password`, `/api/auth/password-change/verify`).
+- **`role_changed_notification`:** Staff promotion/demotion notification informing user of updated access rights (`/api/admin/staff/role`, `/api/admin/staff/promote`).
+- **`order_confirmation`:** Detailed order receipt dispatched upon successful storefront order placement with itemized lines, discounts, grand total, and delivery address (`/api/orders`).
+- **`order_status_update`:** Customer updates when order transitions through fulfillment (`confirmed`, `processing`, `shipped`, `delivered`, `cancelled`) or when courier tracking details (carrier, AWB, track URL) are attached (`/api/admin/orders/:id`, `/api/customer/orders/:id/cancel`).
+- **`admin_new_order_alert`:** Multi-admin notification dispatched to all active admins and `ADMIN_NOTIFICATION_EMAIL` upon order placement (`/api/orders`).
+- **`admin_order_cancellation_alert`:** Administrative notification dispatched when a customer cancels an order online, instructing kitchen/dispatch to halt fulfillment (`orderRestoration.ts`).
+- **`inquiry_acknowledgement`:** Customer acknowledgement for contact and bulk order enquiries with reference ID and 1 business day SLA (`/api/inquiries`, `/api/contact`).
+- **`admin_new_inquiry_alert`:** Store owner alert for customer and bulk gifting enquiries (`/api/inquiries`, `/api/contact`).
+- **`admin_security_alert`:** Automated smoke test verification and system security alerts.
+
+#### 2. Architecture & Defensive Guardrails
+1. **Fault Isolation & Non-Blocking Execution:** Email dispatching is wrapped in non-blocking promises with catch blocks across all route handlers. Provider downtime, network failure, or API rate limiting never corrupts, rolls back, or blocks checkout orders, user registrations, or administrative status changes.
+2. **Explicit Delivery Accounting (`delivered: boolean`):** The `EmailResult` contract explicitly separates `delivered: true` (confirmed API response from live Resend servers) from `simulated: true` / `delivered: false` (local simulator). This guarantees test environments or simulated modes are never mistakenly reported as genuine delivery.
+3. **Strict Simulation Enforcement:** In test mode (`NODE_ENV=test` or `IS_E2E_TEST=true`) or when `EMAIL_PROVIDER=simulated`, `getEmailConfig()` strictly zeroes out API keys and forces `provider: 'simulated'`. Even if a valid-looking `RESEND_API_KEY` is present in local `.env`, zero external network calls are made.
+4. **Clean Plain-Text Generation:** `generatePlainTextFallback()` strips `<style>` and `<script>` blocks before tag removal and entity decoding, preventing raw CSS class definitions from leaking into plain-text email previews.
+5. **PII Masking in Diagnostic Logs:** `maskEmail()` shields recipient email addresses (e.g. `c***r@example.com`) across simulator and console logs to prevent PII exposure in logs and CI traces.
+6. **Production Unconfigured Safety:** If `RESEND_API_KEY` is omitted in production, messages safely drop (`provider: 'unconfigured'`, `delivered: false`) without throwing unhandled exceptions.
+
 ---
 
 ## 6. Operations & Runbook

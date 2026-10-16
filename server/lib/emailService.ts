@@ -8,27 +8,76 @@ export interface EmailResult {
   messageId?: string;
   error?: string;
   simulated?: boolean;
+  delivered?: boolean;
 }
 
-function getEmailConfig() {
+export function maskEmail(email: string): string {
+  const trimmed = (email || '').trim().toLowerCase();
+  const atIdx = trimmed.indexOf('@');
+  if (atIdx <= 0) return '***';
+  const local = trimmed.slice(0, atIdx);
+  const domain = trimmed.slice(atIdx + 1);
+  const maskedLocal = local.length <= 2 ? `${local[0]}***` : `${local[0]}***${local[local.length - 1]}`;
+  return `${maskedLocal}@${domain}`;
+}
+
+export function generatePlainTextFallback(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/tr>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/h[1-6]>/gi, '\n\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n\s*\n+/g, '\n\n')
+    .trim();
+}
+
+export function getEmailConfig() {
   const isTest = process.env.NODE_ENV === 'test' || process.env.IS_E2E_TEST === 'true';
+  const forceSimulated = isTest || process.env.EMAIL_PROVIDER === 'simulated';
+  const isProd = process.env.NODE_ENV === 'production';
   const rawBaseUrl = process.env.APP_URL || process.env.APP_BASE_URL || 'http://localhost:3000';
+
+  let provider = 'simulated';
+  if (forceSimulated) {
+    provider = 'simulated';
+  } else if (process.env.EMAIL_PROVIDER) {
+    provider = process.env.EMAIL_PROVIDER;
+  } else if (isProd) {
+    provider = process.env.RESEND_API_KEY ? 'resend' : 'unconfigured';
+  } else {
+    provider = process.env.RESEND_API_KEY ? 'resend' : 'simulated';
+  }
+
   return {
-    provider: isTest ? 'simulated' : (process.env.EMAIL_PROVIDER || (process.env.RESEND_API_KEY ? 'resend' : 'simulated')),
-    resendApiKey: isTest ? '' : (process.env.RESEND_API_KEY || ''),
+    provider,
+    resendApiKey: forceSimulated ? '' : (process.env.RESEND_API_KEY || ''),
     emailFrom: process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || 'Malwa Namkeen House <orders@malwanamkeen.com>',
     appBaseUrl: rawBaseUrl.replace(/\/+$/, ''),
   };
 }
 
-let resendClient: Resend | null = null;
+let resendClient: any = null;
+
+export function _setResendClientForTesting(client: any) {
+  resendClient = client;
+}
 
 function getResendClient(): Resend | null {
+  if (resendClient) return resendClient;
   const { resendApiKey } = getEmailConfig();
   if (!resendApiKey) return null;
-  if (!resendClient) {
-    resendClient = new Resend(resendApiKey);
-  }
+  resendClient = new Resend(resendApiKey);
   return resendClient;
 }
 
@@ -117,17 +166,18 @@ export async function sendEmail({
 }): Promise<EmailResult> {
   const config = getEmailConfig();
   const isProd = process.env.NODE_ENV === 'production';
-  const cleanTo = to.trim().toLowerCase();
+  const cleanTo = (to || '').trim().toLowerCase();
 
   // Basic email address validation
   if (!cleanTo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanTo)) {
-    return { success: false, provider: 'none', error: 'Invalid recipient email address.' };
+    return { success: false, provider: 'none', error: 'Invalid recipient email address.', delivered: false };
   }
 
-  let result: EmailResult = { success: false, provider: config.provider };
+  const plainText = text && text.trim() ? text.trim() : generatePlainTextFallback(html);
+  let result: EmailResult = { success: false, provider: config.provider, delivered: false };
 
-  // 1. Resend Provider (Production / Configured Key)
-  if (config.resendApiKey) {
+  // 1. Resend Provider (Production / Configured Key & Provider)
+  if (config.provider === 'resend' && config.resendApiKey) {
     try {
       const client = getResendClient();
       if (!client) throw new Error('Resend client initialization failed');
@@ -137,32 +187,33 @@ export async function sendEmail({
         to: [cleanTo],
         subject,
         html,
-        text: text || html.replace(/<[^>]*>?/gm, ''),
+        text: plainText,
       });
 
       if (response.error) {
-        result = { success: false, provider: 'resend', error: response.error.message };
+        result = { success: false, provider: 'resend', error: response.error.message, delivered: false };
       } else {
-        result = { success: true, provider: 'resend', messageId: response.data?.id };
+        result = { success: true, provider: 'resend', messageId: response.data?.id, delivered: true };
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      result = { success: false, provider: 'resend', error: msg };
+      result = { success: false, provider: 'resend', error: msg, delivered: false };
     }
-  } else if (isProd) {
+  } else if (isProd && config.provider !== 'simulated') {
     // 2. Production without configured provider (Fail safely without throwing)
-    console.warn(`[Email Service] Production email provider unconfigured. Message to <${cleanTo}> safely dropped.`);
-    result = { success: false, provider: 'unconfigured', error: 'Email provider unconfigured.' };
+    console.warn(`[Email Service] Production email provider unconfigured. Message to <${maskEmail(cleanTo)}> safely dropped.`);
+    result = { success: false, provider: 'unconfigured', error: 'Email provider unconfigured.', delivered: false };
   } else {
-    // 3. Local Development Simulation
+    // 3. Safe Development / Testing Simulation
+    const maskedTo = maskEmail(cleanTo);
     console.log('\n================== [DEV EMAIL SIMULATOR] ==================');
-    console.log(`To: ${cleanTo}`);
+    console.log(`To: ${maskedTo}`);
     console.log(`From: ${config.emailFrom}`);
     console.log(`Event: ${eventType || 'generic'}`);
     console.log(`Subject: ${subject}`);
-    console.log(`Preview:\n${text || html.replace(/<[^>]*>?/gm, '').slice(0, 300)}...`);
+    console.log(`Preview:\n${plainText.slice(0, 300)}...`);
     console.log('===========================================================\n');
-    result = { success: true, provider: 'simulated', simulated: true };
+    result = { success: true, provider: 'simulated', simulated: true, delivered: false };
   }
 
   // 4. Log attempt in MongoDB EmailLog (Non-blocking)
@@ -177,7 +228,7 @@ export async function sendEmail({
         providerMessageId: result.messageId || null,
         status: result.simulated
           ? 'simulated'
-          : result.success
+          : result.delivered
           ? 'sent'
           : result.provider === 'unconfigured'
           ? 'unconfigured'
@@ -206,6 +257,7 @@ export async function runEmailSmokeTest(options: { targetEmail?: string } = {}):
       success: false,
       provider: 'none',
       error: 'RESEND_API_KEY environment variable is not configured. Live smoke test cannot run without credentials.',
+      delivered: false,
     };
   }
 
@@ -266,10 +318,13 @@ export async function sendAdminInvitation({
     `,
   });
 
+  const text = `Welcome to the Team, ${name}!\n\n${inviterName} has invited you to join the Malwa Namkeen House management team with the access role of ${roleTitle}.\n\nPlease accept your invitation and set your password here:\n${inviteUrl}\n\nSecurity Notice: This invitation link is cryptographically signed and will expire in 48 hours. If you were not expecting this invitation, you may disregard this email.\n\nMalwa Namkeen House`;
+
   return sendEmail({
     to: email,
     subject: `Invitation to join Malwa Namkeen House Staff Portal (${roleTitle})`,
     html,
+    text,
     eventType: 'admin_invitation',
     relatedId: email,
   });
@@ -310,10 +365,13 @@ export async function sendAdminPasswordReset({
     `,
   });
 
+  const text = `Namaste ${name},\n\nWe received a request to reset the password for your administrator account (${email}).\n\nPlease click the link below to choose a new password:\n${resetUrl}\n\nSecurity Notice: This link is valid for 1 hour and can only be used once. If you did not make this request, please inform your store administrator immediately.\n\nMalwa Namkeen House`;
+
   return sendEmail({
     to: email,
     subject: 'Password Reset Request — Malwa Namkeen House Staff Portal',
     html,
+    text,
     eventType: 'admin_password_reset',
     relatedId: email,
   });
@@ -354,12 +412,73 @@ export async function sendCustomerPasswordReset({
     `,
   });
 
+  const text = `Namaste ${name},\n\nWe received a request to reset the password for your Malwa Namkeen House account (${email}).\n\nPlease click the link below to reset your password:\n${resetUrl}\n\nSecurity Notice: This link is valid for 1 hour and can only be used once. If you did not make this request, you can safely ignore this email.\n\nMalwa Namkeen House`;
+
   return sendEmail({
     to: email,
     subject: 'Password Reset Request — Malwa Namkeen House',
     html,
+    text,
     eventType: 'customer_password_reset',
     relatedId: email,
+  });
+}
+
+/**
+ * 2c. Customer Welcome Email
+ */
+export async function sendCustomerWelcomeEmail({
+  email,
+  name,
+}: {
+  email: string;
+  name: string;
+}): Promise<EmailResult> {
+  const { appBaseUrl } = getEmailConfig();
+  const customerName = name ? name.trim() : 'Delicacy Connoisseur';
+  const cleanEmail = (email || '').trim().toLowerCase();
+
+  const html = wrapEmailTemplate({
+    title: 'Welcome to Malwa Namkeen House',
+    preheader: 'Welcome to authentic handcrafted Ujjaini savouries and sweets.',
+    contentHtml: `
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="background: #FEF3C7; color: #92400E; font-size: 12px; font-weight: 700; padding: 4px 14px; border-radius: 20px; text-transform: uppercase;">
+          Heritage Flavours · Since 1954
+        </span>
+      </div>
+      <h2 style="color: #3C0815; font-size: 20px; margin-top: 0; text-align: center;">
+        Swagatam, ${customerName}!
+      </h2>
+      <p style="font-size: 14.5px; line-height: 1.65; color: #374151; text-align: center;">
+        Welcome to the <strong>Malwa Namkeen House</strong> family. We are delighted to share the timeless culinary traditions of Ujjain and the Malwa region with you.
+      </p>
+      <div style="background: #FAF7F2; border: 1px solid #EAE5D9; border-radius: 12px; padding: 20px; margin: 24px 0;">
+        <h3 style="color: #3C0815; font-size: 15px; margin: 0 0 10px; font-weight: 700;">The Malwa Heritage Promise:</h3>
+        <ul style="margin: 0; padding-left: 20px; font-size: 13.5px; color: #57534E; line-height: 1.7;">
+          <li><strong>Authentic Ujjaini Recipes:</strong> Handcrafted with secret family spice blends preserved across generations.</li>
+          <li><strong>Purity First:</strong> Fried only in cold-pressed groundnut oil or pure desi ghee — never reused oil.</li>
+          <li><strong>Fresh Batch Delivery:</strong> Made in small batches in Ujjain and nitrogen sealed for crisp freshness.</li>
+        </ul>
+      </div>
+      <div style="text-align: center; margin: 28px 0 16px;">
+        <a href="${appBaseUrl}/products" class="btn">Explore Heritage Delicacies</a>
+      </div>
+      <p style="font-size: 13px; color: #78716C; text-align: center; line-height: 1.5;">
+        You can track orders, manage addresses, and discover seasonal specialties in your <a href="${appBaseUrl}/dashboard" style="color: #3C0815; font-weight: 600;">Account Dashboard</a>.
+      </p>
+    `,
+  });
+
+  const text = `Swagatam, ${customerName}!\n\nWelcome to the Malwa Namkeen House family. We are delighted to share the timeless culinary traditions of Ujjain and the Malwa region with you.\n\nOur Heritage Promise:\n- Authentic Ujjaini Recipes handcrafted with secret family spice blends since 1954\n- Purity First: Prepared only in cold-pressed groundnut oil or pure desi ghee\n- Fresh Batch Delivery: Sealed for peak crispness\n\nExplore our savouries and sweets:\n${appBaseUrl}/products\n\nAccess your account dashboard:\n${appBaseUrl}/dashboard\n\nDhanyawaad,\nMalwa Namkeen House · Ujjain`;
+
+  return sendEmail({
+    to: cleanEmail,
+    subject: 'Welcome to Malwa Namkeen House — Artisanal Heritage Delicacies',
+    html,
+    text,
+    eventType: 'customer_welcome',
+    relatedId: cleanEmail,
   });
 }
 
@@ -378,7 +497,7 @@ export async function sendCustomerOrderConfirmation({
   const customerName = order.customerInfo?.name || order.shippingAddress?.name || 'Customer';
 
   if (!customerEmail) {
-    return { success: false, provider: 'none', error: 'No recipient email found on order.' };
+    return { success: false, provider: 'none', error: 'No recipient email found on order.', delivered: false };
   }
 
   const itemsHtml = (order.items || [])
@@ -403,7 +522,7 @@ export async function sendCustomerOrderConfirmation({
     storeContact,
     contentHtml: `
       <div style="text-align: center; margin-bottom: 20px;">
-        <span style="background: #D1FAE5; color: #065F46; font-size: 12px; font-weight: 700; padding: 4px 12px; borderRadius: 20px; text-transform: uppercase;">
+        <span style="background: #D1FAE5; color: #065F46; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; text-transform: uppercase;">
           Order Confirmed · #${order.orderNumber}
         </span>
       </div>
@@ -469,10 +588,17 @@ export async function sendCustomerOrderConfirmation({
     `,
   });
 
+  const itemsText = (order.items || [])
+    .map((item: any) => `- ${item.productName} (${item.variantLabel || 'Standard'}) x ${item.quantity} = ₹${item.itemTotal || item.price * item.quantity}`)
+    .join('\n');
+
+  const text = `Dhanyawaad, ${customerName}!\n\nYour order #${order.orderNumber} has been received and our kitchen is preparing your authentic handcrafted savouries.\n\nOrder Summary:\n${itemsText}\n\nSubtotal: ₹${order.subtotal}\n${order.discount > 0 ? `Discount: -₹${order.discount}\n` : ''}Delivery: ${order.shipping === 0 ? 'FREE' : `₹${order.shipping}`}\nTotal: ₹${order.total}\nPayment Method: ${(order.paymentMethod || 'cod').toUpperCase()}\n\nDelivery Address:\n${order.shippingAddress?.name || customerName}\n${order.shippingAddress?.addressLine1 || ''} ${order.shippingAddress?.addressLine2 || ''}\n${order.shippingAddress?.city || ''}, ${order.shippingAddress?.state || ''} — ${order.shippingAddress?.pincode || ''}\nPhone: ${order.shippingAddress?.phone || ''}\n\nView order details anytime at: ${appBaseUrl}/dashboard\n\nMalwa Namkeen House · Ujjain`;
+
   return sendEmail({
     to: customerEmail,
     subject: `Order Confirmation — #${order.orderNumber} (Malwa Namkeen House)`,
     html,
+    text,
     eventType: 'order_confirmation',
     relatedId: order.orderNumber,
   });
@@ -486,23 +612,25 @@ export async function sendOrderStatusUpdate({
   previousStatus,
   newStatus,
   storeContact,
+  isTrackingUpdate = false,
 }: {
   order: any;
   previousStatus: string;
   newStatus: string;
   storeContact?: any;
+  isTrackingUpdate?: boolean;
 }): Promise<EmailResult> {
   const { appBaseUrl } = getEmailConfig();
   const customerEmail = order.customerInfo?.email || order.shippingAddress?.email;
   const customerName = order.customerInfo?.name || order.shippingAddress?.name || 'Customer';
 
   if (!customerEmail) {
-    return { success: false, provider: 'none', error: 'No recipient email found on order.' };
+    return { success: false, provider: 'none', error: 'No recipient email found on order.', delivered: false };
   }
 
-  // Idempotency: Ignore if status did not actually change
-  if (previousStatus === newStatus) {
-    return { success: true, provider: 'none', simulated: true };
+  // Idempotency: Ignore if status did not actually change and no new tracking info was attached
+  if (previousStatus === newStatus && !isTrackingUpdate) {
+    return { success: true, provider: 'none', simulated: true, delivered: false };
   }
 
   const statusDescriptions: Record<string, { title: string; desc: string; color: string }> = {
@@ -580,12 +708,21 @@ export async function sendOrderStatusUpdate({
     `,
   });
 
+  const trackingText = order.trackingInfo?.trackingNumber
+    ? `\nCourier Tracking Information:\nCourier: ${order.trackingInfo.courierName || 'Standard Express'}\nAWB / Tracking Number: ${order.trackingInfo.trackingNumber}${order.trackingInfo.trackingUrl ? `\nTracking Link: ${order.trackingInfo.trackingUrl}` : ''}\n`
+    : '';
+
+  const text = `Namaste ${customerName},\n\nOrder #${order.orderNumber} Update:\n${statusInfo.title} — ${statusInfo.desc}\n${trackingText}\nTrack your order anytime at: ${appBaseUrl}/dashboard\n\nMalwa Namkeen House · Ujjain`;
+
   return sendEmail({
     to: customerEmail,
-    subject: `Order Update (#${order.orderNumber}): ${statusInfo.title}`,
+    subject: isTrackingUpdate
+      ? `Tracking Attached (#${order.orderNumber}): ${order.trackingInfo?.courierName || 'Courier'} Express`
+      : `Order Update (#${order.orderNumber}): ${statusInfo.title}`,
     html,
+    text,
     eventType: 'order_status_update',
-    relatedId: `${order.orderNumber}_${newStatus}`,
+    relatedId: `${order.orderNumber}_${newStatus}${isTrackingUpdate ? '_track' : ''}`,
   });
 }
 
@@ -626,6 +763,8 @@ export async function sendNewOrderAdminAlert({
     `,
   });
 
+  const text = `[NEW ORDER] #${order.orderNumber} (₹${order.total})\n\nA new order has been placed on the storefront and is awaiting fulfillment.\n\nCustomer: ${order.customerInfo?.name || 'Customer'} (${order.customerInfo?.phone || 'No phone'})\nTotal Items: ${itemCount}\nPayment Method: ${(order.paymentMethod || 'cod').toUpperCase()}\nOrder Amount: ₹${order.total}\n\nManage this order in the Admin Portal:\n${appBaseUrl}/admin/orders\n\nMalwa Namkeen House`;
+
   const results: EmailResult[] = [];
   const uniqueEmails = [...new Set(adminEmails.map(e => e.trim().toLowerCase()))];
 
@@ -634,7 +773,70 @@ export async function sendNewOrderAdminAlert({
       to: adminEmail,
       subject: `[Admin Alert] New Order #${order.orderNumber} (₹${order.total})`,
       html,
+      text,
       eventType: 'admin_new_order_alert',
+      relatedId: order.orderNumber,
+    });
+    results.push(res);
+  }
+
+  return results;
+}
+
+/**
+ * 5b. Admin Order Cancellation Alert Email
+ */
+export async function sendCustomerOrderCancellationAdminAlert({
+  order,
+  adminEmails,
+  cancelledBy = 'customer',
+  reason,
+}: {
+  order: any;
+  adminEmails: string[];
+  cancelledBy?: string;
+  reason?: string;
+}): Promise<EmailResult[]> {
+  const { appBaseUrl } = getEmailConfig();
+  const customerName = order.customerInfo?.name || order.shippingAddress?.name || 'Customer';
+
+  const html = wrapEmailTemplate({
+    title: `[ORDER CANCELLED] #${order.orderNumber}`,
+    preheader: `Order #${order.orderNumber} was cancelled by ${cancelledBy}. Inventory has been automatically restocked.`,
+    contentHtml: `
+      <div style="text-align: center; margin-bottom: 16px;">
+        <span style="background: #FEE2E2; color: #991B1B; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; text-transform: uppercase;">
+          Order Cancelled
+        </span>
+      </div>
+      <h2 style="color: #3C0815; font-size: 18px; margin-top: 0;">Order #${order.orderNumber} Cancelled</h2>
+      <p style="font-size: 14px; color: #374151;">
+        An order has been cancelled by <strong>${cancelledBy}</strong>. Reserved inventory was restored to stock. Please ensure this order is not packed or dispatched.
+      </p>
+      <div style="background: #FAF7F2; padding: 14px; border-radius: 10px; margin: 16px 0; font-size: 13.5px;">
+        <div>Order Number: <strong>#${order.orderNumber}</strong></div>
+        <div>Customer: <strong>${customerName}</strong> (${order.customerInfo?.phone || order.shippingAddress?.phone || 'No phone'})</div>
+        <div>Order Value: <strong>₹${order.total}</strong></div>
+        ${reason ? `<div>Cancellation Reason: <em>${reason}</em></div>` : ''}
+      </div>
+      <div style="text-align: center; margin-top: 20px;">
+        <a href="${appBaseUrl}/admin/orders" class="btn">View Order Details</a>
+      </div>
+    `,
+  });
+
+  const text = `[ORDER CANCELLED] #${order.orderNumber}\n\nOrder #${order.orderNumber} has been cancelled by ${cancelledBy}.\nCustomer: ${customerName}\nOrder Value: ₹${order.total}\n${reason ? `Reason: ${reason}\n` : ''}Reserved inventory has been automatically restored. Do not dispatch this order.\n\nPortal: ${appBaseUrl}/admin/orders\n\nMalwa Namkeen House`;
+
+  const results: EmailResult[] = [];
+  const uniqueEmails = [...new Set(adminEmails.map(e => e.trim().toLowerCase()))];
+
+  for (const adminEmail of uniqueEmails) {
+    const res = await sendEmail({
+      to: adminEmail,
+      subject: `[Admin Alert] Order #${order.orderNumber} Cancelled (${cancelledBy})`,
+      html,
+      text,
+      eventType: 'admin_order_cancellation_alert',
       relatedId: order.orderNumber,
     });
     results.push(res);
@@ -657,7 +859,7 @@ export async function sendInquiryAcknowledgement({
   const customerName = inquiry.name || 'Customer';
 
   if (!customerEmail) {
-    return { success: false, provider: 'none', error: 'No recipient email provided.' };
+    return { success: false, provider: 'none', error: 'No recipient email provided.', delivered: false };
   }
 
   const referenceId = inquiry._id ? String(inquiry._id).slice(-6).toUpperCase() : 'MN-INQ';
@@ -682,10 +884,13 @@ export async function sendInquiryAcknowledgement({
     `,
   });
 
+  const text = `Namaste ${customerName},\n\nThank you for reaching out to Malwa Namkeen House (Reference: #${referenceId}).\n\nCategory: ${inquiry.category || 'General'}\nYour Message:\n"${inquiry.message}"\n\nOur team in Ujjain will review your request and get back to you within 1 business day.\n\nMalwa Namkeen House`;
+
   return sendEmail({
     to: customerEmail,
     subject: `We have received your inquiry (Ref: #${referenceId}) — Malwa Namkeen House`,
     html,
+    text,
     eventType: 'inquiry_acknowledgement',
     relatedId: String(inquiry._id || referenceId),
   });
@@ -729,6 +934,8 @@ export async function sendNewInquiryAdminAlert({
     `,
   });
 
+  const text = `[NEW INQUIRY] #${referenceId} · ${inquiry.category}\n\nCustomer: ${inquiry.name}\nEmail: ${inquiry.email}\nPhone: ${inquiry.phone || 'Not provided'}\nCategory: ${inquiry.category}\n\nMessage:\n${inquiry.message}\n\nView & respond in the Admin Portal:\n${appBaseUrl}/admin/inquiries\n\nMalwa Namkeen House`;
+
   const results: EmailResult[] = [];
   const uniqueEmails = [...new Set(adminEmails.map(e => e.trim().toLowerCase()))];
 
@@ -737,6 +944,7 @@ export async function sendNewInquiryAdminAlert({
       to: adminEmail,
       subject: `[Admin Alert] New Inquiry #${referenceId} from ${inquiry.name}`,
       html,
+      text,
       eventType: 'admin_new_inquiry_alert',
       relatedId: String(inquiry._id || referenceId),
     });
@@ -1020,6 +1228,8 @@ export async function sendContactCustomerEmail(d: ContactEmailData): Promise<Ema
       or WhatsApp <a href="https://wa.me/${esc(BUSINESS.whatsappNumber)}" style="color:#C89A3D;">${esc(BUSINESS.phone)}</a>.
     </p>`;
 
+  const text = `Thank you, ${d.customerName}!\n\nWe have received your enquiry (Ref: #${d.referenceId}) regarding ${d.categoryLabel}.\n\nYour message:\n"${d.message}"\n\nOur team typically responds within one business day.\n\n${BUSINESS.name}`;
+
   return sendEmail({
     eventType: 'inquiry_acknowledgement',
     to:      d.customerEmail,
@@ -1028,6 +1238,7 @@ export async function sendContactCustomerEmail(d: ContactEmailData): Promise<Ema
       title: `Enquiry Received — ${BUSINESS.name}`,
       contentHtml:  body
     }),
+    text,
   });
 }
 
@@ -1060,6 +1271,8 @@ export async function sendContactAdminEmail(d: ContactEmailData): Promise<EmailR
       </a>
     </p>`;
 
+  const text = `New ${d.categoryLabel} Enquiry (Ref: #${d.referenceId})\n\nSubmitted: ${d.submittedAt}\nName: ${d.customerName}\nEmail: ${d.customerEmail}\nPhone: ${d.phone || '—'}\nLocation: ${d.locationId}\n\nMessage:\n${d.message}\n\n${BUSINESS.name}`;
+
   return sendEmail({
     eventType: 'admin_new_inquiry_alert',
     to:      ADMIN_EMAIL,
@@ -1068,6 +1281,7 @@ export async function sendContactAdminEmail(d: ContactEmailData): Promise<EmailR
       title: `New Enquiry — ${BUSINESS.name}`,
       contentHtml:  body
     }),
+    text,
   });
 }
 
@@ -1115,6 +1329,8 @@ export async function sendReservationCustomerEmail(d: ReservationEmailData): Pro
       <a href="https://wa.me/${esc(BUSINESS.whatsappNumber)}" style="color:#C89A3D;">${esc(BUSINESS.phone)}</a>.
     </p>`;
 
+  const text = `Reservation Enquiry Received — ${BUSINESS.name}\n\nThank you, ${d.customerName}. We have received your reservation enquiry (Ref: #${d.referenceId}).\n\nPlease note: This is a reservation enquiry — not a confirmed booking. Our team will contact you to confirm availability.\n\nDetails:\nDate Requested: ${d.reservationDate}\nPreferred Time: ${d.preferredTime}\nGuests: ${d.guestCount}\nSpecial Request: ${d.specialRequest || '—'}\n\n${BUSINESS.name}`;
+
   return sendEmail({
     eventType: 'inquiry_acknowledgement',
     to:      d.customerEmail,
@@ -1123,6 +1339,7 @@ export async function sendReservationCustomerEmail(d: ReservationEmailData): Pro
       title: `Reservation Enquiry — ${BUSINESS.name}`,
       contentHtml:  body
     }),
+    text,
   });
 }
 
@@ -1154,6 +1371,8 @@ export async function sendReservationAdminEmail(d: ReservationEmailData): Promis
       </a>
     </p>`;
 
+  const text = `New Reservation Enquiry (Ref: #${d.referenceId})\n\nSubmitted: ${d.submittedAt}\nName: ${d.customerName}\nEmail: ${d.customerEmail}\nPhone: ${d.phone}\nDate: ${d.reservationDate}\nTime: ${d.preferredTime}\nGuests: ${d.guestCount}\nSpecial Request: ${d.specialRequest || '—'}\nLocation: ${d.locationId}\n\n${BUSINESS.name}`;
+
   return sendEmail({
     eventType: 'admin_new_inquiry_alert',
     to:      ADMIN_EMAIL,
@@ -1162,6 +1381,7 @@ export async function sendReservationAdminEmail(d: ReservationEmailData): Promis
       title: `New Reservation — ${BUSINESS.name}`,
       contentHtml:  body
     }),
+    text,
   });
 }
 
@@ -1181,7 +1401,7 @@ interface ReservationConfirmationData {
 }
 
 export async function sendReservationConfirmationEmail(d: ReservationConfirmationData): Promise<EmailResult> {
-  if (!d.customerEmail) return { success: false, provider: 'none', error: 'no_email' };
+  if (!d.customerEmail) return { success: false, provider: 'none', error: 'no_email', delivered: false };
 
   const body = `
     <h2 style="margin:0 0 8px;font-family:Georgia,serif;font-size:22px;color:#3A211D;">
@@ -1204,6 +1424,8 @@ export async function sendReservationConfirmationEmail(d: ReservationConfirmatio
       at least 2 hours in advance.
     </p>`;
 
+  const text = `Your Table is Confirmed — ${BUSINESS.name}\n\nDear ${d.customerName}, your reservation at ${BUSINESS.name} has been confirmed (Ref: #${d.referenceId}).\n\nDate: ${d.reservationDate}\nTime: ${d.preferredTime}\nGuests: ${d.guestCount}\nSpecial Request: ${d.specialRequest || '—'}\nLocation: Sarjapur Road, Bengaluru\n\nWe look forward to welcoming you.\n\n${BUSINESS.name}`;
+
   return sendEmail({
     eventType: 'inquiry_acknowledgement',
     to:      d.customerEmail,
@@ -1212,5 +1434,6 @@ export async function sendReservationConfirmationEmail(d: ReservationConfirmatio
       title: `Reservation Confirmed — ${BUSINESS.name}`,
       contentHtml:  body
     }),
+    text,
   });
 }

@@ -4,6 +4,7 @@ export type EmailEventType =
   | 'admin_invitation'
   | 'admin_password_reset'
   | 'customer_password_reset'
+  | 'customer_welcome'
   | 'password_change_otp'
   | 'password_changed_notification'
   | 'role_changed_notification'
@@ -12,6 +13,7 @@ export type EmailEventType =
   | 'inquiry_acknowledgement'
   | 'admin_new_order_alert'
   | 'admin_new_inquiry_alert'
+  | 'admin_order_cancellation_alert'
   | 'admin_security_alert';
 
 export type EmailDeliveryStatus = 'sent' | 'simulated' | 'failed' | 'unconfigured';
@@ -40,6 +42,7 @@ const emailLogSchema = new Schema<IEmailLog>(
         'admin_invitation',
         'admin_password_reset',
         'customer_password_reset',
+        'customer_welcome',
         'password_change_otp',
         'password_changed_notification',
         'role_changed_notification',
@@ -48,6 +51,7 @@ const emailLogSchema = new Schema<IEmailLog>(
         'inquiry_acknowledgement',
         'admin_new_order_alert',
         'admin_new_inquiry_alert',
+        'admin_order_cancellation_alert',
         'admin_security_alert',
       ],
       index: true,

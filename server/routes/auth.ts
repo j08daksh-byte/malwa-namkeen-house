@@ -9,6 +9,7 @@ import { getDesignatedAdminEmails } from '../lib/mongodb.ts';
 import {
   sendPasswordChangeOtp,
   sendPasswordChangedConfirmation,
+  sendCustomerWelcomeEmail,
 } from '../lib/emailService.ts';
 import {
   hashPassword,
@@ -160,6 +161,14 @@ router.post('/register', registerLimiter, async (req: Request, res: Response) =>
     });
 
     setAuthCookie(res, token);
+
+    // Asynchronous non-blocking customer welcome email
+    sendCustomerWelcomeEmail({
+      email: newUser.email,
+      name: newUser.name,
+    }).catch(emailErr => {
+      console.warn('[Welcome Email Warning] Failed to dispatch customer welcome email:', emailErr);
+    });
 
     res.status(201).json({
       success: true,
@@ -400,6 +409,14 @@ router.post('/google', loginLimiter, async (req: Request, res: Response) => {
         active: true,
         lastLoginAt: new Date(),
         emailVerifiedAt: new Date(),
+      });
+
+      // Asynchronous non-blocking customer welcome email for newly registered Google user
+      sendCustomerWelcomeEmail({
+        email: user.email,
+        name: user.name,
+      }).catch(emailErr => {
+        console.warn('[Welcome Email Warning] Failed to dispatch Google customer welcome email:', emailErr);
       });
     }
 

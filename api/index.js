@@ -1562,6 +1562,7 @@ var emailLogSchema = new Schema6(
         "admin_invitation",
         "admin_password_reset",
         "customer_password_reset",
+        "customer_welcome",
         "password_change_otp",
         "password_changed_notification",
         "role_changed_notification",
@@ -1570,6 +1571,7 @@ var emailLogSchema = new Schema6(
         "inquiry_acknowledgement",
         "admin_new_order_alert",
         "admin_new_inquiry_alert",
+        "admin_order_cancellation_alert",
         "admin_security_alert"
       ],
       index: true
@@ -1630,23 +1632,46 @@ emailLogSchema.index({ eventType: 1, relatedId: 1, recipient: 1 });
 var EmailLog = mongoose8.models.EmailLog || mongoose8.model("EmailLog", emailLogSchema);
 
 // server/lib/emailService.ts
+function maskEmail(email2) {
+  const trimmed = (email2 || "").trim().toLowerCase();
+  const atIdx = trimmed.indexOf("@");
+  if (atIdx <= 0) return "***";
+  const local = trimmed.slice(0, atIdx);
+  const domain = trimmed.slice(atIdx + 1);
+  const maskedLocal = local.length <= 2 ? `${local[0]}***` : `${local[0]}***${local[local.length - 1]}`;
+  return `${maskedLocal}@${domain}`;
+}
+function generatePlainTextFallback(html) {
+  return html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "").replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "").replace(/<\/p>/gi, "\n\n").replace(/<\/tr>/gi, "\n").replace(/<\/div>/gi, "\n").replace(/<\/h[1-6]>/gi, "\n\n").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/[ \t]+/g, " ").replace(/\n\s*\n\s*\n+/g, "\n\n").trim();
+}
 function getEmailConfig() {
   const isTest = process.env.NODE_ENV === "test" || process.env.IS_E2E_TEST === "true";
+  const forceSimulated = isTest || process.env.EMAIL_PROVIDER === "simulated";
+  const isProd2 = process.env.NODE_ENV === "production";
   const rawBaseUrl = process.env.APP_URL || process.env.APP_BASE_URL || "http://localhost:3000";
+  let provider = "simulated";
+  if (forceSimulated) {
+    provider = "simulated";
+  } else if (process.env.EMAIL_PROVIDER) {
+    provider = process.env.EMAIL_PROVIDER;
+  } else if (isProd2) {
+    provider = process.env.RESEND_API_KEY ? "resend" : "unconfigured";
+  } else {
+    provider = process.env.RESEND_API_KEY ? "resend" : "simulated";
+  }
   return {
-    provider: isTest ? "simulated" : process.env.EMAIL_PROVIDER || (process.env.RESEND_API_KEY ? "resend" : "simulated"),
-    resendApiKey: isTest ? "" : process.env.RESEND_API_KEY || "",
+    provider,
+    resendApiKey: forceSimulated ? "" : process.env.RESEND_API_KEY || "",
     emailFrom: process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || "Malwa Namkeen House <orders@malwanamkeen.com>",
     appBaseUrl: rawBaseUrl.replace(/\/+$/, "")
   };
 }
 var resendClient = null;
 function getResendClient() {
+  if (resendClient) return resendClient;
   const { resendApiKey } = getEmailConfig();
   if (!resendApiKey) return null;
-  if (!resendClient) {
-    resendClient = new Resend(resendApiKey);
-  }
+  resendClient = new Resend(resendApiKey);
   return resendClient;
 }
 function wrapEmailTemplate({
@@ -1713,12 +1738,13 @@ async function sendEmail({
 }) {
   const config = getEmailConfig();
   const isProd2 = process.env.NODE_ENV === "production";
-  const cleanTo = to.trim().toLowerCase();
+  const cleanTo = (to || "").trim().toLowerCase();
   if (!cleanTo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanTo)) {
-    return { success: false, provider: "none", error: "Invalid recipient email address." };
+    return { success: false, provider: "none", error: "Invalid recipient email address.", delivered: false };
   }
-  let result = { success: false, provider: config.provider };
-  if (config.resendApiKey) {
+  const plainText = text && text.trim() ? text.trim() : generatePlainTextFallback(html);
+  let result = { success: false, provider: config.provider, delivered: false };
+  if (config.provider === "resend" && config.resendApiKey) {
     try {
       const client = getResendClient();
       if (!client) throw new Error("Resend client initialization failed");
@@ -1727,30 +1753,31 @@ async function sendEmail({
         to: [cleanTo],
         subject,
         html,
-        text: text || html.replace(/<[^>]*>?/gm, "")
+        text: plainText
       });
       if (response.error) {
-        result = { success: false, provider: "resend", error: response.error.message };
+        result = { success: false, provider: "resend", error: response.error.message, delivered: false };
       } else {
-        result = { success: true, provider: "resend", messageId: response.data?.id };
+        result = { success: true, provider: "resend", messageId: response.data?.id, delivered: true };
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      result = { success: false, provider: "resend", error: msg };
+      result = { success: false, provider: "resend", error: msg, delivered: false };
     }
-  } else if (isProd2) {
-    console.warn(`[Email Service] Production email provider unconfigured. Message to <${cleanTo}> safely dropped.`);
-    result = { success: false, provider: "unconfigured", error: "Email provider unconfigured." };
+  } else if (isProd2 && config.provider !== "simulated") {
+    console.warn(`[Email Service] Production email provider unconfigured. Message to <${maskEmail(cleanTo)}> safely dropped.`);
+    result = { success: false, provider: "unconfigured", error: "Email provider unconfigured.", delivered: false };
   } else {
+    const maskedTo = maskEmail(cleanTo);
     console.log("\n================== [DEV EMAIL SIMULATOR] ==================");
-    console.log(`To: ${cleanTo}`);
+    console.log(`To: ${maskedTo}`);
     console.log(`From: ${config.emailFrom}`);
     console.log(`Event: ${eventType || "generic"}`);
     console.log(`Subject: ${subject}`);
     console.log(`Preview:
-${text || html.replace(/<[^>]*>?/gm, "").slice(0, 300)}...`);
+${plainText.slice(0, 300)}...`);
     console.log("===========================================================\n");
-    result = { success: true, provider: "simulated", simulated: true };
+    result = { success: true, provider: "simulated", simulated: true, delivered: false };
   }
   if (eventType && mongoose9.connection.readyState === 1) {
     try {
@@ -1761,7 +1788,7 @@ ${text || html.replace(/<[^>]*>?/gm, "").slice(0, 300)}...`);
         relatedId: relatedId || null,
         provider: result.provider,
         providerMessageId: result.messageId || null,
-        status: result.simulated ? "simulated" : result.success ? "sent" : result.provider === "unconfigured" ? "unconfigured" : "failed",
+        status: result.simulated ? "simulated" : result.delivered ? "sent" : result.provider === "unconfigured" ? "unconfigured" : "failed",
         error: result.error || null,
         attemptedAt: /* @__PURE__ */ new Date()
       });
@@ -1800,10 +1827,21 @@ async function sendAdminInvitation({
       </p>
     `
   });
+  const text = `Welcome to the Team, ${name2}!
+
+${inviterName} has invited you to join the Malwa Namkeen House management team with the access role of ${roleTitle}.
+
+Please accept your invitation and set your password here:
+${inviteUrl}
+
+Security Notice: This invitation link is cryptographically signed and will expire in 48 hours. If you were not expecting this invitation, you may disregard this email.
+
+Malwa Namkeen House`;
   return sendEmail({
     to: email2,
     subject: `Invitation to join Malwa Namkeen House Staff Portal (${roleTitle})`,
     html,
+    text,
     eventType: "admin_invitation",
     relatedId: email2
   });
@@ -1834,10 +1872,21 @@ async function sendAdminPasswordReset({
       </p>
     `
   });
+  const text = `Namaste ${name2},
+
+We received a request to reset the password for your administrator account (${email2}).
+
+Please click the link below to choose a new password:
+${resetUrl}
+
+Security Notice: This link is valid for 1 hour and can only be used once. If you did not make this request, please inform your store administrator immediately.
+
+Malwa Namkeen House`;
   return sendEmail({
     to: email2,
     subject: "Password Reset Request \u2014 Malwa Namkeen House Staff Portal",
     html,
+    text,
     eventType: "admin_password_reset",
     relatedId: email2
   });
@@ -1868,12 +1917,87 @@ async function sendCustomerPasswordReset({
       </p>
     `
   });
+  const text = `Namaste ${name2},
+
+We received a request to reset the password for your Malwa Namkeen House account (${email2}).
+
+Please click the link below to reset your password:
+${resetUrl}
+
+Security Notice: This link is valid for 1 hour and can only be used once. If you did not make this request, you can safely ignore this email.
+
+Malwa Namkeen House`;
   return sendEmail({
     to: email2,
     subject: "Password Reset Request \u2014 Malwa Namkeen House",
     html,
+    text,
     eventType: "customer_password_reset",
     relatedId: email2
+  });
+}
+async function sendCustomerWelcomeEmail({
+  email: email2,
+  name: name2
+}) {
+  const { appBaseUrl } = getEmailConfig();
+  const customerName = name2 ? name2.trim() : "Delicacy Connoisseur";
+  const cleanEmail = (email2 || "").trim().toLowerCase();
+  const html = wrapEmailTemplate({
+    title: "Welcome to Malwa Namkeen House",
+    preheader: "Welcome to authentic handcrafted Ujjaini savouries and sweets.",
+    contentHtml: `
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="background: #FEF3C7; color: #92400E; font-size: 12px; font-weight: 700; padding: 4px 14px; border-radius: 20px; text-transform: uppercase;">
+          Heritage Flavours \xB7 Since 1954
+        </span>
+      </div>
+      <h2 style="color: #3C0815; font-size: 20px; margin-top: 0; text-align: center;">
+        Swagatam, ${customerName}!
+      </h2>
+      <p style="font-size: 14.5px; line-height: 1.65; color: #374151; text-align: center;">
+        Welcome to the <strong>Malwa Namkeen House</strong> family. We are delighted to share the timeless culinary traditions of Ujjain and the Malwa region with you.
+      </p>
+      <div style="background: #FAF7F2; border: 1px solid #EAE5D9; border-radius: 12px; padding: 20px; margin: 24px 0;">
+        <h3 style="color: #3C0815; font-size: 15px; margin: 0 0 10px; font-weight: 700;">The Malwa Heritage Promise:</h3>
+        <ul style="margin: 0; padding-left: 20px; font-size: 13.5px; color: #57534E; line-height: 1.7;">
+          <li><strong>Authentic Ujjaini Recipes:</strong> Handcrafted with secret family spice blends preserved across generations.</li>
+          <li><strong>Purity First:</strong> Fried only in cold-pressed groundnut oil or pure desi ghee \u2014 never reused oil.</li>
+          <li><strong>Fresh Batch Delivery:</strong> Made in small batches in Ujjain and nitrogen sealed for crisp freshness.</li>
+        </ul>
+      </div>
+      <div style="text-align: center; margin: 28px 0 16px;">
+        <a href="${appBaseUrl}/products" class="btn">Explore Heritage Delicacies</a>
+      </div>
+      <p style="font-size: 13px; color: #78716C; text-align: center; line-height: 1.5;">
+        You can track orders, manage addresses, and discover seasonal specialties in your <a href="${appBaseUrl}/dashboard" style="color: #3C0815; font-weight: 600;">Account Dashboard</a>.
+      </p>
+    `
+  });
+  const text = `Swagatam, ${customerName}!
+
+Welcome to the Malwa Namkeen House family. We are delighted to share the timeless culinary traditions of Ujjain and the Malwa region with you.
+
+Our Heritage Promise:
+- Authentic Ujjaini Recipes handcrafted with secret family spice blends since 1954
+- Purity First: Prepared only in cold-pressed groundnut oil or pure desi ghee
+- Fresh Batch Delivery: Sealed for peak crispness
+
+Explore our savouries and sweets:
+${appBaseUrl}/products
+
+Access your account dashboard:
+${appBaseUrl}/dashboard
+
+Dhanyawaad,
+Malwa Namkeen House \xB7 Ujjain`;
+  return sendEmail({
+    to: cleanEmail,
+    subject: "Welcome to Malwa Namkeen House \u2014 Artisanal Heritage Delicacies",
+    html,
+    text,
+    eventType: "customer_welcome",
+    relatedId: cleanEmail
   });
 }
 async function sendCustomerOrderConfirmation({
@@ -1884,7 +2008,7 @@ async function sendCustomerOrderConfirmation({
   const customerEmail = order.customerInfo?.email || order.shippingAddress?.email;
   const customerName = order.customerInfo?.name || order.shippingAddress?.name || "Customer";
   if (!customerEmail) {
-    return { success: false, provider: "none", error: "No recipient email found on order." };
+    return { success: false, provider: "none", error: "No recipient email found on order.", delivered: false };
   }
   const itemsHtml = (order.items || []).map(
     (item) => `
@@ -1905,7 +2029,7 @@ async function sendCustomerOrderConfirmation({
     storeContact,
     contentHtml: `
       <div style="text-align: center; margin-bottom: 20px;">
-        <span style="background: #D1FAE5; color: #065F46; font-size: 12px; font-weight: 700; padding: 4px 12px; borderRadius: 20px; text-transform: uppercase;">
+        <span style="background: #D1FAE5; color: #065F46; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; text-transform: uppercase;">
           Order Confirmed \xB7 #${order.orderNumber}
         </span>
       </div>
@@ -1966,10 +2090,34 @@ async function sendCustomerOrderConfirmation({
       </div>
     `
   });
+  const itemsText = (order.items || []).map((item) => `- ${item.productName} (${item.variantLabel || "Standard"}) x ${item.quantity} = \u20B9${item.itemTotal || item.price * item.quantity}`).join("\n");
+  const text = `Dhanyawaad, ${customerName}!
+
+Your order #${order.orderNumber} has been received and our kitchen is preparing your authentic handcrafted savouries.
+
+Order Summary:
+${itemsText}
+
+Subtotal: \u20B9${order.subtotal}
+${order.discount > 0 ? `Discount: -\u20B9${order.discount}
+` : ""}Delivery: ${order.shipping === 0 ? "FREE" : `\u20B9${order.shipping}`}
+Total: \u20B9${order.total}
+Payment Method: ${(order.paymentMethod || "cod").toUpperCase()}
+
+Delivery Address:
+${order.shippingAddress?.name || customerName}
+${order.shippingAddress?.addressLine1 || ""} ${order.shippingAddress?.addressLine2 || ""}
+${order.shippingAddress?.city || ""}, ${order.shippingAddress?.state || ""} \u2014 ${order.shippingAddress?.pincode || ""}
+Phone: ${order.shippingAddress?.phone || ""}
+
+View order details anytime at: ${appBaseUrl}/dashboard
+
+Malwa Namkeen House \xB7 Ujjain`;
   return sendEmail({
     to: customerEmail,
     subject: `Order Confirmation \u2014 #${order.orderNumber} (Malwa Namkeen House)`,
     html,
+    text,
     eventType: "order_confirmation",
     relatedId: order.orderNumber
   });
@@ -1978,16 +2126,17 @@ async function sendOrderStatusUpdate({
   order,
   previousStatus,
   newStatus,
-  storeContact
+  storeContact,
+  isTrackingUpdate = false
 }) {
   const { appBaseUrl } = getEmailConfig();
   const customerEmail = order.customerInfo?.email || order.shippingAddress?.email;
   const customerName = order.customerInfo?.name || order.shippingAddress?.name || "Customer";
   if (!customerEmail) {
-    return { success: false, provider: "none", error: "No recipient email found on order." };
+    return { success: false, provider: "none", error: "No recipient email found on order.", delivered: false };
   }
-  if (previousStatus === newStatus) {
-    return { success: true, provider: "none", simulated: true };
+  if (previousStatus === newStatus && !isTrackingUpdate) {
+    return { success: true, provider: "none", simulated: true, delivered: false };
   }
   const statusDescriptions = {
     confirmed: {
@@ -2053,12 +2202,27 @@ async function sendOrderStatusUpdate({
       </div>
     `
   });
+  const trackingText = order.trackingInfo?.trackingNumber ? `
+Courier Tracking Information:
+Courier: ${order.trackingInfo.courierName || "Standard Express"}
+AWB / Tracking Number: ${order.trackingInfo.trackingNumber}${order.trackingInfo.trackingUrl ? `
+Tracking Link: ${order.trackingInfo.trackingUrl}` : ""}
+` : "";
+  const text = `Namaste ${customerName},
+
+Order #${order.orderNumber} Update:
+${statusInfo.title} \u2014 ${statusInfo.desc}
+${trackingText}
+Track your order anytime at: ${appBaseUrl}/dashboard
+
+Malwa Namkeen House \xB7 Ujjain`;
   return sendEmail({
     to: customerEmail,
-    subject: `Order Update (#${order.orderNumber}): ${statusInfo.title}`,
+    subject: isTrackingUpdate ? `Tracking Attached (#${order.orderNumber}): ${order.trackingInfo?.courierName || "Courier"} Express` : `Order Update (#${order.orderNumber}): ${statusInfo.title}`,
     html,
+    text,
     eventType: "order_status_update",
-    relatedId: `${order.orderNumber}_${newStatus}`
+    relatedId: `${order.orderNumber}_${newStatus}${isTrackingUpdate ? "_track" : ""}`
   });
 }
 async function sendNewOrderAdminAlert({
@@ -2089,6 +2253,19 @@ async function sendNewOrderAdminAlert({
       </div>
     `
   });
+  const text = `[NEW ORDER] #${order.orderNumber} (\u20B9${order.total})
+
+A new order has been placed on the storefront and is awaiting fulfillment.
+
+Customer: ${order.customerInfo?.name || "Customer"} (${order.customerInfo?.phone || "No phone"})
+Total Items: ${itemCount}
+Payment Method: ${(order.paymentMethod || "cod").toUpperCase()}
+Order Amount: \u20B9${order.total}
+
+Manage this order in the Admin Portal:
+${appBaseUrl}/admin/orders
+
+Malwa Namkeen House`;
   const results = [];
   const uniqueEmails = [...new Set(adminEmails.map((e) => e.trim().toLowerCase()))];
   for (const adminEmail of uniqueEmails) {
@@ -2096,7 +2273,66 @@ async function sendNewOrderAdminAlert({
       to: adminEmail,
       subject: `[Admin Alert] New Order #${order.orderNumber} (\u20B9${order.total})`,
       html,
+      text,
       eventType: "admin_new_order_alert",
+      relatedId: order.orderNumber
+    });
+    results.push(res);
+  }
+  return results;
+}
+async function sendCustomerOrderCancellationAdminAlert({
+  order,
+  adminEmails,
+  cancelledBy = "customer",
+  reason
+}) {
+  const { appBaseUrl } = getEmailConfig();
+  const customerName = order.customerInfo?.name || order.shippingAddress?.name || "Customer";
+  const html = wrapEmailTemplate({
+    title: `[ORDER CANCELLED] #${order.orderNumber}`,
+    preheader: `Order #${order.orderNumber} was cancelled by ${cancelledBy}. Inventory has been automatically restocked.`,
+    contentHtml: `
+      <div style="text-align: center; margin-bottom: 16px;">
+        <span style="background: #FEE2E2; color: #991B1B; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; text-transform: uppercase;">
+          Order Cancelled
+        </span>
+      </div>
+      <h2 style="color: #3C0815; font-size: 18px; margin-top: 0;">Order #${order.orderNumber} Cancelled</h2>
+      <p style="font-size: 14px; color: #374151;">
+        An order has been cancelled by <strong>${cancelledBy}</strong>. Reserved inventory was restored to stock. Please ensure this order is not packed or dispatched.
+      </p>
+      <div style="background: #FAF7F2; padding: 14px; border-radius: 10px; margin: 16px 0; font-size: 13.5px;">
+        <div>Order Number: <strong>#${order.orderNumber}</strong></div>
+        <div>Customer: <strong>${customerName}</strong> (${order.customerInfo?.phone || order.shippingAddress?.phone || "No phone"})</div>
+        <div>Order Value: <strong>\u20B9${order.total}</strong></div>
+        ${reason ? `<div>Cancellation Reason: <em>${reason}</em></div>` : ""}
+      </div>
+      <div style="text-align: center; margin-top: 20px;">
+        <a href="${appBaseUrl}/admin/orders" class="btn">View Order Details</a>
+      </div>
+    `
+  });
+  const text = `[ORDER CANCELLED] #${order.orderNumber}
+
+Order #${order.orderNumber} has been cancelled by ${cancelledBy}.
+Customer: ${customerName}
+Order Value: \u20B9${order.total}
+${reason ? `Reason: ${reason}
+` : ""}Reserved inventory has been automatically restored. Do not dispatch this order.
+
+Portal: ${appBaseUrl}/admin/orders
+
+Malwa Namkeen House`;
+  const results = [];
+  const uniqueEmails = [...new Set(adminEmails.map((e) => e.trim().toLowerCase()))];
+  for (const adminEmail of uniqueEmails) {
+    const res = await sendEmail({
+      to: adminEmail,
+      subject: `[Admin Alert] Order #${order.orderNumber} Cancelled (${cancelledBy})`,
+      html,
+      text,
+      eventType: "admin_order_cancellation_alert",
       relatedId: order.orderNumber
     });
     results.push(res);
@@ -2110,7 +2346,7 @@ async function sendInquiryAcknowledgement({
   const customerEmail = inquiry.email;
   const customerName = inquiry.name || "Customer";
   if (!customerEmail) {
-    return { success: false, provider: "none", error: "No recipient email provided." };
+    return { success: false, provider: "none", error: "No recipient email provided.", delivered: false };
   }
   const referenceId = inquiry._id ? String(inquiry._id).slice(-6).toUpperCase() : "MN-INQ";
   const html = wrapEmailTemplate({
@@ -2132,10 +2368,22 @@ async function sendInquiryAcknowledgement({
       </p>
     `
   });
+  const text = `Namaste ${customerName},
+
+Thank you for reaching out to Malwa Namkeen House (Reference: #${referenceId}).
+
+Category: ${inquiry.category || "General"}
+Your Message:
+"${inquiry.message}"
+
+Our team in Ujjain will review your request and get back to you within 1 business day.
+
+Malwa Namkeen House`;
   return sendEmail({
     to: customerEmail,
     subject: `We have received your inquiry (Ref: #${referenceId}) \u2014 Malwa Namkeen House`,
     html,
+    text,
     eventType: "inquiry_acknowledgement",
     relatedId: String(inquiry._id || referenceId)
   });
@@ -2169,6 +2417,20 @@ async function sendNewInquiryAdminAlert({
       </div>
     `
   });
+  const text = `[NEW INQUIRY] #${referenceId} \xB7 ${inquiry.category}
+
+Customer: ${inquiry.name}
+Email: ${inquiry.email}
+Phone: ${inquiry.phone || "Not provided"}
+Category: ${inquiry.category}
+
+Message:
+${inquiry.message}
+
+View & respond in the Admin Portal:
+${appBaseUrl}/admin/inquiries
+
+Malwa Namkeen House`;
   const results = [];
   const uniqueEmails = [...new Set(adminEmails.map((e) => e.trim().toLowerCase()))];
   for (const adminEmail of uniqueEmails) {
@@ -2176,6 +2438,7 @@ async function sendNewInquiryAdminAlert({
       to: adminEmail,
       subject: `[Admin Alert] New Inquiry #${referenceId} from ${inquiry.name}`,
       html,
+      text,
       eventType: "admin_new_inquiry_alert",
       relatedId: String(inquiry._id || referenceId)
     });
@@ -2430,6 +2693,16 @@ async function sendContactCustomerEmail(d) {
       <a href="mailto:${esc(BUSINESS.email)}" style="color:#C89A3D;">${esc(BUSINESS.email)}</a>
       or WhatsApp <a href="https://wa.me/${esc(BUSINESS.whatsappNumber)}" style="color:#C89A3D;">${esc(BUSINESS.phone)}</a>.
     </p>`;
+  const text = `Thank you, ${d.customerName}!
+
+We have received your enquiry (Ref: #${d.referenceId}) regarding ${d.categoryLabel}.
+
+Your message:
+"${d.message}"
+
+Our team typically responds within one business day.
+
+${BUSINESS.name}`;
   return sendEmail({
     eventType: "inquiry_acknowledgement",
     to: d.customerEmail,
@@ -2437,7 +2710,8 @@ async function sendContactCustomerEmail(d) {
     html: wrapEmailTemplate({
       title: `Enquiry Received \u2014 ${BUSINESS.name}`,
       contentHtml: body
-    })
+    }),
+    text
   });
 }
 async function sendContactAdminEmail(d) {
@@ -2468,6 +2742,18 @@ async function sendContactAdminEmail(d) {
         Reply via WhatsApp
       </a>
     </p>`;
+  const text = `New ${d.categoryLabel} Enquiry (Ref: #${d.referenceId})
+
+Submitted: ${d.submittedAt}
+Name: ${d.customerName}
+Email: ${d.customerEmail}
+Phone: ${d.phone || "\u2014"}
+Location: ${d.locationId}
+
+Message:
+${d.message}
+
+${BUSINESS.name}`;
   return sendEmail({
     eventType: "admin_new_inquiry_alert",
     to: ADMIN_EMAIL,
@@ -2475,7 +2761,8 @@ async function sendContactAdminEmail(d) {
     html: wrapEmailTemplate({
       title: `New Enquiry \u2014 ${BUSINESS.name}`,
       contentHtml: body
-    })
+    }),
+    text
   });
 }
 async function sendReservationCustomerEmail(d) {
@@ -2506,6 +2793,19 @@ async function sendReservationCustomerEmail(d) {
       For same-day enquiries, please also WhatsApp us at
       <a href="https://wa.me/${esc(BUSINESS.whatsappNumber)}" style="color:#C89A3D;">${esc(BUSINESS.phone)}</a>.
     </p>`;
+  const text = `Reservation Enquiry Received \u2014 ${BUSINESS.name}
+
+Thank you, ${d.customerName}. We have received your reservation enquiry (Ref: #${d.referenceId}).
+
+Please note: This is a reservation enquiry \u2014 not a confirmed booking. Our team will contact you to confirm availability.
+
+Details:
+Date Requested: ${d.reservationDate}
+Preferred Time: ${d.preferredTime}
+Guests: ${d.guestCount}
+Special Request: ${d.specialRequest || "\u2014"}
+
+${BUSINESS.name}`;
   return sendEmail({
     eventType: "inquiry_acknowledgement",
     to: d.customerEmail,
@@ -2513,7 +2813,8 @@ async function sendReservationCustomerEmail(d) {
     html: wrapEmailTemplate({
       title: `Reservation Enquiry \u2014 ${BUSINESS.name}`,
       contentHtml: body
-    })
+    }),
+    text
   });
 }
 async function sendReservationAdminEmail(d) {
@@ -2543,6 +2844,19 @@ async function sendReservationAdminEmail(d) {
         Reply via WhatsApp
       </a>
     </p>`;
+  const text = `New Reservation Enquiry (Ref: #${d.referenceId})
+
+Submitted: ${d.submittedAt}
+Name: ${d.customerName}
+Email: ${d.customerEmail}
+Phone: ${d.phone}
+Date: ${d.reservationDate}
+Time: ${d.preferredTime}
+Guests: ${d.guestCount}
+Special Request: ${d.specialRequest || "\u2014"}
+Location: ${d.locationId}
+
+${BUSINESS.name}`;
   return sendEmail({
     eventType: "admin_new_inquiry_alert",
     to: ADMIN_EMAIL,
@@ -2550,13 +2864,14 @@ async function sendReservationAdminEmail(d) {
     html: wrapEmailTemplate({
       title: `New Reservation \u2014 ${BUSINESS.name}`,
       contentHtml: body
-    })
+    }),
+    text
   });
 }
 
 // server/routes/auth.ts
 var router = Router();
-function maskEmail(email2) {
+function maskEmail2(email2) {
   if (!email2 || !email2.includes("@")) return "******";
   const [local, domain] = email2.split("@");
   if (!local || !domain) return "******";
@@ -2669,6 +2984,12 @@ router.post("/register", registerLimiter, async (req, res) => {
       role: newUser.role
     });
     setAuthCookie(res, token);
+    sendCustomerWelcomeEmail({
+      email: newUser.email,
+      name: newUser.name
+    }).catch((emailErr) => {
+      console.warn("[Welcome Email Warning] Failed to dispatch customer welcome email:", emailErr);
+    });
     res.status(201).json({
       success: true,
       message: "Account created successfully.",
@@ -2851,6 +3172,12 @@ router.post("/google", loginLimiter, async (req, res) => {
         active: true,
         lastLoginAt: /* @__PURE__ */ new Date(),
         emailVerifiedAt: /* @__PURE__ */ new Date()
+      });
+      sendCustomerWelcomeEmail({
+        email: user.email,
+        name: user.name
+      }).catch((emailErr) => {
+        console.warn("[Welcome Email Warning] Failed to dispatch Google customer welcome email:", emailErr);
       });
     }
     const token = generateToken({
@@ -3135,7 +3462,7 @@ router.post(
       res.json({
         success: true,
         message: "Verification code sent to your registered email address.",
-        maskedEmail: maskEmail(user.email),
+        maskedEmail: maskEmail2(user.email),
         cooldownSeconds: 60
       });
     } catch (err) {
@@ -3288,7 +3615,7 @@ router.post(
       res.json({
         success: true,
         message: "A fresh verification code has been sent to your email.",
-        maskedEmail: maskEmail(user.email),
+        maskedEmail: maskEmail2(user.email),
         cooldownSeconds: 60
       });
     } catch (err) {
@@ -4857,6 +5184,25 @@ async function cancelAndRestockOrder(orderId, options) {
           previousStatus: existing.orderStatus,
           newStatus: "cancelled"
         });
+        if (options.cancelledBy === "customer") {
+          const activeAdmins = await User.find({
+            role: { $in: ["admin", "super_admin"] },
+            active: true
+          }).select("email").lean();
+          const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL;
+          const adminEmails = [
+            ...activeAdmins.map((a) => a.email),
+            ...configuredAdmin ? [configuredAdmin] : []
+          ].filter(Boolean);
+          if (adminEmails.length > 0) {
+            await sendCustomerOrderCancellationAdminAlert({
+              order: updatedOrder,
+              adminEmails,
+              cancelledBy: "customer",
+              reason: options.reason
+            });
+          }
+        }
       } catch (emailErr) {
         console.warn("[Cancellation Email Warning] Failed to dispatch cancellation email:", emailErr);
       }
@@ -5729,7 +6075,11 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
           role: { $in: ["admin", "super_admin"] },
           active: true
         }).select("email").lean();
-        const adminEmails = activeAdmins.map((a) => a.email).filter(Boolean);
+        const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL;
+        const adminEmails = [
+          ...activeAdmins.map((a) => a.email),
+          ...configuredAdmin ? [configuredAdmin] : []
+        ].filter(Boolean);
         if (adminEmails.length > 0) {
           await sendNewOrderAdminAlert({ order: newOrder, adminEmails });
         }
@@ -6761,6 +7111,7 @@ router9.put("/:id", async (req, res) => {
       return;
     }
     const previousStatus = order.orderStatus;
+    const previousTrackingNumber = order.trackingInfo?.trackingNumber;
     let cancelResult = null;
     if (order.orderStatus === "cancelled" && orderStatus && orderStatus !== "cancelled") {
       res.status(400).json({
@@ -6901,13 +7252,17 @@ router9.put("/:id", async (req, res) => {
       }
       Object.assign(order, updated.toObject ? updated.toObject() : updated);
     }
-    if (previousStatus !== order.orderStatus && order.orderStatus !== "cancelled") {
+    const newlyAddedTracking = Boolean(
+      order.trackingInfo?.trackingNumber && order.trackingInfo.trackingNumber !== previousTrackingNumber
+    );
+    if ((previousStatus !== order.orderStatus || newlyAddedTracking) && order.orderStatus !== "cancelled") {
       (async () => {
         try {
           await sendOrderStatusUpdate({
             order,
             previousStatus,
-            newStatus: order.orderStatus
+            newStatus: order.orderStatus,
+            isTrackingUpdate: previousStatus === order.orderStatus && newlyAddedTracking
           });
         } catch (emailErr) {
           console.warn("[Status Notification Warning] Failed to dispatch status email:", emailErr);

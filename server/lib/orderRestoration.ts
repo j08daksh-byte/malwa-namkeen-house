@@ -2,7 +2,8 @@ import mongoose, { Types } from 'mongoose';
 import { Order, type IOrder, type OrderStatus, type ShipmentStatus, type IRestorationItemDetail } from '../models/Order.ts';
 import { Product } from '../models/Product.ts';
 import { Discount } from '../models/Discount.ts';
-import { sendOrderStatusUpdate } from './emailService.ts';
+import { User } from '../models/User.ts';
+import { sendOrderStatusUpdate, sendCustomerOrderCancellationAdminAlert } from './emailService.ts';
 
 export interface CancelOrderResult {
   success: boolean;
@@ -368,6 +369,29 @@ export async function cancelAndRestockOrder(
           previousStatus: existing.orderStatus,
           newStatus: 'cancelled',
         });
+
+        // If cancelled by customer, alert store administrators so fulfillment halts immediately
+        if (options.cancelledBy === 'customer') {
+          const activeAdmins = await User.find({
+            role: { $in: ['admin', 'super_admin'] },
+            active: true,
+          }).select('email').lean();
+
+          const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL;
+          const adminEmails = [
+            ...activeAdmins.map(a => a.email),
+            ...(configuredAdmin ? [configuredAdmin] : []),
+          ].filter(Boolean);
+
+          if (adminEmails.length > 0) {
+            await sendCustomerOrderCancellationAdminAlert({
+              order: updatedOrder,
+              adminEmails,
+              cancelledBy: 'customer',
+              reason: options.reason,
+            });
+          }
+        }
       } catch (emailErr) {
         console.warn('[Cancellation Email Warning] Failed to dispatch cancellation email:', emailErr);
       }

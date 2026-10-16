@@ -176,6 +176,7 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const previousStatus = order.orderStatus;
+    const previousTrackingNumber = order.trackingInfo?.trackingNumber;
     let cancelResult: any = null;
 
     // F-01: Reject attempts to transition an already-cancelled order back to fulfillment
@@ -346,15 +347,21 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
       Object.assign(order, updated.toObject ? updated.toObject() : updated);
     }
 
-    // Asynchronously notify customer of non-cancellation status transitions
+    const newlyAddedTracking = Boolean(
+      order.trackingInfo?.trackingNumber &&
+      order.trackingInfo.trackingNumber !== previousTrackingNumber
+    );
+
+    // Asynchronously notify customer of non-cancellation status transitions or newly attached tracking
     // (cancelAndRestockOrder already dispatches cancellation email directly)
-    if (previousStatus !== order.orderStatus && order.orderStatus !== 'cancelled') {
+    if ((previousStatus !== order.orderStatus || newlyAddedTracking) && order.orderStatus !== 'cancelled') {
       (async () => {
         try {
           await sendOrderStatusUpdate({
             order,
             previousStatus,
             newStatus: order.orderStatus,
+            isTrackingUpdate: previousStatus === order.orderStatus && newlyAddedTracking,
           });
         } catch (emailErr) {
           console.warn('[Status Notification Warning] Failed to dispatch status email:', emailErr);

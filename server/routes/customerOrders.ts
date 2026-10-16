@@ -487,7 +487,11 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
           active: true,
         }).select('email').lean();
 
-        const adminEmails = activeAdmins.map(a => a.email).filter(Boolean);
+        const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL;
+        const adminEmails = [
+          ...activeAdmins.map(a => a.email),
+          ...(configuredAdmin ? [configuredAdmin] : []),
+        ].filter(Boolean);
         if (adminEmails.length > 0) {
           await sendNewOrderAdminAlert({ order: newOrder, adminEmails });
         }
