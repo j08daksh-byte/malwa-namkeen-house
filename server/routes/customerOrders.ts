@@ -248,6 +248,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
 
       orderItems.push({
         productId: product._id,
+        variantId: variant._id,
         productName: product.name,
         variantLabel,
         sku: variant.sku || '',

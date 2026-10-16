@@ -6,6 +6,7 @@ export type ShipmentStatus = 'unfulfilled' | 'ready_to_ship' | 'in_transit' | 'o
 
 export interface IOrderItem {
   productId?: Types.ObjectId;
+  variantId?: Types.ObjectId;  // Variant ID snapshot
   productName: string;        // Snapshot of product name at purchase time
   variantLabel: string;       // Snapshot of variant label (e.g., "500g", "Small Gift Box")
   sku: string;                // Snapshot of SKU at purchase time
@@ -13,6 +14,17 @@ export interface IOrderItem {
   quantity: number;           // Quantity ordered
   itemTotal: number;          // price * quantity
   image?: string;             // Primary product image snapshot
+}
+
+export interface IRestorationItemDetail {
+  productId?: string;
+  productName: string;
+  variantId?: string;
+  variantLabel: string;
+  sku: string;
+  quantity: number;
+  restored: boolean;
+  error?: string;
 }
 
 export interface IShippingAddress {
@@ -56,6 +68,12 @@ export interface IOrder extends Document {
     trackingUrl?: string;
   };
   notes?: string;
+  inventoryRestored?: boolean;
+  couponRestored?: boolean;
+  cancelledAt?: Date;
+  cancelledBy?: 'admin' | 'customer' | 'system';
+  cancellationReason?: string;
+  restorationDetails?: IRestorationItemDetail[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -65,6 +83,9 @@ const orderItemSchema = new Schema<IOrderItem>(
     productId: {
       type: Schema.Types.ObjectId,
       ref: 'Product',
+    },
+    variantId: {
+      type: Schema.Types.ObjectId,
     },
     productName: {
       type: String,
@@ -213,6 +234,42 @@ const orderSchema = new Schema<IOrder>(
       type: String,
       trim: true,
       default: '',
+    },
+    inventoryRestored: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    couponRestored: {
+      type: Boolean,
+      default: false,
+    },
+    cancelledAt: {
+      type: Date,
+    },
+    cancelledBy: {
+      type: String,
+      enum: ['admin', 'customer', 'system'],
+    },
+    cancellationReason: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    restorationDetails: {
+      type: [
+        {
+          productId: { type: String },
+          productName: { type: String },
+          variantId: { type: String },
+          variantLabel: { type: String },
+          sku: { type: String },
+          quantity: { type: Number },
+          restored: { type: Boolean },
+          error: { type: String },
+        },
+      ],
+      default: [],
     },
   },
   {

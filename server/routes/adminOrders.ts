@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import { Order, type OrderStatus, type PaymentStatus, type ShipmentStatus } from '../models/Order.ts';
 import { requireAdmin, type AuthenticatedRequest } from '../lib/auth.ts';
 import { sendOrderStatusUpdate } from '../lib/emailService.ts';
+import { cancelAndRestockOrder } from '../lib/orderRestoration.ts';
 
 const router = Router();
 
@@ -149,6 +150,7 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
 /**
  * PUT /api/admin/orders/:id
  * Update order status, payment status, shipment status, tracking info, shipping address, or notes.
+ * When orderStatus is set to 'cancelled', atomically restores reserved inventory and coupon usage.
  */
 router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -174,17 +176,50 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const previousStatus = order.orderStatus;
+    let cancelResult: any = null;
 
-    const validOrderStatuses: OrderStatus[] = [
-      'pending',
-      'confirmed',
-      'processing',
-      'shipped',
-      'delivered',
-      'cancelled',
-    ];
-    if (orderStatus && validOrderStatuses.includes(orderStatus)) {
-      order.orderStatus = orderStatus;
+    // Handle cancellation and inventory restoration
+    if (orderStatus === 'cancelled') {
+      const reason = typeof notes === 'string' && notes.trim()
+        ? notes.trim()
+        : 'Cancelled by administrator';
+
+      cancelResult = await cancelAndRestockOrder(id, {
+        cancelledBy: 'admin',
+        reason,
+      });
+
+      if (!cancelResult.success && !cancelResult.alreadyCancelled) {
+        res.status(400).json({
+          success: false,
+          message: cancelResult.message || 'Failed to cancel order.',
+          warnings: cancelResult.warnings,
+        });
+        return;
+      }
+
+      // Re-fetch updated order document
+      const refreshed = await Order.findById(id);
+      if (refreshed) {
+        order.orderStatus = refreshed.orderStatus;
+        order.inventoryRestored = refreshed.inventoryRestored;
+        order.couponRestored = refreshed.couponRestored;
+        order.cancelledAt = refreshed.cancelledAt;
+        order.cancelledBy = refreshed.cancelledBy;
+        order.cancellationReason = refreshed.cancellationReason;
+        order.restorationDetails = refreshed.restorationDetails;
+      }
+    } else if (orderStatus) {
+      const validOrderStatuses: OrderStatus[] = [
+        'pending',
+        'confirmed',
+        'processing',
+        'shipped',
+        'delivered',
+      ];
+      if (validOrderStatuses.includes(orderStatus)) {
+        order.orderStatus = orderStatus;
+      }
     }
 
     const validPaymentStatuses: PaymentStatus[] = ['pending', 'paid', 'failed', 'refunded'];
@@ -235,8 +270,9 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
 
     await order.save();
 
-    // Asynchronously notify customer of meaningful status transitions
-    if (previousStatus !== order.orderStatus) {
+    // Asynchronously notify customer of non-cancellation status transitions
+    // (cancelAndRestockOrder already dispatches cancellation email directly)
+    if (previousStatus !== order.orderStatus && order.orderStatus !== 'cancelled') {
       (async () => {
         try {
           await sendOrderStatusUpdate({
@@ -252,8 +288,10 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
 
     res.json({
       success: true,
-      message: 'Order updated successfully.',
+      message: cancelResult ? cancelResult.message : 'Order updated successfully.',
       order,
+      restorationDetails: cancelResult?.restoredItems || order.restorationDetails || [],
+      warnings: cancelResult?.warnings || [],
     });
   } catch (err: unknown) {
     console.error('[Update Order Error]', err);
@@ -264,6 +302,8 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
 
 /**
  * DELETE /api/admin/orders/:id
+ * Safely deletes an order. If the order was never cancelled and inventory was not restored,
+ * automatically restores reserved inventory first to prevent permanent inventory loss.
  */
 router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -273,11 +313,22 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
       return;
     }
 
-    const order = await Order.findByIdAndDelete(id);
+    const order = await Order.findById(id);
     if (!order) {
       res.status(404).json({ success: false, message: 'Order not found.' });
       return;
     }
+
+    // Safety guard: If the order was active/pending and inventory was not restored,
+    // restore the inventory before deletion so reserved stock is not permanently lost!
+    if (!order.inventoryRestored && order.orderStatus !== 'cancelled') {
+      await cancelAndRestockOrder(order._id, {
+        cancelledBy: 'admin',
+        reason: 'Order deleted by administrator',
+      });
+    }
+
+    await Order.findByIdAndDelete(id);
 
     res.json({
       success: true,

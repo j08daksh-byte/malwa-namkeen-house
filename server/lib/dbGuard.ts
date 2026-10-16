@@ -130,17 +130,16 @@ export function validateTestDatabaseName({
  * Rejects missing test URI, prohibited fallback to MONGODB_URI, and URI database name mismatches.
  * Never logs or exposes the connection URI.
  */
-export function validateTestConnectionConfig({
-  testUri = process.env.MONGODB_TEST_URI,
-  prodUri = process.env.MONGODB_URI,
-  testDbName = process.env.MONGODB_TEST_DB_NAME,
-  prodDbName = process.env.MONGODB_DB_NAME || 'malwa_namkeen',
-}: {
+export function validateTestConnectionConfig(options: {
   testUri?: string;
   prodUri?: string;
   testDbName?: string;
   prodDbName?: string;
-}): TestConnectionValidation {
+} = {}): TestConnectionValidation {
+  const testUri = 'testUri' in options ? options.testUri : process.env.MONGODB_TEST_URI;
+  const prodUri = 'prodUri' in options ? options.prodUri : process.env.MONGODB_URI;
+  const testDbName = 'testDbName' in options ? options.testDbName : process.env.MONGODB_TEST_DB_NAME;
+  const prodDbName = 'prodDbName' in options ? options.prodDbName : (process.env.MONGODB_DB_NAME || 'malwa_namkeen');
   const cleanTestUri = (testUri || '').trim();
   const cleanProdUri = (prodUri || '').trim();
   const cleanTestDb = (testDbName || '').trim();
