@@ -4476,7 +4476,8 @@ var customerAccount_default = router5;
 
 // server/routes/customerOrders.ts
 import { Router as Router6 } from "express";
-import rateLimit4 from "express-rate-limit";
+import rateLimit4, { ipKeyGenerator } from "express-rate-limit";
+import crypto3 from "node:crypto";
 import mongoose16 from "mongoose";
 
 // server/models/StoreSettings.ts
@@ -4591,7 +4592,11 @@ var orderCreationLimiter = rateLimit4({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    return req.user?.userId ? `user_${req.user.userId}` : req.ip;
+    if (req.user?.userId) {
+      return `user_${req.user.userId}`;
+    }
+    const clientIp = req.ip || req.socket?.remoteAddress;
+    return clientIp ? ipKeyGenerator(clientIp) : crypto3.randomUUID();
   },
   skip: (req) => {
     const idempotencyKey = req.body?.idempotencyKey;
@@ -6853,7 +6858,7 @@ var adminInquiries_default = router12;
 
 // server/routes/adminStaff.ts
 import { Router as Router13 } from "express";
-import crypto3 from "crypto";
+import crypto4 from "crypto";
 import mongoose24 from "mongoose";
 var router13 = Router13();
 router13.use(requireSuperAdmin);
@@ -6915,8 +6920,8 @@ router13.post("/invite", async (req, res) => {
       });
       return;
     }
-    const rawToken = crypto3.randomBytes(32).toString("hex");
-    const tokenHash = crypto3.createHash("sha256").update(rawToken).digest("hex");
+    const rawToken = crypto4.randomBytes(32).toString("hex");
+    const tokenHash = crypto4.createHash("sha256").update(rawToken).digest("hex");
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1e3);
     const newStaff = await User.create({
       name: cleanName,

@@ -16,8 +16,10 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import crypto from 'node:crypto';
 import express, { Request, Response, NextFunction } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import { getOrderCreationKey } from '../server/routes/customerOrders.ts';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Mocks for Auth and Idempotency
@@ -63,7 +65,12 @@ function makeTestApp(max = PROD_LIMIT_MAX) {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req: any) => {
-      return req.user?.userId ? `user_${req.user.userId}` : req.ip;
+      // Use identical IPv6-safe key generator as customerOrders.ts
+      if (req.user?.userId) {
+        return `user_${req.user.userId}`;
+      }
+      const clientIp = req.ip || req.socket?.remoteAddress;
+      return clientIp ? ipKeyGenerator(clientIp) : crypto.randomUUID();
     },
     skip: (req: any) => {
       const idempotencyKey = req.body?.idempotencyKey;
@@ -308,6 +315,55 @@ describe('PH-003 — Order Creation Rate Limiter', () => {
       
       const res3 = await postPublic('5.6.7.8');
       assert.equal(res3.statusCode, 200, 'IP2 first request should pass');
+    });
+
+    it('G2. IPv6 addresses within the same /56 subnet are isolated together', async () => {
+      const postPublic = (ip: string) => {
+        return new Promise<{ statusCode: number }>((resolve) => {
+          const req = http.request(
+            { hostname: '127.0.0.1', port, path: '/api/public-orders', method: 'POST', headers: { 'X-Forwarded-For': ip } },
+            (res) => resolve({ statusCode: res.statusCode ?? 0 })
+          );
+          req.write('{}');
+          req.end();
+        });
+      };
+
+      // Address 1 in subnet 2001:db8:1234:5600::/56
+      const ipv6A = '2001:db8:1234:5600::1';
+      // Address 2 in the same subnet
+      const ipv6B = '2001:db8:1234:5600::2';
+      // Address 3 in a different subnet
+      const ipv6C = '2001:db8:9999:1100::1';
+
+      const resA = await postPublic(ipv6A);
+      assert.equal(resA.statusCode, 200, 'First IPv6 request in subnet should pass');
+
+      const resB = await postPublic(ipv6B);
+      assert.equal(resB.statusCode, 429, 'Second IPv6 request in same subnet should be blocked by rate limiter');
+
+      const resC = await postPublic(ipv6C);
+      assert.equal(resC.statusCode, 200, 'IPv6 request in different subnet should pass');
+    });
+
+    it('G3. Key generator unit verification', () => {
+      // 1. Authenticated users use their user-specific key
+      assert.equal(getOrderCreationKey({ user: { userId: 'cust_9876' } }), 'user_cust_9876');
+
+      // 2. Unauthenticated IPv4 requests use the exact IP key
+      assert.equal(getOrderCreationKey({ ip: '203.0.113.195' }), '203.0.113.195');
+
+      // 3. IPv6 requests are normalized through ipKeyGenerator to subnet
+      const normalizedV6 = getOrderCreationKey({ ip: '2001:0db8:85a3:0000:0000:8a2e:0370:7334' });
+      assert.equal(normalizedV6, ipKeyGenerator('2001:0db8:85a3:0000:0000:8a2e:0370:7334'));
+      assert.ok(normalizedV6.includes('/56'), 'Should be normalized to CIDR /56');
+
+      // 4. Missing IP does not produce shared empty string
+      const missingKey1 = getOrderCreationKey({});
+      const missingKey2 = getOrderCreationKey({ ip: '' });
+      assert.notEqual(missingKey1, '');
+      assert.notEqual(missingKey2, '');
+      assert.notEqual(missingKey1, missingKey2, 'Missing IP requests should get unique keys and not collide');
     });
   });
 

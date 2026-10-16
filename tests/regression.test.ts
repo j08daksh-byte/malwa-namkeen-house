@@ -9,8 +9,10 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
+import { ipKeyGenerator } from 'express-rate-limit';
 import { slugify } from '../server/routes/adminProducts.ts';
 import { BUSINESS } from '../server/config.ts';
+import { getOrderCreationKey } from '../server/routes/customerOrders.ts';
 
 // ── 1. Contact / Enquiry Validation Schema ────────────────────────────────────
 const ContactEnquirySchema = z.object({
@@ -292,6 +294,38 @@ describe('Malwa Namkeen House — Core Business & Validation Regression Suite', 
     it('verifies that the incorrectly defined useless b-tree index on email has been removed', () => {
       // The admin search uses a regex in an $or block, rendering a basic b-tree index useless.
       assert.ok(true, 'Verified via schema analysis of Inquiry.ts');
+    });
+  });
+
+  describe('15. PH-003: Order Creation Rate Limiter IPv6-Safe Key Generation', () => {
+    it('generates user-specific key for authenticated customers', () => {
+      const key = getOrderCreationKey({ user: { userId: 'usr_abc123' } });
+      assert.equal(key, 'user_usr_abc123');
+    });
+
+    it('passes unauthenticated IPv4 addresses safely to key', () => {
+      const key = getOrderCreationKey({ ip: '49.37.150.12' });
+      assert.equal(key, '49.37.150.12');
+    });
+
+    it('normalizes IPv6 addresses to CIDR subnet via ipKeyGenerator helper', () => {
+      const ipv6 = '2405:201:6807:a043:1894:e994:10c9:8662';
+      const key = getOrderCreationKey({ ip: ipv6 });
+      assert.equal(key, ipKeyGenerator(ipv6));
+      assert.ok(key.includes('/56'), 'IPv6 key must be subnet-normalized to /56');
+    });
+
+    it('handles missing or empty IP safely without shared empty string or collision', () => {
+      const key1 = getOrderCreationKey({});
+      const key2 = getOrderCreationKey({ ip: '' });
+      assert.notEqual(key1, '');
+      assert.notEqual(key2, '');
+      assert.notEqual(key1, key2, 'Distinct missing-IP requests must receive independent keys');
+    });
+
+    it('falls back to socket remoteAddress when req.ip is absent', () => {
+      const key = getOrderCreationKey({ socket: { remoteAddress: '192.168.1.100' } });
+      assert.equal(key, '192.168.1.100');
     });
   });
 

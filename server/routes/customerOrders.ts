@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Response } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import { User, type IUserAddress } from '../models/User.ts';
 import { Product } from '../models/Product.ts';
@@ -41,14 +42,32 @@ function generateOrderNumber(): string {
  * Skips counting legitimate idempotent retries (where order is already cached).
  * NOTE: Uses in-memory MemoryStore (PH-016 limitation applies).
  */
-const orderCreationLimiter = rateLimit({
+/**
+ * Safely generates a rate-limiting key for order creation.
+ * Authenticated users: keyed by user ID.
+ * Unauthenticated fallback: IPv6-normalized client IP via ipKeyGenerator.
+ * Missing IP fallback: unique request identifier (avoids shared empty-string collisions).
+ */
+export function getOrderCreationKey(req: any): string {
+  if (req.user?.userId) {
+    return `user_${req.user.userId}`;
+  }
+  const clientIp = req.ip || req.socket?.remoteAddress;
+  return clientIp ? ipKeyGenerator(clientIp) : crypto.randomUUID();
+}
+
+export const orderCreationLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: any) => {
     // Key by user ID since this is an authenticated route
-    return req.user?.userId ? `user_${req.user.userId}` : req.ip;
+    if (req.user?.userId) {
+      return `user_${req.user.userId}`;
+    }
+    const clientIp = req.ip || req.socket?.remoteAddress;
+    return clientIp ? ipKeyGenerator(clientIp) : crypto.randomUUID();
   },
   skip: (req: any) => {
     // Do not count legitimate idempotent retries against the rate limit
