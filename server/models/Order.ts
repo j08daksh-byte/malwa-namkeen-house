@@ -24,6 +24,7 @@ export interface IRestorationItemDetail {
   sku: string;
   quantity: number;
   restored: boolean;
+  restoredAt?: Date;
   error?: string;
 }
 
@@ -69,6 +70,9 @@ export interface IOrder extends Document {
   };
   notes?: string;
   inventoryRestored?: boolean;
+  restorationStatus?: 'none' | 'in_progress' | 'completed' | 'partial_failure' | 'failed';
+  restoringLock?: boolean;
+  restoringLockedAt?: Date;
   couponRestored?: boolean;
   cancelledAt?: Date;
   cancelledBy?: 'admin' | 'customer' | 'system';
@@ -240,6 +244,20 @@ const orderSchema = new Schema<IOrder>(
       default: false,
       index: true,
     },
+    restorationStatus: {
+      type: String,
+      enum: ['none', 'in_progress', 'completed', 'partial_failure', 'failed'],
+      default: 'none',
+      index: true,
+    },
+    restoringLock: {
+      type: Boolean,
+      default: false,
+    },
+    restoringLockedAt: {
+      type: Date,
+      default: null,
+    },
     couponRestored: {
       type: Boolean,
       default: false,
@@ -266,6 +284,7 @@ const orderSchema = new Schema<IOrder>(
           sku: { type: String },
           quantity: { type: Number },
           restored: { type: Boolean },
+          restoredAt: { type: Date },
           error: { type: String },
         },
       ],

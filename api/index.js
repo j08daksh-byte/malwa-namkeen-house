@@ -216,6 +216,10 @@ var productVariantSchema = new Schema3(
     sortOrder: {
       type: Number,
       default: 0
+    },
+    restoredOrderOps: {
+      type: [String],
+      default: []
     }
   },
   {
@@ -3986,6 +3990,10 @@ var discountSchema = new Schema7(
     isComboOnly: {
       type: Boolean,
       default: false
+    },
+    restoredOrderOps: {
+      type: [String],
+      default: []
     }
   },
   {
@@ -4513,6 +4521,20 @@ var orderSchema = new Schema8(
       default: false,
       index: true
     },
+    restorationStatus: {
+      type: String,
+      enum: ["none", "in_progress", "completed", "partial_failure", "failed"],
+      default: "none",
+      index: true
+    },
+    restoringLock: {
+      type: Boolean,
+      default: false
+    },
+    restoringLockedAt: {
+      type: Date,
+      default: null
+    },
     couponRestored: {
       type: Boolean,
       default: false
@@ -4539,6 +4561,7 @@ var orderSchema = new Schema8(
           sku: { type: String },
           quantity: { type: Number },
           restored: { type: Boolean },
+          restoredAt: { type: Date },
           error: { type: String }
         }
       ],
@@ -4557,6 +4580,8 @@ var Order = mongoose14.models.Order || mongoose14.model("Order", orderSchema);
 
 // server/lib/orderRestoration.ts
 import mongoose15 from "mongoose";
+var NON_CANCELLABLE_ORDER_STATUSES = ["shipped", "delivered"];
+var NON_CANCELLABLE_SHIPMENT_STATUSES = ["in_transit", "out_for_delivery", "delivered"];
 async function cancelAndRestockOrder(orderId, options) {
   const cleanId = typeof orderId === "string" ? orderId.trim() : orderId;
   if (!mongoose15.Types.ObjectId.isValid(cleanId)) {
@@ -4568,67 +4593,122 @@ async function cancelAndRestockOrder(orderId, options) {
       message: "Invalid order ID format."
     };
   }
-  const filter = {
-    _id: cleanId,
-    inventoryRestored: { $ne: true }
-  };
-  if (options.allowedCurrentStatuses && options.allowedCurrentStatuses.length > 0) {
-    filter.orderStatus = { $in: options.allowedCurrentStatuses };
-  } else {
-    filter.orderStatus = { $ne: "cancelled" };
+  const existing = await Order.findById(cleanId);
+  if (!existing) {
+    return {
+      success: false,
+      restoredItems: [],
+      couponRestored: false,
+      warnings: ["Order not found in database."],
+      message: "Order not found."
+    };
   }
-  const orderBeforeUpdate = await Order.findOneAndUpdate(
-    filter,
-    {
-      $set: {
-        orderStatus: "cancelled",
-        inventoryRestored: true,
-        cancelledAt: /* @__PURE__ */ new Date(),
-        cancelledBy: options.cancelledBy,
-        cancellationReason: options.reason ? options.reason.trim() : ""
+  if (existing.orderStatus === "cancelled" && existing.inventoryRestored === true) {
+    return {
+      success: true,
+      alreadyCancelled: true,
+      order: existing,
+      restoredItems: existing.restorationDetails || [],
+      couponRestored: Boolean(existing.couponRestored),
+      warnings: [],
+      message: "Order was already cancelled and all inventory was previously restored."
+    };
+  }
+  if (existing.orderStatus !== "cancelled") {
+    if (options.allowedCurrentStatuses && options.allowedCurrentStatuses.length > 0) {
+      if (!options.allowedCurrentStatuses.includes(existing.orderStatus)) {
+        return {
+          success: false,
+          order: existing,
+          restoredItems: [],
+          couponRestored: false,
+          warnings: [`Order status "${existing.orderStatus}" is not eligible for cancellation.`],
+          message: `Orders in status "${existing.orderStatus}" cannot be cancelled.`
+        };
       }
-    },
-    { new: false }
-    // Returns document before update
-  );
-  if (!orderBeforeUpdate) {
-    const existing = await Order.findById(cleanId);
-    if (!existing) {
+    } else {
+      if (NON_CANCELLABLE_ORDER_STATUSES.includes(existing.orderStatus)) {
+        return {
+          success: false,
+          order: existing,
+          restoredItems: [],
+          couponRestored: false,
+          warnings: [`Order status "${existing.orderStatus}" indicates goods have already been dispatched or delivered.`],
+          message: `Orders in status "${existing.orderStatus}" cannot be cancelled. Goods are already with the customer or in transit.`
+        };
+      }
+    }
+    if (existing.shipmentStatus && NON_CANCELLABLE_SHIPMENT_STATUSES.includes(existing.shipmentStatus)) {
       return {
         success: false,
+        order: existing,
         restoredItems: [],
         couponRestored: false,
-        warnings: ["Order not found in database."],
-        message: "Order not found."
+        warnings: [`Shipment status "${existing.shipmentStatus}" indicates goods have already left the facility.`],
+        message: `Orders with shipment status "${existing.shipmentStatus}" cannot be cancelled.`
       };
     }
-    if (existing.orderStatus === "cancelled" || existing.inventoryRestored) {
+  }
+  const isInitialCancellation = existing.orderStatus !== "cancelled";
+  const lockFilter = {
+    _id: cleanId,
+    inventoryRestored: { $ne: true },
+    $or: [
+      { restoringLock: { $ne: true } },
+      { restoringLockedAt: { $lt: new Date(Date.now() - 3e4) } },
+      { restoringLockedAt: null },
+      { restoringLockedAt: { $exists: false } }
+    ]
+  };
+  const lockUpdate = {
+    $set: {
+      orderStatus: "cancelled",
+      restoringLock: true,
+      restoringLockedAt: /* @__PURE__ */ new Date(),
+      cancelledAt: existing.cancelledAt || /* @__PURE__ */ new Date(),
+      cancelledBy: existing.cancelledBy || options.cancelledBy,
+      cancellationReason: options.reason ? options.reason.trim() : existing.cancellationReason || ""
+    }
+  };
+  const lockedOrder = await Order.findOneAndUpdate(lockFilter, lockUpdate, { new: true });
+  if (!lockedOrder) {
+    const current = await Order.findById(cleanId);
+    if (current && current.inventoryRestored) {
       return {
         success: true,
         alreadyCancelled: true,
-        order: existing,
-        restoredItems: existing.restorationDetails || [],
-        couponRestored: Boolean(existing.couponRestored),
+        order: current,
+        restoredItems: current.restorationDetails || [],
+        couponRestored: Boolean(current.couponRestored),
         warnings: [],
         message: "Order was already cancelled and inventory was previously restored."
       };
     }
     return {
       success: false,
-      order: existing,
-      restoredItems: [],
-      couponRestored: false,
-      warnings: [`Order status "${existing.orderStatus}" is not eligible for cancellation.`],
-      message: `Orders in status "${existing.orderStatus}" cannot be cancelled.`
+      order: current || existing,
+      restoredItems: current?.restorationDetails || [],
+      couponRestored: Boolean(current?.couponRestored),
+      warnings: ["Cancellation or inventory restoration is currently in progress by another request."],
+      message: "Restoration lock is currently held. Please retry in a few moments."
     };
   }
+  const existingDetails = Array.isArray(lockedOrder.restorationDetails) ? lockedOrder.restorationDetails : [];
   const restoredItems = [];
   const warnings = [];
-  let couponRestored = false;
-  if (Array.isArray(orderBeforeUpdate.items)) {
-    for (const item of orderBeforeUpdate.items) {
+  let couponRestored = Boolean(lockedOrder.couponRestored);
+  if (Array.isArray(lockedOrder.items)) {
+    for (let i = 0; i < lockedOrder.items.length; i++) {
+      const item = lockedOrder.items[i];
       const qty = item.quantity;
       if (!qty || qty <= 0) continue;
+      const priorDetail = existingDetails.find(
+        (d) => item.variantId && d.variantId && d.variantId.toString() === item.variantId.toString() || item.sku && d.sku && d.sku.toUpperCase() === item.sku.toUpperCase() || d.productName === item.productName && d.variantLabel === item.variantLabel
+      );
+      if (priorDetail && priorDetail.restored === true) {
+        restoredItems.push(priorDetail);
+        continue;
+      }
       const itemDetail = {
         productId: item.productId ? item.productId.toString() : void 0,
         productName: item.productName || "Unknown Product",
@@ -4660,12 +4740,17 @@ async function cancelAndRestockOrder(orderId, options) {
             );
           }
           if (!matchedVariant && item.sku) {
-            matchedVariant = product.variants.find((v) => v.sku && v.sku === item.sku);
+            matchedVariant = product.variants.find(
+              (v) => v.sku && v.sku.toUpperCase() === item.sku.toUpperCase()
+            );
           }
           if (!matchedVariant && item.variantLabel) {
-            matchedVariant = product.variants.find(
-              (v) => v.label === item.variantLabel || `${v.value || ""} ${v.unit || ""}`.trim() === item.variantLabel
-            );
+            const targetLabel = item.variantLabel.trim().toLowerCase();
+            matchedVariant = product.variants.find((v) => {
+              const label = (v.label || "").trim().toLowerCase();
+              const valUnit = `${v.value || ""} ${v.unit || ""}`.trim().toLowerCase();
+              return label === targetLabel || valUnit === targetLabel;
+            });
           }
         }
         if (!matchedVariant) {
@@ -4674,16 +4759,44 @@ async function cancelAndRestockOrder(orderId, options) {
           restoredItems.push(itemDetail);
           continue;
         }
+        const opId = `restore_${cleanId}_item${i}_var_${matchedVariant._id}`;
         const updateResult = await Product.updateOne(
-          { _id: product._id, "variants._id": matchedVariant._id },
-          { $inc: { "variants.$.stock": qty } }
+          {
+            _id: product._id,
+            variants: {
+              $elemMatch: {
+                _id: matchedVariant._id,
+                restoredOrderOps: { $ne: opId }
+              }
+            }
+          },
+          {
+            $inc: { "variants.$.stock": qty },
+            $addToSet: { "variants.$.restoredOrderOps": opId }
+          }
         );
         if (updateResult.modifiedCount > 0) {
           itemDetail.restored = true;
+          itemDetail.restoredAt = /* @__PURE__ */ new Date();
           itemDetail.variantId = matchedVariant._id.toString();
         } else {
-          itemDetail.error = "MongoDB Product update returned 0 modifiedCount";
-          warnings.push(`Failed to update stock for "${item.productName} (${item.variantLabel})".`);
+          const alreadyApplied = await Product.exists({
+            _id: product._id,
+            variants: {
+              $elemMatch: {
+                _id: matchedVariant._id,
+                restoredOrderOps: opId
+              }
+            }
+          });
+          if (alreadyApplied) {
+            itemDetail.restored = true;
+            itemDetail.restoredAt = /* @__PURE__ */ new Date();
+            itemDetail.variantId = matchedVariant._id.toString();
+          } else {
+            itemDetail.error = "MongoDB Product atomic stock update returned 0 modifiedCount";
+            warnings.push(`Failed to update stock for "${item.productName} (${item.variantLabel})".`);
+          }
         }
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
@@ -4693,37 +4806,55 @@ async function cancelAndRestockOrder(orderId, options) {
       restoredItems.push(itemDetail);
     }
   }
-  if (orderBeforeUpdate.discountCode && orderBeforeUpdate.discountCode.trim()) {
-    const code = orderBeforeUpdate.discountCode.trim().toUpperCase();
+  if (lockedOrder.discountCode && lockedOrder.discountCode.trim() && (typeof lockedOrder.discount === "number" && lockedOrder.discount > 0) && !couponRestored) {
+    const code = lockedOrder.discountCode.trim().toUpperCase();
+    const couponOpId = `restore_${cleanId}_coupon`;
     try {
       const discountUpdate = await Discount.updateOne(
-        { code, usedCount: { $gt: 0 } },
-        { $inc: { usedCount: -1 } }
+        { code, usedCount: { $gt: 0 }, restoredOrderOps: { $ne: couponOpId } },
+        { $inc: { usedCount: -1 }, $addToSet: { restoredOrderOps: couponOpId } }
       );
       if (discountUpdate.modifiedCount > 0) {
         couponRestored = true;
+      } else {
+        const alreadyRolledBack = await Discount.exists({
+          code,
+          restoredOrderOps: couponOpId
+        });
+        if (alreadyRolledBack) {
+          couponRestored = true;
+        } else {
+          warnings.push(`Could not rollback coupon "${code}": Discount code not found or usedCount was already 0.`);
+        }
       }
     } catch (couponErr) {
       const errMsg = couponErr instanceof Error ? couponErr.message : String(couponErr);
       warnings.push(`Failed to rollback coupon usage for "${code}": ${errMsg}`);
     }
   }
+  const allItemsRestored = restoredItems.length > 0 && restoredItems.every((it) => it.restored === true);
+  const anyItemsRestored = restoredItems.some((it) => it.restored === true);
+  const finalRestorationStatus = allItemsRestored ? "completed" : anyItemsRestored ? "partial_failure" : "failed";
   const updatedOrder = await Order.findByIdAndUpdate(
     cleanId,
     {
       $set: {
+        restoringLock: false,
+        restoringLockedAt: null,
+        inventoryRestored: allItemsRestored,
+        restorationStatus: finalRestorationStatus,
         couponRestored,
         restorationDetails: restoredItems
       }
     },
     { new: true }
   );
-  if (updatedOrder) {
+  if (isInitialCancellation && updatedOrder) {
     (async () => {
       try {
         await sendOrderStatusUpdate({
           order: updatedOrder,
-          previousStatus: orderBeforeUpdate.orderStatus,
+          previousStatus: existing.orderStatus,
           newStatus: "cancelled"
         });
       } catch (emailErr) {
@@ -4731,14 +4862,19 @@ async function cancelAndRestockOrder(orderId, options) {
       }
     })();
   }
+  const success = allItemsRestored;
+  let message2 = "Order cancelled successfully and reserved inventory returned to stock.";
+  if (!allItemsRestored) {
+    message2 = anyItemsRestored ? `Order cancelled, but some items could not be restocked (${warnings.join("; ")}). Retry is permitted.` : `Order cancelled, but inventory restoration failed: ${warnings.join("; ")}.`;
+  }
   return {
-    success: true,
+    success,
     alreadyCancelled: false,
-    order: updatedOrder || orderBeforeUpdate,
+    order: updatedOrder || lockedOrder,
     restoredItems,
     couponRestored,
     warnings,
-    message: warnings.length > 0 ? `Order cancelled. Note: Some items could not be restocked (${warnings.join("; ")}).` : "Order cancelled successfully and reserved inventory returned to stock."
+    message: message2
   };
 }
 
@@ -5074,7 +5210,9 @@ router5.post("/orders/:orderId/cancel", async (req, res) => {
       res.status(404).json({ success: false, message: "Order not found." });
       return;
     }
-    const isOwner = order.customer && order.customer.toString() === user._id.toString() || order.customerInfo && order.customerInfo.email.toLowerCase() === user.email.toLowerCase();
+    const isOwner = order.customer ? order.customer.toString() === user._id.toString() : Boolean(
+      order.customerInfo?.email && order.customerInfo.email.toLowerCase() === user.email.toLowerCase()
+    );
     if (!isOwner) {
       res.status(403).json({
         success: false,
@@ -5083,8 +5221,9 @@ router5.post("/orders/:orderId/cancel", async (req, res) => {
       return;
     }
     if (order.orderStatus === "cancelled" || order.inventoryRestored) {
-      res.status(400).json({
-        success: false,
+      res.json({
+        success: true,
+        alreadyCancelled: true,
         message: "This order is already cancelled.",
         order
       });
@@ -5121,7 +5260,8 @@ router5.post("/orders/:orderId/cancel", async (req, res) => {
     }
     res.json({
       success: true,
-      message: "Your order has been cancelled successfully. Any reserved items have been returned to stock.",
+      alreadyCancelled: Boolean(cancelResult.alreadyCancelled),
+      message: cancelResult.alreadyCancelled ? "This order is already cancelled." : "Your order has been cancelled successfully. Any reserved items have been returned to stock.",
       order: cancelResult.order || order
     });
   } catch (err) {
@@ -6622,13 +6762,39 @@ router9.put("/:id", async (req, res) => {
     }
     const previousStatus = order.orderStatus;
     let cancelResult = null;
+    if (order.orderStatus === "cancelled" && orderStatus && orderStatus !== "cancelled") {
+      res.status(400).json({
+        success: false,
+        message: `Order #${order.orderNumber} is cancelled and cannot be directly re-activated. Reserved inventory was already restored. A new order must be placed.`
+      });
+      return;
+    }
+    if (orderStatus === "cancelled" && order.orderStatus !== "cancelled") {
+      const nonCancellableOrderStatuses = ["shipped", "delivered"];
+      const nonCancellableShipmentStatuses = ["in_transit", "out_for_delivery", "delivered"];
+      if (nonCancellableOrderStatuses.includes(order.orderStatus)) {
+        res.status(400).json({
+          success: false,
+          message: `Cannot cancel order #${order.orderNumber} because it is already in "${order.orderStatus}" status. Physical goods cannot be automatically restocked. Please use the Return/Refund workflow.`
+        });
+        return;
+      }
+      if (order.shipmentStatus && nonCancellableShipmentStatuses.includes(order.shipmentStatus)) {
+        res.status(400).json({
+          success: false,
+          message: `Cannot cancel order #${order.orderNumber} because shipment status is "${order.shipmentStatus}". Goods have already left the facility.`
+        });
+        return;
+      }
+    }
     if (orderStatus === "cancelled") {
       const reason = typeof notes === "string" && notes.trim() ? notes.trim() : "Cancelled by administrator";
       cancelResult = await cancelAndRestockOrder(id, {
         cancelledBy: "admin",
-        reason
+        reason,
+        allowedCurrentStatuses: ["pending", "confirmed", "processing"]
       });
-      if (!cancelResult.success && !cancelResult.alreadyCancelled) {
+      if (!cancelResult.success && !cancelResult.alreadyCancelled && (!cancelResult.restoredItems || cancelResult.restoredItems.length === 0)) {
         res.status(400).json({
           success: false,
           message: cancelResult.message || "Failed to cancel order.",
@@ -6640,13 +6806,30 @@ router9.put("/:id", async (req, res) => {
       if (refreshed) {
         order.orderStatus = refreshed.orderStatus;
         order.inventoryRestored = refreshed.inventoryRestored;
+        order.restorationStatus = refreshed.restorationStatus;
         order.couponRestored = refreshed.couponRestored;
         order.cancelledAt = refreshed.cancelledAt;
         order.cancelledBy = refreshed.cancelledBy;
         order.cancellationReason = refreshed.cancellationReason;
         order.restorationDetails = refreshed.restorationDetails;
       }
-    } else if (orderStatus) {
+      await order.save();
+    } else {
+      const currentPersisted = await Order.findById(id).select("orderStatus inventoryRestored orderNumber").lean();
+      if (!currentPersisted) {
+        res.status(404).json({ success: false, message: "Order not found." });
+        return;
+      }
+      if (currentPersisted.orderStatus === "cancelled") {
+        res.status(409).json({
+          success: false,
+          conflict: true,
+          message: `Conflict: Order #${currentPersisted.orderNumber} was cancelled concurrently. Changes cannot be applied to a cancelled order.`,
+          order: currentPersisted
+        });
+        return;
+      }
+      const setPayload = {};
       const validOrderStatuses = [
         "pending",
         "confirmed",
@@ -6654,52 +6837,70 @@ router9.put("/:id", async (req, res) => {
         "shipped",
         "delivered"
       ];
-      if (validOrderStatuses.includes(orderStatus)) {
+      if (orderStatus && validOrderStatuses.includes(orderStatus)) {
+        setPayload.orderStatus = orderStatus;
         order.orderStatus = orderStatus;
       }
-    }
-    const validPaymentStatuses = ["pending", "paid", "failed", "refunded"];
-    if (paymentStatus && validPaymentStatuses.includes(paymentStatus)) {
-      order.paymentStatus = paymentStatus;
-      if (paymentStatus === "paid" && !order.paymentDetails?.paidAt) {
-        order.paymentDetails = {
-          ...order.paymentDetails,
-          paidAt: /* @__PURE__ */ new Date()
-        };
+      const validPaymentStatuses = ["pending", "paid", "failed", "refunded"];
+      if (paymentStatus && validPaymentStatuses.includes(paymentStatus)) {
+        setPayload.paymentStatus = paymentStatus;
+        order.paymentStatus = paymentStatus;
+        if (paymentStatus === "paid" && !order.paymentDetails?.paidAt) {
+          setPayload["paymentDetails.paidAt"] = /* @__PURE__ */ new Date();
+        }
       }
+      const validShipmentStatuses = [
+        "unfulfilled",
+        "ready_to_ship",
+        "in_transit",
+        "out_for_delivery",
+        "delivered",
+        "returned"
+      ];
+      if (shipmentStatus && validShipmentStatuses.includes(shipmentStatus)) {
+        setPayload.shipmentStatus = shipmentStatus;
+        order.shipmentStatus = shipmentStatus;
+      }
+      if (trackingInfo && typeof trackingInfo === "object") {
+        if (trackingInfo.courierName) setPayload["trackingInfo.courierName"] = String(trackingInfo.courierName).trim();
+        if (trackingInfo.trackingNumber) setPayload["trackingInfo.trackingNumber"] = String(trackingInfo.trackingNumber).trim();
+        if (trackingInfo.trackingUrl) setPayload["trackingInfo.trackingUrl"] = String(trackingInfo.trackingUrl).trim();
+      }
+      if (shippingAddress && typeof shippingAddress === "object") {
+        if (shippingAddress.name) setPayload["shippingAddress.name"] = String(shippingAddress.name).trim();
+        if (shippingAddress.phone) setPayload["shippingAddress.phone"] = String(shippingAddress.phone).trim();
+        if (shippingAddress.addressLine1) setPayload["shippingAddress.addressLine1"] = String(shippingAddress.addressLine1).trim();
+        if (shippingAddress.addressLine2 !== void 0) setPayload["shippingAddress.addressLine2"] = String(shippingAddress.addressLine2).trim();
+        if (shippingAddress.city) setPayload["shippingAddress.city"] = String(shippingAddress.city).trim();
+        if (shippingAddress.state) setPayload["shippingAddress.state"] = String(shippingAddress.state).trim();
+        if (shippingAddress.pincode) setPayload["shippingAddress.pincode"] = String(shippingAddress.pincode).trim();
+        if (shippingAddress.landmark !== void 0) setPayload["shippingAddress.landmark"] = String(shippingAddress.landmark).trim();
+      }
+      if (notes !== void 0) {
+        setPayload.notes = String(notes).trim();
+        order.notes = String(notes).trim();
+      }
+      const updated = await Order.findOneAndUpdate(
+        { _id: id, orderStatus: { $ne: "cancelled" } },
+        { $set: setPayload },
+        { new: true }
+      );
+      if (!updated) {
+        const fresh = await Order.findById(id);
+        if (fresh && fresh.orderStatus === "cancelled") {
+          res.status(409).json({
+            success: false,
+            conflict: true,
+            message: `Conflict: Order #${order.orderNumber} was cancelled concurrently while being saved. Changes were rejected.`,
+            order: fresh
+          });
+          return;
+        }
+        res.status(404).json({ success: false, message: "Order not found." });
+        return;
+      }
+      Object.assign(order, updated.toObject ? updated.toObject() : updated);
     }
-    const validShipmentStatuses = [
-      "unfulfilled",
-      "ready_to_ship",
-      "in_transit",
-      "out_for_delivery",
-      "delivered",
-      "returned"
-    ];
-    if (shipmentStatus && validShipmentStatuses.includes(shipmentStatus)) {
-      order.shipmentStatus = shipmentStatus;
-    }
-    if (trackingInfo && typeof trackingInfo === "object") {
-      order.trackingInfo = {
-        courierName: trackingInfo.courierName ? String(trackingInfo.courierName).trim() : order.trackingInfo?.courierName,
-        trackingNumber: trackingInfo.trackingNumber ? String(trackingInfo.trackingNumber).trim() : order.trackingInfo?.trackingNumber,
-        trackingUrl: trackingInfo.trackingUrl ? String(trackingInfo.trackingUrl).trim() : order.trackingInfo?.trackingUrl
-      };
-    }
-    if (shippingAddress && typeof shippingAddress === "object") {
-      if (shippingAddress.name) order.shippingAddress.name = String(shippingAddress.name).trim();
-      if (shippingAddress.phone) order.shippingAddress.phone = String(shippingAddress.phone).trim();
-      if (shippingAddress.addressLine1) order.shippingAddress.addressLine1 = String(shippingAddress.addressLine1).trim();
-      if (shippingAddress.addressLine2 !== void 0) order.shippingAddress.addressLine2 = String(shippingAddress.addressLine2).trim();
-      if (shippingAddress.city) order.shippingAddress.city = String(shippingAddress.city).trim();
-      if (shippingAddress.state) order.shippingAddress.state = String(shippingAddress.state).trim();
-      if (shippingAddress.pincode) order.shippingAddress.pincode = String(shippingAddress.pincode).trim();
-      if (shippingAddress.landmark !== void 0) order.shippingAddress.landmark = String(shippingAddress.landmark).trim();
-    }
-    if (notes !== void 0) {
-      order.notes = String(notes).trim();
-    }
-    await order.save();
     if (previousStatus !== order.orderStatus && order.orderStatus !== "cancelled") {
       (async () => {
         try {
@@ -6738,11 +6939,20 @@ router9.delete("/:id", async (req, res) => {
       res.status(404).json({ success: false, message: "Order not found." });
       return;
     }
-    if (!order.inventoryRestored && order.orderStatus !== "cancelled") {
-      await cancelAndRestockOrder(order._id, {
+    if (!order.inventoryRestored) {
+      const cancelResult = await cancelAndRestockOrder(order._id, {
         cancelledBy: "admin",
         reason: "Order deleted by administrator"
       });
+      if (!cancelResult.success || cancelResult.warnings && cancelResult.warnings.length > 0) {
+        res.status(409).json({
+          success: false,
+          message: `Cannot delete order #${order.orderNumber} because inventory restoration encountered issues. The order record has been preserved for auditing and reconciliation.`,
+          warnings: cancelResult.warnings,
+          restorationDetails: cancelResult.restoredItems
+        });
+        return;
+      }
     }
     await Order.findByIdAndDelete(id);
     res.json({

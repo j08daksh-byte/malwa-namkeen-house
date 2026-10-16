@@ -465,10 +465,15 @@ router.post('/orders/:orderId/cancel', async (req: AuthenticatedRequest, res: Re
       return;
     }
 
-    // Ownership check: Customer must own the order
-    const isOwner =
-      (order.customer && order.customer.toString() === user._id.toString()) ||
-      (order.customerInfo && order.customerInfo.email.toLowerCase() === user.email.toLowerCase());
+    // Ownership check (F-05): Strict ownership enforcement
+    // If the order has a registered customer ID, it MUST match the authenticated customer ID.
+    // Email fallback is ONLY permitted for guest checkout orders that have no registered customer ID.
+    const isOwner = order.customer
+      ? order.customer.toString() === user._id.toString()
+      : Boolean(
+          order.customerInfo?.email &&
+          order.customerInfo.email.toLowerCase() === user.email.toLowerCase()
+        );
 
     if (!isOwner) {
       res.status(403).json({
@@ -478,10 +483,11 @@ router.post('/orders/:orderId/cancel', async (req: AuthenticatedRequest, res: Re
       return;
     }
 
-    // Check if already cancelled
+    // Check if already cancelled (F-CR-03: Standardize idempotent response contract with admin route)
     if (order.orderStatus === 'cancelled' || order.inventoryRestored) {
-      res.status(400).json({
-        success: false,
+      res.json({
+        success: true,
+        alreadyCancelled: true,
         message: 'This order is already cancelled.',
         order,
       });
@@ -525,7 +531,10 @@ router.post('/orders/:orderId/cancel', async (req: AuthenticatedRequest, res: Re
 
     res.json({
       success: true,
-      message: 'Your order has been cancelled successfully. Any reserved items have been returned to stock.',
+      alreadyCancelled: Boolean(cancelResult.alreadyCancelled),
+      message: cancelResult.alreadyCancelled
+        ? 'This order is already cancelled.'
+        : 'Your order has been cancelled successfully. Any reserved items have been returned to stock.',
       order: cancelResult.order || order,
     });
   } catch (err: unknown) {

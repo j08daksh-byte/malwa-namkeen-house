@@ -178,6 +178,37 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
     const previousStatus = order.orderStatus;
     let cancelResult: any = null;
 
+    // F-01: Reject attempts to transition an already-cancelled order back to fulfillment
+    if (order.orderStatus === 'cancelled' && orderStatus && orderStatus !== 'cancelled') {
+      res.status(400).json({
+        success: false,
+        message: `Order #${order.orderNumber} is cancelled and cannot be directly re-activated. Reserved inventory was already restored. A new order must be placed.`,
+      });
+      return;
+    }
+
+    // F-02: Reject admin cancellation if goods have already been dispatched or delivered
+    if (orderStatus === 'cancelled' && order.orderStatus !== 'cancelled') {
+      const nonCancellableOrderStatuses: OrderStatus[] = ['shipped', 'delivered'];
+      const nonCancellableShipmentStatuses: ShipmentStatus[] = ['in_transit', 'out_for_delivery', 'delivered'];
+
+      if (nonCancellableOrderStatuses.includes(order.orderStatus)) {
+        res.status(400).json({
+          success: false,
+          message: `Cannot cancel order #${order.orderNumber} because it is already in "${order.orderStatus}" status. Physical goods cannot be automatically restocked. Please use the Return/Refund workflow.`,
+        });
+        return;
+      }
+
+      if (order.shipmentStatus && nonCancellableShipmentStatuses.includes(order.shipmentStatus)) {
+        res.status(400).json({
+          success: false,
+          message: `Cannot cancel order #${order.orderNumber} because shipment status is "${order.shipmentStatus}". Goods have already left the facility.`,
+        });
+        return;
+      }
+    }
+
     // Handle cancellation and inventory restoration
     if (orderStatus === 'cancelled') {
       const reason = typeof notes === 'string' && notes.trim()
@@ -187,9 +218,10 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
       cancelResult = await cancelAndRestockOrder(id, {
         cancelledBy: 'admin',
         reason,
+        allowedCurrentStatuses: ['pending', 'confirmed', 'processing'],
       });
 
-      if (!cancelResult.success && !cancelResult.alreadyCancelled) {
+      if (!cancelResult.success && !cancelResult.alreadyCancelled && (!cancelResult.restoredItems || cancelResult.restoredItems.length === 0)) {
         res.status(400).json({
           success: false,
           message: cancelResult.message || 'Failed to cancel order.',
@@ -203,13 +235,36 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
       if (refreshed) {
         order.orderStatus = refreshed.orderStatus;
         order.inventoryRestored = refreshed.inventoryRestored;
+        order.restorationStatus = refreshed.restorationStatus;
         order.couponRestored = refreshed.couponRestored;
         order.cancelledAt = refreshed.cancelledAt;
         order.cancelledBy = refreshed.cancelledBy;
         order.cancellationReason = refreshed.cancellationReason;
         order.restorationDetails = refreshed.restorationDetails;
       }
-    } else if (orderStatus) {
+
+      await order.save();
+    } else {
+      // Revalidate persisted status at the write boundary (F-CR-02)
+      const currentPersisted = await Order.findById(id).select('orderStatus inventoryRestored orderNumber').lean();
+      if (!currentPersisted) {
+        res.status(404).json({ success: false, message: 'Order not found.' });
+        return;
+      }
+
+      if (currentPersisted.orderStatus === 'cancelled') {
+        res.status(409).json({
+          success: false,
+          conflict: true,
+          message: `Conflict: Order #${currentPersisted.orderNumber} was cancelled concurrently. Changes cannot be applied to a cancelled order.`,
+          order: currentPersisted,
+        });
+        return;
+      }
+
+      // Build atomic conditional update payload ensuring orderStatus !== 'cancelled'
+      const setPayload: Record<string, any> = {};
+
       const validOrderStatuses: OrderStatus[] = [
         'pending',
         'confirmed',
@@ -217,58 +272,79 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
         'shipped',
         'delivered',
       ];
-      if (validOrderStatuses.includes(orderStatus)) {
+      if (orderStatus && validOrderStatuses.includes(orderStatus)) {
+        setPayload.orderStatus = orderStatus;
         order.orderStatus = orderStatus;
       }
-    }
 
-    const validPaymentStatuses: PaymentStatus[] = ['pending', 'paid', 'failed', 'refunded'];
-    if (paymentStatus && validPaymentStatuses.includes(paymentStatus)) {
-      order.paymentStatus = paymentStatus;
-      if (paymentStatus === 'paid' && !order.paymentDetails?.paidAt) {
-        order.paymentDetails = {
-          ...order.paymentDetails,
-          paidAt: new Date(),
-        };
+      const validPaymentStatuses: PaymentStatus[] = ['pending', 'paid', 'failed', 'refunded'];
+      if (paymentStatus && validPaymentStatuses.includes(paymentStatus)) {
+        setPayload.paymentStatus = paymentStatus;
+        order.paymentStatus = paymentStatus;
+        if (paymentStatus === 'paid' && !order.paymentDetails?.paidAt) {
+          setPayload['paymentDetails.paidAt'] = new Date();
+        }
       }
-    }
 
-    const validShipmentStatuses: ShipmentStatus[] = [
-      'unfulfilled',
-      'ready_to_ship',
-      'in_transit',
-      'out_for_delivery',
-      'delivered',
-      'returned',
-    ];
-    if (shipmentStatus && validShipmentStatuses.includes(shipmentStatus)) {
-      order.shipmentStatus = shipmentStatus;
-    }
+      const validShipmentStatuses: ShipmentStatus[] = [
+        'unfulfilled',
+        'ready_to_ship',
+        'in_transit',
+        'out_for_delivery',
+        'delivered',
+        'returned',
+      ];
+      if (shipmentStatus && validShipmentStatuses.includes(shipmentStatus)) {
+        setPayload.shipmentStatus = shipmentStatus;
+        order.shipmentStatus = shipmentStatus;
+      }
 
-    if (trackingInfo && typeof trackingInfo === 'object') {
-      order.trackingInfo = {
-        courierName: trackingInfo.courierName ? String(trackingInfo.courierName).trim() : order.trackingInfo?.courierName,
-        trackingNumber: trackingInfo.trackingNumber ? String(trackingInfo.trackingNumber).trim() : order.trackingInfo?.trackingNumber,
-        trackingUrl: trackingInfo.trackingUrl ? String(trackingInfo.trackingUrl).trim() : order.trackingInfo?.trackingUrl,
-      };
-    }
+      if (trackingInfo && typeof trackingInfo === 'object') {
+        if (trackingInfo.courierName) setPayload['trackingInfo.courierName'] = String(trackingInfo.courierName).trim();
+        if (trackingInfo.trackingNumber) setPayload['trackingInfo.trackingNumber'] = String(trackingInfo.trackingNumber).trim();
+        if (trackingInfo.trackingUrl) setPayload['trackingInfo.trackingUrl'] = String(trackingInfo.trackingUrl).trim();
+      }
 
-    if (shippingAddress && typeof shippingAddress === 'object') {
-      if (shippingAddress.name) order.shippingAddress.name = String(shippingAddress.name).trim();
-      if (shippingAddress.phone) order.shippingAddress.phone = String(shippingAddress.phone).trim();
-      if (shippingAddress.addressLine1) order.shippingAddress.addressLine1 = String(shippingAddress.addressLine1).trim();
-      if (shippingAddress.addressLine2 !== undefined) order.shippingAddress.addressLine2 = String(shippingAddress.addressLine2).trim();
-      if (shippingAddress.city) order.shippingAddress.city = String(shippingAddress.city).trim();
-      if (shippingAddress.state) order.shippingAddress.state = String(shippingAddress.state).trim();
-      if (shippingAddress.pincode) order.shippingAddress.pincode = String(shippingAddress.pincode).trim();
-      if (shippingAddress.landmark !== undefined) order.shippingAddress.landmark = String(shippingAddress.landmark).trim();
-    }
+      if (shippingAddress && typeof shippingAddress === 'object') {
+        if (shippingAddress.name) setPayload['shippingAddress.name'] = String(shippingAddress.name).trim();
+        if (shippingAddress.phone) setPayload['shippingAddress.phone'] = String(shippingAddress.phone).trim();
+        if (shippingAddress.addressLine1) setPayload['shippingAddress.addressLine1'] = String(shippingAddress.addressLine1).trim();
+        if (shippingAddress.addressLine2 !== undefined) setPayload['shippingAddress.addressLine2'] = String(shippingAddress.addressLine2).trim();
+        if (shippingAddress.city) setPayload['shippingAddress.city'] = String(shippingAddress.city).trim();
+        if (shippingAddress.state) setPayload['shippingAddress.state'] = String(shippingAddress.state).trim();
+        if (shippingAddress.pincode) setPayload['shippingAddress.pincode'] = String(shippingAddress.pincode).trim();
+        if (shippingAddress.landmark !== undefined) setPayload['shippingAddress.landmark'] = String(shippingAddress.landmark).trim();
+      }
 
-    if (notes !== undefined) {
-      order.notes = String(notes).trim();
-    }
+      if (notes !== undefined) {
+        setPayload.notes = String(notes).trim();
+        order.notes = String(notes).trim();
+      }
 
-    await order.save();
+      // Execute atomic conditional write: guarantees a concurrent cancellation is never overwritten
+      const updated = await Order.findOneAndUpdate(
+        { _id: id, orderStatus: { $ne: 'cancelled' } },
+        { $set: setPayload },
+        { new: true }
+      );
+
+      if (!updated) {
+        const fresh = await Order.findById(id);
+        if (fresh && fresh.orderStatus === 'cancelled') {
+          res.status(409).json({
+            success: false,
+            conflict: true,
+            message: `Conflict: Order #${order.orderNumber} was cancelled concurrently while being saved. Changes were rejected.`,
+            order: fresh,
+          });
+          return;
+        }
+        res.status(404).json({ success: false, message: 'Order not found.' });
+        return;
+      }
+
+      Object.assign(order, updated.toObject ? updated.toObject() : updated);
+    }
 
     // Asynchronously notify customer of non-cancellation status transitions
     // (cancelAndRestockOrder already dispatches cancellation email directly)
@@ -303,7 +379,8 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
 /**
  * DELETE /api/admin/orders/:id
  * Safely deletes an order. If the order was never cancelled and inventory was not restored,
- * automatically restores reserved inventory first to prevent permanent inventory loss.
+ * automatically restores reserved inventory first. If restoration fails or produces warnings,
+ * deletion is rejected (HTTP 409) to preserve the audit trail and prevent permanent data loss.
  */
 router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -319,13 +396,25 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
       return;
     }
 
-    // Safety guard: If the order was active/pending and inventory was not restored,
-    // restore the inventory before deletion so reserved stock is not permanently lost!
-    if (!order.inventoryRestored && order.orderStatus !== 'cancelled') {
-      await cancelAndRestockOrder(order._id, {
+    // Safety guard (F-03): If the order was never cancelled or only partially restored,
+    // ensure inventory is safely restored before document deletion.
+    if (!order.inventoryRestored) {
+      const cancelResult = await cancelAndRestockOrder(order._id, {
         cancelledBy: 'admin',
         reason: 'Order deleted by administrator',
       });
+
+      // F-03: If restoration encountered warnings or failed, DO NOT delete the order!
+      // Preserve the order and its restorationDetails audit trail for manual reconciliation.
+      if (!cancelResult.success || (cancelResult.warnings && cancelResult.warnings.length > 0)) {
+        res.status(409).json({
+          success: false,
+          message: `Cannot delete order #${order.orderNumber} because inventory restoration encountered issues. The order record has been preserved for auditing and reconciliation.`,
+          warnings: cancelResult.warnings,
+          restorationDetails: cancelResult.restoredItems,
+        });
+        return;
+      }
     }
 
     await Order.findByIdAndDelete(id);
