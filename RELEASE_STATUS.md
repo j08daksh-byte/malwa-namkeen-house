@@ -1,15 +1,17 @@
 # Malwa Namkeen House — Release Verification Status
 
-**Document Version:** 1.3.0
-**Updated:** 16 October 2026
+**Document Version:** 1.4.0
+**Updated:** 17 October 2026
 **Target Branch:** `main`
-**Current Production SHA:** `9fd812d3117d9195a4b659f562efb705ee10affb` (Merged and pushed to `daksh_repo/main`)
-**Previous Production SHA:** `8b8bbff7ff9e0a1a0c70d3863212c726d9310e94`
-**Merge Commit SHA:** `9fd812d3117d9195a4b659f562efb705ee10affb`
+**Current Canonical Production main SHA:** `bf2ef58d6a9e8b1c644f4d8072640f787a16bab9` (Consolidated and pushed to `daksh_repo/main`)
+**Previous Production main SHA:** `8dca7583a27b7ef8034cbd364b6db55ea8c87d48`
+**Candidate Merge Commit SHA:** `bf2ef58d6a9e8b1c644f4d8072640f787a16bab9`
+**Consolidated Candidate SHA:** `7fca7c3b1e23b38ac443a9856a117b6d29f55781`
+**Canonical Remote:** `daksh_repo` (`https://github.com/j08daksh-byte/malwa-namkeen-house.git`)
 **Vercel Production Project:** `malwa-namkeen` (`dakshs-projects-45d693b3`)
-**Vercel Production Deployment:** [`dpl_DayLHyctUicwMKCshgVRtsVLXFET`](https://malwa-namkeen-77c9d7yf7-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready**)
+**Active Production Deployment:** [`dpl_DayLHyctUicwMKCshgVRtsVLXFET`](https://malwa-namkeen-77c9d7yf7-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready** on baseline `9fd812d` / `8dca758`)
 **Canonical Production URL:** [https://malwa-namkeen.vercel.app](https://malwa-namkeen.vercel.app)
-**Production Database:** `malwa_namkeen` (MongoDB Atlas — Verified Connected)
+**Production Database:** `malwa_namkeen` (MongoDB Atlas — Protected / Untouched)
 **Active Isolated Test Database:** `malwa_namkeen_test` (MongoDB Atlas)
 
 ---
@@ -22,9 +24,10 @@
 | **Gate 2** | Fix Administrator Permissions | **PASS** | Token extraction cookie shadowing bug fixed in `server/lib/auth.ts`. Enforced least privilege: `PUT /api/admin/settings` restricted to `super_admin`. UI view-only guard implemented. `tests/admin_permissions.test.ts` passed 14/14. |
 | **Gate 3** | Implement Transactional Email | **PASS (Code / Simulated)** | Centralized Resend email service with branded templates implemented. Real delivery pending Vercel `RESEND_API_KEY` configuration. |
 | **Gate 4** | Branding and UI Excellence | **PASS** | Authentic heritage assets verified (`/logo.png`, `/logo-gold.png`, `/logo-nav.png`). Stale email placeholders cleaned from UI. Playfair Display & DM Sans typography intact. |
-| **Gate 5** | Comprehensive Verification | **PASS (100% COMPLETE)** | TypeScript check (`npm run lint`): **PASS (0 errors)**. Production build (`npm run build`): **PASS (0 errors)**. Order Cancellation & Inventory Restock Suite (`tests/order_cancellation_restock.test.ts`): **PASS (11/11)**. Strict Test-DB URI Isolation (`tests/e2e_safety_guard.test.ts`): **PASS (36/36)**. Deterministic unit regression (`tests/regression.test.ts`): **PASS (21/21)**. Focused Gate 2 & 3 suites: **PASS (27/27)**. All 15 verified unit/mocked suites: **PASS (15/15)**. Live E2E Suite 1 (`tests/e2e_live_server.test.ts`): **PASS (18/18)**. Live E2E Suite 2 (`tests/full_system_e2e.test.ts`): **PASS (43/43)**. |
-| **Gate 6** | Production Redeployment | **REDEPLOYED & VERIFIED** | Merged into `daksh_repo/main` (`9fd812d`). Vercel deployment `dpl_DayLHyctUicwMKCshgVRtsVLXFET` built and deployed to production. Public health check (`/api/health`) returned HTTP 200 OK (`mongodb: connected`, `database: malwa_namkeen`). |
-| **Gate 7** | Order Lifecycle & Inventory Restoration | **PASS (VERIFIED)** | Implemented safe, idempotent variant stock restock & single coupon rollback on order cancellation. Customer self-service cancellation added (`POST /api/customer/orders/:orderId/cancel`). Delete order guard added. Full test coverage in `tests/order_cancellation_restock.test.ts` (11/11 PASS). |
+| **Gate 5** | Comprehensive Verification | **PASS (100% COMPLETE)** | TypeScript check (`npm run lint`): **PASS (0 errors)**. Production build (`npm run build`): **PASS (0 errors)**. 18 test suites passing: **PASS (179/179)**. |
+| **Gate 6** | Order Lifecycle & Inventory Restoration | **PASS (VERIFIED)** | Implemented safe, idempotent variant stock restock & coupon rollback on order cancellation (`orderRestoration.ts`). Customer cancellation added (`POST /api/customer/orders/:orderId/cancel`). Delete order guard added. `tests/order_cancellation_restock.test.ts` passed 23/23. |
+| **Gate 7** | Storefront Product Card Availability | **PASS (VERIFIED)** | Component-level availability indicators in `ProductCard.tsx` (`SOLD OUT` badges, disabled CTA, variant prop sync, `:focus-visible`). `tests/product_card_availability.test.ts` passed 23/23. |
+| **Gate 8** | Candidate Integration & Canonical Merge | **CONSOLIDATED & PUSHED** | Merged candidate `7fca7c3` into canonical `main` (`bf2ef58`) via `--no-ff`. All 18 suites passed on merged `main`. Fast-forward pushed strictly to `daksh_repo/main`. |
 
 ---
 
@@ -34,7 +37,8 @@
 
 | Test Suite | Category | Results | Execution Command |
 | :--- | :--- | :---: | :--- |
-| `order_cancellation_restock.test.ts` | Order Restock, Concurrency & Ownership | **11 / 11 PASS** | `npx tsx tests/order_cancellation_restock.test.ts` |
+| `product_card_availability.test.ts` | Storefront UX Availability, Stock & Badges | **23 / 23 PASS** | `npx tsx tests/product_card_availability.test.ts` |
+| `order_cancellation_restock.test.ts` | Order Restock, Concurrency & Ownership | **23 / 23 PASS** | `npx tsx tests/order_cancellation_restock.test.ts` |
 | `full_system_e2e.test.ts` | Exhaustive Live System E2E (Port 3001) | **43 / 43 PASS** | `BASE_URL=http://127.0.0.1:3001 npx tsx tests/full_system_e2e.test.ts` |
 | `e2e_live_server.test.ts` | Controlled Live Server E2E (Port 3001) | **18 / 18 PASS** | `BASE_URL=http://127.0.0.1:3001 npx tsx tests/e2e_live_server.test.ts` |
 | `e2e_safety_guard.test.ts` | Safety & URI Isolation Guard | **36 / 36 PASS** | `npx tsx tests/e2e_safety_guard.test.ts` |
@@ -51,7 +55,7 @@
 | `ph008_csp_hardening.test.ts` | Unit HTTP Headers | **PASS** | `npx tsx tests/ph008_csp_hardening.test.ts` |
 | `ph009_user_compound_index.test.ts` | Schema Verification | **PASS** | `npx tsx tests/ph009_user_compound_index.test.ts` |
 | `ph010_inquiry_compound_index.test.ts` | Schema Verification | **PASS** | `npx tsx tests/ph010_inquiry_compound_index.test.ts` |
-| **Grand Total** | **All Live & Offline Suites (17 Suites)** | **156 / 156 PASS** | **100% Green** |
+| **Grand Total** | **All Live & Offline Suites (18 Suites)** | **206 / 206 PASS** (145/145 offline) | **100% Green** |
 
 ### 2.2 Compilation & Static Checks
 
@@ -103,24 +107,27 @@ Before deploying `release/malwa-production-ready` to production Vercel (`malwa-n
 
 ## 4. Current Release State & Remaining Release Actions
 
-Commit `3e64c4d` has been staged, committed, and pushed to `daksh_repo/release/malwa-production-ready`. Vercel automatically deployed preview build [`dpl_GsR8Th26tEUp8qqkhG8NrTSrRfYb`](https://malwa-namkeen-5n2w1orrg-dakshs-projects-45d693b3.vercel.app).
+Candidate branch `candidate/storefront-integration` (SHA `7fca7c3b1e23b38ac443a9856a117b6d29f55781`) has been consolidated into canonical `main` with a standard `--no-ff` merge commit (`bf2ef58d6a9e8b1c644f4d8072640f787a16bab9`) and pushed strictly to canonical remote `daksh_repo/main` (`https://github.com/j08daksh-byte/malwa-namkeen-house.git`).
 
-### 4.1 Canonical Pull Request
-- **Target Remote:** `daksh_repo` (`https://github.com/j08daksh-byte/malwa-namkeen-house`)
-- **Base Branch:** `main`
-- **Compare Branch:** `release/malwa-production-ready`
-- **Creation Link:** [Create Pull Request on GitHub](https://github.com/j08daksh-byte/malwa-namkeen-house/compare/main...release/malwa-production-ready?expand=1)
+Feature branch `release/malwa-production-ready` remains strictly unchanged at `73f3fd12ca254a295d8f8c630aae8bd83c7a988b`. Secondary remote `origin` (fork) was not used for pushing.
+
+### 4.1 Deployment Status (No Deployment Triggered)
+- **Deployment Action:** ZERO deployment was triggered to Vercel production.
+- **Active Canonical Deployment:** [`dpl_DayLHyctUicwMKCshgVRtsVLXFET`](https://malwa-namkeen-77c9d7yf7-dakshs-projects-45d693b3.vercel.app) remains unchanged on baseline `9fd812d` / `8dca758`.
+- **Production Database:** `malwa_namkeen` remains protected and untouched (0 mutations).
 
 ### 4.2 Empirical Vercel Configuration Audit (16 Oct 2026)
 - **Verified Present:** `MONGODB_URI`, `MONGODB_DB_NAME=malwa_namkeen`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_NOTIFICATION_EMAIL`, `APP_URL`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `ALLOWED_ORIGINS`, `BUSINESS_WHATSAPP_NUMBER`, `GOOGLE_CLIENT_ID`.
 - **CRITICAL MISSING (Blocker):** `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are **not configured** in Vercel. Real transactional emails cannot be delivered until these are added.
 - **Verified Absent (Safe):** `MONGODB_TEST_URI`, `MONGODB_TEST_DB_NAME`, `IS_E2E_TEST`, `TEST_ADMIN_EMAIL`, `TEST_ADMIN_PASSWORD` are strictly absent from Vercel settings.
 
-### 4.3 Operational Scope & Limitations
-- **Checkout & Payments:** Cash on Delivery (COD) / Direct Order Placement is the only active payment path. No third-party online payment gateway (Razorpay/Stripe/PhonePe) is integrated.
-- **Shipping:** Administrative tracking entry is manual (`courierName`, `trackingNumber`). No carrier API (Shiprocket/Delhivery) is integrated.
-- **Atlas Network Rule:** Keep `0.0.0.0/0` active in MongoDB Atlas Network Access until Vercel Dedicated Static IPs or AWS VPC Peering is provisioned. Removing it will break production serverless connectivity.
-- **Serverless Rate Limiting:** In-memory rate limiting and idempotency caching (`MemoryStore`) operate per hot lambda instance and do not share state across concurrent lambdas.
+### 4.3 Operational Scope, Known Risks & Limitations
+1. **Interactive Browser QA Incomplete:** While automated unit, integration, and live E2E suites pass 100% (206/206 passing assertions across 18 suites), manual end-to-end browser QA across multiple browsers, touch devices, and viewport sizes has not been executed. Do NOT claim manual QA passed.
+2. **Cancellation Inventory Restoration Pending Verification with Genuine Checkout Order:** The Gate 2A fixture pending order (`MN-QA-20261017-001`) was seeded directly via `Order.create` without decremented starting inventory. While unit tests (`order_cancellation_restock.test.ts`) verify mathematical and database restoration logic, full lifecycle verification of stock decrement during checkout followed by stock restoration upon cancellation against a genuine checkout-created order in the test database remains to be executed.
+3. **Transactional Email (Resend Delivery Unverified):** The email templating and dispatch system is verified in unit and simulated tests, but live production email delivery via Resend is unverified because `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are unpopulated in Vercel. Domain DNS records (SPF/DKIM/DMARC) must also be verified in Resend before enabling real delivery.
+4. **Third-Party Online Payments & Carrier Logistics Not Integrated:** The application operates strictly with Cash on Delivery (COD) / Direct Order Placement (`orderStatus: 'pending'`, `paymentStatus: 'pending'`). No payment gateway (Razorpay, Stripe, PhonePe) or automated carrier API (Shiprocket, Delhivery) is integrated. Tracking numbers and courier names require manual administrative entry.
+5. **Serverless Concurrency & Rate Limiting:** In-memory rate limiting and idempotency caching (`MemoryStore`) protect within a single warm lambda instance and do not share state across concurrent cold lambdas.
+6. **Atlas Network Rule:** Keep `0.0.0.0/0` active in MongoDB Atlas Network Access until Vercel Dedicated Static IPs or AWS VPC Peering is provisioned. Removing it will break production serverless connectivity.
 
 ---
 
@@ -239,22 +246,28 @@ npx tsx tests/full_system_e2e.test.ts
 
 | Defect ID | Description | Severity | Resolution Status | Verified Evidence |
 | :--- | :--- | :---: | :---: | :--- |
-| **DEF-01** | Order cancellation did not restore variant inventory or rollback coupon usage. Cancelled orders leaked reserved stock permanently. | **P0 (Critical)** | **RESOLVED** | Implemented `server/lib/orderRestoration.ts`. Restores exact variant quantities via atomic `$inc`. Rolls back coupon usage count. Concurrency-safe via atomic conditional lock (`inventoryRestored: { $ne: true }`). Verified by `tests/order_cancellation_restock.test.ts` (11/11 PASS). |
+| **DEF-01** | Order cancellation did not restore variant inventory or rollback coupon usage. Cancelled orders leaked reserved stock permanently. | **P0 (Critical)** | **RESOLVED** | Implemented `server/lib/orderRestoration.ts`. Restores exact variant quantities via atomic `$inc`. Rolls back coupon usage count. Concurrency-safe via atomic conditional lock (`inventoryRestored: { $ne: true }`). Verified by `tests/order_cancellation_restock.test.ts` (23/23 PASS). |
 | **DEF-06** | Customers had no mechanism to cancel eligible pending orders from the storefront. | **P1 (High)** | **RESOLVED** | Implemented authenticated `POST /api/customer/orders/:orderId/cancel`. Enforces customer account ownership and eligibility (`orderStatus: 'pending'`, `shipmentStatus: 'unfulfilled'`). Added Cancel action & confirmation modal to `Dashboard.tsx`. Verified by unit & routing test cases. |
 | **DEF-DELETE** | Admin order deletion previously bypassed cancellation accounting, permanently dropping reserved stock. | **P1 (High)** | **RESOLVED** | Guard added to `DELETE /api/admin/orders/:id` in `server/routes/adminOrders.ts`: active uncancelled orders automatically trigger restock prior to deletion. |
+| **DEF-AVAIL** | Storefront cards lacked clear availability badges, disabled purchase CTA for out-of-stock items, and proper variant state synchronization. | **P1 (High)** | **RESOLVED** | Implemented component-level availability indicators in `ProductCard.tsx` (`SOLD OUT` badges, disabled CTA, variant prop sync, `:focus-visible`). Verified by `tests/product_card_availability.test.ts` (23/23 PASS). |
 
 ---
 
-## 7. Architectural Constraints & Remaining Roadmap
+## 7. Architectural Constraints & Release State
 
 1. **MongoDB Concurrency Strategy:**
    Because production and local environments do not currently enforce replica set topologies required for multi-document MongoDB transactions (`session.startTransaction()`), atomic concurrency is guaranteed via conditional single-document updates:
    `Order.findOneAndUpdate({ _id, inventoryRestored: { $ne: true }, ... })`.
    This guarantees that competing concurrent cancellation requests can never double-restock inventory or double-decrement coupons.
-2. **Current Release Branch & State:**
-   - Active Branch: `release/malwa-production-ready`
-   - Canonical Remote: `daksh_repo`
-   - Production Baseline: `8dca758` (matching production `main`)
-   - Branch Status: Clean working tree ready for commit.
-3. **Next Recommended Task:**
-   - Prompt 3: Implement real payment gateway integration (Razorpay / cash-free) or automated logistics fulfillment (Shiprocket).
+2. **Current Canonical Release State:**
+   - Active Canonical Branch: `main`
+   - Canonical HEAD SHA: `bf2ef58d6a9e8b1c644f4d8072640f787a16bab9`
+   - Canonical Remote: `daksh_repo/main` (`https://github.com/j08daksh-byte/malwa-namkeen-house.git` — Verified pushed)
+   - Consolidated Candidate: `candidate/storefront-integration` (`7fca7c3b1e23b38ac443a9856a117b6d29f55781`)
+   - Release Branch Status: `release/malwa-production-ready` remains strictly preserved at `73f3fd12ca254a295d8f8c630aae8bd83c7a988b`.
+   - Vercel Production Deployment: Untouched; remains on baseline `9fd812d` / `8dca758`.
+3. **Mandatory Post-Consolidation Action Items:**
+   - Execute a genuine test checkout in the QA environment to verify real stock decrement followed by cancellation restock.
+   - Complete cross-device and cross-browser manual QA prior to public release.
+   - Configure `RESEND_API_KEY` and `RESEND_FROM_EMAIL` in Vercel before activating transactional email delivery.
+   - Implement real payment gateway integration (Razorpay / PhonePe) and automated shipping fulfillment (Shiprocket).

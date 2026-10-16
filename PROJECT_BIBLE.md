@@ -2,8 +2,8 @@
 
 **System Name:** Malwa Namkeen House D2C E-Commerce & Administrative Platform
 **Established:** 1954 (Ujjain / Bengaluru Heritage Savouries & Sweets)
-**Version:** 1.0.0 Production Architecture
-**Canonical Repository:** `j08daksh-byte/malwa-namkeen-house`
+**Version:** 1.1.0 Canonical Consolidated Main (`bf2ef58d6a9e8b1c644f4d8072640f787a16bab9`)
+**Canonical Repository:** `j08daksh-byte/malwa-namkeen-house` (`daksh_repo/main`)
 **Production Host:** Vercel (`malwa-namkeen`)
 **Database Host:** MongoDB Atlas
 
@@ -165,6 +165,24 @@ When an order transitions to `cancelled` (via administrator update or customer s
 - **Shared Engine:** Customer cancellation invokes the identical `cancelAndRestockOrder` engine with `cancelledBy: 'customer'`.
 - **Dashboard UI:** `src-rebuild/pages/Dashboard.tsx` provides a **Cancel Order** action with modal confirmation, reason entry, duplicate-click prevention, loading spinner, and immediate order status refresh.
 
+### 4.3 Storefront Availability, Sold-Out Badges & Variant Synchronization
+To prevent customer friction from attempting to order depleted stock, `ProductCard.tsx` implements strict component-level availability invariants:
+1. **Stock Availability Computation:**
+   - Evaluates availability per variant: `isVariantAvailable(v) = v.stock > 0 && v.active !== false`.
+   - Evaluates product-level availability: `isProductAvailable = variants.some(v => isVariantAvailable(v))`.
+   - Missing, negative, NaN, non-numeric, or `active: false` stock states are treated conservatively as unavailable (`0` stock).
+2. **Visual Sold-Out Badges & CTA Safeguard:**
+   - When all variants are out of stock, card displays a prominent `SOLD OUT` badge overlaid on product media.
+   - The primary CTA button transitions to disabled state (`cursor-not-allowed`, opacity reduction, `aria-disabled="true"`) displaying text `SOLD OUT`.
+   - When individual variants are selected, CTA dynamically updates between active purchase and disabled sold-out states.
+3. **Variant Prop Synchronization:**
+   - When parent components re-render or product props refresh with updated inventory, the component synchronizes `selectedVariant` against the fresh product data.
+   - If the currently selected variant becomes unavailable after refresh, the component automatically defaults to the first available in-stock variant.
+   - If all variants become unavailable, the component safely transitions to the fully sold-out state.
+4. **Keyboard Accessibility:**
+   - Variant selector buttons include explicit `:focus-visible` ring styling with heritage gold tokens (`#D4A359`) for full keyboard navigation and screen reader support.
+   - Verified by `tests/product_card_availability.test.ts` (23/23 tests pass).
+
 ---
 
 ## 5. Database Schema Reference (MongoDB / Mongoose)
@@ -180,19 +198,19 @@ When an order transitions to `cancelled` (via administrator update or customer s
 
 ## 6. Operations & Runbook
 
-### 5.1 Bootstrapping the Initial Super Admin
+### 6.1 Bootstrapping the Initial Super Admin
 To initialize a newly deployed instance without existing admin accounts:
 1. Set `ADMIN_EMAIL=your_email@example.com` in environment variables.
 2. Sign up on the storefront with `your_email@example.com`. The system automatically promotes matching accounts to `super_admin`.
 3. Alternatively, when bootstrapping headless on a blank database, set `ADMIN_PASSWORD=your_initial_password` in environment variables to auto-seed the initial owner on server startup.
 
-### 5.2 Secret Rotation Runbook
+### 6.2 Secret Rotation Runbook
 If `JWT_SECRET` must be rotated:
 1. Generate a new cryptographically random 32+ character string.
 2. Update `JWT_SECRET` in Vercel Environment Variables.
 3. Trigger a production redeployment. All active JWT sessions will be invalidated, requiring users to log in again.
 
-### 5.3 Strict Test-Database Connection Isolation Architecture
+### 6.3 Strict Test-Database Connection Isolation Architecture
 
 #### 1. Multi-Perimeter Architecture
 To eliminate all risk of mutating or polluting production data during test execution, the platform implements a four-tier defensive gate:
@@ -216,10 +234,12 @@ node tests/run_all.mjs
 # 2. Run focused automated safety gate suite (36 defensive isolation tests — 100% PASS)
 npx tsx tests/e2e_safety_guard.test.ts
 
-# 3. Run individual isolated unit suites (100% PASS)
-npx tsx tests/admin_permissions.test.ts       # 14 / 14 PASS
-npx tsx tests/transactional_email.test.ts     # 13 / 13 PASS
-npx tsx tests/regression.test.ts              # 21 / 21 PASS
+# 3. Run individual isolated unit & integration suites (100% PASS)
+npx tsx tests/product_card_availability.test.ts  # 23 / 23 PASS
+npx tsx tests/order_cancellation_restock.test.ts # 23 / 23 PASS
+npx tsx tests/admin_permissions.test.ts          # 14 / 14 PASS
+npx tsx tests/transactional_email.test.ts        # 13 / 13 PASS
+npx tsx tests/regression.test.ts                 # 21 / 21 PASS
 
 # 4. Run Live E2E tests against an authorized test database (malwa_namkeen_test)
 # Terminal 1: Launch test server on port 3001
@@ -227,7 +247,7 @@ npx tsx tests/regression.test.ts              # 21 / 21 PASS
 # Terminal 2: Run live suites
 # BASE_URL=http://127.0.0.1:3001 npx tsx tests/e2e_live_server.test.ts    # 18 / 18 PASS (3 records cleaned)
 # BASE_URL=http://127.0.0.1:3001 npx tsx tests/full_system_e2e.test.ts   # 43 / 43 PASS (4 records cleaned)
-# Grand Total: 145 / 145 Tests Passing Across All Suites
+# Grand Total: 206 / 206 Tests Passing Across All 18 Suites (145/145 offline)
 ```
 
 #### 4. Dedicated Test Database Setup in MongoDB Atlas
@@ -240,13 +260,15 @@ npx tsx tests/regression.test.ts              # 21 / 21 PASS
 5. Under **Network Access**, verify current test runner/CI IP is active.
 6. Configure `MONGODB_TEST_URI` and `MONGODB_TEST_DB_NAME=malwa_namkeen_test` in local `.env.local`.
 
-### 5.4 Atlas Network Access Policy (0.0.0.0/0 Precaution)
+### 6.4 Atlas Network Access Policy (0.0.0.0/0 Precaution)
 - An entry for `0.0.0.0/0` in MongoDB Atlas Network Access is commonly present to accommodate dynamic IP allocation in Vercel serverless functions.
 - **Pre-removal Requirements:** Before deleting `0.0.0.0/0` from Atlas Network Access, verify whether Vercel is configured with Dedicated Static Outbound IPs or VPC Peering. Removing `0.0.0.0/0` without static peering will immediately sever Vercel production serverless API connections to MongoDB Atlas.
 
-### 5.5 Operational Scope & Release Readiness Boundaries
-1. **Transactional Email (Resend):** Verified in code and simulated tests, but unverified live. Vercel environment audit confirmed `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are not yet populated. Domain DNS (SPF/DKIM/DMARC) must be verified in Resend before enabling real delivery.
-2. **Payment Processing:** Operates strictly on Cash on Delivery (COD) / Direct Order placement (`orderStatus: 'pending'`, `paymentStatus: 'pending'`). No third-party online payment gateways (Razorpay, Stripe, PhonePe) are integrated.
-3. **Logistics & Shipping:** Administrative tracking entry is manual (`courierName`, `trackingNumber`, `trackingUrl`). No third-party carrier API (Shiprocket, Delhivery) is integrated.
-4. **Serverless Concurrency:** In-memory rate limiting and idempotency caching (`MemoryStore`) protect within a single warm lambda instance; distributed rate limiting across concurrent cold lambdas requires an external Redis cache (e.g. Upstash) in future milestones.
-5. **Production Deployment:** Commit `9fd812d` deployed to Vercel production [`dpl_DayLHyctUicwMKCshgVRtsVLXFET`](https://malwa-namkeen.vercel.app). Verified live with public health check (`/api/health`) returning HTTP 200 OK (`mongodb: connected`, `database: malwa_namkeen`).
+### 6.5 Operational Scope & Release Readiness Boundaries
+1. **Interactive Browser QA Incomplete:** While automated suites pass 100% (206/206 assertions across 18 suites), manual browser QA across multiple viewport sizes and browsers has not been executed. Do NOT claim manual QA passed.
+2. **Cancellation Inventory Restoration Pending Verification with Genuine Checkout Order:** The Gate 2A fixture pending order (`MN-QA-20261017-001`) was seeded directly via `Order.create` without decremented starting inventory. While unit tests (`order_cancellation_restock.test.ts`) verify mathematical and database restoration logic, full lifecycle verification of stock decrement during checkout followed by stock restoration upon cancellation against a genuine checkout-created order in the test database remains to be executed.
+3. **Transactional Email (Resend Delivery Unverified):** Verified in code and simulated tests, but unverified live. Vercel environment audit confirmed `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are not yet populated. Domain DNS (SPF/DKIM/DMARC) must be verified in Resend before enabling real delivery.
+4. **Payment Processing:** Operates strictly on Cash on Delivery (COD) / Direct Order placement (`orderStatus: 'pending'`, `paymentStatus: 'pending'`). No third-party online payment gateways (Razorpay, Stripe, PhonePe) are integrated.
+5. **Logistics & Shipping:** Administrative tracking entry is manual (`courierName`, `trackingNumber`, `trackingUrl`). No third-party carrier API (Shiprocket, Delhivery) is integrated.
+6. **Serverless Concurrency:** In-memory rate limiting and idempotency caching (`MemoryStore`) protect within a single warm lambda instance; distributed rate limiting across concurrent cold lambdas requires an external Redis cache (e.g. Upstash) in future milestones.
+7. **Canonical Release & Production Deployment Status:** Canonical `main` is consolidated at `bf2ef58d6a9e8b1c644f4d8072640f787a16bab9` and pushed to `daksh_repo/main`. Release branch `release/malwa-production-ready` remains strictly preserved at `73f3fd12ca254a295d8f8c630aae8bd83c7a988b`. Zero deployment was performed during this consolidation. Active Vercel production deployment remains on baseline `9fd812d` / `8dca758` ([`dpl_DayLHyctUicwMKCshgVRtsVLXFET`](https://malwa-namkeen.vercel.app)).
