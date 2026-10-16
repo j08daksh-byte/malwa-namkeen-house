@@ -32,6 +32,7 @@ const cartRevalidateLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
   message: {
     success: false,
     message: 'Too many cart revalidations. Please wait a moment before trying again.',

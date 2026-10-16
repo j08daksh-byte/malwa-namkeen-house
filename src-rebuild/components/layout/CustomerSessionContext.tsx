@@ -35,7 +35,7 @@ export function CustomerSessionProvider({ children }: { children: ReactNode }) {
   });
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Sync profile from backend /api/auth/me on mount
+  // Sync profile from backend /api/auth/me on mount & renew active session
   useEffect(() => {
     let isMounted = true;
     const token = localStorage.getItem(TOKEN_KEY);
@@ -44,12 +44,29 @@ export function CustomerSessionProvider({ children }: { children: ReactNode }) {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       credentials: 'include',
     })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
+      .then(res => (res.ok ? res.json() : null))
+      .then(async data => {
         if (isMounted) {
           if (data?.success && data.user) {
             setCustomer(data.user);
             localStorage.setItem(KEY, JSON.stringify(data.user));
+
+            // Silently refresh token to keep session continuously active
+            try {
+              const refreshRes = await fetch('/api/auth/refresh', {
+                method: 'POST',
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                credentials: 'include',
+              });
+              if (refreshRes.ok) {
+                const refreshData = await refreshRes.json();
+                if (refreshData?.success && refreshData.token) {
+                  localStorage.setItem(TOKEN_KEY, refreshData.token);
+                }
+              }
+            } catch {
+              // Ignore network failures on background refresh
+            }
           } else if (!token) {
             // No valid session on server and no token in localStorage
             setCustomer(null);

@@ -66,16 +66,19 @@ export function verifyToken(token: string): AuthPayload | null {
   }
 }
 
+import mongoose from 'mongoose';
+
 /**
- * Extract token from cookie or Authorization header.
+ * Extract token from Authorization header or cookie.
+ * Prioritizes explicit Bearer header to prevent cookie shadowing.
  */
 export function extractToken(req: Request): string | null {
-  if (req.cookies && req.cookies[AUTH_COOKIE_NAME]) {
-    return req.cookies[AUTH_COOKIE_NAME];
-  }
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     return authHeader.substring(7).trim();
+  }
+  if (req.cookies && req.cookies[AUTH_COOKIE_NAME]) {
+    return req.cookies[AUTH_COOKIE_NAME];
   }
   return null;
 }
@@ -134,6 +137,30 @@ export async function requireAuth(
     return;
   }
 
+  // Live database validation when connected: ensures account exists and is active
+  if (mongoose.connection.readyState === 1 && payload.userId && mongoose.Types.ObjectId.isValid(payload.userId)) {
+    try {
+      const user = await User.findById(payload.userId).select('role active');
+      if (!user) {
+        res.status(401).json({
+          success: false,
+          message: 'Account not found. Please sign in again.',
+        });
+        return;
+      }
+      if (!user.active) {
+        res.status(403).json({
+          success: false,
+          message: 'Account is deactivated. Please contact support.',
+        });
+        return;
+      }
+      payload.role = user.role;
+    } catch {
+      // Transient error fallback
+    }
+  }
+
   req.user = payload;
   res.locals.user = payload;
   next();
@@ -166,12 +193,49 @@ export async function requireAdmin(
     return;
   }
 
-  if (payload.role !== 'admin' && payload.role !== 'super_admin') {
-    res.status(403).json({
-      success: false,
-      message: 'Access denied. Administrator privilege required.',
-    });
-    return;
+  // Live database validation when connected: verifies account exists, is active, and retains admin privileges
+  if (mongoose.connection.readyState === 1 && payload.userId && mongoose.Types.ObjectId.isValid(payload.userId)) {
+    try {
+      const user = await User.findById(payload.userId).select('role active');
+      if (!user) {
+        res.status(401).json({
+          success: false,
+          message: 'Account not found. Please sign in again.',
+        });
+        return;
+      }
+      if (!user.active) {
+        res.status(403).json({
+          success: false,
+          message: 'Account is deactivated. Please contact an administrator.',
+        });
+        return;
+      }
+      if (user.role !== 'admin' && user.role !== 'super_admin') {
+        res.status(403).json({
+          success: false,
+          message: 'Access denied. Administrator privilege required.',
+        });
+        return;
+      }
+      payload.role = user.role;
+    } catch {
+      if (payload.role !== 'admin' && payload.role !== 'super_admin') {
+        res.status(403).json({
+          success: false,
+          message: 'Access denied. Administrator privilege required.',
+        });
+        return;
+      }
+    }
+  } else {
+    if (payload.role !== 'admin' && payload.role !== 'super_admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Access denied. Administrator privilege required.',
+      });
+      return;
+    }
   }
 
   req.user = payload;
@@ -206,12 +270,49 @@ export async function requireSuperAdmin(
     return;
   }
 
-  if (payload.role !== 'super_admin') {
-    res.status(403).json({
-      success: false,
-      message: 'Access denied. Super Administrator privilege required.',
-    });
-    return;
+  // Live database validation when connected: ensures super_admin privileges remain valid
+  if (mongoose.connection.readyState === 1 && payload.userId && mongoose.Types.ObjectId.isValid(payload.userId)) {
+    try {
+      const user = await User.findById(payload.userId).select('role active');
+      if (!user) {
+        res.status(401).json({
+          success: false,
+          message: 'Account not found. Please sign in again.',
+        });
+        return;
+      }
+      if (!user.active) {
+        res.status(403).json({
+          success: false,
+          message: 'Account is deactivated. Please contact an administrator.',
+        });
+        return;
+      }
+      if (user.role !== 'super_admin') {
+        res.status(403).json({
+          success: false,
+          message: 'Access denied. Super Administrator privilege required.',
+        });
+        return;
+      }
+      payload.role = user.role;
+    } catch {
+      if (payload.role !== 'super_admin') {
+        res.status(403).json({
+          success: false,
+          message: 'Access denied. Super Administrator privilege required.',
+        });
+        return;
+      }
+    }
+  } else {
+    if (payload.role !== 'super_admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Access denied. Super Administrator privilege required.',
+      });
+      return;
+    }
   }
 
   req.user = payload;

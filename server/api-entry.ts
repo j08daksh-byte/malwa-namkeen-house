@@ -26,8 +26,10 @@ import enquiryRoutes from './routes/enquiries.ts';
 import adminBannerRoutes from './routes/adminBanners.ts';
 import publicBannerRoutes from './routes/banners.ts';
 import sitemapRoutes from './routes/sitemap.ts';
+import conciergeRoutes from './routes/concierge.ts';
 
 const app = express();
+app.set('trust proxy', 1);
 const isProd = process.env.NODE_ENV === 'production';
 
 // Strict CORS configuration
@@ -102,6 +104,7 @@ app.get(['/health', '/api/health'], async (_req: Request, res: Response) => {
     time: new Date().toISOString(),
     service: BUSINESS.name,
     mongodb: dbHealthy ? 'connected' : mongo.state,
+    database: mongoose.connection.name || null,
   });
 });
 
@@ -129,6 +132,7 @@ const routeConfigs = [
   { path: '/admin/banners', router: adminBannerRoutes },
   { path: '/banners', router: publicBannerRoutes },
   { path: '/admin/uploads', router: uploadRoutes },
+  { path: '/concierge', router: conciergeRoutes },
   { path: '/', router: publicCatalogRoutes },
   { path: '/', router: enquiryRoutes },
 ];

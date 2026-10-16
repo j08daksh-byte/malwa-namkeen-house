@@ -50,7 +50,7 @@
   --border-gold:    rgba(200,154,61,0.55);
 
   /* Layout */
-  --nav-h:          68px;
+  --nav-h:          78px;
   --container-max:  1240px;
   --container-px:   24px;
   --safe-bottom:    env(safe-area-inset-bottom, 0px);
@@ -272,6 +272,12 @@ p {
 /* ── Forms ──────────────────────────────────────────────────────────────── */
 input, textarea, select, button {
   font-family: var(--font-primary);
+}
+@media (max-width: 899px) {
+  :root { --nav-h: 70px; }
+}
+@media (max-width: 479px) {
+  :root { --nav-h: 64px; }
 }
 @media (max-width: 768px) {
   input:not([type="checkbox"]):not([type="radio"]),

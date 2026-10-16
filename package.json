@@ -9,7 +9,9 @@
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx tests/regression.test.ts"
+    "test": "node tests/run_all.mjs",
+    "test:unit": "tsx tests/regression.test.ts",
+    "test:e2e": "tsx tests/full_system_e2e.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

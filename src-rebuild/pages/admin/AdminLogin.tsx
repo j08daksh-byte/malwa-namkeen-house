@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SEOHead from '../../components/seo/SEOHead.tsx';
 
@@ -8,6 +8,9 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
+
+  // Google OAuth
+  const googleBtnRef = useRef<HTMLDivElement>(null);
 
   // Forgot password state
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -34,6 +37,104 @@ export default function AdminLogin() {
         .catch(() => {});
     }
   }, [navigate]);
+
+  // Initialize Google OAuth
+  useEffect(() => {
+    let isMounted = true;
+
+    async function setupGoogle() {
+      try {
+        let clientId = '';
+        try {
+          const res = await fetch('/api/auth/google/config');
+          if (res.ok) {
+            const data = await res.json();
+            clientId = data.clientId;
+          }
+        } catch {
+          // fallback
+        }
+        if (!clientId) {
+          clientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '';
+        }
+        if (!clientId || !isMounted) return;
+
+        const initGsi = () => {
+          if ((window as any).google?.accounts?.id && googleBtnRef.current) {
+            try {
+              (window as any).google.accounts.id.initialize({
+                client_id: clientId,
+                callback: handleGoogleResponse,
+                auto_select: false,
+              });
+              googleBtnRef.current.innerHTML = '';
+              (window as any).google.accounts.id.renderButton(googleBtnRef.current, {
+                type: 'standard',
+                theme: 'outline',
+                size: 'large',
+                text: 'continue_with',
+                shape: 'rectangular',
+                logo_alignment: 'left',
+                width: 328,
+              });
+            } catch (err) {
+              console.warn('[Admin Google GSI]', err);
+            }
+          }
+        };
+
+        if ((window as any).google?.accounts?.id) {
+          initGsi();
+        } else if (!document.getElementById('google-gsi-script')) {
+          const script = document.createElement('script');
+          script.id = 'google-gsi-script';
+          script.src = 'https://accounts.google.com/gsi/client';
+          script.async = true;
+          script.defer = true;
+          script.onload = () => { if (isMounted) initGsi(); };
+          document.body.appendChild(script);
+        }
+      } catch (err) {
+        console.warn('[Admin Google Config]', err);
+      }
+    }
+
+    setupGoogle();
+    return () => { isMounted = false; };
+  }, []);
+
+  async function handleGoogleResponse(response: any) {
+    if (!response?.credential) return;
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: response.credential }),
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        const role = data.user?.role;
+        if (role === 'admin' || role === 'super_admin') {
+          if (data.token) {
+            localStorage.setItem('malwa_admin_token', data.token);
+          }
+          navigate('/admin/dashboard', { replace: true });
+          return;
+        } else {
+          setError(`Access denied. Account (${data.user?.email || 'user'}) does not have administrator privileges.`);
+        }
+      } else {
+        setError(data.message || 'Google sign in failed.');
+      }
+    } catch {
+      setError('Unable to reach server. Please check your network.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -91,19 +192,34 @@ export default function AdminLogin() {
       <SEOHead title="Admin Portal Sign In" noIndex={true} />
       <div style={{ width: '100%', maxWidth: '400px' }}>
         {/* Logo area */}
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ color: '#F0C74E', fontSize: '22px', fontWeight: 800, letterSpacing: '0.04em' }}>MALWA NAMKEEN HOUSE</div>
-          <div style={{ color: 'rgba(255,248,236,0.45)', fontSize: '12px', marginTop: '4px', letterSpacing: '0.10em', textTransform: 'uppercase' }}>Admin Portal</div>
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+          <img
+            src="/logo-gold.png"
+            alt="MALWA NAMKEEN HOUSE"
+            style={{ height: '64px', width: 'auto', marginBottom: '16px' }}
+          />
+          <div style={{ color: 'rgba(255,248,236,0.60)', fontSize: '12px', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Admin Portal</div>
         </div>
 
         <div style={{ background: '#fff', borderRadius: '18px', padding: '36px', boxShadow: '0 24px 60px rgba(0,0,0,0.30)' }}>
-          <h1 style={{ margin: '0 0 24px', fontSize: '20px', fontWeight: 700, color: '#1A0A0F', textAlign: 'center' }}>Sign In</h1>
+          <h1 style={{ margin: '0 0 20px', fontSize: '20px', fontWeight: 700, color: '#1A0A0F', textAlign: 'center' }}>Sign In</h1>
 
           {error && (
             <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '10px 14px', borderRadius: '8px', fontSize: '13.5px', marginBottom: '16px' }}>
               {error}
             </div>
           )}
+
+          {/* Google Sign In */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+            <div ref={googleBtnRef} style={{ minHeight: '40px' }} />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', margin: '16px 0', color: '#9CA3AF', fontSize: '12px' }}>
+            <div style={{ flex: 1, height: '1px', background: '#E5E7EB' }} />
+            <span style={{ padding: '0 10px', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '11px', color: '#9CA3AF' }}>or with credentials</span>
+            <div style={{ flex: 1, height: '1px', background: '#E5E7EB' }} />
+          </div>
 
           <form onSubmit={handleLogin}>
             <label style={labelStyle}>Email</label>

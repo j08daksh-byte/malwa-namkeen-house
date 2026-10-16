@@ -297,9 +297,9 @@ export default function Footer() {
           <div className="ft-col-brand">
             <div style={{ marginBottom: '16px' }}>
               <img
-                src={settings.logo || '/logo-gold.png'}
+                src={(settings.logo && settings.logo !== '/logo.png') ? settings.logo : '/logo-gold.png'}
                 alt={settings.storeName}
-                style={{ height: '44px', width: 'auto', opacity: 0.92 }}
+                style={{ height: '62px', width: 'auto', maxWidth: '240px', objectFit: 'contain', opacity: 0.98 }}
                 onError={e => { e.currentTarget.style.display = 'none'; }}
               />
             </div>

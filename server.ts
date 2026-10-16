@@ -109,14 +109,19 @@ Key Business Knowledge & Guidelines:
 async function startServer() {
   validateEnv();
 
-  // ── MongoDB connection (non-blocking — server starts even if Mongo is unavailable)
+  // ── MongoDB connection (non-blocking in dev — server starts even if Mongo is unavailable)
   try {
     await connectMongoDB();
-  } catch {
+  } catch (err: unknown) {
+    if (process.env.NODE_ENV === 'test' || process.env.IS_E2E_TEST === 'true') {
+      console.error('[Startup Safety Error] Test database connection failed:', err instanceof Error ? err.message : err);
+      process.exit(1);
+    }
     console.warn('[Startup] MongoDB unavailable — server will start without it.');
   }
 
   const app  = express();
+  app.set('trust proxy', 1);
   const PORT = Number(process.env.PORT ?? 3000);
   const isProd = process.env.NODE_ENV === 'production';
 
@@ -225,6 +230,7 @@ async function startServer() {
       time: new Date().toISOString(),
       service: BUSINESS.name,
       mongodb: dbHealthy ? 'connected' : mongo.state,
+      database: mongoose.connection.name || null,
     });
   });
 
