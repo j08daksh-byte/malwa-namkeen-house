@@ -11,6 +11,7 @@ export interface IProductVariant {
   sku: string;               // Unique stock keeping unit (e.g. "MLW-RT-200G")
   active: boolean;           // Variant availability toggle
   sortOrder: number;         // Ordering of variants on storefront
+  restoredOrderOps?: string[]; // Operation IDs for crash-safe idempotent inventory restock
 }
 
 export interface ICustomSpecification {
@@ -93,6 +94,10 @@ const productVariantSchema = new Schema<IProductVariant>(
     sortOrder: {
       type: Number,
       default: 0,
+    },
+    restoredOrderOps: {
+      type: [String],
+      default: [],
     },
   },
   {

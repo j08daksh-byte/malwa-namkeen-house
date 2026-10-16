@@ -19,6 +19,7 @@ import {
   Truck,
   CheckCircle2,
   XCircle,
+  AlertCircle,
   ShieldCheck,
   Mail,
   KeyRound,
@@ -94,6 +95,11 @@ export default function Dashboard() {
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<CustomerOrder | null>(null);
+
+  const [isCancellingOrder, setIsCancellingOrder] = useState(false);
+  const [cancelModalOrder, setCancelModalOrder] = useState<CustomerOrder | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const [editingAddress, setEditingAddress] = useState<CustomerAddress | null>(null);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
@@ -178,11 +184,12 @@ export default function Dashboard() {
 
   // Dialog scroll lock and Escape key
   useEffect(() => {
-    const isModalOpen = Boolean(editingAddress || selectedOrder);
+    const isModalOpen = Boolean(editingAddress || selectedOrder || cancelModalOrder);
     if (isModalOpen) {
       document.body.style.overflow = 'hidden';
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
+          if (!isCancellingOrder) setCancelModalOrder(null);
           setEditingAddress(null);
           setSelectedOrder(null);
         }
@@ -195,13 +202,49 @@ export default function Dashboard() {
     } else {
       document.body.style.overflow = '';
     }
-  }, [editingAddress, selectedOrder]);
+  }, [editingAddress, selectedOrder, cancelModalOrder, isCancellingOrder]);
 
   const go = (next: Section) => {
     setSection(next);
     setNotice('');
     setErrorNotice('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Cancel Order (Customer self-service for eligible pending orders)
+  const handleCancelOrder = async (order: CustomerOrder) => {
+    setIsCancellingOrder(true);
+    setCancelError(null);
+    try {
+      const res = await fetch(`/api/customer/orders/${order._id}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({ reason: cancelReason.trim() || 'Cancelled by customer via dashboard' }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to cancel order.');
+      }
+
+      const updatedOrder = data.order || { ...order, orderStatus: 'cancelled' };
+      setOrders(prev => prev.map(o => (o._id === order._id ? { ...o, ...updatedOrder, orderStatus: 'cancelled' } : o)));
+      if (selectedOrder && selectedOrder._id === order._id) {
+        setSelectedOrder(prev => prev ? { ...prev, ...updatedOrder, orderStatus: 'cancelled' } : null);
+      }
+
+      setNotice('Your order has been cancelled successfully. Reserved delicacies have been returned to stock.');
+      setCancelModalOrder(null);
+      setCancelReason('');
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Failed to cancel order.';
+      setCancelError(errMsg);
+    } finally {
+      setIsCancellingOrder(false);
+    }
   };
 
   // Save Address (Create or Edit)
@@ -1250,13 +1293,36 @@ export default function Dashboard() {
                             {order.items.map(i => `${i.productName} (${i.variantLabel}) × ${i.quantity}`).join(', ')}
                           </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                           <span className={`order-status-badge status-${order.orderStatus}`}>
                             {order.orderStatus}
                           </span>
                           <span style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '16px', fontWeight: 700, color: '#55000A' }}>
                             ₹{order.total}
                           </span>
+                          {order.orderStatus === 'pending' && (!order.shipmentStatus || order.shipmentStatus === 'unfulfilled') && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCancelModalOrder(order);
+                                setCancelError(null);
+                                setCancelReason('');
+                              }}
+                              style={{
+                                background: '#FFF1F2',
+                                color: '#BE123C',
+                                border: '1px solid #FECDD3',
+                                padding: '4px 10px',
+                                borderRadius: '6px',
+                                fontSize: '11.5px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          )}
                           <ChevronRight size={16} style={{ color: '#C99A32' }} />
                         </div>
                       </div>
@@ -1728,6 +1794,147 @@ export default function Dashboard() {
                   {selectedOrder.shippingAddress.addressLine1}, {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state} — {selectedOrder.shippingAddress.pincode}
                 </div>
               )}
+
+              {/* Cancellation Action for Pending / Eligible Orders */}
+              {selectedOrder.orderStatus === 'pending' &&
+                (!selectedOrder.shipmentStatus || selectedOrder.shipmentStatus === 'unfulfilled') && (
+                  <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(200,154,61,0.2)', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      className="btn-cancel-order"
+                      onClick={() => {
+                        setCancelModalOrder(selectedOrder);
+                        setCancelError(null);
+                        setCancelReason('');
+                      }}
+                      style={{
+                        background: '#FFF1F2',
+                        color: '#BE123C',
+                        border: '1px solid #FECDD3',
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        transition: 'background 0.2s',
+                      }}
+                    >
+                      <XCircle size={15} /> Cancel Order
+                    </button>
+                  </div>
+                )}
+            </div>
+          </div>
+        )}
+
+        {/* Cancel Order Confirmation Dialog Modal */}
+        {cancelModalOrder && (
+          <div className="dialog-overlay" onClick={() => !isCancellingOrder && setCancelModalOrder(null)}>
+            <div
+              className="dialog-card"
+              style={{ maxWidth: '440px' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="dialog-header">
+                <div>
+                  <h3 className="dialog-title" style={{ color: '#BE123C', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AlertCircle size={20} /> Cancel Order
+                  </h3>
+                  <p className="dialog-sub">Order #{cancelModalOrder.orderNumber}</p>
+                </div>
+                {!isCancellingOrder && (
+                  <button
+                    className="dialog-close"
+                    onClick={() => setCancelModalOrder(null)}
+                    aria-label="Close cancellation modal"
+                  >
+                    <X size={18} />
+                  </button>
+                )}
+              </div>
+
+              <div style={{ marginTop: '14px', fontSize: '13.5px', color: '#55000A', lineHeight: 1.5 }}>
+                <p style={{ margin: '0 0 12px' }}>
+                  Are you sure you want to cancel this order? All reserved delicacies will be returned to stock immediately, and this action cannot be undone.
+                </p>
+
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#75645C', marginBottom: '6px' }}>
+                    Reason for cancellation (optional):
+                  </label>
+                  <input
+                    type="text"
+                    value={cancelReason}
+                    onChange={e => setCancelReason(e.target.value)}
+                    placeholder="e.g. Ordered by mistake, changing address..."
+                    disabled={isCancellingOrder}
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(200,154,61,0.3)',
+                      fontSize: '13px',
+                    }}
+                  />
+                </div>
+
+                {cancelError && (
+                  <div style={{ background: '#FFF1F2', border: '1px solid #FECDD3', color: '#BE123C', padding: '10px 12px', borderRadius: '8px', fontSize: '12.5px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AlertCircle size={16} />
+                    <span>{cancelError}</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '18px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setCancelModalOrder(null)}
+                    disabled={isCancellingOrder}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid #D6D3D1',
+                      color: '#57534E',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: isCancellingOrder ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    Keep Order
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCancelOrder(cancelModalOrder)}
+                    disabled={isCancellingOrder}
+                    style={{
+                      background: '#BE123C',
+                      border: 'none',
+                      color: '#FFFFFF',
+                      padding: '8px 18px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: isCancellingOrder ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    {isCancellingOrder ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin" /> Cancelling…
+                      </>
+                    ) : (
+                      'Yes, Cancel Order'
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

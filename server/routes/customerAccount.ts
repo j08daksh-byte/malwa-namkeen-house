@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import { User, type IUserAddress } from '../models/User.ts';
 import { Order } from '../models/Order.ts';
 import { requireAuth, hashPassword, comparePassword, type AuthenticatedRequest } from '../lib/auth.ts';
+import { cancelAndRestockOrder } from '../lib/orderRestoration.ts';
 
 const router = Router();
 
@@ -435,6 +436,110 @@ router.get('/orders/:orderId', async (req: AuthenticatedRequest, res: Response) 
   } catch (err: unknown) {
     console.error('[Customer Order Detail Error]', err);
     res.status(500).json({ success: false, message: 'Failed to fetch order detail.' });
+  }
+});
+
+/**
+ * POST /api/customer/orders/:orderId/cancel
+ * Allows an authenticated customer to cancel their own pending, unfulfilled order.
+ * Automatically and idempotently restores reserved variant stock and rolls back coupon usage.
+ */
+router.post('/orders/:orderId/cancel', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { orderId } = req.params;
+    const { reason = 'Cancelled by customer' } = req.body || {};
+
+    const user = await User.findById(req.user?.userId);
+    if (!user || !user.active) {
+      res.status(401).json({ success: false, message: 'Account not found or inactive. Please sign in again.' });
+      return;
+    }
+
+    const query: any = mongoose.Types.ObjectId.isValid(orderId)
+      ? { _id: orderId }
+      : { orderNumber: orderId };
+
+    const order = await Order.findOne(query);
+    if (!order) {
+      res.status(404).json({ success: false, message: 'Order not found.' });
+      return;
+    }
+
+    // Ownership check (F-05): Strict ownership enforcement
+    // If the order has a registered customer ID, it MUST match the authenticated customer ID.
+    // Email fallback is ONLY permitted for guest checkout orders that have no registered customer ID.
+    const isOwner = order.customer
+      ? order.customer.toString() === user._id.toString()
+      : Boolean(
+          order.customerInfo?.email &&
+          order.customerInfo.email.toLowerCase() === user.email.toLowerCase()
+        );
+
+    if (!isOwner) {
+      res.status(403).json({
+        success: false,
+        message: 'You do not have permission to cancel this order.',
+      });
+      return;
+    }
+
+    // Check if already cancelled (F-CR-03: Standardize idempotent response contract with admin route)
+    if (order.orderStatus === 'cancelled' || order.inventoryRestored) {
+      res.json({
+        success: true,
+        alreadyCancelled: true,
+        message: 'This order is already cancelled.',
+        order,
+      });
+      return;
+    }
+
+    // Eligibility check: Only 'pending' orders with 'unfulfilled' shipment can be cancelled online
+    if (order.orderStatus !== 'pending') {
+      res.status(400).json({
+        success: false,
+        message: `Orders that are already in "${order.orderStatus}" status cannot be cancelled online. Please contact support.`,
+        order,
+      });
+      return;
+    }
+
+    if (order.shipmentStatus && order.shipmentStatus !== 'unfulfilled') {
+      res.status(400).json({
+        success: false,
+        message: 'This order has already been prepared or dispatched for shipping and cannot be cancelled.',
+        order,
+      });
+      return;
+    }
+
+    // Atomically cancel and restock inventory
+    const cancelResult = await cancelAndRestockOrder(order._id, {
+      cancelledBy: 'customer',
+      reason: typeof reason === 'string' && reason.trim() ? reason.trim() : 'Cancelled by customer',
+      allowedCurrentStatuses: ['pending'],
+    });
+
+    if (!cancelResult.success && !cancelResult.alreadyCancelled) {
+      res.status(400).json({
+        success: false,
+        message: cancelResult.message || 'Failed to cancel order.',
+        warnings: cancelResult.warnings,
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      alreadyCancelled: Boolean(cancelResult.alreadyCancelled),
+      message: cancelResult.alreadyCancelled
+        ? 'This order is already cancelled.'
+        : 'Your order has been cancelled successfully. Any reserved items have been returned to stock.',
+      order: cancelResult.order || order,
+    });
+  } catch (err: unknown) {
+    console.error('[Customer Order Cancel Error]', err);
+    res.status(500).json({ success: false, message: 'Failed to cancel order. Please try again or contact support.' });
   }
 });
 

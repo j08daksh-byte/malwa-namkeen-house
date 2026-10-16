@@ -1,7 +1,7 @@
 // server/api-entry.ts
 import express from "express";
 import cookieParser from "cookie-parser";
-import mongoose29 from "mongoose";
+import mongoose30 from "mongoose";
 
 // server/lib/mongodb.ts
 import mongoose5 from "mongoose";
@@ -216,6 +216,10 @@ var productVariantSchema = new Schema3(
     sortOrder: {
       type: Number,
       default: 0
+    },
+    restoredOrderOps: {
+      type: [String],
+      default: []
     }
   },
   {
@@ -1120,12 +1124,11 @@ function validateTestDatabaseName({
     effectiveDbName: cleanTest
   };
 }
-function validateTestConnectionConfig({
-  testUri = process.env.MONGODB_TEST_URI,
-  prodUri = process.env.MONGODB_URI,
-  testDbName = process.env.MONGODB_TEST_DB_NAME,
-  prodDbName = process.env.MONGODB_DB_NAME || "malwa_namkeen"
-}) {
+function validateTestConnectionConfig(options = {}) {
+  const testUri = "testUri" in options ? options.testUri : process.env.MONGODB_TEST_URI;
+  const prodUri = "prodUri" in options ? options.prodUri : process.env.MONGODB_URI;
+  const testDbName = "testDbName" in options ? options.testDbName : process.env.MONGODB_TEST_DB_NAME;
+  const prodDbName = "prodDbName" in options ? options.prodDbName : process.env.MONGODB_DB_NAME || "malwa_namkeen";
   const cleanTestUri = (testUri || "").trim();
   const cleanProdUri = (prodUri || "").trim();
   const cleanTestDb = (testDbName || "").trim();
@@ -3987,6 +3990,10 @@ var discountSchema = new Schema7(
     isComboOnly: {
       type: Boolean,
       default: false
+    },
+    restoredOrderOps: {
+      type: [String],
+      default: []
     }
   },
   {
@@ -4350,7 +4357,7 @@ var cartWishlist_default = router4;
 
 // server/routes/customerAccount.ts
 import { Router as Router5 } from "express";
-import mongoose15 from "mongoose";
+import mongoose16 from "mongoose";
 
 // server/models/Order.ts
 import mongoose14, { Schema as Schema8 } from "mongoose";
@@ -4359,6 +4366,9 @@ var orderItemSchema = new Schema8(
     productId: {
       type: Schema8.Types.ObjectId,
       ref: "Product"
+    },
+    variantId: {
+      type: Schema8.Types.ObjectId
     },
     productName: {
       type: String,
@@ -4505,6 +4515,57 @@ var orderSchema = new Schema8(
       type: String,
       trim: true,
       default: ""
+    },
+    inventoryRestored: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+    restorationStatus: {
+      type: String,
+      enum: ["none", "in_progress", "completed", "partial_failure", "failed"],
+      default: "none",
+      index: true
+    },
+    restoringLock: {
+      type: Boolean,
+      default: false
+    },
+    restoringLockedAt: {
+      type: Date,
+      default: null
+    },
+    couponRestored: {
+      type: Boolean,
+      default: false
+    },
+    cancelledAt: {
+      type: Date
+    },
+    cancelledBy: {
+      type: String,
+      enum: ["admin", "customer", "system"]
+    },
+    cancellationReason: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+    restorationDetails: {
+      type: [
+        {
+          productId: { type: String },
+          productName: { type: String },
+          variantId: { type: String },
+          variantLabel: { type: String },
+          sku: { type: String },
+          quantity: { type: Number },
+          restored: { type: Boolean },
+          restoredAt: { type: Date },
+          error: { type: String }
+        }
+      ],
+      default: []
     }
   },
   {
@@ -4516,6 +4577,306 @@ orderSchema.index({ "customerInfo.email": 1, createdAt: -1 });
 orderSchema.index({ orderStatus: 1, createdAt: -1 });
 orderSchema.index({ paymentStatus: 1, createdAt: -1 });
 var Order = mongoose14.models.Order || mongoose14.model("Order", orderSchema);
+
+// server/lib/orderRestoration.ts
+import mongoose15 from "mongoose";
+var NON_CANCELLABLE_ORDER_STATUSES = ["shipped", "delivered"];
+var NON_CANCELLABLE_SHIPMENT_STATUSES = ["in_transit", "out_for_delivery", "delivered"];
+async function cancelAndRestockOrder(orderId, options) {
+  const cleanId = typeof orderId === "string" ? orderId.trim() : orderId;
+  if (!mongoose15.Types.ObjectId.isValid(cleanId)) {
+    return {
+      success: false,
+      restoredItems: [],
+      couponRestored: false,
+      warnings: ["Invalid order ID format."],
+      message: "Invalid order ID format."
+    };
+  }
+  const existing = await Order.findById(cleanId);
+  if (!existing) {
+    return {
+      success: false,
+      restoredItems: [],
+      couponRestored: false,
+      warnings: ["Order not found in database."],
+      message: "Order not found."
+    };
+  }
+  if (existing.orderStatus === "cancelled" && existing.inventoryRestored === true) {
+    return {
+      success: true,
+      alreadyCancelled: true,
+      order: existing,
+      restoredItems: existing.restorationDetails || [],
+      couponRestored: Boolean(existing.couponRestored),
+      warnings: [],
+      message: "Order was already cancelled and all inventory was previously restored."
+    };
+  }
+  if (existing.orderStatus !== "cancelled") {
+    if (options.allowedCurrentStatuses && options.allowedCurrentStatuses.length > 0) {
+      if (!options.allowedCurrentStatuses.includes(existing.orderStatus)) {
+        return {
+          success: false,
+          order: existing,
+          restoredItems: [],
+          couponRestored: false,
+          warnings: [`Order status "${existing.orderStatus}" is not eligible for cancellation.`],
+          message: `Orders in status "${existing.orderStatus}" cannot be cancelled.`
+        };
+      }
+    } else {
+      if (NON_CANCELLABLE_ORDER_STATUSES.includes(existing.orderStatus)) {
+        return {
+          success: false,
+          order: existing,
+          restoredItems: [],
+          couponRestored: false,
+          warnings: [`Order status "${existing.orderStatus}" indicates goods have already been dispatched or delivered.`],
+          message: `Orders in status "${existing.orderStatus}" cannot be cancelled. Goods are already with the customer or in transit.`
+        };
+      }
+    }
+    if (existing.shipmentStatus && NON_CANCELLABLE_SHIPMENT_STATUSES.includes(existing.shipmentStatus)) {
+      return {
+        success: false,
+        order: existing,
+        restoredItems: [],
+        couponRestored: false,
+        warnings: [`Shipment status "${existing.shipmentStatus}" indicates goods have already left the facility.`],
+        message: `Orders with shipment status "${existing.shipmentStatus}" cannot be cancelled.`
+      };
+    }
+  }
+  const isInitialCancellation = existing.orderStatus !== "cancelled";
+  const lockFilter = {
+    _id: cleanId,
+    inventoryRestored: { $ne: true },
+    $or: [
+      { restoringLock: { $ne: true } },
+      { restoringLockedAt: { $lt: new Date(Date.now() - 3e4) } },
+      { restoringLockedAt: null },
+      { restoringLockedAt: { $exists: false } }
+    ]
+  };
+  const lockUpdate = {
+    $set: {
+      orderStatus: "cancelled",
+      restoringLock: true,
+      restoringLockedAt: /* @__PURE__ */ new Date(),
+      cancelledAt: existing.cancelledAt || /* @__PURE__ */ new Date(),
+      cancelledBy: existing.cancelledBy || options.cancelledBy,
+      cancellationReason: options.reason ? options.reason.trim() : existing.cancellationReason || ""
+    }
+  };
+  const lockedOrder = await Order.findOneAndUpdate(lockFilter, lockUpdate, { new: true });
+  if (!lockedOrder) {
+    const current = await Order.findById(cleanId);
+    if (current && current.inventoryRestored) {
+      return {
+        success: true,
+        alreadyCancelled: true,
+        order: current,
+        restoredItems: current.restorationDetails || [],
+        couponRestored: Boolean(current.couponRestored),
+        warnings: [],
+        message: "Order was already cancelled and inventory was previously restored."
+      };
+    }
+    return {
+      success: false,
+      order: current || existing,
+      restoredItems: current?.restorationDetails || [],
+      couponRestored: Boolean(current?.couponRestored),
+      warnings: ["Cancellation or inventory restoration is currently in progress by another request."],
+      message: "Restoration lock is currently held. Please retry in a few moments."
+    };
+  }
+  const existingDetails = Array.isArray(lockedOrder.restorationDetails) ? lockedOrder.restorationDetails : [];
+  const restoredItems = [];
+  const warnings = [];
+  let couponRestored = Boolean(lockedOrder.couponRestored);
+  if (Array.isArray(lockedOrder.items)) {
+    for (let i = 0; i < lockedOrder.items.length; i++) {
+      const item = lockedOrder.items[i];
+      const qty = item.quantity;
+      if (!qty || qty <= 0) continue;
+      const priorDetail = existingDetails.find(
+        (d) => item.variantId && d.variantId && d.variantId.toString() === item.variantId.toString() || item.sku && d.sku && d.sku.toUpperCase() === item.sku.toUpperCase() || d.productName === item.productName && d.variantLabel === item.variantLabel
+      );
+      if (priorDetail && priorDetail.restored === true) {
+        restoredItems.push(priorDetail);
+        continue;
+      }
+      const itemDetail = {
+        productId: item.productId ? item.productId.toString() : void 0,
+        productName: item.productName || "Unknown Product",
+        variantId: item.variantId ? item.variantId.toString() : void 0,
+        variantLabel: item.variantLabel || "",
+        sku: item.sku || "",
+        quantity: qty,
+        restored: false
+      };
+      if (!item.productId) {
+        itemDetail.error = "No productId snapshot found on order item";
+        warnings.push(`Cannot restore stock for "${item.productName}": Missing productId.`);
+        restoredItems.push(itemDetail);
+        continue;
+      }
+      try {
+        const product = await Product.findById(item.productId);
+        if (!product) {
+          itemDetail.error = `Product ID ${item.productId} no longer exists in database`;
+          warnings.push(`Cannot restore stock for "${item.productName}": Product no longer exists in database.`);
+          restoredItems.push(itemDetail);
+          continue;
+        }
+        let matchedVariant = null;
+        if (Array.isArray(product.variants)) {
+          if (item.variantId) {
+            matchedVariant = product.variants.find(
+              (v) => v._id && v._id.toString() === item.variantId.toString()
+            );
+          }
+          if (!matchedVariant && item.sku) {
+            matchedVariant = product.variants.find(
+              (v) => v.sku && v.sku.toUpperCase() === item.sku.toUpperCase()
+            );
+          }
+          if (!matchedVariant && item.variantLabel) {
+            const targetLabel = item.variantLabel.trim().toLowerCase();
+            matchedVariant = product.variants.find((v) => {
+              const label = (v.label || "").trim().toLowerCase();
+              const valUnit = `${v.value || ""} ${v.unit || ""}`.trim().toLowerCase();
+              return label === targetLabel || valUnit === targetLabel;
+            });
+          }
+        }
+        if (!matchedVariant) {
+          itemDetail.error = `Variant "${item.variantLabel}" (SKU: ${item.sku}) no longer exists on product "${product.name}"`;
+          warnings.push(`Cannot restore stock for "${item.productName} (${item.variantLabel})": Variant not found.`);
+          restoredItems.push(itemDetail);
+          continue;
+        }
+        const opId = `restore_${cleanId}_item${i}_var_${matchedVariant._id}`;
+        const updateResult = await Product.updateOne(
+          {
+            _id: product._id,
+            variants: {
+              $elemMatch: {
+                _id: matchedVariant._id,
+                restoredOrderOps: { $ne: opId }
+              }
+            }
+          },
+          {
+            $inc: { "variants.$.stock": qty },
+            $addToSet: { "variants.$.restoredOrderOps": opId }
+          }
+        );
+        if (updateResult.modifiedCount > 0) {
+          itemDetail.restored = true;
+          itemDetail.restoredAt = /* @__PURE__ */ new Date();
+          itemDetail.variantId = matchedVariant._id.toString();
+        } else {
+          const alreadyApplied = await Product.exists({
+            _id: product._id,
+            variants: {
+              $elemMatch: {
+                _id: matchedVariant._id,
+                restoredOrderOps: opId
+              }
+            }
+          });
+          if (alreadyApplied) {
+            itemDetail.restored = true;
+            itemDetail.restoredAt = /* @__PURE__ */ new Date();
+            itemDetail.variantId = matchedVariant._id.toString();
+          } else {
+            itemDetail.error = "MongoDB Product atomic stock update returned 0 modifiedCount";
+            warnings.push(`Failed to update stock for "${item.productName} (${item.variantLabel})".`);
+          }
+        }
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        itemDetail.error = errMsg;
+        warnings.push(`Error updating stock for "${item.productName}": ${errMsg}`);
+      }
+      restoredItems.push(itemDetail);
+    }
+  }
+  if (lockedOrder.discountCode && lockedOrder.discountCode.trim() && (typeof lockedOrder.discount === "number" && lockedOrder.discount > 0) && !couponRestored) {
+    const code = lockedOrder.discountCode.trim().toUpperCase();
+    const couponOpId = `restore_${cleanId}_coupon`;
+    try {
+      const discountUpdate = await Discount.updateOne(
+        { code, usedCount: { $gt: 0 }, restoredOrderOps: { $ne: couponOpId } },
+        { $inc: { usedCount: -1 }, $addToSet: { restoredOrderOps: couponOpId } }
+      );
+      if (discountUpdate.modifiedCount > 0) {
+        couponRestored = true;
+      } else {
+        const alreadyRolledBack = await Discount.exists({
+          code,
+          restoredOrderOps: couponOpId
+        });
+        if (alreadyRolledBack) {
+          couponRestored = true;
+        } else {
+          warnings.push(`Could not rollback coupon "${code}": Discount code not found or usedCount was already 0.`);
+        }
+      }
+    } catch (couponErr) {
+      const errMsg = couponErr instanceof Error ? couponErr.message : String(couponErr);
+      warnings.push(`Failed to rollback coupon usage for "${code}": ${errMsg}`);
+    }
+  }
+  const allItemsRestored = restoredItems.length > 0 && restoredItems.every((it) => it.restored === true);
+  const anyItemsRestored = restoredItems.some((it) => it.restored === true);
+  const finalRestorationStatus = allItemsRestored ? "completed" : anyItemsRestored ? "partial_failure" : "failed";
+  const updatedOrder = await Order.findByIdAndUpdate(
+    cleanId,
+    {
+      $set: {
+        restoringLock: false,
+        restoringLockedAt: null,
+        inventoryRestored: allItemsRestored,
+        restorationStatus: finalRestorationStatus,
+        couponRestored,
+        restorationDetails: restoredItems
+      }
+    },
+    { new: true }
+  );
+  if (isInitialCancellation && updatedOrder) {
+    (async () => {
+      try {
+        await sendOrderStatusUpdate({
+          order: updatedOrder,
+          previousStatus: existing.orderStatus,
+          newStatus: "cancelled"
+        });
+      } catch (emailErr) {
+        console.warn("[Cancellation Email Warning] Failed to dispatch cancellation email:", emailErr);
+      }
+    })();
+  }
+  const success = allItemsRestored;
+  let message2 = "Order cancelled successfully and reserved inventory returned to stock.";
+  if (!allItemsRestored) {
+    message2 = anyItemsRestored ? `Order cancelled, but some items could not be restocked (${warnings.join("; ")}). Retry is permitted.` : `Order cancelled, but inventory restoration failed: ${warnings.join("; ")}.`;
+  }
+  return {
+    success,
+    alreadyCancelled: false,
+    order: updatedOrder || lockedOrder,
+    restoredItems,
+    couponRestored,
+    warnings,
+    message: message2
+  };
+}
 
 // server/routes/customerAccount.ts
 var router5 = Router5();
@@ -4671,7 +5032,7 @@ router5.put("/addresses/:addressId", async (req, res) => {
   try {
     const { addressId } = req.params;
     const { name: name2, phone: phone2, addressLine1, addressLine2, city, state, pincode, landmark, isDefault } = req.body;
-    if (!mongoose15.Types.ObjectId.isValid(addressId)) {
+    if (!mongoose16.Types.ObjectId.isValid(addressId)) {
       res.status(400).json({ success: false, message: "Invalid address ID format." });
       return;
     }
@@ -4723,7 +5084,7 @@ router5.put("/addresses/:addressId", async (req, res) => {
 router5.delete("/addresses/:addressId", async (req, res) => {
   try {
     const { addressId } = req.params;
-    if (!mongoose15.Types.ObjectId.isValid(addressId)) {
+    if (!mongoose16.Types.ObjectId.isValid(addressId)) {
       res.status(400).json({ success: false, message: "Invalid address ID format." });
       return;
     }
@@ -4756,7 +5117,7 @@ router5.delete("/addresses/:addressId", async (req, res) => {
 router5.put("/addresses/:addressId/default", async (req, res) => {
   try {
     const { addressId } = req.params;
-    if (!mongoose15.Types.ObjectId.isValid(addressId)) {
+    if (!mongoose16.Types.ObjectId.isValid(addressId)) {
       res.status(400).json({ success: false, message: "Invalid address ID format." });
       return;
     }
@@ -4811,7 +5172,7 @@ router5.get("/orders/:orderId", async (req, res) => {
       res.status(404).json({ success: false, message: "Account not found or inactive." });
       return;
     }
-    const query = mongoose15.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderNumber: orderId };
+    const query = mongoose16.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderNumber: orderId };
     const order = await Order.findOne(query).lean();
     if (!order) {
       res.status(404).json({ success: false, message: "Order not found." });
@@ -4834,15 +5195,89 @@ router5.get("/orders/:orderId", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to fetch order detail." });
   }
 });
+router5.post("/orders/:orderId/cancel", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { reason = "Cancelled by customer" } = req.body || {};
+    const user = await User.findById(req.user?.userId);
+    if (!user || !user.active) {
+      res.status(401).json({ success: false, message: "Account not found or inactive. Please sign in again." });
+      return;
+    }
+    const query = mongoose16.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderNumber: orderId };
+    const order = await Order.findOne(query);
+    if (!order) {
+      res.status(404).json({ success: false, message: "Order not found." });
+      return;
+    }
+    const isOwner = order.customer ? order.customer.toString() === user._id.toString() : Boolean(
+      order.customerInfo?.email && order.customerInfo.email.toLowerCase() === user.email.toLowerCase()
+    );
+    if (!isOwner) {
+      res.status(403).json({
+        success: false,
+        message: "You do not have permission to cancel this order."
+      });
+      return;
+    }
+    if (order.orderStatus === "cancelled" || order.inventoryRestored) {
+      res.json({
+        success: true,
+        alreadyCancelled: true,
+        message: "This order is already cancelled.",
+        order
+      });
+      return;
+    }
+    if (order.orderStatus !== "pending") {
+      res.status(400).json({
+        success: false,
+        message: `Orders that are already in "${order.orderStatus}" status cannot be cancelled online. Please contact support.`,
+        order
+      });
+      return;
+    }
+    if (order.shipmentStatus && order.shipmentStatus !== "unfulfilled") {
+      res.status(400).json({
+        success: false,
+        message: "This order has already been prepared or dispatched for shipping and cannot be cancelled.",
+        order
+      });
+      return;
+    }
+    const cancelResult = await cancelAndRestockOrder(order._id, {
+      cancelledBy: "customer",
+      reason: typeof reason === "string" && reason.trim() ? reason.trim() : "Cancelled by customer",
+      allowedCurrentStatuses: ["pending"]
+    });
+    if (!cancelResult.success && !cancelResult.alreadyCancelled) {
+      res.status(400).json({
+        success: false,
+        message: cancelResult.message || "Failed to cancel order.",
+        warnings: cancelResult.warnings
+      });
+      return;
+    }
+    res.json({
+      success: true,
+      alreadyCancelled: Boolean(cancelResult.alreadyCancelled),
+      message: cancelResult.alreadyCancelled ? "This order is already cancelled." : "Your order has been cancelled successfully. Any reserved items have been returned to stock.",
+      order: cancelResult.order || order
+    });
+  } catch (err) {
+    console.error("[Customer Order Cancel Error]", err);
+    res.status(500).json({ success: false, message: "Failed to cancel order. Please try again or contact support." });
+  }
+});
 var customerAccount_default = router5;
 
 // server/routes/customerOrders.ts
 import { Router as Router6 } from "express";
 import rateLimit4 from "express-rate-limit";
-import mongoose17 from "mongoose";
+import mongoose18 from "mongoose";
 
 // server/models/StoreSettings.ts
-import mongoose16, { Schema as Schema9 } from "mongoose";
+import mongoose17, { Schema as Schema9 } from "mongoose";
 var storeSettingsSchema = new Schema9(
   {
     storeName: {
@@ -4928,7 +5363,7 @@ var storeSettingsSchema = new Schema9(
     timestamps: true
   }
 );
-var StoreSettings = mongoose16.models.StoreSettings || mongoose16.model("StoreSettings", storeSettingsSchema);
+var StoreSettings = mongoose17.models.StoreSettings || mongoose17.model("StoreSettings", storeSettingsSchema);
 
 // server/routes/customerOrders.ts
 var router6 = Router6();
@@ -5040,7 +5475,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
     }
     const productIds = [
       ...new Set(
-        items.map((it) => it.productId).filter((id) => mongoose17.Types.ObjectId.isValid(id))
+        items.map((it) => it.productId).filter((id) => mongoose18.Types.ObjectId.isValid(id))
       )
     ];
     const products = await Product.find({
@@ -5099,6 +5534,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
       const variantLabel = variant.label || `${variant.value || ""} ${variant.unit || ""}`.trim() || "Standard";
       orderItems.push({
         productId: product._id,
+        variantId: variant._id,
         productName: product.name,
         variantLabel,
         sku: variant.sku || "",
@@ -5351,7 +5787,7 @@ var customerOrders_default = router6;
 
 // server/routes/adminProducts.ts
 import { Router as Router7 } from "express";
-import mongoose18 from "mongoose";
+import mongoose19 from "mongoose";
 var router7 = Router7();
 router7.use(requireAdmin);
 async function enforceMaxBestSellers(currentProductId) {
@@ -5469,8 +5905,8 @@ router7.get("/", async (req, res) => {
       ];
     }
     if (category && category !== "all") {
-      if (mongoose18.Types.ObjectId.isValid(category)) {
-        filter.category = new mongoose18.Types.ObjectId(category);
+      if (mongoose19.Types.ObjectId.isValid(category)) {
+        filter.category = new mongoose19.Types.ObjectId(category);
       } else {
         const cat = await Category.findOne({ slug: category });
         if (cat) filter.category = cat._id;
@@ -5513,7 +5949,7 @@ router7.get("/", async (req, res) => {
 router7.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose18.Types.ObjectId.isValid(id)) {
+    if (!mongoose19.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID format." });
       return;
     }
@@ -5584,7 +6020,7 @@ router7.post("/", async (req, res) => {
       return;
     }
     let categoryId = category;
-    if (!mongoose18.Types.ObjectId.isValid(category)) {
+    if (!mongoose19.Types.ObjectId.isValid(category)) {
       const cat = await Category.findOne({ slug: category });
       if (!cat) {
         res.status(400).json({ success: false, message: "Invalid category specified." });
@@ -5702,7 +6138,7 @@ router7.post("/", async (req, res) => {
 router7.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose18.Types.ObjectId.isValid(id)) {
+    if (!mongoose19.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID format." });
       return;
     }
@@ -5784,8 +6220,8 @@ router7.put("/:id", async (req, res) => {
       }
     }
     if (category) {
-      if (mongoose18.Types.ObjectId.isValid(category)) {
-        existingProduct.category = new mongoose18.Types.ObjectId(category);
+      if (mongoose19.Types.ObjectId.isValid(category)) {
+        existingProduct.category = new mongoose19.Types.ObjectId(category);
       } else {
         const cat = await Category.findOne({ slug: category });
         if (cat) existingProduct.category = cat._id;
@@ -5858,7 +6294,7 @@ router7.put("/:id", async (req, res) => {
 router7.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose18.Types.ObjectId.isValid(id)) {
+    if (!mongoose19.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -5881,7 +6317,7 @@ router7.patch("/:id/toggle", async (req, res) => {
 router7.patch("/:id/toggle-bestseller", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose18.Types.ObjectId.isValid(id)) {
+    if (!mongoose19.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -5915,7 +6351,7 @@ router7.patch("/:id/toggle-bestseller", async (req, res) => {
 router7.patch("/:id/toggle-combo", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose18.Types.ObjectId.isValid(id)) {
+    if (!mongoose19.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -5939,7 +6375,7 @@ router7.patch("/:id/toggle-combo", async (req, res) => {
 router7.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose18.Types.ObjectId.isValid(id)) {
+    if (!mongoose19.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -5960,7 +6396,7 @@ var adminProducts_default = router7;
 
 // server/routes/adminCategories.ts
 import { Router as Router8 } from "express";
-import mongoose19 from "mongoose";
+import mongoose20 from "mongoose";
 var router8 = Router8();
 router8.use(requireAdmin);
 async function ensureCategoriesSeeded() {
@@ -6026,7 +6462,7 @@ router8.get("/", async (req, res) => {
 router8.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose20.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -6089,7 +6525,7 @@ router8.post("/", async (req, res) => {
 router8.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose20.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -6132,7 +6568,7 @@ router8.put("/:id", async (req, res) => {
 router8.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose20.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID." });
       return;
     }
@@ -6155,7 +6591,7 @@ router8.patch("/:id/toggle", async (req, res) => {
 router8.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose20.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -6191,7 +6627,7 @@ var adminCategories_default = router8;
 
 // server/routes/adminOrders.ts
 import { Router as Router9 } from "express";
-import mongoose20 from "mongoose";
+import mongoose21 from "mongoose";
 var router9 = Router9();
 router9.use(requireAdmin);
 router9.get("/", async (req, res) => {
@@ -6290,7 +6726,7 @@ router9.get("/", async (req, res) => {
 router9.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -6307,7 +6743,7 @@ router9.get("/:id", async (req, res) => {
 router9.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID." });
       return;
     }
@@ -6325,60 +6761,147 @@ router9.put("/:id", async (req, res) => {
       return;
     }
     const previousStatus = order.orderStatus;
-    const validOrderStatuses = [
-      "pending",
-      "confirmed",
-      "processing",
-      "shipped",
-      "delivered",
-      "cancelled"
-    ];
-    if (orderStatus && validOrderStatuses.includes(orderStatus)) {
-      order.orderStatus = orderStatus;
+    let cancelResult = null;
+    if (order.orderStatus === "cancelled" && orderStatus && orderStatus !== "cancelled") {
+      res.status(400).json({
+        success: false,
+        message: `Order #${order.orderNumber} is cancelled and cannot be directly re-activated. Reserved inventory was already restored. A new order must be placed.`
+      });
+      return;
     }
-    const validPaymentStatuses = ["pending", "paid", "failed", "refunded"];
-    if (paymentStatus && validPaymentStatuses.includes(paymentStatus)) {
-      order.paymentStatus = paymentStatus;
-      if (paymentStatus === "paid" && !order.paymentDetails?.paidAt) {
-        order.paymentDetails = {
-          ...order.paymentDetails,
-          paidAt: /* @__PURE__ */ new Date()
-        };
+    if (orderStatus === "cancelled" && order.orderStatus !== "cancelled") {
+      const nonCancellableOrderStatuses = ["shipped", "delivered"];
+      const nonCancellableShipmentStatuses = ["in_transit", "out_for_delivery", "delivered"];
+      if (nonCancellableOrderStatuses.includes(order.orderStatus)) {
+        res.status(400).json({
+          success: false,
+          message: `Cannot cancel order #${order.orderNumber} because it is already in "${order.orderStatus}" status. Physical goods cannot be automatically restocked. Please use the Return/Refund workflow.`
+        });
+        return;
+      }
+      if (order.shipmentStatus && nonCancellableShipmentStatuses.includes(order.shipmentStatus)) {
+        res.status(400).json({
+          success: false,
+          message: `Cannot cancel order #${order.orderNumber} because shipment status is "${order.shipmentStatus}". Goods have already left the facility.`
+        });
+        return;
       }
     }
-    const validShipmentStatuses = [
-      "unfulfilled",
-      "ready_to_ship",
-      "in_transit",
-      "out_for_delivery",
-      "delivered",
-      "returned"
-    ];
-    if (shipmentStatus && validShipmentStatuses.includes(shipmentStatus)) {
-      order.shipmentStatus = shipmentStatus;
+    if (orderStatus === "cancelled") {
+      const reason = typeof notes === "string" && notes.trim() ? notes.trim() : "Cancelled by administrator";
+      cancelResult = await cancelAndRestockOrder(id, {
+        cancelledBy: "admin",
+        reason,
+        allowedCurrentStatuses: ["pending", "confirmed", "processing"]
+      });
+      if (!cancelResult.success && !cancelResult.alreadyCancelled && (!cancelResult.restoredItems || cancelResult.restoredItems.length === 0)) {
+        res.status(400).json({
+          success: false,
+          message: cancelResult.message || "Failed to cancel order.",
+          warnings: cancelResult.warnings
+        });
+        return;
+      }
+      const refreshed = await Order.findById(id);
+      if (refreshed) {
+        order.orderStatus = refreshed.orderStatus;
+        order.inventoryRestored = refreshed.inventoryRestored;
+        order.restorationStatus = refreshed.restorationStatus;
+        order.couponRestored = refreshed.couponRestored;
+        order.cancelledAt = refreshed.cancelledAt;
+        order.cancelledBy = refreshed.cancelledBy;
+        order.cancellationReason = refreshed.cancellationReason;
+        order.restorationDetails = refreshed.restorationDetails;
+      }
+      await order.save();
+    } else {
+      const currentPersisted = await Order.findById(id).select("orderStatus inventoryRestored orderNumber").lean();
+      if (!currentPersisted) {
+        res.status(404).json({ success: false, message: "Order not found." });
+        return;
+      }
+      if (currentPersisted.orderStatus === "cancelled") {
+        res.status(409).json({
+          success: false,
+          conflict: true,
+          message: `Conflict: Order #${currentPersisted.orderNumber} was cancelled concurrently. Changes cannot be applied to a cancelled order.`,
+          order: currentPersisted
+        });
+        return;
+      }
+      const setPayload = {};
+      const validOrderStatuses = [
+        "pending",
+        "confirmed",
+        "processing",
+        "shipped",
+        "delivered"
+      ];
+      if (orderStatus && validOrderStatuses.includes(orderStatus)) {
+        setPayload.orderStatus = orderStatus;
+        order.orderStatus = orderStatus;
+      }
+      const validPaymentStatuses = ["pending", "paid", "failed", "refunded"];
+      if (paymentStatus && validPaymentStatuses.includes(paymentStatus)) {
+        setPayload.paymentStatus = paymentStatus;
+        order.paymentStatus = paymentStatus;
+        if (paymentStatus === "paid" && !order.paymentDetails?.paidAt) {
+          setPayload["paymentDetails.paidAt"] = /* @__PURE__ */ new Date();
+        }
+      }
+      const validShipmentStatuses = [
+        "unfulfilled",
+        "ready_to_ship",
+        "in_transit",
+        "out_for_delivery",
+        "delivered",
+        "returned"
+      ];
+      if (shipmentStatus && validShipmentStatuses.includes(shipmentStatus)) {
+        setPayload.shipmentStatus = shipmentStatus;
+        order.shipmentStatus = shipmentStatus;
+      }
+      if (trackingInfo && typeof trackingInfo === "object") {
+        if (trackingInfo.courierName) setPayload["trackingInfo.courierName"] = String(trackingInfo.courierName).trim();
+        if (trackingInfo.trackingNumber) setPayload["trackingInfo.trackingNumber"] = String(trackingInfo.trackingNumber).trim();
+        if (trackingInfo.trackingUrl) setPayload["trackingInfo.trackingUrl"] = String(trackingInfo.trackingUrl).trim();
+      }
+      if (shippingAddress && typeof shippingAddress === "object") {
+        if (shippingAddress.name) setPayload["shippingAddress.name"] = String(shippingAddress.name).trim();
+        if (shippingAddress.phone) setPayload["shippingAddress.phone"] = String(shippingAddress.phone).trim();
+        if (shippingAddress.addressLine1) setPayload["shippingAddress.addressLine1"] = String(shippingAddress.addressLine1).trim();
+        if (shippingAddress.addressLine2 !== void 0) setPayload["shippingAddress.addressLine2"] = String(shippingAddress.addressLine2).trim();
+        if (shippingAddress.city) setPayload["shippingAddress.city"] = String(shippingAddress.city).trim();
+        if (shippingAddress.state) setPayload["shippingAddress.state"] = String(shippingAddress.state).trim();
+        if (shippingAddress.pincode) setPayload["shippingAddress.pincode"] = String(shippingAddress.pincode).trim();
+        if (shippingAddress.landmark !== void 0) setPayload["shippingAddress.landmark"] = String(shippingAddress.landmark).trim();
+      }
+      if (notes !== void 0) {
+        setPayload.notes = String(notes).trim();
+        order.notes = String(notes).trim();
+      }
+      const updated = await Order.findOneAndUpdate(
+        { _id: id, orderStatus: { $ne: "cancelled" } },
+        { $set: setPayload },
+        { new: true }
+      );
+      if (!updated) {
+        const fresh = await Order.findById(id);
+        if (fresh && fresh.orderStatus === "cancelled") {
+          res.status(409).json({
+            success: false,
+            conflict: true,
+            message: `Conflict: Order #${order.orderNumber} was cancelled concurrently while being saved. Changes were rejected.`,
+            order: fresh
+          });
+          return;
+        }
+        res.status(404).json({ success: false, message: "Order not found." });
+        return;
+      }
+      Object.assign(order, updated.toObject ? updated.toObject() : updated);
     }
-    if (trackingInfo && typeof trackingInfo === "object") {
-      order.trackingInfo = {
-        courierName: trackingInfo.courierName ? String(trackingInfo.courierName).trim() : order.trackingInfo?.courierName,
-        trackingNumber: trackingInfo.trackingNumber ? String(trackingInfo.trackingNumber).trim() : order.trackingInfo?.trackingNumber,
-        trackingUrl: trackingInfo.trackingUrl ? String(trackingInfo.trackingUrl).trim() : order.trackingInfo?.trackingUrl
-      };
-    }
-    if (shippingAddress && typeof shippingAddress === "object") {
-      if (shippingAddress.name) order.shippingAddress.name = String(shippingAddress.name).trim();
-      if (shippingAddress.phone) order.shippingAddress.phone = String(shippingAddress.phone).trim();
-      if (shippingAddress.addressLine1) order.shippingAddress.addressLine1 = String(shippingAddress.addressLine1).trim();
-      if (shippingAddress.addressLine2 !== void 0) order.shippingAddress.addressLine2 = String(shippingAddress.addressLine2).trim();
-      if (shippingAddress.city) order.shippingAddress.city = String(shippingAddress.city).trim();
-      if (shippingAddress.state) order.shippingAddress.state = String(shippingAddress.state).trim();
-      if (shippingAddress.pincode) order.shippingAddress.pincode = String(shippingAddress.pincode).trim();
-      if (shippingAddress.landmark !== void 0) order.shippingAddress.landmark = String(shippingAddress.landmark).trim();
-    }
-    if (notes !== void 0) {
-      order.notes = String(notes).trim();
-    }
-    await order.save();
-    if (previousStatus !== order.orderStatus) {
+    if (previousStatus !== order.orderStatus && order.orderStatus !== "cancelled") {
       (async () => {
         try {
           await sendOrderStatusUpdate({
@@ -6393,8 +6916,10 @@ router9.put("/:id", async (req, res) => {
     }
     res.json({
       success: true,
-      message: "Order updated successfully.",
-      order
+      message: cancelResult ? cancelResult.message : "Order updated successfully.",
+      order,
+      restorationDetails: cancelResult?.restoredItems || order.restorationDetails || [],
+      warnings: cancelResult?.warnings || []
     });
   } catch (err) {
     console.error("[Update Order Error]", err);
@@ -6405,15 +6930,31 @@ router9.put("/:id", async (req, res) => {
 router9.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID." });
       return;
     }
-    const order = await Order.findByIdAndDelete(id);
+    const order = await Order.findById(id);
     if (!order) {
       res.status(404).json({ success: false, message: "Order not found." });
       return;
     }
+    if (!order.inventoryRestored) {
+      const cancelResult = await cancelAndRestockOrder(order._id, {
+        cancelledBy: "admin",
+        reason: "Order deleted by administrator"
+      });
+      if (!cancelResult.success || cancelResult.warnings && cancelResult.warnings.length > 0) {
+        res.status(409).json({
+          success: false,
+          message: `Cannot delete order #${order.orderNumber} because inventory restoration encountered issues. The order record has been preserved for auditing and reconciliation.`,
+          warnings: cancelResult.warnings,
+          restorationDetails: cancelResult.restoredItems
+        });
+        return;
+      }
+    }
+    await Order.findByIdAndDelete(id);
     res.json({
       success: true,
       message: `Order #${order.orderNumber} deleted successfully.`
@@ -6426,7 +6967,7 @@ var adminOrders_default = router9;
 
 // server/routes/adminCustomers.ts
 import { Router as Router10 } from "express";
-import mongoose21 from "mongoose";
+import mongoose22 from "mongoose";
 var router10 = Router10();
 router10.use(requireAdmin);
 router10.get("/", async (req, res) => {
@@ -6542,7 +7083,7 @@ router10.get("/", async (req, res) => {
 router10.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose22.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -6572,7 +7113,7 @@ router10.get("/:id", async (req, res) => {
 router10.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose22.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -6595,7 +7136,7 @@ router10.patch("/:id/toggle", async (req, res) => {
 router10.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose22.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -6634,7 +7175,7 @@ var adminCustomers_default = router10;
 // server/routes/adminDiscounts.ts
 import { Router as Router11 } from "express";
 import rateLimit5 from "express-rate-limit";
-import mongoose22 from "mongoose";
+import mongoose23 from "mongoose";
 var router11 = Router11();
 var couponValidateLimiter = rateLimit5({
   windowMs: 15 * 60 * 1e3,
@@ -6718,7 +7259,7 @@ router11.get("/", async (req, res) => {
 router11.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose22.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -6800,7 +7341,7 @@ router11.post("/", async (req, res) => {
 router11.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose22.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -6881,7 +7422,7 @@ router11.put("/:id", async (req, res) => {
 router11.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose22.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -6904,7 +7445,7 @@ router11.patch("/:id/toggle", async (req, res) => {
 router11.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose22.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -6925,10 +7466,10 @@ var adminDiscounts_default = router11;
 
 // server/routes/adminInquiries.ts
 import { Router as Router12 } from "express";
-import mongoose24 from "mongoose";
+import mongoose25 from "mongoose";
 
 // server/models/Inquiry.ts
-import mongoose23, { Schema as Schema10 } from "mongoose";
+import mongoose24, { Schema as Schema10 } from "mongoose";
 var inquirySchema = new Schema10(
   {
     name: {
@@ -6973,7 +7514,7 @@ var inquirySchema = new Schema10(
   }
 );
 inquirySchema.index({ status: 1, createdAt: -1 });
-var Inquiry = mongoose23.models.Inquiry || mongoose23.model("Inquiry", inquirySchema);
+var Inquiry = mongoose24.models.Inquiry || mongoose24.model("Inquiry", inquirySchema);
 
 // server/routes/adminInquiries.ts
 var router12 = Router12();
@@ -7002,9 +7543,9 @@ var handlePublicInquiry = async (req, res) => {
       res.status(400).json({ success: false, message: "Please provide a descriptive inquiry message." });
       return;
     }
-    if (mongoose24.connection.readyState !== 1) {
+    if (mongoose25.connection.readyState !== 1) {
       const fallbackInquiry = {
-        _id: new mongoose24.Types.ObjectId(),
+        _id: new mongoose25.Types.ObjectId(),
         name: name2.trim(),
         email: email2.trim().toLowerCase(),
         phone: phone2 ? String(phone2).trim() : "",
@@ -7145,7 +7686,7 @@ router12.get("/", async (req, res) => {
 router12.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose24.Types.ObjectId.isValid(id)) {
+    if (!mongoose25.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -7162,7 +7703,7 @@ router12.get("/:id", async (req, res) => {
 var updateInquiryHandler = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose24.Types.ObjectId.isValid(id)) {
+    if (!mongoose25.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -7196,7 +7737,7 @@ router12.patch("/:id/status", updateInquiryHandler);
 router12.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose24.Types.ObjectId.isValid(id)) {
+    if (!mongoose25.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -7218,7 +7759,7 @@ var adminInquiries_default = router12;
 // server/routes/adminStaff.ts
 import { Router as Router13 } from "express";
 import crypto3 from "crypto";
-import mongoose25 from "mongoose";
+import mongoose26 from "mongoose";
 var router13 = Router13();
 router13.use(requireSuperAdmin);
 var EMAIL_REGEX2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -7289,7 +7830,7 @@ router13.post("/invite", async (req, res) => {
       active: true,
       invitationTokenHash: tokenHash,
       invitationExpiresAt: expiresAt,
-      invitedBy: req.user?.userId ? new mongoose25.Types.ObjectId(req.user.userId) : void 0,
+      invitedBy: req.user?.userId ? new mongoose26.Types.ObjectId(req.user.userId) : void 0,
       invitedAt: /* @__PURE__ */ new Date()
     });
     const emailResult = await sendAdminInvitationEmail({
@@ -7322,7 +7863,7 @@ router13.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const { name: name2, role, active } = req.body;
-    if (!mongoose25.Types.ObjectId.isValid(id)) {
+    if (!mongoose26.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid staff ID." });
       return;
     }
@@ -7358,7 +7899,7 @@ router13.patch("/:id", async (req, res) => {
       try {
         await AuditLog.create({
           action: "ROLE_CHANGED",
-          actorId: req.user?.userId ? new mongoose25.Types.ObjectId(req.user.userId) : void 0,
+          actorId: req.user?.userId ? new mongoose26.Types.ObjectId(req.user.userId) : void 0,
           targetUserId: staffMember._id,
           metadata: {
             oldRole,
@@ -7414,7 +7955,7 @@ router13.post("/promote", async (req, res) => {
       return;
     }
     let query = {};
-    if (userId && mongoose25.Types.ObjectId.isValid(userId)) {
+    if (userId && mongoose26.Types.ObjectId.isValid(userId)) {
       query = { _id: userId };
     } else if (email2 && typeof email2 === "string" && EMAIL_REGEX2.test(email2.trim().toLowerCase())) {
       query = { email: email2.trim().toLowerCase() };
@@ -7453,7 +7994,7 @@ router13.post("/promote", async (req, res) => {
     try {
       await AuditLog.create({
         action: "ROLE_CHANGED",
-        actorId: req.user?.userId ? new mongoose25.Types.ObjectId(req.user.userId) : void 0,
+        actorId: req.user?.userId ? new mongoose26.Types.ObjectId(req.user.userId) : void 0,
         targetUserId: targetUser._id,
         metadata: {
           oldRole,
@@ -7502,7 +8043,7 @@ router13.post("/promote", async (req, res) => {
 router13.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose25.Types.ObjectId.isValid(id)) {
+    if (!mongoose26.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid staff ID." });
       return;
     }
@@ -7542,7 +8083,7 @@ var adminStaff_default = router13;
 
 // server/routes/adminSettings.ts
 import { Router as Router14 } from "express";
-import mongoose26 from "mongoose";
+import mongoose27 from "mongoose";
 var router14 = Router14();
 async function getOrCreateSingletonSettings() {
   let settings = await StoreSettings.findOne();
@@ -7594,7 +8135,7 @@ var DEFAULT_PUBLIC_SETTINGS = {
 var handlePublicSettings = async (_req, res) => {
   try {
     let settings = null;
-    if (mongoose26.connection.readyState === 1) {
+    if (mongoose27.connection.readyState === 1) {
       settings = await StoreSettings.findOne().lean();
     }
     if (!settings) {
@@ -8094,7 +8635,7 @@ var uploads_default = router16;
 // server/routes/enquiries.ts
 import { Router as Router17 } from "express";
 import { ZodError } from "zod";
-import mongoose27 from "mongoose";
+import mongoose28 from "mongoose";
 
 // server/validate.ts
 import { z } from "zod";
@@ -8264,7 +8805,7 @@ router17.post("/contact", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose27.Types.ObjectId().toString();
+  let id = new mongoose28.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -8322,7 +8863,7 @@ router17.post(["/enquiries/bulk", "/enquiry/bulk", "/bulk-enquiry"], async (req,
     }
     throw err;
   }
-  let id = new mongoose27.Types.ObjectId().toString();
+  let id = new mongoose28.Types.ObjectId().toString();
   const summaryMessage = [
     `Requirement: ${parsed.requirement_type}`,
     `Quantity: ${parsed.approx_quantity}`,
@@ -8389,7 +8930,7 @@ router17.post("/reservation", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose27.Types.ObjectId().toString();
+  let id = new mongoose28.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.customer_name,
@@ -8448,7 +8989,7 @@ router17.post("/katering", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose27.Types.ObjectId().toString();
+  let id = new mongoose28.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -8490,7 +9031,7 @@ router17.post("/gifting", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose27.Types.ObjectId().toString();
+  let id = new mongoose28.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -8517,7 +9058,7 @@ var enquiries_default = router17;
 import { Router as Router18 } from "express";
 
 // server/models/Banner.ts
-import mongoose28, { Schema as Schema11 } from "mongoose";
+import mongoose29, { Schema as Schema11 } from "mongoose";
 var bannerSchema = new Schema11(
   {
     title: {
@@ -8574,7 +9115,7 @@ var bannerSchema = new Schema11(
 );
 bannerSchema.index({ active: 1, sortOrder: 1 });
 bannerSchema.index({ sortOrder: 1 });
-var Banner = mongoose28.models.Banner || mongoose28.model("Banner", bannerSchema);
+var Banner = mongoose29.models.Banner || mongoose29.model("Banner", bannerSchema);
 
 // server/routes/adminBanners.ts
 var router18 = Router18();
@@ -9082,10 +9623,10 @@ app.use("/", sitemap_default);
 app.get(["/health", "/api/health"], async (_req, res) => {
   const mongo = getMongoStatus();
   let dbHealthy = false;
-  if (mongo.connected && mongoose29.connection.db) {
+  if (mongo.connected && mongoose30.connection.db) {
     try {
       await Promise.race([
-        mongoose29.connection.db.command({ ping: 1 }),
+        mongoose30.connection.db.command({ ping: 1 }),
         new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 2e3))
       ]);
       dbHealthy = true;
@@ -9098,7 +9639,7 @@ app.get(["/health", "/api/health"], async (_req, res) => {
     time: (/* @__PURE__ */ new Date()).toISOString(),
     service: BUSINESS.name,
     mongodb: dbHealthy ? "connected" : mongo.state,
-    database: mongoose29.connection.name || null
+    database: mongoose30.connection.name || null
   });
 });
 var routeConfigs = [

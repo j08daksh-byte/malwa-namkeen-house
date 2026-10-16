@@ -103,18 +103,82 @@ All transactional emails use responsive, branded HTML layouts reflecting the 195
 
 ---
 
-## 4. Database Schema Reference (MongoDB / Mongoose)
+## 4. Order Lifecycle, Cancellation & Inventory Restoration
+
+### 4.1 Order Cancellation & Inventory Restock Architecture
+When an order transitions to `cancelled` (via administrator update or customer self-service):
+1. **Concurrency Control & Idempotency without Replica Sets:**
+   Because MongoDB multi-document transactions require replica set topologies and are not universally available across serverless and standalone MongoDB instances, atomic document locking is enforced at the document level:
+   ```ts
+   const order = await Order.findOneAndUpdate(
+     {
+       _id: orderId,
+       inventoryRestored: { $ne: true },
+       ...(allowedCurrentStatuses.length > 0 ? { orderStatus: { $in: allowedCurrentStatuses } } : {}),
+     },
+     {
+       $set: {
+         orderStatus: 'cancelled',
+         inventoryRestored: true,
+         cancelledAt: new Date(),
+         cancelledBy,
+         cancellationReason: reason,
+       },
+     },
+     { new: false }
+   );
+   ```
+   MongoDB's atomic single-document update guarantees that under concurrent cancellation requests, exactly **one** caller succeeds in claiming the restoration lock. All concurrent or repeated requests find `inventoryRestored === true` (or an excluded status) and receive `null`, immediately returning `{ alreadyCancelled: true }` without executing duplicate stock increments or coupon decrements.
+
+2. **Accurate Variant Stock Restoration:**
+   Inventory is restored per item variant using a 3-tier fallback matching strategy to support both new orders (which capture `variantId`) and legacy orders:
+   - Tier 1: Matches variant by explicit `variantId`
+   - Tier 2: Matches variant by exact `sku`
+   - Tier 3: Matches variant by `label` (case-insensitive)
+   Restoration executes atomic increment:
+   ```ts
+   await Product.updateOne(
+     { _id: item.productId, 'variants._id': matchedVariant._id },
+     { $inc: { 'variants.$.stock': item.quantity } }
+   );
+   ```
+
+3. **Single-Use Coupon Rollback:**
+   If the cancelled order consumed a valid discount coupon (`order.discountCode` and `order.discount > 0`), the coupon's `usedCount` is rolled back exactly once:
+   ```ts
+   await Discount.updateOne(
+     { code: order.discountCode, usedCount: { $gt: 0 } },
+     { $inc: { usedCount: -1 } }
+   );
+   ```
+
+4. **Graceful Partial Failure Handling:**
+   If a product or variant has been deleted or cannot be resolved, restoration does not throw an unhandled exception. It records a structured failure entry in `order.restorationDetails` (`restored: false, error: '...'`) and returns explicit warning messages, allowing administrators to audit discrepancies.
+
+5. **Delete Order Safety Guard:**
+   `DELETE /api/admin/orders/:id` intercepts active, uncancelled orders before deletion. If `order.inventoryRestored !== true` and `order.orderStatus !== 'cancelled'`, reserved inventory is automatically restored prior to document removal, preventing permanent stock leaks.
+
+### 4.2 Customer Self-Service Order Cancellation
+- **Endpoint:** `POST /api/customer/orders/:orderId/cancel`
+- **Authentication & Ownership:** Enforces `requireAuth`. Validates `order.customer === user._id` or `order.customerInfo.email === user.email`. Unauthorized attempts receive `403 Forbidden`.
+- **Eligibility Window:** Customers can cancel orders only while `orderStatus === 'pending'` and `shipmentStatus === 'unfulfilled'`. Orders already confirmed, processing, shipped, or delivered cannot be cancelled online (`400 Bad Request`).
+- **Shared Engine:** Customer cancellation invokes the identical `cancelAndRestockOrder` engine with `cancelledBy: 'customer'`.
+- **Dashboard UI:** `src-rebuild/pages/Dashboard.tsx` provides a **Cancel Order** action with modal confirmation, reason entry, duplicate-click prevention, loading spinner, and immediate order status refresh.
+
+---
+
+## 5. Database Schema Reference (MongoDB / Mongoose)
 
 - **`User`:** `name`, `email` (unique, lowercase), `password` (bcrypt), `role` (`customer` | `admin` | `super_admin`), `active`, `phone`, `addresses[]`, `wishlist[]`, `passwordResetTokenHash`, `passwordResetExpiresAt`, `invitationTokenHash`, `invitationExpiresAt`.
 - **`Product`:** `name`, `slug` (unique), `hindiName`, `description`, `category` (ref: Category), `variants[]` (`label`, `weight`, `price`, `salePrice`, `stock`, `sku`), `images[]`, `ingredients[]`, `oilUsed`, `shelfLife`, `isBestSeller`, `active`.
 - **`Category`:** `name`, `slug` (unique), `description`, `image`, `sortOrder`, `active`.
-- **`Order`:** `orderNumber` (unique), `customer` (ref: User), `customerInfo`, `shippingAddress`, `items[]`, `subtotal`, `discount`, `shipping`, `total`, `paymentMethod`, `paymentStatus`, `orderStatus`, `idempotencyKey`, `trackingInfo`.
+- **`Order`:** `orderNumber` (unique), `customer` (ref: User), `customerInfo`, `shippingAddress`, `items[]` (`productId`, `variantId`, `productName`, `variantLabel`, `sku`, `price`, `quantity`, `itemTotal`, `image`), `subtotal`, `discount`, `discountCode`, `shipping`, `total`, `paymentMethod`, `paymentStatus`, `orderStatus`, `shipmentStatus`, `idempotencyKey`, `trackingInfo`, `notes`, `inventoryRestored`, `couponRestored`, `cancelledAt`, `cancelledBy`, `cancellationReason`, `restorationDetails[]`.
 - **`StoreSettings`:** Singleton document storing public metadata, support contacts, GSTIN, FSSAI license numbers, free delivery threshold, and hero banner configurations.
 - **`EmailLog`:** Structured audit log recording every email delivery attempt (`eventType`, `recipient`, `subject`, `provider`, `status`, `attemptedAt`).
 
 ---
 
-## 5. Operations & Runbook
+## 6. Operations & Runbook
 
 ### 5.1 Bootstrapping the Initial Super Admin
 To initialize a newly deployed instance without existing admin accounts:

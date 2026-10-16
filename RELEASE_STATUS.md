@@ -22,8 +22,9 @@
 | **Gate 2** | Fix Administrator Permissions | **PASS** | Token extraction cookie shadowing bug fixed in `server/lib/auth.ts`. Enforced least privilege: `PUT /api/admin/settings` restricted to `super_admin`. UI view-only guard implemented. `tests/admin_permissions.test.ts` passed 14/14. |
 | **Gate 3** | Implement Transactional Email | **PASS (Code / Simulated)** | Centralized Resend email service with branded templates implemented. Real delivery pending Vercel `RESEND_API_KEY` configuration. |
 | **Gate 4** | Branding and UI Excellence | **PASS** | Authentic heritage assets verified (`/logo.png`, `/logo-gold.png`, `/logo-nav.png`). Stale email placeholders cleaned from UI. Playfair Display & DM Sans typography intact. |
-| **Gate 5** | Comprehensive Verification | **PASS (100% COMPLETE)** | TypeScript check (`npm run lint`): **PASS (0 errors)**. Production build (`npm run build`): **PASS (0 errors)**. Strict Test-DB URI Isolation (`tests/e2e_safety_guard.test.ts`): **PASS (36/36)**. Deterministic unit regression (`tests/regression.test.ts`): **PASS (21/21)**. Focused Gate 2 & 3 suites: **PASS (27/27)**. All 14 verified unit/mocked suites: **PASS (14/14)**. Live E2E Suite 1 (`tests/e2e_live_server.test.ts`): **PASS (18/18)**. Live E2E Suite 2 (`tests/full_system_e2e.test.ts`): **PASS (43/43)**. |
+| **Gate 5** | Comprehensive Verification | **PASS (100% COMPLETE)** | TypeScript check (`npm run lint`): **PASS (0 errors)**. Production build (`npm run build`): **PASS (0 errors)**. Order Cancellation & Inventory Restock Suite (`tests/order_cancellation_restock.test.ts`): **PASS (11/11)**. Strict Test-DB URI Isolation (`tests/e2e_safety_guard.test.ts`): **PASS (36/36)**. Deterministic unit regression (`tests/regression.test.ts`): **PASS (21/21)**. Focused Gate 2 & 3 suites: **PASS (27/27)**. All 15 verified unit/mocked suites: **PASS (15/15)**. Live E2E Suite 1 (`tests/e2e_live_server.test.ts`): **PASS (18/18)**. Live E2E Suite 2 (`tests/full_system_e2e.test.ts`): **PASS (43/43)**. |
 | **Gate 6** | Production Redeployment | **REDEPLOYED & VERIFIED** | Merged into `daksh_repo/main` (`9fd812d`). Vercel deployment `dpl_DayLHyctUicwMKCshgVRtsVLXFET` built and deployed to production. Public health check (`/api/health`) returned HTTP 200 OK (`mongodb: connected`, `database: malwa_namkeen`). |
+| **Gate 7** | Order Lifecycle & Inventory Restoration | **PASS (VERIFIED)** | Implemented safe, idempotent variant stock restock & single coupon rollback on order cancellation. Customer self-service cancellation added (`POST /api/customer/orders/:orderId/cancel`). Delete order guard added. Full test coverage in `tests/order_cancellation_restock.test.ts` (11/11 PASS). |
 
 ---
 
@@ -33,6 +34,7 @@
 
 | Test Suite | Category | Results | Execution Command |
 | :--- | :--- | :---: | :--- |
+| `order_cancellation_restock.test.ts` | Order Restock, Concurrency & Ownership | **11 / 11 PASS** | `npx tsx tests/order_cancellation_restock.test.ts` |
 | `full_system_e2e.test.ts` | Exhaustive Live System E2E (Port 3001) | **43 / 43 PASS** | `BASE_URL=http://127.0.0.1:3001 npx tsx tests/full_system_e2e.test.ts` |
 | `e2e_live_server.test.ts` | Controlled Live Server E2E (Port 3001) | **18 / 18 PASS** | `BASE_URL=http://127.0.0.1:3001 npx tsx tests/e2e_live_server.test.ts` |
 | `e2e_safety_guard.test.ts` | Safety & URI Isolation Guard | **36 / 36 PASS** | `npx tsx tests/e2e_safety_guard.test.ts` |
@@ -49,7 +51,7 @@
 | `ph008_csp_hardening.test.ts` | Unit HTTP Headers | **PASS** | `npx tsx tests/ph008_csp_hardening.test.ts` |
 | `ph009_user_compound_index.test.ts` | Schema Verification | **PASS** | `npx tsx tests/ph009_user_compound_index.test.ts` |
 | `ph010_inquiry_compound_index.test.ts` | Schema Verification | **PASS** | `npx tsx tests/ph010_inquiry_compound_index.test.ts` |
-| **Grand Total** | **All Live & Offline Suites** | **145 / 145 PASS** | **100% Green** |
+| **Grand Total** | **All Live & Offline Suites (17 Suites)** | **156 / 156 PASS** | **100% Green** |
 
 ### 2.2 Compilation & Static Checks
 
@@ -57,8 +59,8 @@
 | :--- | :--- | :---: | :--- |
 | TypeScript Type Check | `tsc --noEmit` (`npm run lint`) | **PASS (0 errors)** | ~4s |
 | Vite Frontend Build | Vite 6.4.3 (`npm run build`) | **PASS** | 2.19s |
-| Node Server Bundle | esbuild CJS (`dist/server.cjs`) | **PASS (326.3 kB)** | 24ms |
-| Serverless API Entry | esbuild ESM (`api/index.js`) | **PASS (317.8 kB)** | 20ms |
+| Node Server Bundle | esbuild CJS (`dist/server.cjs`) | **PASS (338.1 kB)** | 414ms |
+| Serverless API Entry | esbuild ESM (`api/index.js`) | **PASS (329.5 kB)** | 54ms |
 
 ### 2.3 Database Connectivity & Strict Test-DB URI Isolation Status
 
@@ -230,3 +232,29 @@ IS_E2E_TEST=true npx tsx server.ts
 npx tsx tests/e2e_live_server.test.ts
 npx tsx tests/full_system_e2e.test.ts
 ```
+
+---
+
+## 6. Audit Defects Resolution Status
+
+| Defect ID | Description | Severity | Resolution Status | Verified Evidence |
+| :--- | :--- | :---: | :---: | :--- |
+| **DEF-01** | Order cancellation did not restore variant inventory or rollback coupon usage. Cancelled orders leaked reserved stock permanently. | **P0 (Critical)** | **RESOLVED** | Implemented `server/lib/orderRestoration.ts`. Restores exact variant quantities via atomic `$inc`. Rolls back coupon usage count. Concurrency-safe via atomic conditional lock (`inventoryRestored: { $ne: true }`). Verified by `tests/order_cancellation_restock.test.ts` (11/11 PASS). |
+| **DEF-06** | Customers had no mechanism to cancel eligible pending orders from the storefront. | **P1 (High)** | **RESOLVED** | Implemented authenticated `POST /api/customer/orders/:orderId/cancel`. Enforces customer account ownership and eligibility (`orderStatus: 'pending'`, `shipmentStatus: 'unfulfilled'`). Added Cancel action & confirmation modal to `Dashboard.tsx`. Verified by unit & routing test cases. |
+| **DEF-DELETE** | Admin order deletion previously bypassed cancellation accounting, permanently dropping reserved stock. | **P1 (High)** | **RESOLVED** | Guard added to `DELETE /api/admin/orders/:id` in `server/routes/adminOrders.ts`: active uncancelled orders automatically trigger restock prior to deletion. |
+
+---
+
+## 7. Architectural Constraints & Remaining Roadmap
+
+1. **MongoDB Concurrency Strategy:**
+   Because production and local environments do not currently enforce replica set topologies required for multi-document MongoDB transactions (`session.startTransaction()`), atomic concurrency is guaranteed via conditional single-document updates:
+   `Order.findOneAndUpdate({ _id, inventoryRestored: { $ne: true }, ... })`.
+   This guarantees that competing concurrent cancellation requests can never double-restock inventory or double-decrement coupons.
+2. **Current Release Branch & State:**
+   - Active Branch: `release/malwa-production-ready`
+   - Canonical Remote: `daksh_repo`
+   - Production Baseline: `8dca758` (matching production `main`)
+   - Branch Status: Clean working tree ready for commit.
+3. **Next Recommended Task:**
+   - Prompt 3: Implement real payment gateway integration (Razorpay / cash-free) or automated logistics fulfillment (Shiprocket).

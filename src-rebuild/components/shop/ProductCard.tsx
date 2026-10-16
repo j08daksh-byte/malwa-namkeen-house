@@ -1,9 +1,97 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { type Product, type ProductWeightOption } from '../../data/products';
 import { useCart } from '../../lib/cartContext';
 import { useWishlist } from '../../lib/wishlistContext';
 import { optimizeCloudinary } from '../../lib/cloudinary';
+
+/**
+ * Determines whether a specific product variant is currently in stock and purchasable.
+ * Handles variant-level and product-level availability conservatively.
+ * Malformed or unknown stock data is not assumed to be in stock.
+ */
+export function isVariantAvailable(
+  opt: ProductWeightOption | undefined | null,
+  product?: Product | null
+): boolean {
+  if (!opt) return false;
+  if (product && product.isAvailable === false) return false;
+  if ((opt as any).active === false) return false;
+
+  const stock = (opt as any).stock;
+  if (typeof stock === 'number') {
+    return !isNaN(stock) && stock > 0;
+  }
+  if (stock === null || (typeof stock !== 'undefined' && typeof stock !== 'number')) {
+    return false;
+  }
+
+  const prodStock = (product as any)?.stock;
+  if (typeof prodStock === 'number') {
+    return !isNaN(prodStock) && prodStock > 0;
+  }
+
+  if (product && typeof product.isAvailable === 'boolean') {
+    return product.isAvailable;
+  }
+
+  return false;
+}
+
+/**
+ * Determines whether a product has at least one in-stock, purchasable variant.
+ * If all variants have zero or negative stock, returns false (Sold Out).
+ */
+export function isProductAvailable(product: Product | undefined | null): boolean {
+  if (!product) return false;
+  if (product.isAvailable === false) return false;
+
+  if (!Array.isArray(product.options) || product.options.length === 0) {
+    const prodStock = (product as any)?.stock;
+    if (typeof prodStock === 'number') {
+      return !isNaN(prodStock) && prodStock > 0;
+    }
+    return Boolean(product.isAvailable);
+  }
+
+  return product.options.some(opt => isVariantAvailable(opt, product));
+}
+
+/**
+ * Synchronizes the selected variant with the latest product options.
+ * Matches by SKU first when available, then by option ID, then by weight as fallback.
+ * Preserves the user's selection if that variant still exists and is available.
+ * If the selected variant disappears or becomes unavailable, selects the first available variant.
+ * If none are available, maintains a safe sold-out state.
+ */
+export function syncSelectedVariant(
+  prev: ProductWeightOption | undefined | null,
+  product: Product | undefined | null
+): ProductWeightOption {
+  if (!product?.options || product.options.length === 0) {
+    return { weight: 'Standard', price: 150 };
+  }
+
+  const prevSku = (prev as any)?.sku;
+  const prevId = (prev as any)?.id;
+  const prevWeight = prev?.weight;
+
+  // Match by SKU first, then by ID, then by weight
+  const matchingOpt = product.options.find(o => {
+    if (prevSku && (o as any).sku && (o as any).sku === prevSku) return true;
+    if (prevId && (o as any).id && (o as any).id === prevId) return true;
+    return prevWeight ? o.weight === prevWeight : false;
+  });
+
+  if (matchingOpt && isVariantAvailable(matchingOpt, product)) {
+    // Preserve user selection with the latest matching option object reference
+    return matchingOpt;
+  }
+
+  // Selected variant disappeared or became unavailable: switch to first available
+  const firstAvailable = product.options.find(opt => isVariantAvailable(opt, product));
+  return firstAvailable || matchingOpt || product.options[0];
+}
 
 interface ProductCardProps {
   product: Product;
@@ -15,9 +103,38 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
   const { cart, addToCart, updateQuantity } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
   const isWishlisted = isInWishlist(product.id || (product as any)._id);
-  const [selectedOption, setSelectedOption] = useState<ProductWeightOption>(
-    product.options?.[0] || { weight: 'Standard', price: 150 }
-  );
+
+  // Check product-level and variant availability
+  const isProductInStock = isProductAvailable(product);
+
+  // Default to the first in-stock variant if option[0] is out of stock
+  const [selectedOption, setSelectedOption] = useState<ProductWeightOption>(() => {
+    return syncSelectedVariant(null, product);
+  });
+
+  // Re-synchronize selected variant when product prop changes
+  useEffect(() => {
+    setSelectedOption(prev => {
+      const nextOpt = syncSelectedVariant(prev, product);
+      if (
+        prev &&
+        nextOpt.weight === prev.weight &&
+        nextOpt.price === prev.price &&
+        (nextOpt as any).stock === (prev as any).stock &&
+        (nextOpt as any).sku === (prev as any).sku &&
+        (nextOpt as any).active === (prev as any).active &&
+        (nextOpt as any).originalPrice === (prev as any).originalPrice
+      ) {
+        return prev;
+      }
+      return nextOpt;
+    });
+  }, [product]);
+
+  const isSelectedVariantInStock = isVariantAvailable(selectedOption, product);
+  const isPurchasable = isProductInStock && isSelectedVariantInStock;
+  const isSoldOut = !isProductInStock;
+
   const [isAdding, setIsAdding] = useState(false);
 
   // Check if currently selected weight is in the cart
@@ -28,13 +145,16 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!isPurchasable) return;
     setIsAdding(true);
     addToCart(product, selectedOption, 1);
     setTimeout(() => setIsAdding(false), 500);
   };
 
-  // Determine badge text: only show if explicitly given, combo, or bestseller
-  const badgeText = product.badge?.trim() || (product.isCombo ? 'COMBO PACK' : product.isBestSeller ? 'BESTSELLER' : undefined);
+  // Determine badge text: show SOLD OUT if entire product has no purchasable variants
+  const badgeText = isSoldOut
+    ? 'SOLD OUT'
+    : product.badge?.trim() || (product.isCombo ? 'COMBO PACK' : product.isBestSeller ? 'BESTSELLER' : undefined);
 
   // Oil / Purity feature tag: only show if oilUsed is provided
   const oilBadgeText = product.oilUsed?.trim()
@@ -89,7 +209,12 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           transform: scale(1.06);
         }
 
-        /* Top Left Highlight Tag (e.g. UNIQUE FLAVOUR / BESTSELLER / NEW) */
+        .eb-product-card__img--soldout {
+          opacity: 0.78;
+          filter: grayscale(18%);
+        }
+
+        /* Top Left Highlight Tag (e.g. UNIQUE FLAVOUR / BESTSELLER / NEW / SOLD OUT) */
         .eb-product-card__badge-tag {
           position: absolute;
           top: 12px;
@@ -106,6 +231,13 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
           z-index: 3;
           border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+
+        .eb-product-card__badge-tag--soldout {
+          background: #DC2626 !important;
+          color: #FFFFFF !important;
+          border-color: #B91C1C !important;
+          box-shadow: 0 2px 8px rgba(220, 38, 38, 0.35) !important;
         }
 
         /* Bottom Left Rating Pill (like Eat Better ★ 4.9) */
@@ -293,7 +425,11 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           color: #55000A;
           cursor: pointer;
           transition: all 0.15s ease;
-          outline: none;
+        }
+
+        .eb-product-card__weight-btn:focus-visible {
+          outline: 2px solid #55000A !important;
+          outline-offset: 2px !important;
         }
 
         .eb-product-card__weight-btn:hover {
@@ -306,6 +442,32 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           color: #FFF8EC !important;
           border-color: #55000A !important;
           box-shadow: 0 2px 6px rgba(85, 0, 10, 0.2);
+        }
+
+        .eb-product-card__weight-btn--active:focus-visible {
+          outline: 2px solid #C99A32 !important;
+          outline-offset: 2px !important;
+        }
+
+        .eb-product-card__weight-btn--soldout {
+          color: #9C857B !important;
+          background: #F5EFEB !important;
+          border-color: #DECFC7 !important;
+          border-style: dashed !important;
+          text-decoration: line-through;
+        }
+
+        .eb-product-card__weight-btn--soldout:focus-visible {
+          outline: 2px solid #75645C !important;
+          outline-offset: 2px !important;
+        }
+
+        .eb-product-card__weight-btn--soldout.eb-product-card__weight-btn--active {
+          background: #75645C !important;
+          color: #FFF8EC !important;
+          border-color: #75645C !important;
+          border-style: solid !important;
+          text-decoration: none;
         }
 
         /* Pricing Section */
@@ -376,6 +538,24 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
 
         .eb-product-card__cta-btn:active {
           transform: translateY(0);
+        }
+
+        .eb-product-card__cta-btn--disabled {
+          background: #E8DDD9 !important;
+          color: #8C756B !important;
+          border-color: #D6C7C0 !important;
+          cursor: not-allowed !important;
+          box-shadow: none !important;
+          transform: none !important;
+          opacity: 0.95;
+        }
+
+        .eb-product-card__cta-btn--disabled:hover {
+          background: #E8DDD9 !important;
+          color: #8C756B !important;
+          border-color: #D6C7C0 !important;
+          box-shadow: none !important;
+          transform: none !important;
         }
 
         /* Stepper when item is already in cart */
@@ -457,6 +637,11 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
             font-size: 10.5px;
             border-radius: 8px;
           }
+          .eb-product-card__cta-btn--disabled {
+            height: 36px;
+            font-size: 10.5px;
+            border-radius: 8px;
+          }
           .eb-product-card__stepper {
             height: 36px;
             border-radius: 8px;
@@ -481,7 +666,7 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
         <img
           src={optimizeCloudinary(product.image, { width: 520, quality: 'auto', format: 'auto' })}
           alt={product.name}
-          className="eb-product-card__img"
+          className={`eb-product-card__img ${isSoldOut ? 'eb-product-card__img--soldout' : ''}`}
           loading="lazy"
           decoding="async"
           onError={e => {
@@ -494,7 +679,9 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
 
         {/* Top-Left Tag Badge */}
         {badgeText && (
-          <span className="eb-product-card__badge-tag">{badgeText}</span>
+          <span className={`eb-product-card__badge-tag ${isSoldOut ? 'eb-product-card__badge-tag--soldout' : ''}`}>
+            {badgeText}
+          </span>
         )}
 
         {/* Bottom-Left Rating Pill */}
@@ -583,13 +770,16 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           <div className="eb-product-card__weights" role="group" aria-label="Available pack sizes">
             {product.options.map(opt => {
               const isSelected = selectedOption.weight === opt.weight;
+              const isOptAvailable = isVariantAvailable(opt, product);
               return (
                 <button
                   key={opt.weight}
                   type="button"
-                  className={`eb-product-card__weight-btn ${isSelected ? 'eb-product-card__weight-btn--active' : ''}`}
+                  className={`eb-product-card__weight-btn ${isSelected ? 'eb-product-card__weight-btn--active' : ''} ${!isOptAvailable ? 'eb-product-card__weight-btn--soldout' : ''}`}
                   onClick={() => setSelectedOption(opt)}
                   aria-pressed={isSelected}
+                  aria-label={!isOptAvailable ? `${opt.weight} (Sold out)` : opt.weight}
+                  title={!isOptAvailable ? `${opt.weight} - Sold Out` : undefined}
                 >
                   {opt.weight}
                 </button>
@@ -612,7 +802,17 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
         </div>
 
         {/* Add to Cart / Quick Add Button or Stepper */}
-        {quantityInCart > 0 ? (
+        {!isPurchasable ? (
+          <button
+            type="button"
+            className="eb-product-card__cta-btn eb-product-card__cta-btn--disabled"
+            disabled
+            aria-disabled="true"
+            aria-label={`${product.name} ${selectedOption?.weight || ''} is sold out`}
+          >
+            SOLD OUT
+          </button>
+        ) : quantityInCart > 0 ? (
           <div className="eb-product-card__stepper" aria-label={`Quantity of ${product.name} in cart`}>
             <button
               type="button"

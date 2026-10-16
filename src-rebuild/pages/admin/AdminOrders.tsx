@@ -106,7 +106,7 @@ export default function AdminOrders() {
   // Detail Modal / Drawer
   const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
   const [savingStatus, setSavingStatus] = useState(false);
-  const [statusSaveMsg, setStatusSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [statusSaveMsg, setStatusSaveMsg] = useState<{ type: 'success' | 'warning' | 'error'; text: string; warnings?: string[] } | null>(null);
 
   // Editable fields in modal
   const [editOrderStatus, setEditOrderStatus] = useState<OrderStatus>('pending');
@@ -230,7 +230,18 @@ export default function AdminOrders() {
         throw new Error(data.message || 'Failed to update order.');
       }
 
-      setStatusSaveMsg({ type: 'success', text: 'Order status & fulfillment details updated successfully.' });
+      if (data.warnings && data.warnings.length > 0) {
+        setStatusSaveMsg({
+          type: 'warning',
+          text: `Order updated with restoration warnings: ${data.warnings.join('; ')}`,
+          warnings: data.warnings,
+        });
+      } else {
+        setStatusSaveMsg({
+          type: 'success',
+          text: data.message || 'Order status & fulfillment details updated successfully.',
+        });
+      }
       setSelectedOrder(data.order);
       fetchOrders();
     } catch (err: unknown) {
@@ -733,9 +744,43 @@ export default function AdminOrders() {
 
               {/* 3. Order Workflow Status Updater Form */}
               <form onSubmit={handleSaveOrderUpdate} style={{ background: '#F8F6F2', border: '1px solid #EAE3D2', borderRadius: '12px', padding: '20px', display: 'grid', gap: '16px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', color: '#881337', borderBottom: '1px solid #EAE3D2', paddingBottom: '6px' }}>
-                  Update Fulfillment & Payment Status
+                <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', color: '#881337', borderBottom: '1px solid #EAE3D2', paddingBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Update Fulfillment & Payment Status</span>
+                  {selectedOrder.orderStatus === 'cancelled' && (
+                    <span style={{ fontSize: '11px', color: '#BE123C', fontWeight: 600, textTransform: 'none' }}>
+                      (Cancelled order: Lifecycle status locked)
+                    </span>
+                  )}
                 </div>
+
+                {/* Surface Admin Messages & Warnings (F-06) */}
+                {statusSaveMsg && (
+                  <div
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      background: statusSaveMsg.type === 'error' ? '#FEE2E2' : statusSaveMsg.type === 'warning' ? '#FEF3C7' : '#D1FAE5',
+                      color: statusSaveMsg.type === 'error' ? '#991B1B' : statusSaveMsg.type === 'warning' ? '#92400E' : '#065F46',
+                      border: `1px solid ${statusSaveMsg.type === 'error' ? '#FECACA' : statusSaveMsg.type === 'warning' ? '#FDE68A' : '#A7F3D0'}`,
+                      display: 'grid',
+                      gap: '4px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <AlertCircle size={16} />
+                      <span>{statusSaveMsg.text}</span>
+                    </div>
+                    {statusSaveMsg.warnings && statusSaveMsg.warnings.length > 0 && (
+                      <ul style={{ margin: '4px 0 0 24px', padding: 0, fontSize: '12px', fontWeight: 500 }}>
+                        {statusSaveMsg.warnings.map((w, idx) => (
+                          <li key={idx}>{w}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
                   {/* Order Status */}
@@ -744,15 +789,45 @@ export default function AdminOrders() {
                     <select
                       value={editOrderStatus}
                       onChange={e => setEditOrderStatus(e.target.value as OrderStatus)}
-                      style={inputStyle}
+                      disabled={selectedOrder.orderStatus === 'cancelled'}
+                      style={{
+                        ...inputStyle,
+                        cursor: selectedOrder.orderStatus === 'cancelled' ? 'not-allowed' : 'pointer',
+                        opacity: selectedOrder.orderStatus === 'cancelled' ? 0.7 : 1,
+                      }}
                     >
                       <option value="pending">Pending</option>
                       <option value="confirmed">Confirmed</option>
                       <option value="processing">Processing (Packing)</option>
-                      <option value="shipped">Shipped</option>
-                      <option value="delivered">Delivered</option>
-                      <option value="cancelled">Cancelled</option>
+                      <option
+                        value="shipped"
+                        disabled={selectedOrder.orderStatus === 'cancelled'}
+                      >
+                        Shipped
+                      </option>
+                      <option
+                        value="delivered"
+                        disabled={selectedOrder.orderStatus === 'cancelled'}
+                      >
+                        Delivered
+                      </option>
+                      <option
+                        value="cancelled"
+                        disabled={selectedOrder.orderStatus === 'shipped' || selectedOrder.orderStatus === 'delivered'}
+                      >
+                        Cancelled
+                      </option>
                     </select>
+                    {selectedOrder.orderStatus === 'cancelled' && (
+                      <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#881337' }}>
+                        Cancelled orders cannot be directly re-activated.
+                      </p>
+                    )}
+                    {(selectedOrder.orderStatus === 'shipped' || selectedOrder.orderStatus === 'delivered') && (
+                      <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#6B7280' }}>
+                        Shipped/delivered orders cannot be cancelled online.
+                      </p>
+                    )}
                   </div>
 
                   {/* Payment Status */}
