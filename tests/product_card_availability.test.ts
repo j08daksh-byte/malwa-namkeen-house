@@ -13,6 +13,7 @@ import { MemoryRouter } from 'react-router-dom';
 import ProductCard, {
   isVariantAvailable,
   isProductAvailable,
+  syncSelectedVariant,
 } from '../src-rebuild/components/shop/ProductCard.tsx';
 import { CustomerSessionProvider } from '../src-rebuild/components/layout/CustomerSessionContext.tsx';
 import { CartProvider } from '../src-rebuild/lib/cartContext.tsx';
@@ -252,6 +253,85 @@ describe('Storefront UX — Product Availability & Stock Verification', () => {
       assert.ok(html.includes('.eb-product-card__cta-btn--disabled'), 'Should define disabled CTA style');
       assert.ok(html.includes('.eb-product-card__weight-btn--soldout'), 'Should define soldout weight chip style');
       assert.ok(html.includes('.eb-product-card__badge-tag--soldout'), 'Should define soldout badge style');
+    });
+  });
+
+  describe('7. Selected variant synchronization on prop refresh & keyboard focus', () => {
+    it('should update to the latest matching variant reference with fresh stock when product prop refreshes', () => {
+      const initialSelected = { sku: 'MLW-RT-400G', weight: '400g', price: 160, stock: 20 } as ProductWeightOption;
+      const refreshedProduct = createMockProduct({
+        id: 'test-sync-1',
+        options: [
+          { sku: 'MLW-RT-400G', weight: '400g', price: 160, stock: 5 } as ProductWeightOption,
+          { sku: 'MLW-RT-800G', weight: '800g', price: 310, stock: 15 } as ProductWeightOption,
+        ],
+      });
+
+      const synced = syncSelectedVariant(initialSelected, refreshedProduct);
+      assert.equal((synced as any).sku, 'MLW-RT-400G');
+      assert.equal((synced as any).stock, 5, 'Should reference the updated option object with new stock');
+      assert.equal(synced, refreshedProduct.options[0], 'Should be exact object reference from new product options');
+    });
+
+    it('should automatically select first available variant when selected variant becomes unavailable after refresh', () => {
+      const previouslySelected = { sku: 'MLW-RT-400G', weight: '400g', price: 160, stock: 10 } as ProductWeightOption;
+      const refreshedProduct = createMockProduct({
+        id: 'test-sync-2',
+        options: [
+          { sku: 'MLW-RT-400G', weight: '400g', price: 160, stock: 0 } as ProductWeightOption, // became OOS
+          { sku: 'MLW-RT-800G', weight: '800g', price: 310, stock: 15 } as ProductWeightOption, // available
+        ],
+      });
+
+      const synced = syncSelectedVariant(previouslySelected, refreshedProduct);
+      assert.equal((synced as any).sku, 'MLW-RT-800G', 'Should switch to the first in-stock variant');
+      assert.equal((synced as any).stock, 15);
+    });
+
+    it('should fallback to first available variant if selected variant disappears entirely from options', () => {
+      const disappearedVariant = { sku: 'MLW-RT-1KG', weight: '1kg', price: 380, stock: 10 } as ProductWeightOption;
+      const refreshedProduct = createMockProduct({
+        id: 'test-sync-3',
+        options: [
+          { sku: 'MLW-RT-400G', weight: '400g', price: 160, stock: 25 } as ProductWeightOption,
+          { sku: 'MLW-RT-800G', weight: '800g', price: 310, stock: 30 } as ProductWeightOption,
+        ],
+      });
+
+      const synced = syncSelectedVariant(disappearedVariant, refreshedProduct);
+      assert.equal((synced as any).sku, 'MLW-RT-400G', 'Should select the first available variant');
+    });
+
+    it('should maintain safe sold-out state when no variants are available after refresh', () => {
+      const previouslySelected = { sku: 'MLW-RT-400G', weight: '400g', price: 160, stock: 10 } as ProductWeightOption;
+      const allOosProduct = createMockProduct({
+        id: 'test-sync-4',
+        options: [
+          { sku: 'MLW-RT-400G', weight: '400g', price: 160, stock: 0 } as ProductWeightOption,
+          { sku: 'MLW-RT-800G', weight: '800g', price: 310, stock: 0 } as ProductWeightOption,
+        ],
+      });
+
+      const synced = syncSelectedVariant(previouslySelected, allOosProduct);
+      assert.ok(synced, 'Should return a valid fallback option');
+      assert.equal(isVariantAvailable(synced, allOosProduct), false, 'Selected variant must evaluate as unavailable');
+      assert.equal(isProductAvailable(allOosProduct), false, 'Product overall must evaluate as sold out');
+    });
+
+    it('should render visible :focus-visible keyboard indicators for weight variant buttons in stylesheet', () => {
+      const product = createMockProduct({
+        id: 'test-focus-styles',
+        options: [
+          { sku: 'MLW-RT-400G', weight: '400g', price: 160, stock: 10 } as ProductWeightOption,
+        ],
+      });
+
+      const html = renderCard(product);
+      assert.ok(html.includes('.eb-product-card__weight-btn:focus-visible'), 'Stylesheet should define :focus-visible for weight buttons');
+      assert.ok(html.includes('outline: 2px solid #55000A'), 'Should define 2px solid high-contrast outline');
+      assert.ok(html.includes('outline-offset: 2px'), 'Should define 2px visible outline offset');
+      assert.ok(html.includes('.eb-product-card__weight-btn--active:focus-visible'), 'Should define custom focus outline for active chip');
+      assert.ok(html.includes('.eb-product-card__weight-btn--soldout:focus-visible'), 'Should define custom focus outline for sold-out chip');
     });
   });
 });

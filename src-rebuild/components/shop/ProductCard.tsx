@@ -57,6 +57,42 @@ export function isProductAvailable(product: Product | undefined | null): boolean
   return product.options.some(opt => isVariantAvailable(opt, product));
 }
 
+/**
+ * Synchronizes the selected variant with the latest product options.
+ * Matches by SKU first when available, then by option ID, then by weight as fallback.
+ * Preserves the user's selection if that variant still exists and is available.
+ * If the selected variant disappears or becomes unavailable, selects the first available variant.
+ * If none are available, maintains a safe sold-out state.
+ */
+export function syncSelectedVariant(
+  prev: ProductWeightOption | undefined | null,
+  product: Product | undefined | null
+): ProductWeightOption {
+  if (!product?.options || product.options.length === 0) {
+    return { weight: 'Standard', price: 150 };
+  }
+
+  const prevSku = (prev as any)?.sku;
+  const prevId = (prev as any)?.id;
+  const prevWeight = prev?.weight;
+
+  // Match by SKU first, then by ID, then by weight
+  const matchingOpt = product.options.find(o => {
+    if (prevSku && (o as any).sku && (o as any).sku === prevSku) return true;
+    if (prevId && (o as any).id && (o as any).id === prevId) return true;
+    return prevWeight ? o.weight === prevWeight : false;
+  });
+
+  if (matchingOpt && isVariantAvailable(matchingOpt, product)) {
+    // Preserve user selection with the latest matching option object reference
+    return matchingOpt;
+  }
+
+  // Selected variant disappeared or became unavailable: switch to first available
+  const firstAvailable = product.options.find(opt => isVariantAvailable(opt, product));
+  return firstAvailable || matchingOpt || product.options[0];
+}
+
 interface ProductCardProps {
   product: Product;
   onQuickView: (product: Product) => void;
@@ -73,24 +109,26 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
 
   // Default to the first in-stock variant if option[0] is out of stock
   const [selectedOption, setSelectedOption] = useState<ProductWeightOption>(() => {
-    if (!product.options || product.options.length === 0) {
-      return { weight: 'Standard', price: 150 };
-    }
-    const firstAvailable = product.options.find(opt => isVariantAvailable(opt, product));
-    return firstAvailable || product.options[0];
+    return syncSelectedVariant(null, product);
   });
 
-  // Re-synchronize selected variant if product changes
+  // Re-synchronize selected variant when product prop changes
   useEffect(() => {
-    if (!product.options || product.options.length === 0) {
-      setSelectedOption({ weight: 'Standard', price: 150 });
-      return;
-    }
-    const matchingOpt = product.options.find(o => o.weight === selectedOption.weight);
-    if (!matchingOpt) {
-      const firstAvailable = product.options.find(opt => isVariantAvailable(opt, product));
-      setSelectedOption(firstAvailable || product.options[0]);
-    }
+    setSelectedOption(prev => {
+      const nextOpt = syncSelectedVariant(prev, product);
+      if (
+        prev &&
+        nextOpt.weight === prev.weight &&
+        nextOpt.price === prev.price &&
+        (nextOpt as any).stock === (prev as any).stock &&
+        (nextOpt as any).sku === (prev as any).sku &&
+        (nextOpt as any).active === (prev as any).active &&
+        (nextOpt as any).originalPrice === (prev as any).originalPrice
+      ) {
+        return prev;
+      }
+      return nextOpt;
+    });
   }, [product]);
 
   const isSelectedVariantInStock = isVariantAvailable(selectedOption, product);
@@ -387,7 +425,11 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           color: #55000A;
           cursor: pointer;
           transition: all 0.15s ease;
-          outline: none;
+        }
+
+        .eb-product-card__weight-btn:focus-visible {
+          outline: 2px solid #55000A !important;
+          outline-offset: 2px !important;
         }
 
         .eb-product-card__weight-btn:hover {
@@ -402,12 +444,22 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           box-shadow: 0 2px 6px rgba(85, 0, 10, 0.2);
         }
 
+        .eb-product-card__weight-btn--active:focus-visible {
+          outline: 2px solid #C99A32 !important;
+          outline-offset: 2px !important;
+        }
+
         .eb-product-card__weight-btn--soldout {
           color: #9C857B !important;
           background: #F5EFEB !important;
           border-color: #DECFC7 !important;
           border-style: dashed !important;
           text-decoration: line-through;
+        }
+
+        .eb-product-card__weight-btn--soldout:focus-visible {
+          outline: 2px solid #75645C !important;
+          outline-offset: 2px !important;
         }
 
         .eb-product-card__weight-btn--soldout.eb-product-card__weight-btn--active {
