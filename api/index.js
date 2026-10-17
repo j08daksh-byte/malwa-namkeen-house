@@ -1,7 +1,7 @@
 // server/api-entry.ts
 import express from "express";
 import cookieParser from "cookie-parser";
-import mongoose31 from "mongoose";
+import mongoose32 from "mongoose";
 
 // server/lib/mongodb.ts
 import mongoose5 from "mongoose";
@@ -4964,6 +4964,11 @@ var orderSchema = new Schema8(
       trim: true,
       default: ""
     },
+    idempotencyKey: {
+      type: String,
+      trim: true,
+      index: true
+    },
     inventoryRestored: {
       type: Boolean,
       default: false,
@@ -6352,7 +6357,8 @@ var customerAccount_default = router5;
 // server/routes/customerOrders.ts
 import { Router as Router6 } from "express";
 import rateLimit4 from "express-rate-limit";
-import mongoose18 from "mongoose";
+import mongoose19 from "mongoose";
+import crypto5 from "crypto";
 
 // server/models/StoreSettings.ts
 import mongoose17, { Schema as Schema9 } from "mongoose";
@@ -6442,6 +6448,71 @@ var storeSettingsSchema = new Schema9(
   }
 );
 var StoreSettings = mongoose17.models.StoreSettings || mongoose17.model("StoreSettings", storeSettingsSchema);
+
+// server/models/IdempotencyRecord.ts
+import mongoose18, { Schema as Schema10 } from "mongoose";
+var idempotencyRecordSchema = new Schema10(
+  {
+    scopeKey: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true
+    },
+    key: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true
+    },
+    user: {
+      type: Schema10.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true
+    },
+    requestHash: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    status: {
+      type: String,
+      enum: ["started", "completed", "failed"],
+      default: "started",
+      index: true
+    },
+    order: {
+      type: Schema10.Types.ObjectId,
+      ref: "Order"
+    },
+    orderNumber: {
+      type: String,
+      trim: true
+    },
+    statusCode: {
+      type: Number,
+      default: 201
+    },
+    responsePayload: {
+      type: Schema10.Types.Mixed
+    },
+    errorMessage: {
+      type: String,
+      trim: true
+    },
+    expiresAt: {
+      type: Date,
+      required: true
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+idempotencyRecordSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+idempotencyRecordSchema.index({ user: 1, key: 1 }, { unique: true });
+var IdempotencyRecord = mongoose18.models.IdempotencyRecord || mongoose18.model("IdempotencyRecord", idempotencyRecordSchema);
 
 // server/lib/razorpayService.ts
 import crypto4 from "crypto";
@@ -6612,6 +6683,28 @@ function cleanupRecentSubmissions() {
     }
   }
 }
+function computeCheckoutRequestHash(params) {
+  const normalizedItems = (Array.isArray(params.items) ? params.items : []).map((it) => ({
+    productId: String(it.productId || ""),
+    variantId: String(it.variantId || it.sku || it.weight || ""),
+    quantity: Number(it.quantity) || 0
+  })).sort((a, b) => `${a.productId}:${a.variantId}`.localeCompare(`${b.productId}:${b.variantId}`));
+  const normalizedAddress = {
+    name: String(params.shippingAddress?.name || "").trim().toLowerCase(),
+    phone: String(params.shippingAddress?.phone || "").trim(),
+    addressLine1: String(params.shippingAddress?.addressLine1 || "").trim().toLowerCase(),
+    city: String(params.shippingAddress?.city || "").trim().toLowerCase(),
+    state: String(params.shippingAddress?.state || "").trim().toLowerCase(),
+    pincode: String(params.shippingAddress?.pincode || "").trim()
+  };
+  const canonical = {
+    items: normalizedItems,
+    address: normalizedAddress,
+    coupon: String(params.couponCode || "").trim().toUpperCase(),
+    paymentMethod: String(params.paymentMethod || "cod").trim().toLowerCase()
+  };
+  return crypto5.createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
+}
 function generateOrderNumber() {
   const dateStr = (/* @__PURE__ */ new Date()).toISOString().slice(2, 10).replace(/-/g, "");
   const randomSuffix = Math.floor(1e3 + Math.random() * 9e3);
@@ -6628,9 +6721,10 @@ var orderCreationLimiter = rateLimit4({
     return req.user?.userId ? `user_${req.user.userId}` : req.ip || "127.0.0.1";
   },
   skip: (req) => {
-    const idempotencyKey = req.body?.idempotencyKey;
-    if (idempotencyKey && typeof idempotencyKey === "string") {
-      const cached = recentSubmissions.get(idempotencyKey);
+    const rawKey = req.headers?.["idempotency-key"] || req.headers?.["x-idempotency-key"] || req.body?.idempotencyKey;
+    const idempotencyKey = typeof rawKey === "string" && rawKey.trim() ? rawKey.trim() : "";
+    if (idempotencyKey && req.user?.userId) {
+      const cached = recentSubmissions.get(`${req.user.userId}:${idempotencyKey}`);
       if (cached && Date.now() - cached.timestamp < 3e5) {
         return true;
       }
@@ -6645,6 +6739,17 @@ var orderCreationLimiter = rateLimit4({
 router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
   let appliedDiscountCode = "";
   const reservedStockUpdates = [];
+  let scopeKey = "";
+  let idempotencyRecord = null;
+  const releaseIdempotencyLock = async () => {
+    if (scopeKey && idempotencyRecord) {
+      try {
+        await IdempotencyRecord.deleteOne({ scopeKey, status: "started" });
+      } catch {
+      }
+      idempotencyRecord = null;
+    }
+  };
   try {
     const {
       items = [],
@@ -6652,18 +6757,33 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
       saveAddressToBook = false,
       couponCode = "",
       paymentMethod = "cod",
-      notes = "",
-      idempotencyKey = ""
+      notes = ""
     } = req.body;
-    if (idempotencyKey && typeof idempotencyKey === "string") {
-      const cached = recentSubmissions.get(idempotencyKey);
+    const rawKey = req.headers?.["idempotency-key"] || req.headers?.["x-idempotency-key"] || req.body?.idempotencyKey;
+    const idempotencyKey = typeof rawKey === "string" && rawKey.trim() ? rawKey.trim() : "";
+    if (idempotencyKey && req.user?.userId) {
+      const cached = recentSubmissions.get(`${req.user.userId}:${idempotencyKey}`);
       if (cached && Date.now() - cached.timestamp < 3e5) {
+        const currentHash = computeCheckoutRequestHash({
+          items,
+          shippingAddress,
+          couponCode,
+          paymentMethod
+        });
+        if (cached.requestHash && cached.requestHash !== currentHash) {
+          res.status(400).json({
+            success: false,
+            message: "Idempotency key was previously used with different checkout data."
+          });
+          return;
+        }
         const existingOrder = await Order.findById(cached.orderId).lean();
-        if (existingOrder) {
+        if (existingOrder && existingOrder.customer?.toString() === req.user?.userId) {
           res.json({
             success: true,
             order: existingOrder,
-            isDuplicateReplay: true
+            isDuplicateReplay: true,
+            ...cached.razorpay ? { razorpay: cached.razorpay } : {}
           });
           return;
         }
@@ -6677,11 +6797,126 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
       });
       return;
     }
+    if (idempotencyKey) {
+      scopeKey = `cust_${user._id.toString()}:${idempotencyKey}`;
+      const requestHash = computeCheckoutRequestHash({
+        items,
+        shippingAddress,
+        couponCode,
+        paymentMethod
+      });
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1e3);
+      try {
+        idempotencyRecord = await IdempotencyRecord.create({
+          scopeKey,
+          key: idempotencyKey,
+          user: user._id,
+          requestHash,
+          status: "started",
+          expiresAt
+        });
+      } catch (idempErr) {
+        if (idempErr?.code === 11e3 || idempErr?.name === "MongoServerError" && idempErr?.code === 11e3) {
+          const existing = await IdempotencyRecord.findOne({ scopeKey });
+          if (existing) {
+            if (existing.user.toString() !== user._id.toString()) {
+              res.status(403).json({
+                success: false,
+                message: "Idempotency key is not authorized for this account."
+              });
+              return;
+            }
+            if (existing.requestHash && existing.requestHash !== requestHash) {
+              res.status(400).json({
+                success: false,
+                message: "Idempotency key was previously used with different checkout data."
+              });
+              return;
+            }
+            if (existing.status === "completed") {
+              const existingOrder = await Order.findById(existing.order).lean();
+              const returnedOrder = existing.responsePayload?.order || existingOrder;
+              if (returnedOrder) {
+                res.status(existing.statusCode || 200).json({
+                  success: true,
+                  isDuplicateReplay: true,
+                  message: "Order already created.",
+                  order: returnedOrder,
+                  ...existing.responsePayload?.razorpay ? { razorpay: existing.responsePayload.razorpay } : {}
+                });
+                return;
+              }
+              res.status(409).json({
+                success: false,
+                message: "This checkout order has already been completed."
+              });
+              return;
+            }
+            if (existing.status === "started") {
+              const pollStart = Date.now();
+              let completedRecord = null;
+              while (Date.now() - pollStart < 3e3) {
+                await new Promise((r) => setTimeout(r, 200));
+                const pollCheck = await IdempotencyRecord.findOne({ scopeKey }).lean();
+                if (pollCheck?.status === "completed") {
+                  completedRecord = pollCheck;
+                  break;
+                }
+                if (pollCheck?.status === "failed") {
+                  break;
+                }
+              }
+              if (completedRecord) {
+                const existingOrder = await Order.findById(completedRecord.order).lean();
+                const returnedOrder = completedRecord.responsePayload?.order || existingOrder;
+                if (returnedOrder) {
+                  res.status(completedRecord.statusCode || 200).json({
+                    success: true,
+                    isDuplicateReplay: true,
+                    message: "Order already created.",
+                    order: returnedOrder,
+                    ...completedRecord.responsePayload?.razorpay ? { razorpay: completedRecord.responsePayload.razorpay } : {}
+                  });
+                  return;
+                }
+              }
+              res.status(409).json({
+                success: false,
+                message: "A checkout with this idempotency key is currently being processed. Please wait a moment and refresh."
+              });
+              return;
+            }
+            if (existing.status === "failed") {
+              await IdempotencyRecord.deleteOne({ scopeKey, status: "failed" });
+              try {
+                idempotencyRecord = await IdempotencyRecord.create({
+                  scopeKey,
+                  key: idempotencyKey,
+                  user: user._id,
+                  requestHash,
+                  status: "started",
+                  expiresAt
+                });
+              } catch {
+                res.status(409).json({
+                  success: false,
+                  message: "A checkout with this idempotency key is currently being processed."
+                });
+                return;
+              }
+            }
+          }
+        } else {
+          throw idempErr;
+        }
+      }
+    }
     const pendingOrderCount = await Order.countDocuments({
       customer: user._id,
       orderStatus: "pending"
     });
     if (pendingOrderCount >= 3) {
+      await releaseIdempotencyLock();
       res.status(400).json({
         success: false,
         message: "You have too many pending orders. Please wait for them to be processed or contact support."
@@ -6689,6 +6924,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
       return;
     }
     if (!Array.isArray(items) || items.length === 0) {
+      await releaseIdempotencyLock();
       res.status(400).json({
         success: false,
         message: "Your cart is empty. Please add items to checkout."
@@ -6696,6 +6932,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
       return;
     }
     if (!shippingAddress || typeof shippingAddress !== "object" || !shippingAddress.name?.trim() || !shippingAddress.phone?.trim() || !shippingAddress.addressLine1?.trim() || !shippingAddress.city?.trim() || !shippingAddress.state?.trim() || !shippingAddress.pincode?.trim()) {
+      await releaseIdempotencyLock();
       res.status(400).json({
         success: false,
         message: "Please provide a complete delivery address with PIN code and phone."
@@ -6703,6 +6940,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
       return;
     }
     if (!/^\d{6}$/.test(String(shippingAddress.pincode).trim())) {
+      await releaseIdempotencyLock();
       res.status(400).json({
         success: false,
         message: "Please provide a valid 6-digit Indian PIN code."
@@ -6711,7 +6949,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
     }
     const productIds = [
       ...new Set(
-        items.map((it) => it.productId).filter((id) => mongoose18.Types.ObjectId.isValid(id))
+        items.map((it) => it.productId).filter((id) => mongoose19.Types.ObjectId.isValid(id))
       )
     ];
     const products = await Product.find({
@@ -6724,6 +6962,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
     for (const item of items) {
       const product = productMap.get(String(item.productId));
       if (!product) {
+        await releaseIdempotencyLock();
         res.status(400).json({
           success: false,
           message: `Item in cart is no longer active or available.`
@@ -6750,6 +6989,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
         }
       }
       if (!variant) {
+        await releaseIdempotencyLock();
         res.status(400).json({
           success: false,
           message: `Packaging for "${product.name}" is currently unavailable.`
@@ -6758,6 +6998,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
       }
       const rawQty = parseInt(String(item.quantity), 10);
       if (isNaN(rawQty) || rawQty <= 0 || !Number.isInteger(Number(item.quantity))) {
+        await releaseIdempotencyLock();
         res.status(400).json({
           success: false,
           message: `Invalid quantity for "${product.name}". Quantity must be a positive whole number.`
@@ -6767,6 +7008,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
       const qty = rawQty;
       const stock = typeof variant.stock === "number" ? variant.stock : 100;
       if (stock < qty) {
+        await releaseIdempotencyLock();
         res.status(400).json({
           success: false,
           message: `Insufficient stock for "${product.name} (${variant.label || "Standard"})". Available: ${stock}.`
@@ -6799,6 +7041,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
     const storeSettings = await StoreSettings.findOne().lean();
     const minOrder = storeSettings?.deliverySettings?.minOrderValue ?? 0;
     if (minOrder > 0 && subtotal < minOrder) {
+      await releaseIdempotencyLock();
       res.status(400).json({
         success: false,
         message: `Minimum order subtotal for delivery is \u20B9${minOrder}.`
@@ -6812,6 +7055,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
     if (couponCode && typeof couponCode === "string" && couponCode.trim()) {
       const discountCalc = await validateAndCalculateDiscount(couponCode.trim(), subtotal, orderItems);
       if (!discountCalc.valid || !discountCalc.discount) {
+        await releaseIdempotencyLock();
         res.status(400).json({
           success: false,
           message: discountCalc.message || "Invalid or expired coupon code."
@@ -6834,6 +7078,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
         { returnDocument: "after" }
       );
       if (!updatedDiscount) {
+        await releaseIdempotencyLock();
         res.status(400).json({
           success: false,
           message: `Coupon code "${discountCalc.code}" has just reached its maximum redemption limit.`
@@ -6903,6 +7148,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
       }
     }
     if (stockFailure) {
+      await releaseIdempotencyLock();
       for (const resv of reservedStockUpdates) {
         await Product.updateOne(
           { _id: resv.productId, "variants._id": resv.variantId },
@@ -6942,9 +7188,11 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
         paymentStatus: "pending",
         paymentMethod: ["cod", "online", "upi", "card"].includes(paymentMethod) ? paymentMethod : "cod",
         shipmentStatus: "unfulfilled",
-        notes: typeof notes === "string" ? notes.trim() : ""
+        notes: typeof notes === "string" ? notes.trim() : "",
+        idempotencyKey: idempotencyKey || void 0
       });
     } catch (orderCreateErr) {
+      await releaseIdempotencyLock();
       for (const resv of reservedStockUpdates) {
         await Product.updateOne(
           { _id: resv.productId, "variants._id": resv.variantId },
@@ -6973,6 +7221,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
         }
       });
       if (!rzpRes.success || !rzpRes.data) {
+        await releaseIdempotencyLock();
         for (const resv of reservedStockUpdates) {
           try {
             await Product.updateOne(
@@ -7028,11 +7277,47 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
       };
       await newOrder.save();
     }
-    if (idempotencyKey) {
+    if (scopeKey) {
+      const responseOrderPayload = {
+        _id: newOrder._id.toString(),
+        orderNumber: newOrder.orderNumber,
+        subtotal: newOrder.subtotal,
+        discount: newOrder.discount,
+        discountCode: newOrder.discountCode,
+        shipping: newOrder.shipping,
+        total: newOrder.total,
+        items: newOrder.items,
+        shippingAddress: newOrder.shippingAddress,
+        orderStatus: newOrder.orderStatus,
+        paymentStatus: newOrder.paymentStatus,
+        paymentMethod: newOrder.paymentMethod,
+        shipmentStatus: newOrder.shipmentStatus,
+        createdAt: newOrder.createdAt
+      };
+      await IdempotencyRecord.updateOne(
+        { scopeKey },
+        {
+          $set: {
+            status: "completed",
+            order: newOrder._id,
+            orderNumber: newOrder.orderNumber,
+            statusCode: 201,
+            responsePayload: {
+              order: responseOrderPayload,
+              ...razorpayPayload ? { razorpay: razorpayPayload } : {}
+            }
+          }
+        }
+      );
+      idempotencyRecord = null;
+    }
+    if (idempotencyKey && req.user?.userId) {
       cleanupRecentSubmissions();
-      recentSubmissions.set(idempotencyKey, {
+      recentSubmissions.set(`${req.user.userId}:${idempotencyKey}`, {
         timestamp: Date.now(),
-        orderId: newOrder._id.toString()
+        orderId: newOrder._id.toString(),
+        requestHash: scopeKey ? computeCheckoutRequestHash({ items, shippingAddress, couponCode, paymentMethod }) : void 0,
+        razorpay: razorpayPayload || void 0
       });
     }
     if (newOrder.paymentMethod === "cod" || newOrder.paymentStatus === "paid") {
@@ -7061,6 +7346,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
     });
   } catch (err) {
     console.error("[Create Order Error]", err);
+    await releaseIdempotencyLock();
     for (const resv of reservedStockUpdates) {
       try {
         await Product.updateOne(
@@ -7114,7 +7400,7 @@ async function handleVerifyPayment(req, res) {
       });
       return;
     }
-    if (!mongoose18.Types.ObjectId.isValid(orderId)) {
+    if (!mongoose19.Types.ObjectId.isValid(orderId)) {
       res.status(400).json({
         success: false,
         message: "Invalid order ID format."
@@ -7305,7 +7591,7 @@ async function handleRazorpayWebhook(req, res) {
       const order = await Order.findOne({
         $or: [
           { "paymentDetails.razorpayOrderId": rzpOrderId },
-          ...paymentEntity?.notes?.orderId && mongoose18.Types.ObjectId.isValid(paymentEntity.notes.orderId) ? [{ _id: paymentEntity.notes.orderId }] : []
+          ...paymentEntity?.notes?.orderId && mongoose19.Types.ObjectId.isValid(paymentEntity.notes.orderId) ? [{ _id: paymentEntity.notes.orderId }] : []
         ]
       });
       if (!order) {
@@ -7401,7 +7687,7 @@ async function handleRazorpayWebhook(req, res) {
         const order = await Order.findOne({
           $or: [
             ...rzpOrderId ? [{ "paymentDetails.razorpayOrderId": rzpOrderId }] : [],
-            ...paymentEntity?.notes?.orderId && mongoose18.Types.ObjectId.isValid(paymentEntity.notes.orderId) ? [{ _id: paymentEntity.notes.orderId }] : []
+            ...paymentEntity?.notes?.orderId && mongoose19.Types.ObjectId.isValid(paymentEntity.notes.orderId) ? [{ _id: paymentEntity.notes.orderId }] : []
           ]
         });
         if (order && order.paymentStatus !== "paid" && order.orderStatus !== "cancelled") {
@@ -7428,7 +7714,7 @@ router6.post("/webhook", handleRazorpayWebhook);
 async function handleRetryPayment(req, res) {
   try {
     const { orderId } = req.params;
-    if (!mongoose18.Types.ObjectId.isValid(orderId)) {
+    if (!mongoose19.Types.ObjectId.isValid(orderId)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -7506,7 +7792,7 @@ router6.post("/:orderId/retry-payment", requireAuth, handleRetryPayment);
 async function handleCancelUnpaid(req, res) {
   try {
     const { orderId } = req.params;
-    if (!mongoose18.Types.ObjectId.isValid(orderId)) {
+    if (!mongoose19.Types.ObjectId.isValid(orderId)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -7562,7 +7848,7 @@ router6.post("/:orderId/cancel", requireAuth, async (req, res) => {
   try {
     const { orderId } = req.params;
     const { reason = "Cancelled by customer" } = req.body || {};
-    const query = mongoose18.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderNumber: orderId };
+    const query = mongoose19.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderNumber: orderId };
     const order = await Order.findOne(query);
     if (!order) {
       res.status(404).json({ success: false, message: "Order not found." });
@@ -7630,7 +7916,7 @@ router6.get("/:orderId/track", async (req, res) => {
       return;
     }
     const cleanId = orderId.trim();
-    const query = mongoose18.Types.ObjectId.isValid(cleanId) ? { $or: [{ _id: cleanId }, { orderNumber: cleanId }] } : { orderNumber: cleanId };
+    const query = mongoose19.Types.ObjectId.isValid(cleanId) ? { $or: [{ _id: cleanId }, { orderNumber: cleanId }] } : { orderNumber: cleanId };
     const order = await Order.findOne(query);
     if (!order) {
       res.status(404).json({ success: false, message: "Order not found." });
@@ -7697,7 +7983,7 @@ var customerOrders_default = router6;
 
 // server/routes/adminProducts.ts
 import { Router as Router7 } from "express";
-import mongoose19 from "mongoose";
+import mongoose20 from "mongoose";
 var router7 = Router7();
 router7.use(requireAdmin);
 async function enforceMaxBestSellers(currentProductId) {
@@ -7815,8 +8101,8 @@ router7.get("/", async (req, res) => {
       ];
     }
     if (category && category !== "all") {
-      if (mongoose19.Types.ObjectId.isValid(category)) {
-        filter.category = new mongoose19.Types.ObjectId(category);
+      if (mongoose20.Types.ObjectId.isValid(category)) {
+        filter.category = new mongoose20.Types.ObjectId(category);
       } else {
         const cat = await Category.findOne({ slug: category });
         if (cat) filter.category = cat._id;
@@ -7859,7 +8145,7 @@ router7.get("/", async (req, res) => {
 router7.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose20.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID format." });
       return;
     }
@@ -7930,7 +8216,7 @@ router7.post("/", async (req, res) => {
       return;
     }
     let categoryId = category;
-    if (!mongoose19.Types.ObjectId.isValid(category)) {
+    if (!mongoose20.Types.ObjectId.isValid(category)) {
       const cat = await Category.findOne({ slug: category });
       if (!cat) {
         res.status(400).json({ success: false, message: "Invalid category specified." });
@@ -8048,7 +8334,7 @@ router7.post("/", async (req, res) => {
 router7.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose20.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID format." });
       return;
     }
@@ -8130,8 +8416,8 @@ router7.put("/:id", async (req, res) => {
       }
     }
     if (category) {
-      if (mongoose19.Types.ObjectId.isValid(category)) {
-        existingProduct.category = new mongoose19.Types.ObjectId(category);
+      if (mongoose20.Types.ObjectId.isValid(category)) {
+        existingProduct.category = new mongoose20.Types.ObjectId(category);
       } else {
         const cat = await Category.findOne({ slug: category });
         if (cat) existingProduct.category = cat._id;
@@ -8204,7 +8490,7 @@ router7.put("/:id", async (req, res) => {
 router7.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose20.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -8227,7 +8513,7 @@ router7.patch("/:id/toggle", async (req, res) => {
 router7.patch("/:id/toggle-bestseller", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose20.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -8261,7 +8547,7 @@ router7.patch("/:id/toggle-bestseller", async (req, res) => {
 router7.patch("/:id/toggle-combo", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose20.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -8285,7 +8571,7 @@ router7.patch("/:id/toggle-combo", async (req, res) => {
 router7.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(id)) {
+    if (!mongoose20.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -8306,7 +8592,7 @@ var adminProducts_default = router7;
 
 // server/routes/adminCategories.ts
 import { Router as Router8 } from "express";
-import mongoose20 from "mongoose";
+import mongoose21 from "mongoose";
 var router8 = Router8();
 router8.use(requireAdmin);
 async function ensureCategoriesSeeded() {
@@ -8372,7 +8658,7 @@ router8.get("/", async (req, res) => {
 router8.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -8435,7 +8721,7 @@ router8.post("/", async (req, res) => {
 router8.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -8478,7 +8764,7 @@ router8.put("/:id", async (req, res) => {
 router8.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID." });
       return;
     }
@@ -8501,7 +8787,7 @@ router8.patch("/:id/toggle", async (req, res) => {
 router8.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -8537,7 +8823,7 @@ var adminCategories_default = router8;
 
 // server/routes/adminOrders.ts
 import { Router as Router9 } from "express";
-import mongoose21 from "mongoose";
+import mongoose22 from "mongoose";
 var router9 = Router9();
 router9.use(requireAdmin);
 router9.get("/", async (req, res) => {
@@ -8652,7 +8938,7 @@ router9.get("/shipping/status", async (_req, res) => {
 router9.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose22.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -8669,7 +8955,7 @@ router9.get("/:id", async (req, res) => {
 var updateOrderHandler = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose22.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID." });
       return;
     }
@@ -8876,7 +9162,7 @@ router9.patch("/:id/status", updateOrderHandler);
 router9.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose22.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID." });
       return;
     }
@@ -8913,7 +9199,7 @@ router9.post("/:id/shiprocket/create-shipment", async (req, res) => {
   try {
     const { id } = req.params;
     const { customDimensions } = req.body || {};
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose22.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -8983,7 +9269,7 @@ router9.post("/:id/shiprocket/generate-awb", async (req, res) => {
   try {
     const { id } = req.params;
     const { courierId } = req.body || {};
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose22.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -9060,7 +9346,7 @@ router9.post("/:id/shiprocket/generate-awb", async (req, res) => {
 router9.get("/:id/shiprocket/track", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose22.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -9098,7 +9384,7 @@ router9.get("/:id/shiprocket/track", async (req, res) => {
 router9.post("/:id/shiprocket/sync-tracking", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose22.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -9138,7 +9424,7 @@ var adminOrders_default = router9;
 
 // server/routes/adminCustomers.ts
 import { Router as Router10 } from "express";
-import mongoose22 from "mongoose";
+import mongoose23 from "mongoose";
 var router10 = Router10();
 router10.use(requireAdmin);
 router10.get("/", async (req, res) => {
@@ -9254,7 +9540,7 @@ router10.get("/", async (req, res) => {
 router10.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose22.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -9284,7 +9570,7 @@ router10.get("/:id", async (req, res) => {
 router10.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose22.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -9307,7 +9593,7 @@ router10.patch("/:id/toggle", async (req, res) => {
 router10.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose22.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -9346,7 +9632,7 @@ var adminCustomers_default = router10;
 // server/routes/adminDiscounts.ts
 import { Router as Router11 } from "express";
 import rateLimit5 from "express-rate-limit";
-import mongoose23 from "mongoose";
+import mongoose24 from "mongoose";
 var router11 = Router11();
 var couponValidateLimiter = rateLimit5({
   windowMs: 15 * 60 * 1e3,
@@ -9430,7 +9716,7 @@ router11.get("/", async (req, res) => {
 router11.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose23.Types.ObjectId.isValid(id)) {
+    if (!mongoose24.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -9512,7 +9798,7 @@ router11.post("/", async (req, res) => {
 router11.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose23.Types.ObjectId.isValid(id)) {
+    if (!mongoose24.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -9593,7 +9879,7 @@ router11.put("/:id", async (req, res) => {
 router11.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose23.Types.ObjectId.isValid(id)) {
+    if (!mongoose24.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -9616,7 +9902,7 @@ router11.patch("/:id/toggle", async (req, res) => {
 router11.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose23.Types.ObjectId.isValid(id)) {
+    if (!mongoose24.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -9637,11 +9923,11 @@ var adminDiscounts_default = router11;
 
 // server/routes/adminInquiries.ts
 import { Router as Router12 } from "express";
-import mongoose25 from "mongoose";
+import mongoose26 from "mongoose";
 
 // server/models/Inquiry.ts
-import mongoose24, { Schema as Schema10 } from "mongoose";
-var inquirySchema = new Schema10(
+import mongoose25, { Schema as Schema11 } from "mongoose";
+var inquirySchema = new Schema11(
   {
     name: {
       type: String,
@@ -9685,7 +9971,7 @@ var inquirySchema = new Schema10(
   }
 );
 inquirySchema.index({ status: 1, createdAt: -1 });
-var Inquiry = mongoose24.models.Inquiry || mongoose24.model("Inquiry", inquirySchema);
+var Inquiry = mongoose25.models.Inquiry || mongoose25.model("Inquiry", inquirySchema);
 
 // server/routes/adminInquiries.ts
 var router12 = Router12();
@@ -9714,9 +10000,9 @@ var handlePublicInquiry = async (req, res) => {
       res.status(400).json({ success: false, message: "Please provide a descriptive inquiry message." });
       return;
     }
-    if (mongoose25.connection.readyState !== 1) {
+    if (mongoose26.connection.readyState !== 1) {
       const fallbackInquiry = {
-        _id: new mongoose25.Types.ObjectId(),
+        _id: new mongoose26.Types.ObjectId(),
         name: name2.trim(),
         email: email2.trim().toLowerCase(),
         phone: phone2 ? String(phone2).trim() : "",
@@ -9857,7 +10143,7 @@ router12.get("/", async (req, res) => {
 router12.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose25.Types.ObjectId.isValid(id)) {
+    if (!mongoose26.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -9874,7 +10160,7 @@ router12.get("/:id", async (req, res) => {
 var updateInquiryHandler = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose25.Types.ObjectId.isValid(id)) {
+    if (!mongoose26.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -9908,7 +10194,7 @@ router12.patch("/:id/status", updateInquiryHandler);
 router12.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose25.Types.ObjectId.isValid(id)) {
+    if (!mongoose26.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -9929,8 +10215,8 @@ var adminInquiries_default = router12;
 
 // server/routes/adminStaff.ts
 import { Router as Router13 } from "express";
-import crypto5 from "crypto";
-import mongoose26 from "mongoose";
+import crypto6 from "crypto";
+import mongoose27 from "mongoose";
 var router13 = Router13();
 router13.use(requireSuperAdmin);
 var EMAIL_REGEX2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -9991,8 +10277,8 @@ router13.post("/invite", async (req, res) => {
       });
       return;
     }
-    const rawToken = crypto5.randomBytes(32).toString("hex");
-    const tokenHash = crypto5.createHash("sha256").update(rawToken).digest("hex");
+    const rawToken = crypto6.randomBytes(32).toString("hex");
+    const tokenHash = crypto6.createHash("sha256").update(rawToken).digest("hex");
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1e3);
     const newStaff = await User.create({
       name: cleanName,
@@ -10001,7 +10287,7 @@ router13.post("/invite", async (req, res) => {
       active: true,
       invitationTokenHash: tokenHash,
       invitationExpiresAt: expiresAt,
-      invitedBy: req.user?.userId ? new mongoose26.Types.ObjectId(req.user.userId) : void 0,
+      invitedBy: req.user?.userId ? new mongoose27.Types.ObjectId(req.user.userId) : void 0,
       invitedAt: /* @__PURE__ */ new Date()
     });
     const emailResult = await sendAdminInvitationEmail({
@@ -10034,7 +10320,7 @@ router13.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const { name: name2, role, active } = req.body;
-    if (!mongoose26.Types.ObjectId.isValid(id)) {
+    if (!mongoose27.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid staff ID." });
       return;
     }
@@ -10070,7 +10356,7 @@ router13.patch("/:id", async (req, res) => {
       try {
         await AuditLog.create({
           action: "ROLE_CHANGED",
-          actorId: req.user?.userId ? new mongoose26.Types.ObjectId(req.user.userId) : void 0,
+          actorId: req.user?.userId ? new mongoose27.Types.ObjectId(req.user.userId) : void 0,
           targetUserId: staffMember._id,
           metadata: {
             oldRole,
@@ -10126,7 +10412,7 @@ router13.post("/promote", async (req, res) => {
       return;
     }
     let query = {};
-    if (userId && mongoose26.Types.ObjectId.isValid(userId)) {
+    if (userId && mongoose27.Types.ObjectId.isValid(userId)) {
       query = { _id: userId };
     } else if (email2 && typeof email2 === "string" && EMAIL_REGEX2.test(email2.trim().toLowerCase())) {
       query = { email: email2.trim().toLowerCase() };
@@ -10165,7 +10451,7 @@ router13.post("/promote", async (req, res) => {
     try {
       await AuditLog.create({
         action: "ROLE_CHANGED",
-        actorId: req.user?.userId ? new mongoose26.Types.ObjectId(req.user.userId) : void 0,
+        actorId: req.user?.userId ? new mongoose27.Types.ObjectId(req.user.userId) : void 0,
         targetUserId: targetUser._id,
         metadata: {
           oldRole,
@@ -10214,7 +10500,7 @@ router13.post("/promote", async (req, res) => {
 router13.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose26.Types.ObjectId.isValid(id)) {
+    if (!mongoose27.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid staff ID." });
       return;
     }
@@ -10254,11 +10540,11 @@ var adminStaff_default = router13;
 
 // server/routes/adminSettings.ts
 import { Router as Router15 } from "express";
-import mongoose28 from "mongoose";
+import mongoose29 from "mongoose";
 
 // server/routes/adminEmail.ts
 import { Router as Router14 } from "express";
-import mongoose27 from "mongoose";
+import mongoose28 from "mongoose";
 import rateLimit6 from "express-rate-limit";
 var router14 = Router14();
 router14.use(requireAdmin);
@@ -10333,7 +10619,7 @@ router14.get("/status", async (_req, res) => {
     );
     let totalLogs = 0;
     let recentLogs = [];
-    if (mongoose27.connection.readyState === 1) {
+    if (mongoose28.connection.readyState === 1) {
       totalLogs = await EmailLog.countDocuments();
       const rawLogs = await EmailLog.find().sort({ createdAt: -1 }).limit(10).select("eventType recipient subject provider status error attemptedAt createdAt").lean();
       recentLogs = rawLogs.map((log) => ({
@@ -10411,7 +10697,7 @@ var DEFAULT_PUBLIC_SETTINGS = {
 var handlePublicSettings = async (_req, res) => {
   try {
     let settings = null;
-    if (mongoose28.connection.readyState === 1) {
+    if (mongoose29.connection.readyState === 1) {
       settings = await StoreSettings.findOne().lean();
     }
     if (!settings) {
@@ -10912,7 +11198,7 @@ var uploads_default = router17;
 // server/routes/enquiries.ts
 import { Router as Router18 } from "express";
 import { ZodError } from "zod";
-import mongoose29 from "mongoose";
+import mongoose30 from "mongoose";
 
 // server/validate.ts
 import { z } from "zod";
@@ -11082,7 +11368,7 @@ router18.post("/contact", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose29.Types.ObjectId().toString();
+  let id = new mongoose30.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -11140,7 +11426,7 @@ router18.post(["/enquiries/bulk", "/enquiry/bulk", "/bulk-enquiry"], async (req,
     }
     throw err;
   }
-  let id = new mongoose29.Types.ObjectId().toString();
+  let id = new mongoose30.Types.ObjectId().toString();
   const summaryMessage = [
     `Requirement: ${parsed.requirement_type}`,
     `Quantity: ${parsed.approx_quantity}`,
@@ -11207,7 +11493,7 @@ router18.post("/reservation", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose29.Types.ObjectId().toString();
+  let id = new mongoose30.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.customer_name,
@@ -11266,7 +11552,7 @@ router18.post("/katering", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose29.Types.ObjectId().toString();
+  let id = new mongoose30.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -11308,7 +11594,7 @@ router18.post("/gifting", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose29.Types.ObjectId().toString();
+  let id = new mongoose30.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -11335,8 +11621,8 @@ var enquiries_default = router18;
 import { Router as Router19 } from "express";
 
 // server/models/Banner.ts
-import mongoose30, { Schema as Schema11 } from "mongoose";
-var bannerSchema = new Schema11(
+import mongoose31, { Schema as Schema12 } from "mongoose";
+var bannerSchema = new Schema12(
   {
     title: {
       type: String,
@@ -11392,7 +11678,7 @@ var bannerSchema = new Schema11(
 );
 bannerSchema.index({ active: 1, sortOrder: 1 });
 bannerSchema.index({ sortOrder: 1 });
-var Banner = mongoose30.models.Banner || mongoose30.model("Banner", bannerSchema);
+var Banner = mongoose31.models.Banner || mongoose31.model("Banner", bannerSchema);
 
 // server/routes/adminBanners.ts
 var router19 = Router19();
@@ -12111,10 +12397,10 @@ app.use("/", sitemap_default);
 app.get(["/health", "/api/health"], async (_req, res) => {
   const mongo = getMongoStatus();
   let dbHealthy = false;
-  if (mongo.connected && mongoose31.connection.db) {
+  if (mongo.connected && mongoose32.connection.db) {
     try {
       await Promise.race([
-        mongoose31.connection.db.command({ ping: 1 }),
+        mongoose32.connection.db.command({ ping: 1 }),
         new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 2e3))
       ]);
       dbHealthy = true;
@@ -12127,7 +12413,7 @@ app.get(["/health", "/api/health"], async (_req, res) => {
     time: (/* @__PURE__ */ new Date()).toISOString(),
     service: BUSINESS.name,
     mongodb: dbHealthy ? "connected" : mongo.state,
-    database: mongoose31.connection.name || null
+    database: mongoose32.connection.name || null
   });
 });
 var routeConfigs = [

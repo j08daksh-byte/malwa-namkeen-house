@@ -94,6 +94,7 @@ export interface IOrder extends Document {
   shiprocketDetails?: IShiprocketDetails;
   processedShippingEvents?: string[];
   notes?: string;
+  idempotencyKey?: string;
   inventoryRestored?: boolean;
   restorationStatus?: 'none' | 'in_progress' | 'completed' | 'partial_failure' | 'failed';
   restoringLock?: boolean;
@@ -292,6 +293,11 @@ const orderSchema = new Schema<IOrder>(
       type: String,
       trim: true,
       default: '',
+    },
+    idempotencyKey: {
+      type: String,
+      trim: true,
+      index: true,
     },
     inventoryRestored: {
       type: Boolean,

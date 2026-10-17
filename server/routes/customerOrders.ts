@@ -2,11 +2,13 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 import { User, type IUserAddress } from '../models/User.ts';
 import { Product } from '../models/Product.ts';
 import { Order, type IOrderItem, type IShippingAddress } from '../models/Order.ts';
 import { Discount } from '../models/Discount.ts';
 import { StoreSettings } from '../models/StoreSettings.ts';
+import { IdempotencyRecord } from '../models/IdempotencyRecord.ts';
 import { validateAndCalculateDiscount } from '../lib/discounts.ts';
 import { requireAuth, extractToken, verifyToken, type AuthenticatedRequest } from '../lib/auth.ts';
 import { sendCustomerOrderConfirmation, sendNewOrderAdminAlert } from '../lib/emailService.ts';
@@ -21,7 +23,10 @@ import { cancelAndRestockOrder } from '../lib/orderRestoration.ts';
 const router = Router();
 
 // In-memory idempotency cache to prevent rapid duplicate double-click submissions (5-minute TTL)
-const recentSubmissions = new Map<string, { timestamp: number; orderId: string }>();
+const recentSubmissions = new Map<
+  string,
+  { timestamp: number; orderId: string; requestHash?: string; razorpay?: any }
+>();
 
 // Passive cleanup function to prevent memory leak of expired idempotency keys
 function cleanupRecentSubmissions() {
@@ -31,6 +36,43 @@ function cleanupRecentSubmissions() {
       recentSubmissions.delete(key);
     }
   }
+}
+
+/**
+ * Computes a deterministic SHA-256 hash of canonical checkout parameters.
+ * Used to detect and reject reuse of the same idempotency key with materially different checkout data.
+ */
+export function computeCheckoutRequestHash(params: {
+  items: any[];
+  shippingAddress: any;
+  couponCode?: string;
+  paymentMethod?: string;
+}): string {
+  const normalizedItems = (Array.isArray(params.items) ? params.items : [])
+    .map((it: any) => ({
+      productId: String(it.productId || ''),
+      variantId: String(it.variantId || it.sku || it.weight || ''),
+      quantity: Number(it.quantity) || 0,
+    }))
+    .sort((a, b) => `${a.productId}:${a.variantId}`.localeCompare(`${b.productId}:${b.variantId}`));
+
+  const normalizedAddress = {
+    name: String(params.shippingAddress?.name || '').trim().toLowerCase(),
+    phone: String(params.shippingAddress?.phone || '').trim(),
+    addressLine1: String(params.shippingAddress?.addressLine1 || '').trim().toLowerCase(),
+    city: String(params.shippingAddress?.city || '').trim().toLowerCase(),
+    state: String(params.shippingAddress?.state || '').trim().toLowerCase(),
+    pincode: String(params.shippingAddress?.pincode || '').trim(),
+  };
+
+  const canonical = {
+    items: normalizedItems,
+    address: normalizedAddress,
+    coupon: String(params.couponCode || '').trim().toUpperCase(),
+    paymentMethod: String(params.paymentMethod || 'cod').trim().toLowerCase(),
+  };
+
+  return crypto.createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
 }
 
 function generateOrderNumber(): string {
@@ -60,9 +102,13 @@ const orderCreationLimiter = rateLimit({
   },
   skip: (req: any) => {
     // Do not count legitimate idempotent retries against the rate limit
-    const idempotencyKey = req.body?.idempotencyKey;
-    if (idempotencyKey && typeof idempotencyKey === 'string') {
-      const cached = recentSubmissions.get(idempotencyKey);
+    const rawKey =
+      (req.headers?.['idempotency-key'] as string) ||
+      (req.headers?.['x-idempotency-key'] as string) ||
+      req.body?.idempotencyKey;
+    const idempotencyKey = typeof rawKey === 'string' && rawKey.trim() ? rawKey.trim() : '';
+    if (idempotencyKey && req.user?.userId) {
+      const cached = recentSubmissions.get(`${req.user.userId}:${idempotencyKey}`);
       if (cached && Date.now() - cached.timestamp < 300000) {
         return true; // Skip limiting for exact retries
       }
@@ -84,6 +130,17 @@ const orderCreationLimiter = rateLimit({
 router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedRequest, res: Response) => {
   let appliedDiscountCode = '';
   const reservedStockUpdates: Array<{ productId: any; variantId: any; decrement: number }> = [];
+  let scopeKey = '';
+  let idempotencyRecord: any = null;
+
+  const releaseIdempotencyLock = async () => {
+    if (scopeKey && idempotencyRecord) {
+      try {
+        await IdempotencyRecord.deleteOne({ scopeKey, status: 'started' });
+      } catch {}
+      idempotencyRecord = null;
+    }
+  };
 
   try {
     const {
@@ -93,19 +150,39 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
       couponCode = '',
       paymentMethod = 'cod',
       notes = '',
-      idempotencyKey = '',
     } = req.body;
 
-    // Check duplicate submission
-    if (idempotencyKey && typeof idempotencyKey === 'string') {
-      const cached = recentSubmissions.get(idempotencyKey);
+    const rawKey =
+      (req.headers?.['idempotency-key'] as string) ||
+      (req.headers?.['x-idempotency-key'] as string) ||
+      req.body?.idempotencyKey;
+    const idempotencyKey = typeof rawKey === 'string' && rawKey.trim() ? rawKey.trim() : '';
+
+    // Fast-path in-memory check (process-local optimization)
+    if (idempotencyKey && req.user?.userId) {
+      const cached = recentSubmissions.get(`${req.user.userId}:${idempotencyKey}`);
       if (cached && Date.now() - cached.timestamp < 300000) {
+        const currentHash = computeCheckoutRequestHash({
+          items,
+          shippingAddress,
+          couponCode,
+          paymentMethod,
+        });
+        if (cached.requestHash && cached.requestHash !== currentHash) {
+          res.status(400).json({
+            success: false,
+            message: 'Idempotency key was previously used with different checkout data.',
+          });
+          return;
+        }
+
         const existingOrder = await Order.findById(cached.orderId).lean();
-        if (existingOrder) {
+        if (existingOrder && existingOrder.customer?.toString() === req.user?.userId) {
           res.json({
             success: true,
             order: existingOrder,
             isDuplicateReplay: true,
+            ...(cached.razorpay ? { razorpay: cached.razorpay } : {}),
           });
           return;
         }
@@ -122,6 +199,134 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
       return;
     }
 
+    // Set up user-scoped distributed idempotency key
+    if (idempotencyKey) {
+      scopeKey = `cust_${user._id.toString()}:${idempotencyKey}`;
+      const requestHash = computeCheckoutRequestHash({
+        items,
+        shippingAddress,
+        couponCode,
+        paymentMethod,
+      });
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24-hour durable retention
+
+      try {
+        idempotencyRecord = await IdempotencyRecord.create({
+          scopeKey,
+          key: idempotencyKey,
+          user: user._id,
+          requestHash,
+          status: 'started',
+          expiresAt,
+        });
+      } catch (idempErr: any) {
+        if (idempErr?.code === 11000 || (idempErr?.name === 'MongoServerError' && idempErr?.code === 11000)) {
+          const existing = await IdempotencyRecord.findOne({ scopeKey });
+          if (existing) {
+            // Verify ownership
+            if (existing.user.toString() !== user._id.toString()) {
+              res.status(403).json({
+                success: false,
+                message: 'Idempotency key is not authorized for this account.',
+              });
+              return;
+            }
+
+            // Verify payload integrity
+            if (existing.requestHash && existing.requestHash !== requestHash) {
+              res.status(400).json({
+                success: false,
+                message: 'Idempotency key was previously used with different checkout data.',
+              });
+              return;
+            }
+
+            // If already completed: return existing order immediately without duplicate processing
+            if (existing.status === 'completed') {
+              const existingOrder = await Order.findById(existing.order).lean();
+              const returnedOrder = existing.responsePayload?.order || existingOrder;
+              if (returnedOrder) {
+                res.status(existing.statusCode || 200).json({
+                  success: true,
+                  isDuplicateReplay: true,
+                  message: 'Order already created.',
+                  order: returnedOrder,
+                  ...(existing.responsePayload?.razorpay ? { razorpay: existing.responsePayload.razorpay } : {}),
+                });
+                return;
+              }
+              res.status(409).json({
+                success: false,
+                message: 'This checkout order has already been completed.',
+              });
+              return;
+            }
+
+            // If currently in progress (concurrent request from another serverless instance):
+            if (existing.status === 'started') {
+              const pollStart = Date.now();
+              let completedRecord: any = null;
+              while (Date.now() - pollStart < 3000) {
+                await new Promise(r => setTimeout(r, 200));
+                const pollCheck = await IdempotencyRecord.findOne({ scopeKey }).lean();
+                if (pollCheck?.status === 'completed') {
+                  completedRecord = pollCheck;
+                  break;
+                }
+                if (pollCheck?.status === 'failed') {
+                  break;
+                }
+              }
+
+              if (completedRecord) {
+                const existingOrder = await Order.findById(completedRecord.order).lean();
+                const returnedOrder = completedRecord.responsePayload?.order || existingOrder;
+                if (returnedOrder) {
+                  res.status(completedRecord.statusCode || 200).json({
+                    success: true,
+                    isDuplicateReplay: true,
+                    message: 'Order already created.',
+                    order: returnedOrder,
+                    ...(completedRecord.responsePayload?.razorpay ? { razorpay: completedRecord.responsePayload.razorpay } : {}),
+                  });
+                  return;
+                }
+              }
+
+              res.status(409).json({
+                success: false,
+                message: 'A checkout with this idempotency key is currently being processed. Please wait a moment and refresh.',
+              });
+              return;
+            }
+
+            // If existing.status === 'failed': allow retry by clearing old failed record
+            if (existing.status === 'failed') {
+              await IdempotencyRecord.deleteOne({ scopeKey, status: 'failed' });
+              try {
+                idempotencyRecord = await IdempotencyRecord.create({
+                  scopeKey,
+                  key: idempotencyKey,
+                  user: user._id,
+                  requestHash,
+                  status: 'started',
+                  expiresAt,
+                });
+              } catch {
+                res.status(409).json({
+                  success: false,
+                  message: 'A checkout with this idempotency key is currently being processed.',
+                });
+                return;
+              }
+            }
+          }
+        } else {
+          throw idempErr;
+        }
+      }
+    }
+
     // PH-020: Pending Order / COD Abuse Protection
     // Check if the user already has 3 or more pending orders
     const pendingOrderCount = await Order.countDocuments({
@@ -130,6 +335,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
     });
     
     if (pendingOrderCount >= 3) {
+      await releaseIdempotencyLock();
       res.status(400).json({
         success: false,
         message: 'You have too many pending orders. Please wait for them to be processed or contact support.',
@@ -139,6 +345,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
 
     // 2. Validate Items
     if (!Array.isArray(items) || items.length === 0) {
+      await releaseIdempotencyLock();
       res.status(400).json({
         success: false,
         message: 'Your cart is empty. Please add items to checkout.',
@@ -157,6 +364,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
       !shippingAddress.state?.trim() ||
       !shippingAddress.pincode?.trim()
     ) {
+      await releaseIdempotencyLock();
       res.status(400).json({
         success: false,
         message: 'Please provide a complete delivery address with PIN code and phone.',
@@ -165,6 +373,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
     }
 
     if (!/^\d{6}$/.test(String(shippingAddress.pincode).trim())) {
+      await releaseIdempotencyLock();
       res.status(400).json({
         success: false,
         message: 'Please provide a valid 6-digit Indian PIN code.',
@@ -192,6 +401,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
     for (const item of items) {
       const product = productMap.get(String(item.productId));
       if (!product) {
+        await releaseIdempotencyLock();
         res.status(400).json({
           success: false,
           message: `Item in cart is no longer active or available.`,
@@ -223,6 +433,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
       }
 
       if (!variant) {
+        await releaseIdempotencyLock();
         res.status(400).json({
           success: false,
           message: `Packaging for "${product.name}" is currently unavailable.`,
@@ -232,6 +443,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
 
       const rawQty = parseInt(String(item.quantity), 10);
       if (isNaN(rawQty) || rawQty <= 0 || !Number.isInteger(Number(item.quantity))) {
+        await releaseIdempotencyLock();
         res.status(400).json({
           success: false,
           message: `Invalid quantity for "${product.name}". Quantity must be a positive whole number.`,
@@ -242,6 +454,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
       const stock = typeof variant.stock === 'number' ? variant.stock : 100;
 
       if (stock < qty) {
+        await releaseIdempotencyLock();
         res.status(400).json({
           success: false,
           message: `Insufficient stock for "${product.name} (${variant.label || 'Standard'})". Available: ${stock}.`,
@@ -289,6 +502,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
     const storeSettings = await StoreSettings.findOne().lean();
     const minOrder = storeSettings?.deliverySettings?.minOrderValue ?? 0;
     if (minOrder > 0 && subtotal < minOrder) {
+      await releaseIdempotencyLock();
       res.status(400).json({
         success: false,
         message: `Minimum order subtotal for delivery is ₹${minOrder}.`,
@@ -305,6 +519,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
     if (couponCode && typeof couponCode === 'string' && couponCode.trim()) {
       const discountCalc = await validateAndCalculateDiscount(couponCode.trim(), subtotal, orderItems);
       if (!discountCalc.valid || !discountCalc.discount) {
+        await releaseIdempotencyLock();
         res.status(400).json({
           success: false,
           message: discountCalc.message || 'Invalid or expired coupon code.',
@@ -330,6 +545,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
       );
 
       if (!updatedDiscount) {
+        await releaseIdempotencyLock();
         res.status(400).json({
           success: false,
           message: `Coupon code "${discountCalc.code}" has just reached its maximum redemption limit.`,
@@ -415,6 +631,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
     }
 
     if (stockFailure) {
+      await releaseIdempotencyLock();
       // Rollback any successfully decremented stocks
       for (const resv of reservedStockUpdates) {
         await Product.updateOne(
@@ -463,8 +680,10 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
           : 'cod',
         shipmentStatus: 'unfulfilled',
         notes: typeof notes === 'string' ? notes.trim() : '',
+        idempotencyKey: idempotencyKey || undefined,
       });
     } catch (orderCreateErr) {
+      await releaseIdempotencyLock();
       // Rollback stocks and coupon
       for (const resv of reservedStockUpdates) {
         await Product.updateOne(
@@ -498,6 +717,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
       });
 
       if (!rzpRes.success || !rzpRes.data) {
+        await releaseIdempotencyLock();
         // Rollback stocks and coupon and remove the order
         for (const resv of reservedStockUpdates) {
           try {
@@ -556,12 +776,53 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
       await newOrder.save();
     }
 
-    // Record submission key in idempotency cache
-    if (idempotencyKey) {
+    // Record submission key in durable distributed idempotency record
+    if (scopeKey) {
+      const responseOrderPayload = {
+        _id: newOrder._id.toString(),
+        orderNumber: newOrder.orderNumber,
+        subtotal: newOrder.subtotal,
+        discount: newOrder.discount,
+        discountCode: newOrder.discountCode,
+        shipping: newOrder.shipping,
+        total: newOrder.total,
+        items: newOrder.items,
+        shippingAddress: newOrder.shippingAddress,
+        orderStatus: newOrder.orderStatus,
+        paymentStatus: newOrder.paymentStatus,
+        paymentMethod: newOrder.paymentMethod,
+        shipmentStatus: newOrder.shipmentStatus,
+        createdAt: newOrder.createdAt,
+      };
+
+      await IdempotencyRecord.updateOne(
+        { scopeKey },
+        {
+          $set: {
+            status: 'completed',
+            order: newOrder._id,
+            orderNumber: newOrder.orderNumber,
+            statusCode: 201,
+            responsePayload: {
+              order: responseOrderPayload,
+              ...(razorpayPayload ? { razorpay: razorpayPayload } : {}),
+            },
+          },
+        }
+      );
+      idempotencyRecord = null;
+    }
+
+    // Record submission key in in-memory idempotency cache (local node optimization)
+    if (idempotencyKey && req.user?.userId) {
       cleanupRecentSubmissions();
-      recentSubmissions.set(idempotencyKey, {
+      recentSubmissions.set(`${req.user.userId}:${idempotencyKey}`, {
         timestamp: Date.now(),
         orderId: newOrder._id.toString(),
+        requestHash: scopeKey
+          ? computeCheckoutRequestHash({ items, shippingAddress, couponCode, paymentMethod })
+          : undefined,
+        razorpay: razorpayPayload || undefined,
       });
     }
 
@@ -596,6 +857,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
     });
   } catch (err: unknown) {
     console.error('[Create Order Error]', err);
+    await releaseIdempotencyLock();
 
     // Rollback any reserved stock updates if not already handled
     for (const resv of reservedStockUpdates) {
