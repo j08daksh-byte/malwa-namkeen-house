@@ -11,7 +11,7 @@
 **Canonical Remote:** `daksh_repo` (`https://github.com/j08daksh-byte/malwa-namkeen-house.git`)
 **Vercel Production Project:** `malwa-namkeen` (`dakshs-projects-45d693b3`)
 **Active Production Deployment:** [`dpl_4DGFYbBhPvvJHhHaAWxChXz9A95b`](https://malwa-namkeen-8imdhu89x-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready**, aliased to `https://malwa-namkeen.vercel.app`)
-**Usable Staging Preview Deployment:** [`dpl_XpmjPAphwhssc3VwZgpcVBNEnbTG`](https://malwa-namkeen-flimors4f-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready**, aliased to `https://malwa-namkeen-git-feat-transact-b29aea-dakshs-projects-45d693b3.vercel.app`)
+**Usable Staging Preview Deployment:** [`dpl_9rykb8hDa9YAi4Jnasz8jXUU9x2e`](https://malwa-namkeen-btoliab4k-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready**, aliased to `https://malwa-namkeen-git-feat-transact-b29aea-dakshs-projects-45d693b3.vercel.app`)
 **Domain Status:** `malwanamkeen.com` is **NOT connected** in Vercel (`0 Domains found under dakshs-projects-45d693b3`). Default URL: [https://malwa-namkeen.vercel.app](https://malwa-namkeen.vercel.app)
 **Production Database:** `malwa_namkeen` (MongoDB Atlas — Protected / Untouched)
 **Active Isolated Test Database:** `malwa_namkeen_test` (MongoDB Atlas)
@@ -132,7 +132,7 @@ Feature branch `release/malwa-production-ready` remains strictly unchanged at `7
 
 ### 4.1 Deployment Status & Domain Configuration
 - **Active Canonical Production Deployment:** [`dpl_4DGFYbBhPvvJHhHaAWxChXz9A95b`](https://malwa-namkeen-8imdhu89x-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready**, aliased to `https://malwa-namkeen.vercel.app`). Live `/api/health` reports `status: "ok"`, `mongodb: "connected"`, `database: "malwa_namkeen"`.
-- **Usable Preview / Staging Deployment:** [`dpl_XpmjPAphwhssc3VwZgpcVBNEnbTG`](https://malwa-namkeen-flimors4f-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready**, aliased to `https://malwa-namkeen-git-feat-transact-b29aea-dakshs-projects-45d693b3.vercel.app`). Active on branch `feat/transactional-email-hardening` (`a52cead`) with Preview-scoped `MONGODB_DB_NAME=malwa_namkeen_preview`.
+- **Usable Preview / Staging Deployment:** [`dpl_9rykb8hDa9YAi4Jnasz8jXUU9x2e`](https://malwa-namkeen-btoliab4k-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready**, aliased to `https://malwa-namkeen-git-feat-transact-b29aea-dakshs-projects-45d693b3.vercel.app`). Active on branch `feat/transactional-email-hardening` (`215a5d7`) with Preview-scoped `MONGODB_DB_NAME=malwa_namkeen_preview`.
 - **Domain Status:** `malwanamkeen.com` is **NOT connected** to the Vercel project (`0 Domains found under dakshs-projects-45d693b3`).
 - **Production Database:** `malwa_namkeen` remains protected and untouched (0 mutations).
 
@@ -322,7 +322,7 @@ npx tsx tests/full_system_e2e.test.ts
    - **Integrated Feature Branch:** `feat/comprehensive-integration-pass` (in sync at `f7ead1e7d5b7a72759f36bc67e3fad6ef0b1eabb`)
    - **Preserved Release Branch:** `release/malwa-production-ready` remains strictly preserved at `73f3fd12ca254a295d8f8c630aae8bd83c7a988b`.
    - **Vercel Production Deployment:** `dpl_4DGFYbBhPvvJHhHaAWxChXz9A95b` (`https://malwa-namkeen.vercel.app`, Status: **● Ready**).
-   - **Vercel Preview Deployment:** `dpl_XpmjPAphwhssc3VwZgpcVBNEnbTG` (`https://malwa-namkeen-flimors4f-dakshs-projects-45d693b3.vercel.app`, Status: **● Ready**).
+   - **Vercel Preview Deployment:** `dpl_9rykb8hDa9YAi4Jnasz8jXUU9x2e` (`https://malwa-namkeen-btoliab4k-dakshs-projects-45d693b3.vercel.app`, Status: **● Ready**).
    - **Custom Domain:** `malwanamkeen.com` is unconnected in Vercel (`0 Domains found`).
 3. **Operational Scope & Release Readiness Boundaries:**
    - **Genuine Checkout Order Cancellation & Stock/Coupon Rollback:** **VERIFIED EMPIRICALLY (PASS)**. Fully executed in `tests/comprehensive_integration.test.ts` Section 6: placed genuine checkout order with coupon `QA10PERCENT`, decremented variant stock by 1 in MongoDB, incremented coupon used count by 1 in MongoDB. Cancelled via `POST /api/customer/orders/:id/cancel`: variant stock restored back to starting baseline, coupon used count rolled back to starting baseline. Idempotent re-cancellation prevented double-restoration. Pre-seeded order `MN-QA-20261017-001` verified completely untouched in MongoDB with zero mutations.
@@ -367,7 +367,7 @@ npx tsx tests/full_system_e2e.test.ts
    - Register webhook URL `https://malwa-namkeen.vercel.app/api/shipping/webhook/shiprocket`.
 5. **Step 5: Staging Manual Browser QA (DATABASE ISOLATION VERIFIED — GATE CLOSED):**
    - **Isolation Status:** Database isolation verified (`MONGODB_DB_NAME=malwa_namkeen_preview` active on Preview, `malwa_namkeen_preview` initialized on Atlas, production untouched). Staging order, cancellation, coupon, and inventory tests are **AUTHORIZED ON PREVIEW**.
-   - Execute the 8-step staging acceptance runbook on active preview deployment [`dpl_XpmjPAphwhssc3VwZgpcVBNEnbTG`](https://malwa-namkeen-flimors4f-dakshs-projects-45d693b3.vercel.app) across desktop and mobile devices.
+   - Execute the 8-step staging acceptance runbook on active preview deployment [`dpl_9rykb8hDa9YAi4Jnasz8jXUU9x2e`](https://malwa-namkeen-btoliab4k-dakshs-projects-45d693b3.vercel.app) across desktop and mobile devices.
 6. **Step 6: Final Release Approval & Live Mode Switch:**
    - Once staging QA is signed off, promote Razorpay keys to Live (`rzp_live_...`), conduct live smoke test, and point primary traffic to `https://malwanamkeen.com`.
 
