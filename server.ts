@@ -31,6 +31,7 @@ import publicCatalogRoutes from './server/routes/products.ts';
 import cartWishlistRoutes from './server/routes/cartWishlist.ts';
 import customerAccountRoutes from './server/routes/customerAccount.ts';
 import customerOrdersRoutes from './server/routes/customerOrders.ts';
+import shippingWebhooksRoutes from './server/routes/shippingWebhooks.ts';
 import sitemapRoutes from './server/routes/sitemap.ts';
 import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
@@ -249,6 +250,9 @@ async function startServer() {
 
   // Customer Orders / Checkout
   app.use('/api/orders', customerOrdersRoutes);
+
+  // Shipping Webhooks (Shiprocket)
+  app.use('/api/shipping', shippingWebhooksRoutes);
 
   // Public customer store settings (MongoDB)
   app.use('/api/settings', publicSettingsRouter);

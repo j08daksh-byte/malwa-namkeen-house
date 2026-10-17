@@ -39,6 +39,23 @@ export interface IShippingAddress {
   landmark?: string;
 }
 
+export interface IShiprocketDetails {
+  shipmentId?: number;
+  orderId?: number;
+  awbCode?: string;
+  courierCompanyId?: number;
+  courierName?: string;
+  pickupScheduledDate?: Date;
+  labelUrl?: string;
+  manifestUrl?: string;
+  trackingUrl?: string;
+  lastEvent?: string;
+  lastEventDate?: Date;
+  syncedAt?: Date;
+  rawStatus?: string;
+  error?: string;
+}
+
 export interface IOrder extends Document {
   orderNumber: string;
   customer?: Types.ObjectId;
@@ -74,6 +91,8 @@ export interface IOrder extends Document {
     trackingNumber?: string;
     trackingUrl?: string;
   };
+  shiprocketDetails?: IShiprocketDetails;
+  processedShippingEvents?: string[];
   notes?: string;
   inventoryRestored?: boolean;
   restorationStatus?: 'none' | 'in_progress' | 'completed' | 'partial_failure' | 'failed';
@@ -249,6 +268,26 @@ const orderSchema = new Schema<IOrder>(
       trackingNumber: { type: String, trim: true },
       trackingUrl: { type: String, trim: true },
     },
+    shiprocketDetails: {
+      shipmentId: { type: Number },
+      orderId: { type: Number },
+      awbCode: { type: String, trim: true },
+      courierCompanyId: { type: Number },
+      courierName: { type: String, trim: true },
+      pickupScheduledDate: { type: Date },
+      labelUrl: { type: String, trim: true },
+      manifestUrl: { type: String, trim: true },
+      trackingUrl: { type: String, trim: true },
+      lastEvent: { type: String, trim: true },
+      lastEventDate: { type: Date },
+      syncedAt: { type: Date },
+      rawStatus: { type: String, trim: true },
+      error: { type: String, trim: true },
+    },
+    processedShippingEvents: {
+      type: [String],
+      default: [],
+    },
     notes: {
       type: String,
       trim: true,
@@ -318,6 +357,10 @@ orderSchema.index({ orderStatus: 1, createdAt: -1 });
 orderSchema.index({ paymentStatus: 1, createdAt: -1 });
 orderSchema.index({ 'paymentDetails.razorpayOrderId': 1 }, { sparse: true });
 orderSchema.index({ processedWebhookEvents: 1 }, { sparse: true });
+orderSchema.index({ 'shiprocketDetails.shipmentId': 1 }, { sparse: true });
+orderSchema.index({ 'shiprocketDetails.orderId': 1 }, { sparse: true });
+orderSchema.index({ 'shiprocketDetails.awbCode': 1 }, { sparse: true });
+orderSchema.index({ processedShippingEvents: 1 }, { sparse: true });
 
 export const Order: Model<IOrder> =
   mongoose.models.Order || mongoose.model<IOrder>('Order', orderSchema);

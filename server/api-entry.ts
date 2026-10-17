@@ -27,6 +27,7 @@ import adminBannerRoutes from './routes/adminBanners.ts';
 import publicBannerRoutes from './routes/banners.ts';
 import sitemapRoutes from './routes/sitemap.ts';
 import conciergeRoutes from './routes/concierge.ts';
+import shippingWebhooksRoutes from './routes/shippingWebhooks.ts';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -137,6 +138,7 @@ const routeConfigs = [
   { path: '/admin/banners', router: adminBannerRoutes },
   { path: '/banners', router: publicBannerRoutes },
   { path: '/admin/uploads', router: uploadRoutes },
+  { path: '/shipping', router: shippingWebhooksRoutes },
   { path: '/concierge', router: conciergeRoutes },
   { path: '/', router: publicCatalogRoutes },
   { path: '/', router: enquiryRoutes },

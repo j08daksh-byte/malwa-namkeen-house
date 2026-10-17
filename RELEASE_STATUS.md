@@ -28,6 +28,7 @@
 | **Gate 7** | Storefront Product Card Availability | **PASS (VERIFIED)** | Component-level availability indicators in `ProductCard.tsx` (`SOLD OUT` badges, disabled CTA, variant prop sync, `:focus-visible`). `tests/product_card_availability.test.ts` passed 23/23. |
 | **Gate 8** | Candidate Integration & Canonical Merge | **CONSOLIDATED & PUSHED** | Merged candidate `7fca7c3` into canonical `main` (`bf2ef58`) via `--no-ff`. All 18 suites passed on merged `main`. Fast-forward pushed strictly to `daksh_repo/main`. |
 | **Gate 9** | Implement Razorpay Payment Integration | **PASS (Completed & Verified)** | Server-side Razorpay order creation using strictly server-validated amounts in paise. Constant-time HMAC-SHA256 signature verification (`crypto.timingSafeEqual`). Idempotent webhook processing with replay attack protection. Unpaid order cancellation with stock/coupon restoration and retry support. COD regression preserved. 22/22 tests passing in `tests/razorpay_payment.test.ts`. Real live charges pending Vercel `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`. |
+| **Gate 10** | Implement Shiprocket Logistics Integration | **PASS (Completed & Verified)** | Server-side Shiprocket client with Bearer token caching, package weight parsing strictly from server metadata (no invented dimensions/weights), duplicate shipment prevention (HTTP 409), AWB assignment, live tracking, webhook verification, replay protection via `processedShippingEvents`, and COD auto-reconciliation upon verified delivery. Preserved manual tracking in admin routes. 32/32 tests passing in `tests/shiprocket_shipping.test.ts`. Real live shipments pending Vercel Shiprocket credentials. |
 
 ---
 
@@ -45,6 +46,7 @@
 | `admin_permissions.test.ts` | Mocked / RBAC Matrix | **14 / 14 PASS** | `npx tsx tests/admin_permissions.test.ts` |
 | `transactional_email.test.ts` | Mocked / Email Engine | **22 / 22 PASS** | `npx tsx tests/transactional_email.test.ts` |
 | `razorpay_payment.test.ts` | Razorpay Gateway & Cryptographic Security | **22 / 22 PASS** | `npx tsx tests/razorpay_payment.test.ts` |
+| `shiprocket_shipping.test.ts` | Shiprocket Logistics, Package Safety & Webhooks | **32 / 32 PASS** | `npx tsx tests/shiprocket_shipping.test.ts` |
 | `regression.test.ts` | Unit Regression | **21 / 21 PASS** | `npx tsx tests/regression.test.ts` |
 | `ph001_regex_escape.test.ts` | Unit Security | **PASS** | `npx tsx tests/ph001_regex_escape.test.ts` |
 | `ph002_coupon_rate_limit.test.ts` | Unit Security | **PASS** | `npx tsx tests/ph002_coupon_rate_limit.test.ts` |
@@ -56,7 +58,7 @@
 | `ph008_csp_hardening.test.ts` | Unit HTTP Headers | **PASS** | `npx tsx tests/ph008_csp_hardening.test.ts` |
 | `ph009_user_compound_index.test.ts` | Schema Verification | **PASS** | `npx tsx tests/ph009_user_compound_index.test.ts` |
 | `ph010_inquiry_compound_index.test.ts` | Schema Verification | **PASS** | `npx tsx tests/ph010_inquiry_compound_index.test.ts` |
-| **Grand Total** | **All Live & Offline Suites (19 Suites)** | **237 / 237 PASS** (176/176 offline) | **100% Green** |
+| **Grand Total** | **All Live & Offline Suites (20 Suites)** | **269 / 269 PASS** (208/208 offline) | **100% Green** |
 
 ### 2.2 Compilation & Static Checks
 
@@ -107,6 +109,11 @@ Before deploying `release/malwa-production-ready` to production Vercel (`malwa-n
 | `RAZORPAY_KEY_SECRET` | Production / Preview | **YES** | Razorpay secret key (SERVER-ONLY). |
 | `RAZORPAY_WEBHOOK_SECRET`| Production / Preview | **YES** | Razorpay webhook verification secret (SERVER-ONLY). |
 | `RAZORPAY_SANDBOX` | Production / Preview | Optional | Set to `true` for sandbox / test charges, `false` for live production. |
+| `SHIPROCKET_EMAIL` | Production / Preview | **YES** | Shiprocket account login email for logistics API (SERVER-ONLY). |
+| `SHIPROCKET_PASSWORD` | Production / Preview | **YES** | Shiprocket account password for Bearer token generation (SERVER-ONLY). |
+| `SHIPROCKET_WEBHOOK_TOKEN`| Production / Preview | **YES** | Secret webhook verification token configured in Shiprocket dashboard (SERVER-ONLY). |
+| `SHIPROCKET_PICKUP_LOCATION`| Production / Preview | Optional | Configured Shiprocket pickup warehouse name (defaults to 'Primary'). |
+| `SHIPROCKET_SANDBOX` | Production / Preview | Optional | Set to `true` for sandbox test mode, `false` for live dispatch. |
 | `GEMINI_API_KEY` | Production / Preview | Optional | Google Gemini API key for culinary AI concierge. |
 
 ---
@@ -131,7 +138,7 @@ Feature branch `release/malwa-production-ready` remains strictly unchanged at `7
 1. **Interactive Browser QA Incomplete:** While automated unit, integration, and live E2E suites pass 100% (206/206 passing assertions across 18 suites), manual end-to-end browser QA across multiple browsers, touch devices, and viewport sizes has not been executed. Do NOT claim manual QA passed.
 2. **Cancellation Inventory Restoration Pending Verification with Genuine Checkout Order:** The Gate 2A fixture pending order (`MN-QA-20261017-001`) was seeded directly via `Order.create` without decremented starting inventory. While unit tests (`order_cancellation_restock.test.ts`) verify mathematical and database restoration logic, full lifecycle verification of stock decrement during checkout followed by stock restoration upon cancellation against a genuine checkout-created order in the test database remains to be executed.
 3. **Transactional Email (Resend Delivery Unverified):** The email templating and dispatch system is verified in unit and simulated tests, but live production email delivery via Resend is unverified because `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are unpopulated in Vercel. Domain DNS records (SPF/DKIM/DMARC) must also be verified in Resend before enabling real delivery.
-4. **Third-Party Online Payments & Carrier Logistics Not Integrated:** The application operates strictly with Cash on Delivery (COD) / Direct Order Placement (`orderStatus: 'pending'`, `paymentStatus: 'pending'`). No payment gateway (Razorpay, Stripe, PhonePe) or automated carrier API (Shiprocket, Delhivery) is integrated. Tracking numbers and courier names require manual administrative entry.
+4. **Payment Processing & Logistics Integration (Razorpay & Shiprocket Integrated & Tested):** Server-side Razorpay payment gateway (Gate 9, 22/22 tests passing) and Shiprocket logistics integration (Gate 10, 32/32 tests passing) are fully implemented and verified via automated test suites. Both systems support full offline test isolation and unconfigured safety fallbacks. Real live payment collection requires Vercel `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET`. Real live courier shipment dispatch requires `SHIPROCKET_EMAIL`, `SHIPROCKET_PASSWORD`, and `SHIPROCKET_WEBHOOK_TOKEN`. Cash on Delivery (COD) and manual admin tracking entry remain 100% operational.
 5. **Serverless Concurrency & Rate Limiting:** In-memory rate limiting and idempotency caching (`MemoryStore`) protect within a single warm lambda instance and do not share state across concurrent cold lambdas.
 6. **Atlas Network Rule:** Keep `0.0.0.0/0` active in MongoDB Atlas Network Access until Vercel Dedicated Static IPs or AWS VPC Peering is provisioned. Removing it will break production serverless connectivity.
 
