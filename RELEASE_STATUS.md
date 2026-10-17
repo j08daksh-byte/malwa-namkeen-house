@@ -24,7 +24,7 @@
 | **Gate 1** | Consolidate Repositories Safely | **PASS (On main)** | Linear consolidation merged cleanly into `main` (`9fd812d` -> `bf2ef58` -> `8e9d031`). Canonical baseline preserved. |
 | **Gate 3** | Implement Transactional Email | **CODE & MOCK VERIFIED (UNVERIFIED IN PRODUCTION)** | Centralized Resend email service with 14 event types wired across order, auth, staff, and enquiry workflows. Clean plain text fallback (CSS/script stripped), PII masking in logs, delivered flag accounting, duplicate event prevention on retried events, and non-blocking fault isolation. 24/24 tests passing in `tests/transactional_email.test.ts`. **Live network delivery is UNVERIFIED**: `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are unpopulated in Vercel; domain DNS records (SPF/DKIM/DMARC) are unverified in Resend. |
 | **Gate 4** | Branding and UI Excellence | **PASS (On main & branch)** | Authentic heritage assets verified (`/logo.png`, `/logo-gold.png`, `/logo-nav.png`). Stale email placeholders cleaned from UI. Playfair Display & DM Sans typography intact. |
-| **Gate 5** | Comprehensive Verification | **PASS (321 / 321 across 22 suites)** | TypeScript check (`npm run lint`): **PASS (0 errors)**. Production build (`npm run build`): **PASS (0 errors)**. Baseline `main` had 18 suites (206 tests); active integration branch has 22 suites (321 tests passing in `tests/run_all.mjs`). |
+| **Gate 5** | Comprehensive Verification | **PASS (348 / 348 across 22 suites)** | TypeScript check (`npm run lint`): **PASS (0 errors)**. Production build (`npm run build`): **PASS (0 errors)**. Baseline `main` had 18 suites (206 tests); active integration branch has 22 suites (348 tests passing in `tests/run_all.mjs`). |
 | **Gate 6** | Order Lifecycle & Inventory Restoration | **PASS (VERIFIED)** | Implemented safe, idempotent variant stock restock & coupon rollback on order cancellation (`orderRestoration.ts`). Customer cancellation added (`POST /api/customer/orders/:orderId/cancel`). Delete order guard added. `tests/order_cancellation_restock.test.ts` passed 23/23. Verified on genuine checkout order in `tests/comprehensive_integration.test.ts`. |
 | **Gate 7** | Storefront Product Card Availability | **PASS (On main & branch)** | Component-level availability indicators in `ProductCard.tsx` (`SOLD OUT` badges, disabled CTA, variant prop sync, `:focus-visible`). `tests/product_card_availability.test.ts` passed 23/23. |
 | **Gate 8** | Candidate Integration & Canonical Merge | **CONSOLIDATED & PUSHED (main)** | Merged candidate `7fca7c3` into canonical `main` (`bf2ef58` -> `8e9d031`) via `--no-ff`. Fast-forward pushed to `daksh_repo/main` and `origin/main`. |
@@ -53,17 +53,17 @@
 | `razorpay_payment.test.ts` | Razorpay Gateway & Cryptographic Security | **24 / 24 PASS** | `npx tsx tests/razorpay_payment.test.ts` |
 | `shiprocket_shipping.test.ts` | Shiprocket Logistics, Package Safety & Webhooks | **32 / 32 PASS** | `npx tsx tests/shiprocket_shipping.test.ts` |
 | `regression.test.ts` | Unit Regression | **21 / 21 PASS** | `npx tsx tests/regression.test.ts` |
-| `ph001_regex_escape.test.ts` | Unit Security | **PASS** | `npx tsx tests/ph001_regex_escape.test.ts` |
-| `ph002_coupon_rate_limit.test.ts` | Unit Security | **PASS** | `npx tsx tests/ph002_coupon_rate_limit.test.ts` |
-| `ph003_order_rate_limit.test.ts` | Unit Security | **PASS** | `npx tsx tests/ph003_order_rate_limit.test.ts` |
-| `ph004_cart_revalidate_rate_limit.test.ts` | Unit Security | **PASS** | `npx tsx tests/ph004_cart_revalidate_rate_limit.test.ts` |
-| `ph005_email_validation.test.ts` | Unit Validation | **PASS** | `npx tsx tests/ph005_email_validation.test.ts` |
-| `ph006_idempotency_eviction.test.ts` | Unit Memory Cache | **PASS** | `npx tsx tests/ph006_idempotency_eviction.test.ts` |
-| `ph007_admin_query_timeout.test.ts` | Unit DB Safety | **PASS** | `npx tsx tests/ph007_admin_query_timeout.test.ts` |
-| `ph008_csp_hardening.test.ts` | Unit HTTP Headers | **PASS** | `npx tsx tests/ph008_csp_hardening.test.ts` |
-| `ph009_user_compound_index.test.ts` | Schema Verification | **PASS** | `npx tsx tests/ph009_user_compound_index.test.ts` |
-| `ph010_inquiry_compound_index.test.ts` | Schema Verification | **PASS** | `npx tsx tests/ph010_inquiry_compound_index.test.ts` |
-| **Grand Total** | **All Live & Offline Suites (22 Suites)** | **321 / 321 PASS** | **100% Green** |
+| `ph001_regex_escape.test.ts` | Unit Security | **7 / 7 PASS** | `npx tsx tests/ph001_regex_escape.test.ts` |
+| `ph002_coupon_rate_limit.test.ts` | Unit Security | **4 / 4 PASS** | `npx tsx tests/ph002_coupon_rate_limit.test.ts` |
+| `ph003_order_rate_limit.test.ts` | Unit Security | **4 / 4 PASS** | `npx tsx tests/ph003_order_rate_limit.test.ts` |
+| `ph004_cart_revalidate_rate_limit.test.ts` | Unit Security | **4 / 4 PASS** | `npx tsx tests/ph004_cart_revalidate_rate_limit.test.ts` |
+| `ph005_email_validation.test.ts` | Unit Validation | **6 / 6 PASS** | `npx tsx tests/ph005_email_validation.test.ts` |
+| `ph006_idempotency_eviction.test.ts` | Unit Memory Cache | **4 / 4 PASS** | `npx tsx tests/ph006_idempotency_eviction.test.ts` |
+| `ph007_admin_query_timeout.test.ts` | Unit DB Safety | **3 / 3 PASS** | `npx tsx tests/ph007_admin_query_timeout.test.ts` |
+| `ph008_csp_hardening.test.ts` | Unit HTTP Headers | **4 / 4 PASS** | `npx tsx tests/ph008_csp_hardening.test.ts` |
+| `ph009_user_compound_index.test.ts` | Schema Verification | **3 / 3 PASS** | `npx tsx tests/ph009_user_compound_index.test.ts` |
+| `ph010_inquiry_compound_index.test.ts` | Schema Verification | **3 / 3 PASS** | `npx tsx tests/ph010_inquiry_compound_index.test.ts` |
+| **Grand Total** | **All Live & Offline Suites (22 Suites)** | **348 / 348 PASS** | **100% Green (239 offline + 109 live test-server)** |
 
 ### 2.2 Compilation & Static Checks
 
@@ -140,7 +140,7 @@ Feature branch `release/malwa-production-ready` remains strictly unchanged at `7
 - **Verified Absent (Safe):** `MONGODB_TEST_URI`, `MONGODB_TEST_DB_NAME`, `IS_E2E_TEST`, `TEST_ADMIN_EMAIL`, `TEST_ADMIN_PASSWORD` are strictly absent from Vercel settings.
 
 ### 4.3 Operational Scope, Known Risks & Limitations
-1. **Interactive Browser QA (UNVERIFIED):** While automated unit, integration, and live E2E suites pass 100% (206/206 passing assertions across 18 suites on `main`; 321/321 across 22 suites on `feat/comprehensive-integration-pass`), manual exploratory browser QA across multiple browsers, touch devices, and viewport sizes is **UNVERIFIED**. Manual staging checks required before customer launch:
+1. **Interactive Browser QA (UNVERIFIED):** While automated unit, integration, and live E2E suites pass 100% (206/206 passing assertions across 18 suites on `main`; 348/348 across 22 suites on `feat/comprehensive-integration-pass`: 239 offline + 109 live test-server), manual exploratory browser QA across multiple browsers, touch devices, and viewport sizes is **UNVERIFIED**. Manual staging checks required before customer launch:
    - Variant/weight switching (250g, 500g, 1kg) and dynamic price updates on `/shop`.
    - Out-of-stock badge display and disabled CTA enforcement for depleted products.
    - Cart limit boundaries (max 10 / stock cap) and coupon validation (`QA10PERCENT`).

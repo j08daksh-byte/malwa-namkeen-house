@@ -318,7 +318,7 @@ npx tsx tests/comprehensive_integration.test.ts   # 32 / 32 PASS
 # BASE_URL=http://127.0.0.1:3001 npx tsx tests/full_system_e2e.test.ts   # 43 / 43 PASS (4 records cleaned)
 # Grand Total:
 #  - Baseline on main: 206 / 206 Tests Passing Across 18 Suites (145/145 offline)
-#  - Active integration branch (feat/comprehensive-integration-pass): 321 / 321 Tests Passing Across 22 Suites (236/236 offline)
+#  - Active integration branch (feat/comprehensive-integration-pass): 348 / 348 Tests Passing Across 22 Suites (239 offline + 109 live test-server)
 ```
 
 #### 4. Dedicated Test Database Setup in MongoDB Atlas
@@ -336,7 +336,7 @@ npx tsx tests/comprehensive_integration.test.ts   # 32 / 32 PASS
 - **Pre-removal Requirements:** Before deleting `0.0.0.0/0` from Atlas Network Access, verify whether Vercel is configured with Dedicated Static Outbound IPs or VPC Peering. Removing `0.0.0.0/0` without static peering will immediately sever Vercel production serverless API connections to MongoDB Atlas.
 
 ### 6.5 Operational Scope & Release Readiness Boundaries
-1. **Interactive Browser QA (UNVERIFIED):** While automated suites pass 100% (321/321 assertions across 22 suites in `run_all.mjs`), and mobile viewport tags/responsive layouts are verified via integration tests, manual cross-device / cross-browser QA is **UNVERIFIED**. Manual staging checks required before customer launch:
+1. **Interactive Browser QA (UNVERIFIED):** While automated suites pass 100% (348/348 assertions across 22 suites in `run_all.mjs`: 239 offline + 109 live test-server), and mobile viewport tags/responsive layouts are verified via integration tests, manual cross-device / cross-browser QA is **UNVERIFIED**. Manual staging checks required before customer launch:
    - Variant/weight switching (250g, 500g, 1kg) and dynamic price updates on `/shop`.
    - Out-of-stock badge display and disabled CTA enforcement for depleted products.
    - Cart limit boundaries (max 10 / stock cap) and coupon validation (`QA10PERCENT`).
