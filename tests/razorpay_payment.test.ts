@@ -14,7 +14,7 @@
  * 10. Unconfigured / sandbox fallback safety (never silently marks payments as successful).
  */
 
-import { describe, it, beforeEach } from 'node:test';
+import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'crypto';
 import mongoose, { Types } from 'mongoose';
@@ -29,12 +29,51 @@ import {
 import { Order } from '../server/models/Order.ts';
 import { Product } from '../server/models/Product.ts';
 import { Discount } from '../server/models/Discount.ts';
+import { User } from '../server/models/User.ts';
 import { cancelAndRestockOrder } from '../server/lib/orderRestoration.ts';
+import {
+  handleVerifyPayment,
+  handleRazorpayWebhook,
+  handleRetryPayment,
+  handleCancelUnpaid,
+} from '../server/routes/customerOrders.ts';
+import {
+  assertSafeTestDatabaseEnvironment,
+  TestRecordTracker,
+} from './test_db_guard.ts';
 
 describe('Gate 9: Razorpay Payment Integration & Security Suite', () => {
   const TEST_KEY_ID = 'rzp_test_malwa_live_sandbox_key';
   const TEST_KEY_SECRET = 'mock_secret_key_malwa_2026';
   const TEST_WEBHOOK_SECRET = 'mock_webhook_secret_malwa_2026';
+
+  const origKeyId = process.env.RAZORPAY_KEY_ID;
+  const origKeySecret = process.env.RAZORPAY_KEY_SECRET;
+  const origWebhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+  before(async () => {
+    process.env.RAZORPAY_KEY_ID = TEST_KEY_ID;
+    process.env.RAZORPAY_KEY_SECRET = TEST_KEY_SECRET;
+    process.env.RAZORPAY_WEBHOOK_SECRET = TEST_WEBHOOK_SECRET;
+
+    if (mongoose.connection.readyState !== 1 && process.env.MONGODB_TEST_URI) {
+      assertSafeTestDatabaseEnvironment();
+      await mongoose.connect(process.env.MONGODB_TEST_URI, {
+        dbName: process.env.MONGODB_TEST_DB_NAME || 'malwa_namkeen_test',
+        serverSelectionTimeoutMS: 8000,
+      });
+    }
+  });
+
+  after(async () => {
+    if (origKeyId) process.env.RAZORPAY_KEY_ID = origKeyId; else delete process.env.RAZORPAY_KEY_ID;
+    if (origKeySecret) process.env.RAZORPAY_KEY_SECRET = origKeySecret; else delete process.env.RAZORPAY_KEY_SECRET;
+    if (origWebhookSecret) process.env.RAZORPAY_WEBHOOK_SECRET = origWebhookSecret; else delete process.env.RAZORPAY_WEBHOOK_SECRET;
+    _setRazorpayClientForTesting(null);
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.disconnect();
+    }
+  });
 
   beforeEach(() => {
     // Reset test mock client between test cases
@@ -533,6 +572,1123 @@ describe('Gate 9: Razorpay Payment Integration & Security Suite', () => {
         secret: TEST_KEY_SECRET,
       });
       assert.equal(isValid2, false, 'Whitespace-only payment ID must be rejected');
+    });
+  });
+
+  // ── 8. End-to-End Payment Router & Integration Safety Suite ──────────────
+  describe('8. End-to-End Payment Router & Integration Safety Suite', () => {
+    const runId = 'rzp_integ_' + Date.now();
+    const tracker = new TestRecordTracker(runId);
+
+    let testUser: any = null;
+    let otherUser: any = null;
+    let testProduct: any = null;
+
+    const inMemoryOrders = new Map<string, any>();
+    const inMemoryProducts = new Map<string, any>();
+
+    let isMockMode = false;
+    let origOrderFindById: any;
+    let origOrderFindOne: any;
+    let origOrderCreate: any;
+    let origOrderFindOneAndUpdate: any;
+    let origOrderFindByIdAndUpdate: any;
+    let origProductFindById: any;
+    let origProductUpdateOne: any;
+    let origDiscountUpdateOne: any;
+    let origUserFindById: any;
+
+    before(async () => {
+      try {
+        if (mongoose.connection.readyState === 1) {
+        testUser = await User.create({
+          name: 'Razorpay Authorized Tester',
+          email: `rzp.auth.${Date.now()}@example.com`,
+          password: 'HashedPassword123!',
+          role: 'customer',
+          active: true,
+        });
+        tracker.userIds.push(testUser._id.toString());
+        tracker.userEmails.push(testUser.email);
+
+        otherUser = await User.create({
+          name: 'Razorpay Intruder',
+          email: `rzp.intruder.${Date.now()}@example.com`,
+          password: 'HashedPassword123!',
+          role: 'customer',
+          active: true,
+        });
+        tracker.userIds.push(otherUser._id.toString());
+        tracker.userEmails.push(otherUser.email);
+
+        testProduct = await Product.create({
+          name: 'Test Ujjaini Sev 500g',
+          description: 'Authentic Ujjaini Sev crafted with traditional spices',
+          category: new Types.ObjectId(),
+          variants: [
+            { label: '500g', price: 150, stock: 40, sku: 'TEST-SEV-500' },
+          ],
+          slug: `test-sev-${Date.now()}`,
+        });
+        tracker.productIds.push(testProduct._id.toString());
+      } else {
+        isMockMode = true;
+        testUser = {
+          _id: new Types.ObjectId(),
+          name: 'Razorpay Authorized Tester',
+          email: `rzp.auth.${Date.now()}@example.com`,
+          role: 'customer',
+          active: true,
+        };
+        otherUser = {
+          _id: new Types.ObjectId(),
+          name: 'Razorpay Intruder',
+          email: `rzp.intruder.${Date.now()}@example.com`,
+          role: 'customer',
+          active: true,
+        };
+        testProduct = {
+          _id: new Types.ObjectId(),
+          name: 'Test Ujjaini Sev 500g',
+          category: 'namkeen',
+          basePrice: 150,
+          variants: [
+            { _id: new Types.ObjectId(), label: '500g', price: 150, stock: 40, sku: 'TEST-SEV-500' },
+          ],
+          isAvailable: true,
+          slug: `test-sev-${Date.now()}`,
+        };
+        inMemoryProducts.set(testProduct._id.toString(), testProduct);
+
+        origOrderFindById = Order.findById;
+        origOrderFindOne = Order.findOne;
+        origOrderCreate = Order.create;
+        origOrderFindOneAndUpdate = Order.findOneAndUpdate;
+        origOrderFindByIdAndUpdate = Order.findByIdAndUpdate;
+        origProductFindById = Product.findById;
+        origProductUpdateOne = Product.updateOne;
+        origDiscountUpdateOne = Discount.updateOne;
+        origUserFindById = User.findById;
+
+        Order.findById = (async (id: any) => {
+          if (!id) return null;
+          const cleanId = id.toString();
+          return inMemoryOrders.get(cleanId) || null;
+        }) as any;
+
+        Order.findOne = ((query: any) => {
+          let resultDoc: any = null;
+          for (const doc of inMemoryOrders.values()) {
+            if (query['paymentDetails.razorpayOrderId'] && doc.paymentDetails?.razorpayOrderId === query['paymentDetails.razorpayOrderId']) {
+              resultDoc = doc;
+              break;
+            }
+            if (query.orderNumber && doc.orderNumber === query.orderNumber) {
+              resultDoc = doc;
+              break;
+            }
+            if (query['paymentDetails.razorpayPaymentId']) {
+              const targetPaymentId = query['paymentDetails.razorpayPaymentId'];
+              const notId = query._id?.$ne?.toString();
+              if (doc.paymentDetails?.razorpayPaymentId === targetPaymentId) {
+                if (!notId || doc._id.toString() !== notId) {
+                  resultDoc = doc;
+                  break;
+                }
+              }
+            }
+          }
+          return {
+            lean: () => resultDoc,
+            then: (resolve: any) => Promise.resolve(resultDoc).then(resolve),
+          };
+        }) as any;
+
+        Order.create = (async (data: any) => {
+          const id = data._id || new Types.ObjectId();
+          const doc: any = {
+            ...data,
+            _id: id,
+            paymentDetails: data.paymentDetails ? { ...data.paymentDetails } : {},
+            items: (data.items || []).map((i: any) => ({ ...i })),
+            customerInfo: data.customerInfo ? { ...data.customerInfo } : {},
+            shippingAddress: data.shippingAddress ? { ...data.shippingAddress } : {},
+            processedWebhookEvents: data.processedWebhookEvents ? [...data.processedWebhookEvents] : [],
+            save: async function() {
+              inMemoryOrders.set(this._id.toString(), this);
+              return this;
+            },
+          };
+          inMemoryOrders.set(id.toString(), doc);
+          return doc;
+        }) as any;
+
+        Order.findOneAndUpdate = (async (filter: any, update: any) => {
+          const id = filter._id?.toString();
+          const target = inMemoryOrders.get(id);
+          if (!target) return null;
+
+          if (filter.paymentStatus?.$ne && target.paymentStatus === filter.paymentStatus.$ne) return null;
+          if (filter.orderStatus?.$ne && target.orderStatus === filter.orderStatus.$ne) return null;
+
+          if (update.$set) {
+            for (const [key, val] of Object.entries(update.$set)) {
+              if (key.includes('.')) {
+                const parts = key.split('.');
+                let curr = target;
+                for (let i = 0; i < parts.length - 1; i++) {
+                  if (!curr[parts[i]]) curr[parts[i]] = {};
+                  curr = curr[parts[i]];
+                }
+                curr[parts[parts.length - 1]] = val;
+              } else {
+                target[key] = val;
+              }
+            }
+          }
+          inMemoryOrders.set(target._id.toString(), target);
+          return target;
+        }) as any;
+
+        Order.findByIdAndUpdate = (async (id: any, update: any) => {
+          const doc = inMemoryOrders.get(id?.toString());
+          if (!doc) return null;
+          if (update.$set) {
+            for (const [key, val] of Object.entries(update.$set)) {
+              if (key.includes('.')) {
+                const parts = key.split('.');
+                let curr = doc;
+                for (let i = 0; i < parts.length - 1; i++) {
+                  if (!curr[parts[i]]) curr[parts[i]] = {};
+                  curr = curr[parts[i]];
+                }
+                curr[parts[parts.length - 1]] = val;
+              } else {
+                doc[key] = val;
+              }
+            }
+          }
+          return doc;
+        }) as any;
+
+        Product.findById = (async (id: any) => {
+          return inMemoryProducts.get(id?.toString()) || null;
+        }) as any;
+
+        Product.updateOne = (async () => ({ matchedCount: 1, modifiedCount: 1 })) as any;
+        Discount.updateOne = (async () => ({ matchedCount: 1, modifiedCount: 1 })) as any;
+        User.findById = (async (id: any) => {
+          if (testUser && id?.toString() === testUser._id.toString()) return testUser;
+          if (otherUser && id?.toString() === otherUser._id.toString()) return otherUser;
+          return null;
+        }) as any;
+      }
+      } catch (err) {
+        console.error('*** EXCEPTION IN SUITE 8 BEFORE ***:', err);
+        throw err;
+      }
+    });
+
+    after(async () => {
+      _setRazorpayClientForTesting(null);
+      if (isMockMode) {
+        Order.findById = origOrderFindById;
+        Order.findOne = origOrderFindOne;
+        Order.create = origOrderCreate;
+        Order.findOneAndUpdate = origOrderFindOneAndUpdate;
+        Order.findByIdAndUpdate = origOrderFindByIdAndUpdate;
+        Product.findById = origProductFindById;
+        Product.updateOne = origProductUpdateOne;
+        Discount.updateOne = origDiscountUpdateOne;
+        User.findById = origUserFindById;
+      } else if (mongoose.connection.readyState === 1) {
+        await tracker.performScopedCleanup();
+      }
+    });
+
+    function mockHttp(options: {
+      method?: string;
+      url?: string;
+      headers?: Record<string, string>;
+      body?: any;
+      params?: Record<string, string>;
+      user?: { userId: string; email?: string; role?: string };
+      rawBody?: any;
+    }) {
+      let statusCode = 200;
+      let jsonPayload: any = null;
+
+      const req: any = {
+        method: options.method || 'POST',
+        url: options.url || '/',
+        headers: options.headers || {},
+        body: options.body || {},
+        params: options.params || {},
+        user: options.user,
+        rawBody: options.rawBody,
+      };
+
+      const res: any = {
+        status(code: number) {
+          statusCode = code;
+          return res;
+        },
+        json(data: any) {
+          jsonPayload = data;
+          return res;
+        },
+      };
+
+      return {
+        req,
+        res,
+        getStatus: () => statusCode,
+        getJson: () => jsonPayload,
+      };
+    }
+
+    async function createTestOrder(overrides: Partial<any> = {}) {
+      const order = await Order.create({
+        orderNumber: `MN-RZP-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        customer: testUser?._id || new Types.ObjectId(),
+        customerInfo: {
+          name: testUser?.name || 'Tester',
+          email: testUser?.email || 'tester@example.com',
+          phone: '9876543210',
+        },
+        items: [
+          {
+            productId: testProduct?._id,
+            variantId: testProduct?.variants[0]._id,
+            productName: 'Test Ujjaini Sev 500g',
+            variantLabel: '500g',
+            sku: 'TEST-SEV-500',
+            price: 150,
+            quantity: 2,
+            itemTotal: 300,
+          },
+        ],
+        subtotal: 300,
+        discount: 0,
+        shipping: 49,
+        total: 349,
+        shippingAddress: {
+          name: 'Tester',
+          phone: '9876543210',
+          addressLine1: '12 Temple Road',
+          city: 'Ujjain',
+          state: 'Madhya Pradesh',
+          pincode: '456001',
+        },
+        orderStatus: 'pending',
+        paymentStatus: 'pending',
+        paymentMethod: 'online',
+        shipmentStatus: 'unfulfilled',
+        paymentDetails: {
+          gateway: 'razorpay',
+          razorpayOrderId: `order_RZP_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        },
+        ...overrides,
+      });
+      tracker.orderIds.push(order._id.toString());
+      tracker.orderNumbers.push(order.orderNumber);
+      return order;
+    }
+
+    // ── Payment Verification Route Tests ────────────────────────────────────
+    it('handleVerifyPayment: successfully verifies authentic signature and transitions order to paid', async () => {
+      const order = await createTestOrder();
+      const rzpOrderId = order.paymentDetails!.razorpayOrderId!;
+      const rzpPaymentId = `pay_VERIFY_SUCCESS_${Date.now()}`;
+      const signature = crypto
+        .createHmac('sha256', TEST_KEY_SECRET)
+        .update(`${rzpOrderId}|${rzpPaymentId}`)
+        .digest('hex');
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        body: {
+          orderId: order._id.toString(),
+          razorpayOrderId: rzpOrderId,
+          razorpayPaymentId: rzpPaymentId,
+          razorpaySignature: signature,
+        },
+      });
+
+      await handleVerifyPayment(req, res);
+
+      assert.equal(getStatus(), 200);
+      assert.equal(getJson().success, true);
+      assert.match(getJson().message, /Payment verified successfully/);
+
+      const updated = await Order.findById(order._id);
+      assert.equal(updated?.paymentStatus, 'paid');
+      assert.equal(updated?.orderStatus, 'confirmed');
+      assert.equal(updated?.paymentDetails?.razorpayPaymentId, rzpPaymentId);
+      assert.equal(updated?.paymentDetails?.razorpaySignature, signature);
+      assert.ok(updated?.paymentDetails?.paidAt);
+    });
+
+    it('handleVerifyPayment: strictly rejects tampered or forged HMAC signature with HTTP 400', async () => {
+      const order = await createTestOrder();
+      const rzpOrderId = order.paymentDetails!.razorpayOrderId!;
+      const rzpPaymentId = `pay_FORGED_${Date.now()}`;
+      const forgedSig = 'deadbeef0123456789abcdef0123456789abcdef0123456789abcdef01234567';
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        body: {
+          orderId: order._id.toString(),
+          razorpayOrderId: rzpOrderId,
+          razorpayPaymentId: rzpPaymentId,
+          razorpaySignature: forgedSig,
+        },
+      });
+
+      await handleVerifyPayment(req, res);
+
+      assert.equal(getStatus(), 400);
+      assert.equal(getJson().success, false);
+      assert.match(getJson().message, /Invalid payment signature/);
+
+      const unchanged = await Order.findById(order._id);
+      assert.equal(unchanged?.paymentStatus, 'pending');
+    });
+
+    it('handleVerifyPayment: rejects mismatched razorpayOrderId with HTTP 400', async () => {
+      const order = await createTestOrder();
+      const rzpPaymentId = `pay_MISMATCH_${Date.now()}`;
+      const mismatchedOrderId = 'order_RZP_SOME_OTHER_ORDER';
+      const sig = crypto
+        .createHmac('sha256', TEST_KEY_SECRET)
+        .update(`${mismatchedOrderId}|${rzpPaymentId}`)
+        .digest('hex');
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        body: {
+          orderId: order._id.toString(),
+          razorpayOrderId: mismatchedOrderId,
+          razorpayPaymentId: rzpPaymentId,
+          razorpaySignature: sig,
+        },
+      });
+
+      await handleVerifyPayment(req, res);
+
+      assert.equal(getStatus(), 400);
+      assert.equal(getJson().success, false);
+      assert.match(getJson().message, /does not match the order record/);
+    });
+
+    it('handleVerifyPayment: rejects payment verification for Cash on Delivery (cod) order with HTTP 400', async () => {
+      const codOrder = await createTestOrder({
+        paymentMethod: 'cod',
+        paymentDetails: {},
+      });
+      const rzpOrderId = `order_COD_PROBE_${Date.now()}`;
+      const rzpPaymentId = `pay_COD_PROBE_${Date.now()}`;
+      const sig = crypto
+        .createHmac('sha256', TEST_KEY_SECRET)
+        .update(`${rzpOrderId}|${rzpPaymentId}`)
+        .digest('hex');
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        body: {
+          orderId: codOrder._id.toString(),
+          razorpayOrderId: rzpOrderId,
+          razorpayPaymentId: rzpPaymentId,
+          razorpaySignature: sig,
+        },
+      });
+
+      await handleVerifyPayment(req, res);
+
+      assert.equal(getStatus(), 400);
+      assert.equal(getJson().success, false);
+      assert.match(getJson().message, /only permitted for online orders/);
+    });
+
+    it('handleVerifyPayment: rejects payment verification when order has no associated Razorpay order ID', async () => {
+      const uninitOrder = await createTestOrder({
+        paymentMethod: 'online',
+        paymentDetails: {},
+      });
+      const rzpOrderId = `order_UNINIT_${Date.now()}`;
+      const rzpPaymentId = `pay_UNINIT_${Date.now()}`;
+      const sig = crypto
+        .createHmac('sha256', TEST_KEY_SECRET)
+        .update(`${rzpOrderId}|${rzpPaymentId}`)
+        .digest('hex');
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        body: {
+          orderId: uninitOrder._id.toString(),
+          razorpayOrderId: rzpOrderId,
+          razorpayPaymentId: rzpPaymentId,
+          razorpaySignature: sig,
+        },
+      });
+
+      await handleVerifyPayment(req, res);
+
+      assert.equal(getStatus(), 400);
+      assert.equal(getJson().success, false);
+      assert.match(getJson().message, /No Razorpay order ID is associated/);
+    });
+
+    it('handleVerifyPayment: detects and rejects cross-order replay of already credited paymentId', async () => {
+      const orderA = await createTestOrder();
+      const rzpOrderIdA = orderA.paymentDetails!.razorpayOrderId!;
+      const sharedPaymentId = `pay_REPLAY_TEST_${Date.now()}`;
+      const sigA = crypto
+        .createHmac('sha256', TEST_KEY_SECRET)
+        .update(`${rzpOrderIdA}|${sharedPaymentId}`)
+        .digest('hex');
+
+      // Verify order A first
+      const { req: reqA, res: resA } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        body: {
+          orderId: orderA._id.toString(),
+          razorpayOrderId: rzpOrderIdA,
+          razorpayPaymentId: sharedPaymentId,
+          razorpaySignature: sigA,
+        },
+      });
+      await handleVerifyPayment(reqA, resA);
+
+      // Now create order B and attempt to credit the same sharedPaymentId
+      const orderB = await createTestOrder();
+      const rzpOrderIdB = orderB.paymentDetails!.razorpayOrderId!;
+      const sigB = crypto
+        .createHmac('sha256', TEST_KEY_SECRET)
+        .update(`${rzpOrderIdB}|${sharedPaymentId}`)
+        .digest('hex');
+
+      const { req: reqB, res: resB, getStatus: getStatusB, getJson: getJsonB } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        body: {
+          orderId: orderB._id.toString(),
+          razorpayOrderId: rzpOrderIdB,
+          razorpayPaymentId: sharedPaymentId,
+          razorpaySignature: sigB,
+        },
+      });
+      await handleVerifyPayment(reqB, resB);
+
+      assert.equal(getStatusB(), 400);
+      assert.equal(getJsonB().success, false);
+      assert.match(getJsonB().message, /already been credited to another order/);
+    });
+
+    it('handleVerifyPayment: idempotently returns HTTP 200 for already paid order', async () => {
+      const order = await createTestOrder({
+        paymentStatus: 'paid',
+        orderStatus: 'confirmed',
+        paymentDetails: {
+          gateway: 'razorpay',
+          razorpayOrderId: `order_ALREADY_PAID_${Date.now()}`,
+          razorpayPaymentId: `pay_ALREADY_PAID_${Date.now()}`,
+        },
+      });
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        body: {
+          orderId: order._id.toString(),
+          razorpayOrderId: order.paymentDetails!.razorpayOrderId,
+          razorpayPaymentId: order.paymentDetails!.razorpayPaymentId,
+          razorpaySignature: 'any_signature',
+        },
+      });
+
+      await handleVerifyPayment(req, res);
+
+      assert.equal(getStatus(), 200);
+      assert.equal(getJson().success, true);
+      assert.match(getJson().message, /already been verified/);
+    });
+
+    it('handleVerifyPayment: rejects payment verification if order was already cancelled', async () => {
+      const cancelledOrder = await createTestOrder({
+        orderStatus: 'cancelled',
+        paymentStatus: 'pending',
+        inventoryRestored: true,
+      });
+      const rzpOrderId = cancelledOrder.paymentDetails!.razorpayOrderId!;
+      const rzpPaymentId = `pay_CANCELLED_${Date.now()}`;
+      const sig = crypto
+        .createHmac('sha256', TEST_KEY_SECRET)
+        .update(`${rzpOrderId}|${rzpPaymentId}`)
+        .digest('hex');
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        body: {
+          orderId: cancelledOrder._id.toString(),
+          razorpayOrderId: rzpOrderId,
+          razorpayPaymentId: rzpPaymentId,
+          razorpaySignature: sig,
+        },
+      });
+
+      await handleVerifyPayment(req, res);
+
+      assert.equal(getStatus(), 400);
+      assert.equal(getJson().success, false);
+      assert.match(getJson().message, /Cannot verify payment for a cancelled order/);
+    });
+
+    it('handleVerifyPayment: rejects unauthorized customer with HTTP 403', async () => {
+      const order = await createTestOrder();
+      const rzpOrderId = order.paymentDetails!.razorpayOrderId!;
+      const rzpPaymentId = `pay_UNAUTH_${Date.now()}`;
+      const sig = crypto
+        .createHmac('sha256', TEST_KEY_SECRET)
+        .update(`${rzpOrderId}|${rzpPaymentId}`)
+        .digest('hex');
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: otherUser._id.toString(), role: 'customer' },
+        body: {
+          orderId: order._id.toString(),
+          razorpayOrderId: rzpOrderId,
+          razorpayPaymentId: rzpPaymentId,
+          razorpaySignature: sig,
+        },
+      });
+
+      await handleVerifyPayment(req, res);
+
+      assert.equal(getStatus(), 403);
+      assert.equal(getJson().success, false);
+      assert.match(getJson().message, /not authorized/);
+    });
+
+    it('handleVerifyPayment: rejects missing or invalid payload parameters with HTTP 400', async () => {
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        body: {},
+      });
+
+      await handleVerifyPayment(req, res);
+
+      assert.equal(getStatus(), 400);
+      assert.equal(getJson().success, false);
+      assert.match(getJson().message, /Missing or invalid payment verification parameters/);
+    });
+
+    // ── Razorpay Webhook Route Tests ─────────────────────────────────────────
+    it('handleRazorpayWebhook: valid webhook payment.captured transitions order to paid and records event ID', async () => {
+      const order = await createTestOrder({ total: 349 });
+      const rzpOrderId = order.paymentDetails!.razorpayOrderId!;
+      const paymentId = `pay_WB_CAPTURED_${Date.now()}`;
+      const eventId = `evt_WB_SUCCESS_${Date.now()}`;
+
+      const payloadObj = {
+        entity: 'event',
+        event: 'payment.captured',
+        id: eventId,
+        payload: {
+          payment: {
+            entity: {
+              id: paymentId,
+              order_id: rzpOrderId,
+              amount: 34900,
+              currency: 'INR',
+              status: 'captured',
+            },
+          },
+        },
+      };
+
+      const rawBody = JSON.stringify(payloadObj);
+      const signature = crypto
+        .createHmac('sha256', TEST_WEBHOOK_SECRET)
+        .update(rawBody)
+        .digest('hex');
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        headers: {
+          'x-razorpay-signature': signature,
+          'x-razorpay-event-id': eventId,
+        },
+        body: payloadObj,
+        rawBody,
+      });
+
+      await handleRazorpayWebhook(req, res);
+
+      assert.equal(getStatus(), 200);
+      assert.equal(getJson().success, true);
+      assert.match(getJson().message, /Payment recorded successfully/);
+
+      const updated = await Order.findById(order._id);
+      assert.equal(updated?.paymentStatus, 'paid');
+      assert.equal(updated?.orderStatus, 'confirmed');
+      assert.ok(updated?.processedWebhookEvents?.includes(eventId));
+    });
+
+    it('handleRazorpayWebhook: strictly rejects missing or invalid webhook signature with HTTP 400', async () => {
+      const payloadObj = { event: 'payment.captured', id: 'evt_FORGED' };
+      const rawBody = JSON.stringify(payloadObj);
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        headers: {
+          'x-razorpay-signature': 'invalid_forged_sig',
+        },
+        body: payloadObj,
+        rawBody,
+      });
+
+      await handleRazorpayWebhook(req, res);
+
+      assert.equal(getStatus(), 400);
+      assert.equal(getJson().success, false);
+      assert.match(getJson().message, /Invalid webhook signature/);
+    });
+
+    it('handleRazorpayWebhook: idempotently absorbs replayed webhook event with alreadyProcessed: true', async () => {
+      const eventId = `evt_REPLAY_${Date.now()}`;
+      const order = await createTestOrder({
+        processedWebhookEvents: [eventId],
+        paymentStatus: 'paid',
+      });
+
+      const payloadObj = {
+        event: 'payment.captured',
+        id: eventId,
+        payload: {
+          payment: {
+            entity: {
+              id: 'pay_REPLAY',
+              order_id: order.paymentDetails!.razorpayOrderId,
+              amount: 34900,
+              currency: 'INR',
+            },
+          },
+        },
+      };
+      const rawBody = JSON.stringify(payloadObj);
+      const signature = crypto
+        .createHmac('sha256', TEST_WEBHOOK_SECRET)
+        .update(rawBody)
+        .digest('hex');
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        headers: {
+          'x-razorpay-signature': signature,
+          'x-razorpay-event-id': eventId,
+        },
+        body: payloadObj,
+        rawBody,
+      });
+
+      await handleRazorpayWebhook(req, res);
+
+      assert.equal(getStatus(), 200);
+      assert.equal(getJson().success, true);
+      assert.equal(getJson().alreadyProcessed, true);
+    });
+
+    it('handleRazorpayWebhook: detects and rejects underpaid amount mismatch with HTTP 400', async () => {
+      const order = await createTestOrder({ total: 500 }); // ₹500 = 50000 paise
+      const rzpOrderId = order.paymentDetails!.razorpayOrderId!;
+      const eventId = `evt_UNDERPAY_${Date.now()}`;
+
+      const payloadObj = {
+        event: 'payment.captured',
+        id: eventId,
+        payload: {
+          payment: {
+            entity: {
+              id: `pay_UNDERPAY_${Date.now()}`,
+              order_id: rzpOrderId,
+              amount: 100, // Attacker pays only ₹1.00
+              currency: 'INR',
+            },
+          },
+        },
+      };
+      const rawBody = JSON.stringify(payloadObj);
+      const signature = crypto
+        .createHmac('sha256', TEST_WEBHOOK_SECRET)
+        .update(rawBody)
+        .digest('hex');
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        headers: {
+          'x-razorpay-signature': signature,
+          'x-razorpay-event-id': eventId,
+        },
+        body: payloadObj,
+        rawBody,
+      });
+
+      await handleRazorpayWebhook(req, res);
+
+      assert.equal(getStatus(), 400);
+      assert.equal(getJson().success, false);
+      assert.match(getJson().message, /amount or currency mismatch/);
+
+      const unchanged = await Order.findById(order._id);
+      assert.equal(unchanged?.paymentStatus, 'pending');
+    });
+
+    it('handleRazorpayWebhook: detects and rejects non-INR currency in webhook with HTTP 400', async () => {
+      const order = await createTestOrder({ total: 349 });
+      const rzpOrderId = order.paymentDetails!.razorpayOrderId!;
+      const eventId = `evt_USD_${Date.now()}`;
+
+      const payloadObj = {
+        event: 'payment.captured',
+        id: eventId,
+        payload: {
+          payment: {
+            entity: {
+              id: `pay_USD_${Date.now()}`,
+              order_id: rzpOrderId,
+              amount: 34900,
+              currency: 'USD',
+            },
+          },
+        },
+      };
+      const rawBody = JSON.stringify(payloadObj);
+      const signature = crypto
+        .createHmac('sha256', TEST_WEBHOOK_SECRET)
+        .update(rawBody)
+        .digest('hex');
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        headers: {
+          'x-razorpay-signature': signature,
+          'x-razorpay-event-id': eventId,
+        },
+        body: payloadObj,
+        rawBody,
+      });
+
+      await handleRazorpayWebhook(req, res);
+
+      assert.equal(getStatus(), 400);
+      assert.equal(getJson().success, false);
+      assert.match(getJson().message, /amount or currency mismatch/);
+    });
+
+    it('handleRazorpayWebhook: safely handles captured payment on cancelled order without state corruption', async () => {
+      const cancelledOrder = await createTestOrder({
+        total: 349,
+        orderStatus: 'cancelled',
+        paymentStatus: 'pending',
+        inventoryRestored: true,
+      });
+      const rzpOrderId = cancelledOrder.paymentDetails!.razorpayOrderId!;
+      const eventId = `evt_CANCELLED_PAY_${Date.now()}`;
+
+      const payloadObj = {
+        event: 'payment.captured',
+        id: eventId,
+        payload: {
+          payment: {
+            entity: {
+              id: `pay_CANCELLED_${Date.now()}`,
+              order_id: rzpOrderId,
+              amount: 34900,
+              currency: 'INR',
+            },
+          },
+        },
+      };
+      const rawBody = JSON.stringify(payloadObj);
+      const signature = crypto
+        .createHmac('sha256', TEST_WEBHOOK_SECRET)
+        .update(rawBody)
+        .digest('hex');
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        headers: {
+          'x-razorpay-signature': signature,
+          'x-razorpay-event-id': eventId,
+        },
+        body: payloadObj,
+        rawBody,
+      });
+
+      await handleRazorpayWebhook(req, res);
+
+      assert.equal(getStatus(), 200);
+      assert.match(getJson().message, /previously cancelled/);
+
+      const unchanged = await Order.findById(cancelledOrder._id);
+      assert.equal(unchanged?.orderStatus, 'cancelled');
+      assert.equal(unchanged?.paymentStatus, 'pending');
+    });
+
+    it('handleRazorpayWebhook: payment.failed event records failureReason without corrupting inventory', async () => {
+      const order = await createTestOrder({ total: 349 });
+      const rzpOrderId = order.paymentDetails!.razorpayOrderId!;
+      const eventId = `evt_PAY_FAILED_${Date.now()}`;
+
+      const payloadObj = {
+        event: 'payment.failed',
+        id: eventId,
+        payload: {
+          payment: {
+            entity: {
+              id: `pay_FAILED_${Date.now()}`,
+              order_id: rzpOrderId,
+              error_code: 'BAD_REQUEST_ERROR',
+              error_description: 'Card verification failed by bank',
+            },
+          },
+        },
+      };
+      const rawBody = JSON.stringify(payloadObj);
+      const signature = crypto
+        .createHmac('sha256', TEST_WEBHOOK_SECRET)
+        .update(rawBody)
+        .digest('hex');
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        headers: {
+          'x-razorpay-signature': signature,
+          'x-razorpay-event-id': eventId,
+        },
+        body: payloadObj,
+        rawBody,
+      });
+
+      await handleRazorpayWebhook(req, res);
+
+      assert.equal(getStatus(), 200);
+      assert.match(getJson().message, /Payment failure recorded/);
+
+      const updated = await Order.findById(order._id);
+      assert.equal(updated?.paymentStatus, 'pending');
+      assert.equal(updated?.orderStatus, 'pending');
+      assert.equal(updated?.paymentDetails?.failureReason, 'Card verification failed by bank');
+      assert.ok(updated?.processedWebhookEvents?.includes(eventId));
+    });
+
+    it('handleRazorpayWebhook: payment.failed event resolves order via notes.orderId fallback', async () => {
+      const order = await createTestOrder({ total: 349 });
+      const eventId = `evt_NOTES_FALLBACK_${Date.now()}`;
+
+      const payloadObj = {
+        event: 'payment.failed',
+        id: eventId,
+        payload: {
+          payment: {
+            entity: {
+              id: `pay_NOTES_FAIL_${Date.now()}`,
+              order_id: 'order_DIFFERENT_RZP_ID',
+              notes: {
+                orderId: order._id.toString(),
+              },
+              error_code: 'GATEWAY_ERROR',
+              error_description: 'UPI transaction expired',
+            },
+          },
+        },
+      };
+      const rawBody = JSON.stringify(payloadObj);
+      const signature = crypto
+        .createHmac('sha256', TEST_WEBHOOK_SECRET)
+        .update(rawBody)
+        .digest('hex');
+
+      const { req, res, getStatus } = mockHttp({
+        headers: {
+          'x-razorpay-signature': signature,
+          'x-razorpay-event-id': eventId,
+        },
+        body: payloadObj,
+        rawBody,
+      });
+
+      await handleRazorpayWebhook(req, res);
+
+      assert.equal(getStatus(), 200);
+      const updated = await Order.findById(order._id);
+      assert.equal(updated?.paymentDetails?.failureReason, 'UPI transaction expired');
+    });
+
+    // ── Payment Retry Route Tests ────────────────────────────────────────────
+    it('handleRetryPayment: creates fresh Razorpay order and sets paymentMethod to online', async () => {
+      const order = await createTestOrder({
+        total: 299,
+        paymentMethod: 'cod',
+        paymentStatus: 'pending',
+      });
+
+      _setRazorpayClientForTesting({
+        orders: {
+          create: async (params) => ({
+            id: `order_RETRY_MOCK_${Date.now()}`,
+            entity: 'order',
+            amount: params.amount,
+            amount_paid: 0,
+            amount_due: params.amount,
+            currency: 'INR',
+            receipt: params.receipt,
+            status: 'created',
+            attempts: 0,
+            notes: params.notes || {},
+            created_at: Math.floor(Date.now() / 1000),
+          }),
+        },
+      });
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        params: { orderId: order._id.toString() },
+      });
+
+      await handleRetryPayment(req, res);
+
+      assert.equal(getStatus(), 200);
+      assert.equal(getJson().success, true);
+      assert.equal(getJson().razorpay.amount, 29900);
+      assert.equal(getJson().razorpay.currency, 'INR');
+
+      const updated = await Order.findById(order._id);
+      assert.equal(updated?.paymentMethod, 'online');
+      assert.match(updated?.paymentDetails?.razorpayOrderId || '', /order_RETRY_MOCK_/);
+    });
+
+    it('handleRetryPayment: rejects payment retry on already paid order with HTTP 400', async () => {
+      const order = await createTestOrder({
+        paymentStatus: 'paid',
+        orderStatus: 'confirmed',
+      });
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        params: { orderId: order._id.toString() },
+      });
+
+      await handleRetryPayment(req, res);
+
+      assert.equal(getStatus(), 400);
+      assert.equal(getJson().success, false);
+      assert.match(getJson().message, /already paid/);
+    });
+
+    it('handleRetryPayment: rejects payment retry on cancelled order with HTTP 400', async () => {
+      const order = await createTestOrder({
+        orderStatus: 'cancelled',
+        paymentStatus: 'pending',
+      });
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        params: { orderId: order._id.toString() },
+      });
+
+      await handleRetryPayment(req, res);
+
+      assert.equal(getStatus(), 400);
+      assert.equal(getJson().success, false);
+      assert.match(getJson().message, /Cannot retry payment for a cancelled order/);
+    });
+
+    it('handleRetryPayment: rejects retry on zero-total order with HTTP 400', async () => {
+      const order = await createTestOrder({
+        total: 0,
+        paymentStatus: 'pending',
+      });
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        params: { orderId: order._id.toString() },
+      });
+
+      await handleRetryPayment(req, res);
+
+      assert.equal(getStatus(), 400);
+      assert.equal(getJson().success, false);
+      assert.match(getJson().message, /Order total is zero/);
+    });
+
+    it('handleRetryPayment: rejects unauthorized customer request with HTTP 403', async () => {
+      const order = await createTestOrder();
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: otherUser._id.toString(), role: 'customer' },
+        params: { orderId: order._id.toString() },
+      });
+
+      await handleRetryPayment(req, res);
+
+      assert.equal(getStatus(), 403);
+      assert.equal(getJson().success, false);
+      assert.match(getJson().message, /Not authorized/);
+    });
+
+    // ── Unpaid Checkout Cancellation Tests ───────────────────────────────────
+    it('handleCancelUnpaid: customer cancels unpaid order and automatically restores stock', async () => {
+      const order = await createTestOrder({
+        orderStatus: 'pending',
+        paymentStatus: 'pending',
+      });
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        params: { orderId: order._id.toString() },
+        body: { reason: 'Customer changed mind before paying' },
+      });
+
+      await handleCancelUnpaid(req, res);
+
+      assert.equal(getStatus(), 200);
+      assert.equal(getJson().success, true);
+      assert.match(getJson().message, /cancelled and reserved inventory restored/);
+
+      const updated = await Order.findById(order._id);
+      assert.equal(updated?.orderStatus, 'cancelled');
+      assert.equal(updated?.inventoryRestored, true);
+      assert.equal(updated?.cancelledBy, 'customer');
+    });
+
+    it('handleCancelUnpaid: rejects cancellation of paid order with HTTP 400', async () => {
+      const paidOrder = await createTestOrder({
+        paymentStatus: 'paid',
+        orderStatus: 'confirmed',
+      });
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        params: { orderId: paidOrder._id.toString() },
+      });
+
+      await handleCancelUnpaid(req, res);
+
+      assert.equal(getStatus(), 400);
+      assert.equal(getJson().success, false);
+      assert.match(getJson().message, /Paid orders cannot be cancelled through this endpoint/);
+    });
+
+    it('handleCancelUnpaid: idempotently handles re-cancellation of already cancelled order', async () => {
+      const cancelledOrder = await createTestOrder({
+        orderStatus: 'cancelled',
+        paymentStatus: 'pending',
+        inventoryRestored: true,
+      });
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        params: { orderId: cancelledOrder._id.toString() },
+      });
+
+      await handleCancelUnpaid(req, res);
+
+      assert.equal(getStatus(), 200);
+      assert.equal(getJson().success, true);
+      assert.match(getJson().message, /already cancelled/);
     });
   });
 });

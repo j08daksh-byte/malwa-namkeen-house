@@ -651,7 +651,7 @@ export async function dispatchOrderConfirmationEmails(order: any) {
  * POST /api/orders/verify-payment
  * Cryptographically verifies Razorpay payment signature and transitions order to 'paid' and 'confirmed'.
  */
-router.post('/verify-payment', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+export async function handleVerifyPayment(req: AuthenticatedRequest, res: Response) {
   try {
     const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body || {};
 
@@ -722,11 +722,43 @@ router.post('/verify-payment', requireAuth, async (req: AuthenticatedRequest, re
       return;
     }
 
-    // Order ID association check
-    if (order.paymentDetails?.razorpayOrderId && order.paymentDetails.razorpayOrderId !== razorpayOrderId.trim()) {
+    // Online payment method verification
+    if (!['online', 'upi', 'card'].includes(order.paymentMethod)) {
+      res.status(400).json({
+        success: false,
+        message: 'Payment verification is only permitted for online orders.',
+      });
+      return;
+    }
+
+    // Order ID association check: order must have an active server-generated Razorpay order ID
+    if (!order.paymentDetails?.razorpayOrderId) {
+      res.status(400).json({
+        success: false,
+        message: 'No Razorpay order ID is associated with this order record.',
+      });
+      return;
+    }
+
+    if (order.paymentDetails.razorpayOrderId !== razorpayOrderId.trim()) {
       res.status(400).json({
         success: false,
         message: 'Razorpay order ID does not match the order record.',
+      });
+      return;
+    }
+
+    // Replay attack prevention: paymentId must not be credited to any other order
+    const duplicatePayment = await Order.findOne({
+      _id: { $ne: order._id },
+      'paymentDetails.razorpayPaymentId': razorpayPaymentId.trim(),
+    }).lean();
+
+    if (duplicatePayment) {
+      console.warn(`[Security Alert] Replay attack: paymentId ${razorpayPaymentId.trim()} already credited to order ${duplicatePayment.orderNumber}`);
+      res.status(400).json({
+        success: false,
+        message: 'Payment ID has already been credited to another order.',
       });
       return;
     }
@@ -801,13 +833,14 @@ router.post('/verify-payment', requireAuth, async (req: AuthenticatedRequest, re
       message: 'An error occurred during payment verification.',
     });
   }
-});
+}
+router.post('/verify-payment', requireAuth, handleVerifyPayment);
 
 /**
  * POST /api/orders/webhook/razorpay
  * Idempotent Razorpay webhook listener for payment.captured, order.paid, and payment.failed.
  */
-router.post('/webhook/razorpay', async (req: any, res: Response) => {
+export async function handleRazorpayWebhook(req: any, res: Response) {
   try {
     const signature = req.headers['x-razorpay-signature'] as string;
     const rawBody = req.rawBody || JSON.stringify(req.body);
@@ -922,8 +955,15 @@ router.post('/webhook/razorpay', async (req: any, res: Response) => {
       const rzpOrderId = paymentEntity?.order_id;
       const failureReason = paymentEntity?.error_description || paymentEntity?.error_code || 'Payment failed';
 
-      if (rzpOrderId) {
-        const order = await Order.findOne({ 'paymentDetails.razorpayOrderId': rzpOrderId });
+      if (rzpOrderId || paymentEntity?.notes?.orderId) {
+        const order = await Order.findOne({
+          $or: [
+            ...(rzpOrderId ? [{ 'paymentDetails.razorpayOrderId': rzpOrderId }] : []),
+            ...(paymentEntity?.notes?.orderId && mongoose.Types.ObjectId.isValid(paymentEntity.notes.orderId)
+              ? [{ _id: paymentEntity.notes.orderId }]
+              : []),
+          ],
+        });
         if (order && order.paymentStatus !== 'paid' && order.orderStatus !== 'cancelled') {
           await Order.updateOne(
             { _id: order._id },
@@ -945,13 +985,15 @@ router.post('/webhook/razorpay', async (req: any, res: Response) => {
     console.error('[Razorpay Webhook Error]:', err);
     res.status(500).json({ success: false, message: 'Webhook processing error.' });
   }
-});
+}
+router.post('/webhook/razorpay', handleRazorpayWebhook);
+router.post('/webhook', handleRazorpayWebhook);
 
 /**
  * POST /api/orders/:orderId/retry-payment
  * Allows customer to generate a fresh Razorpay order for an unpaid, un-cancelled order.
  */
-router.post('/:orderId/retry-payment', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+export async function handleRetryPayment(req: AuthenticatedRequest, res: Response) {
   try {
     const { orderId } = req.params;
 
@@ -986,6 +1028,11 @@ router.post('/:orderId/retry-payment', requireAuth, async (req: AuthenticatedReq
       return;
     }
 
+    if (order.total <= 0) {
+      res.status(400).json({ success: false, message: 'Order total is zero; no payment required.' });
+      return;
+    }
+
     const rzpRes = await createRazorpayOrder({
       amount: Math.round(order.total * 100),
       currency: 'INR',
@@ -1010,6 +1057,9 @@ router.post('/:orderId/retry-payment', requireAuth, async (req: AuthenticatedReq
       gateway: 'razorpay',
       razorpayOrderId: rzpRes.data.id,
     };
+    if (order.paymentMethod === 'cod') {
+      order.paymentMethod = 'online';
+    }
     await order.save();
 
     res.json({
@@ -1033,13 +1083,14 @@ router.post('/:orderId/retry-payment', requireAuth, async (req: AuthenticatedReq
     console.error('[Retry Payment Error]:', err);
     res.status(500).json({ success: false, message: 'Failed to retry payment.' });
   }
-});
+}
+router.post('/:orderId/retry-payment', requireAuth, handleRetryPayment);
 
 /**
  * POST /api/orders/:orderId/cancel-unpaid
  * Allows customer to abandon/cancel an unpaid order and immediately release reserved inventory.
  */
-router.post('/:orderId/cancel-unpaid', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+export async function handleCancelUnpaid(req: AuthenticatedRequest, res: Response) {
   try {
     const { orderId } = req.params;
 
@@ -1104,7 +1155,8 @@ router.post('/:orderId/cancel-unpaid', requireAuth, async (req: AuthenticatedReq
     console.error('[Cancel Unpaid Order Error]:', err);
     res.status(500).json({ success: false, message: 'Failed to cancel unpaid order.' });
   }
-});
+}
+router.post('/:orderId/cancel-unpaid', requireAuth, handleCancelUnpaid);
 
 /**
  * POST /api/orders/:orderId/cancel

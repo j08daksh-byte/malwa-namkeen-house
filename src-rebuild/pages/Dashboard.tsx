@@ -25,11 +25,23 @@ import {
   KeyRound,
   RefreshCw,
   ArrowLeft,
+  CreditCard,
 } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/sections/Footer';
 import SEOHead from '../components/seo/SEOHead';
 import { useCustomerSession } from '../components/layout/CustomerSessionContext';
+
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if ((window as any).Razorpay) return resolve(true);
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
 
 type Section = 'dashboard' | 'orders' | 'addresses' | 'details';
 
@@ -66,6 +78,7 @@ export interface CustomerOrder {
   shippingAddress: CustomerAddress;
   orderStatus: string;
   paymentStatus: string;
+  paymentMethod?: string;
   shipmentStatus: string;
   trackingInfo?: {
     courierName?: string;
@@ -100,6 +113,9 @@ export default function Dashboard() {
   const [cancelModalOrder, setCancelModalOrder] = useState<CustomerOrder | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelError, setCancelError] = useState<string | null>(null);
+
+  const [isRetryingPayment, setIsRetryingPayment] = useState(false);
+  const [paymentActionError, setPaymentActionError] = useState<string | null>(null);
 
   const [editingAddress, setEditingAddress] = useState<CustomerAddress | null>(null);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
@@ -244,6 +260,94 @@ export default function Dashboard() {
       setCancelError(errMsg);
     } finally {
       setIsCancellingOrder(false);
+    }
+  };
+
+  // Retry or Complete Online Payment
+  const handleRetryPayment = async (order: CustomerOrder) => {
+    try {
+      setIsRetryingPayment(true);
+      setPaymentActionError(null);
+      const res = await fetch(`/api/orders/${order._id}/retry-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success || !data.razorpay) {
+        setPaymentActionError(data.message || 'Unable to initialize payment retry.');
+        setIsRetryingPayment(false);
+        return;
+      }
+
+      const loaded = await loadRazorpayScript();
+      if (!loaded) {
+        setPaymentActionError('Payment gateway failed to load. Please check your internet connection.');
+        setIsRetryingPayment(false);
+        return;
+      }
+
+      const rzp = new (window as any).Razorpay({
+        key: data.razorpay.keyId,
+        amount: data.razorpay.amount,
+        currency: data.razorpay.currency || 'INR',
+        name: data.razorpay.name || 'Malwa Namkeen House',
+        description: data.razorpay.description,
+        order_id: data.razorpay.orderId,
+        prefill: data.razorpay.prefill || {},
+        theme: { color: '#3C0815' },
+        handler: async function (response: any) {
+          try {
+            const verifyRes = await fetch('/api/orders/verify-payment', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              credentials: 'include',
+              body: JSON.stringify({
+                orderId: order._id,
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              }),
+            });
+            const verifyData = await verifyRes.json();
+            if (verifyRes.ok && verifyData.success) {
+              await fetchOrders();
+              if (verifyData.order) {
+                setSelectedOrder(verifyData.order);
+              }
+              setNotice('Payment completed successfully! Your order has been confirmed.');
+            } else {
+              setPaymentActionError(verifyData.message || 'Payment verification failed.');
+            }
+          } catch {
+            setPaymentActionError('Network error during payment verification.');
+          } finally {
+            setIsRetryingPayment(false);
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setIsRetryingPayment(false);
+          },
+        },
+      });
+
+      rzp.on('payment.failed', function (resp: any) {
+        setIsRetryingPayment(false);
+        const reason = resp?.error?.description || 'Payment was declined by issuing bank.';
+        setPaymentActionError(`Payment failed: ${reason}`);
+      });
+
+      rzp.open();
+    } catch {
+      setPaymentActionError('An unexpected error occurred while launching payment.');
+      setIsRetryingPayment(false);
     }
   };
 
@@ -1795,10 +1899,42 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Cancellation Action for Pending / Eligible Orders */}
-              {selectedOrder.orderStatus === 'pending' &&
-                (!selectedOrder.shipmentStatus || selectedOrder.shipmentStatus === 'unfulfilled') && (
-                  <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(200,154,61,0.2)', display: 'flex', justifyContent: 'flex-end' }}>
+              {/* Payment Action Error Notification */}
+              {paymentActionError && (
+                <div style={{ marginTop: '14px', padding: '10px 14px', background: '#FFF1F2', border: '1px solid #FECDD3', borderRadius: '8px', color: '#BE123C', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AlertCircle size={16} />
+                  <span>{paymentActionError}</span>
+                </div>
+              )}
+
+              {/* Order Actions: Pay Now (for pending online orders) & Cancel Order */}
+              {selectedOrder.orderStatus === 'pending' && (
+                <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(200,154,61,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                  {selectedOrder.paymentStatus !== 'paid' && Boolean(selectedOrder.paymentMethod && ['online', 'upi', 'card'].includes(selectedOrder.paymentMethod)) && (
+                    <button
+                      type="button"
+                      disabled={isRetryingPayment}
+                      onClick={() => handleRetryPayment(selectedOrder)}
+                      style={{
+                        background: '#059669',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: isRetryingPayment ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 4px rgba(5,150,105,0.2)',
+                      }}
+                    >
+                      <CreditCard size={15} /> {isRetryingPayment ? 'Launching Gateway...' : `Complete Payment (₹${selectedOrder.total})`}
+                    </button>
+                  )}
+
+                  {(!selectedOrder.shipmentStatus || selectedOrder.shipmentStatus === 'unfulfilled') && (
                     <button
                       type="button"
                       className="btn-cancel-order"
@@ -1820,12 +1956,14 @@ export default function Dashboard() {
                         alignItems: 'center',
                         gap: '6px',
                         transition: 'background 0.2s',
+                        marginLeft: 'auto',
                       }}
                     >
                       <XCircle size={15} /> Cancel Order
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

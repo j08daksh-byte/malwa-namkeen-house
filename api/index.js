@@ -5025,6 +5025,7 @@ orderSchema.index({ "customerInfo.email": 1, createdAt: -1 });
 orderSchema.index({ orderStatus: 1, createdAt: -1 });
 orderSchema.index({ paymentStatus: 1, createdAt: -1 });
 orderSchema.index({ "paymentDetails.razorpayOrderId": 1 }, { sparse: true });
+orderSchema.index({ "paymentDetails.razorpayPaymentId": 1 }, { sparse: true });
 orderSchema.index({ processedWebhookEvents: 1 }, { sparse: true });
 orderSchema.index({ "shiprocketDetails.shipmentId": 1 }, { sparse: true });
 orderSchema.index({ "shiprocketDetails.orderId": 1 }, { sparse: true });
@@ -6499,7 +6500,7 @@ async function dispatchOrderConfirmationEmails(order) {
     console.warn("[Order Notification Warning] Failed to dispatch order emails:", notifyErr);
   }
 }
-router6.post("/verify-payment", requireAuth, async (req, res) => {
+async function handleVerifyPayment(req, res) {
   try {
     const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body || {};
     if (!orderId || typeof orderId !== "string" || !razorpayOrderId || typeof razorpayOrderId !== "string" || !razorpayPaymentId || typeof razorpayPaymentId !== "string" || !razorpaySignature || typeof razorpaySignature !== "string") {
@@ -6547,10 +6548,36 @@ router6.post("/verify-payment", requireAuth, async (req, res) => {
       });
       return;
     }
-    if (order.paymentDetails?.razorpayOrderId && order.paymentDetails.razorpayOrderId !== razorpayOrderId.trim()) {
+    if (!["online", "upi", "card"].includes(order.paymentMethod)) {
+      res.status(400).json({
+        success: false,
+        message: "Payment verification is only permitted for online orders."
+      });
+      return;
+    }
+    if (!order.paymentDetails?.razorpayOrderId) {
+      res.status(400).json({
+        success: false,
+        message: "No Razorpay order ID is associated with this order record."
+      });
+      return;
+    }
+    if (order.paymentDetails.razorpayOrderId !== razorpayOrderId.trim()) {
       res.status(400).json({
         success: false,
         message: "Razorpay order ID does not match the order record."
+      });
+      return;
+    }
+    const duplicatePayment = await Order.findOne({
+      _id: { $ne: order._id },
+      "paymentDetails.razorpayPaymentId": razorpayPaymentId.trim()
+    }).lean();
+    if (duplicatePayment) {
+      console.warn(`[Security Alert] Replay attack: paymentId ${razorpayPaymentId.trim()} already credited to order ${duplicatePayment.orderNumber}`);
+      res.status(400).json({
+        success: false,
+        message: "Payment ID has already been credited to another order."
       });
       return;
     }
@@ -6615,8 +6642,9 @@ router6.post("/verify-payment", requireAuth, async (req, res) => {
       message: "An error occurred during payment verification."
     });
   }
-});
-router6.post("/webhook/razorpay", async (req, res) => {
+}
+router6.post("/verify-payment", requireAuth, handleVerifyPayment);
+async function handleRazorpayWebhook(req, res) {
   try {
     const signature = req.headers["x-razorpay-signature"];
     const rawBody = req.rawBody || JSON.stringify(req.body);
@@ -6710,8 +6738,13 @@ router6.post("/webhook/razorpay", async (req, res) => {
       const paymentEntity = req.body?.payload?.payment?.entity;
       const rzpOrderId = paymentEntity?.order_id;
       const failureReason = paymentEntity?.error_description || paymentEntity?.error_code || "Payment failed";
-      if (rzpOrderId) {
-        const order = await Order.findOne({ "paymentDetails.razorpayOrderId": rzpOrderId });
+      if (rzpOrderId || paymentEntity?.notes?.orderId) {
+        const order = await Order.findOne({
+          $or: [
+            ...rzpOrderId ? [{ "paymentDetails.razorpayOrderId": rzpOrderId }] : [],
+            ...paymentEntity?.notes?.orderId && mongoose18.Types.ObjectId.isValid(paymentEntity.notes.orderId) ? [{ _id: paymentEntity.notes.orderId }] : []
+          ]
+        });
         if (order && order.paymentStatus !== "paid" && order.orderStatus !== "cancelled") {
           await Order.updateOne(
             { _id: order._id },
@@ -6730,8 +6763,10 @@ router6.post("/webhook/razorpay", async (req, res) => {
     console.error("[Razorpay Webhook Error]:", err);
     res.status(500).json({ success: false, message: "Webhook processing error." });
   }
-});
-router6.post("/:orderId/retry-payment", requireAuth, async (req, res) => {
+}
+router6.post("/webhook/razorpay", handleRazorpayWebhook);
+router6.post("/webhook", handleRazorpayWebhook);
+async function handleRetryPayment(req, res) {
   try {
     const { orderId } = req.params;
     if (!mongoose18.Types.ObjectId.isValid(orderId)) {
@@ -6756,6 +6791,10 @@ router6.post("/:orderId/retry-payment", requireAuth, async (req, res) => {
       res.status(400).json({ success: false, message: "Cannot retry payment for a cancelled order." });
       return;
     }
+    if (order.total <= 0) {
+      res.status(400).json({ success: false, message: "Order total is zero; no payment required." });
+      return;
+    }
     const rzpRes = await createRazorpayOrder({
       amount: Math.round(order.total * 100),
       currency: "INR",
@@ -6778,6 +6817,9 @@ router6.post("/:orderId/retry-payment", requireAuth, async (req, res) => {
       gateway: "razorpay",
       razorpayOrderId: rzpRes.data.id
     };
+    if (order.paymentMethod === "cod") {
+      order.paymentMethod = "online";
+    }
     await order.save();
     res.json({
       success: true,
@@ -6800,8 +6842,9 @@ router6.post("/:orderId/retry-payment", requireAuth, async (req, res) => {
     console.error("[Retry Payment Error]:", err);
     res.status(500).json({ success: false, message: "Failed to retry payment." });
   }
-});
-router6.post("/:orderId/cancel-unpaid", requireAuth, async (req, res) => {
+}
+router6.post("/:orderId/retry-payment", requireAuth, handleRetryPayment);
+async function handleCancelUnpaid(req, res) {
   try {
     const { orderId } = req.params;
     if (!mongoose18.Types.ObjectId.isValid(orderId)) {
@@ -6854,7 +6897,8 @@ router6.post("/:orderId/cancel-unpaid", requireAuth, async (req, res) => {
     console.error("[Cancel Unpaid Order Error]:", err);
     res.status(500).json({ success: false, message: "Failed to cancel unpaid order." });
   }
-});
+}
+router6.post("/:orderId/cancel-unpaid", requireAuth, handleCancelUnpaid);
 router6.post("/:orderId/cancel", requireAuth, async (req, res) => {
   try {
     const { orderId } = req.params;
