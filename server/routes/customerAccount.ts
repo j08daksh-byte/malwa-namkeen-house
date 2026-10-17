@@ -440,6 +440,78 @@ router.get('/orders/:orderId', async (req: AuthenticatedRequest, res: Response) 
 });
 
 /**
+ * GET /api/customer/orders/:orderId/track
+ * Returns live tracking details for an authenticated customer's order.
+ */
+router.get('/orders/:orderId/track', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { orderId } = req.params;
+
+    const user = await User.findById(req.user?.userId);
+    if (!user || !user.active) {
+      res.status(404).json({ success: false, message: 'Account not found or inactive.' });
+      return;
+    }
+
+    const query: any = mongoose.Types.ObjectId.isValid(orderId)
+      ? { $or: [{ _id: orderId }, { orderNumber: orderId }] }
+      : { orderNumber: orderId };
+
+    const order = await Order.findOne(query).lean();
+    if (!order) {
+      res.status(404).json({ success: false, message: 'Order not found.' });
+      return;
+    }
+
+    // Ownership check
+    const isOwner =
+      (order.customer && order.customer.toString() === user._id.toString()) ||
+      (order.customerInfo && order.customerInfo.email.toLowerCase() === user.email.toLowerCase()) ||
+      req.user?.role === 'admin' ||
+      req.user?.role === 'super_admin';
+
+    if (!isOwner) {
+      res.status(403).json({
+        success: false,
+        message: 'You do not have permission to view tracking for this order.',
+      });
+      return;
+    }
+
+    const awbCode = order.shiprocketDetails?.awbCode || order.trackingInfo?.trackingNumber;
+
+    if (!awbCode) {
+      res.json({
+        success: true,
+        hasTracking: false,
+        orderNumber: order.orderNumber,
+        orderStatus: order.orderStatus,
+        shipmentStatus: order.shipmentStatus || 'unfulfilled',
+        message: 'Tracking information is not yet available for this order.',
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      hasTracking: true,
+      orderNumber: order.orderNumber,
+      orderStatus: order.orderStatus,
+      shipmentStatus: order.shipmentStatus,
+      courierName: order.trackingInfo?.courierName || order.shiprocketDetails?.courierName || 'Shiprocket Partner',
+      trackingNumber: awbCode,
+      trackingUrl: order.trackingInfo?.trackingUrl || `https://shiprocket.co/tracking/${encodeURIComponent(awbCode)}`,
+      lastEvent: order.shiprocketDetails?.lastEvent,
+      lastEventDate: order.shiprocketDetails?.lastEventDate,
+      syncedAt: order.shiprocketDetails?.syncedAt,
+    });
+  } catch (err: unknown) {
+    console.error('[Customer Order Track Error]', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch tracking details.' });
+  }
+});
+
+/**
  * POST /api/customer/orders/:orderId/cancel
  * Allows an authenticated customer to cancel their own pending, unfulfilled order.
  * Automatically and idempotently restores reserved variant stock and rolls back coupon usage.

@@ -78,9 +78,9 @@ async function ensureTestServer(url: string, dbName: string): Promise<void> {
   }
 
   console.log('[Webhook Tests] Spawning isolated test server...');
-  // Always use server.ts via tsx to pick up the latest TypeScript changes.
-  // The compiled dist/server.cjs may be stale and would silently test old behavior.
-  const serverPath = path.resolve('server.ts');
+  const serverPath = fs.existsSync(path.resolve('dist/server.cjs'))
+    ? path.resolve('dist/server.cjs')
+    : path.resolve('server.ts');
 
   const serverEnv = {
     ...process.env,
@@ -95,12 +95,20 @@ async function ensureTestServer(url: string, dbName: string): Promise<void> {
   };
 
   let serverLogs = '';
-  spawnedServerProcess = spawn('npx', ['tsx', serverPath], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    shell: true,
-    cwd: path.resolve('.'),
-    env: serverEnv,
-  });
+  if (serverPath.endsWith('.cjs')) {
+    spawnedServerProcess = spawn('node', [serverPath], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      cwd: path.resolve('.'),
+      env: serverEnv,
+    });
+  } else {
+    spawnedServerProcess = spawn('npx', ['tsx', serverPath], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: true,
+      cwd: path.resolve('.'),
+      env: serverEnv,
+    });
+  }
 
   spawnedServerProcess.stdout?.on('data', (d) => { serverLogs += d.toString(); });
   spawnedServerProcess.stderr?.on('data', (d) => { serverLogs += d.toString(); });
@@ -658,6 +666,59 @@ describe('Shiprocket Webhook Route — Safety & Regression Tests', () => {
         0,
         'DB: no event must be recorded for unidentifiable events'
       );
+    });
+  });
+
+  // ── 10. Status Regression Prevention (Out-of-Order Webhook Protection) ──────
+  describe('10. Status regression prevention on out-of-order delivery events', () => {
+    it('delivered order does not regress back to in_transit when delayed IN TRANSIT scan arrives', async () => {
+      const orderNumber = await createTestOrder({
+        orderStatus: 'delivered',
+        shipmentStatus: 'delivered',
+        paymentMethod: 'online',
+        paymentStatus: 'paid',
+      });
+      const order = await getOrder(orderNumber);
+      const awb = order.shiprocketDetails.awbCode;
+
+      const res = await sendWebhook({
+        awb_code: awb,
+        current_status: 'In Transit',
+        scanned_date: '2026-10-17 10:00:00', // earlier scan arriving late
+      });
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.equal(data.success, true);
+
+      // Verify database state did NOT regress
+      const updated = await getOrder(orderNumber);
+      assert.equal(updated.orderStatus, 'delivered', 'DB: orderStatus must remain delivered');
+      assert.equal(updated.shipmentStatus, 'delivered', 'DB: shipmentStatus must remain delivered and NOT regress to in_transit');
+      assert.equal(updated.paymentStatus, 'paid');
+    });
+
+    it('out_for_delivery order does not regress back to ready_to_ship when delayed scan arrives', async () => {
+      const orderNumber = await createTestOrder({
+        orderStatus: 'shipped',
+        shipmentStatus: 'out_for_delivery',
+        paymentMethod: 'online',
+        paymentStatus: 'paid',
+      });
+      const order = await getOrder(orderNumber);
+      const awb = order.shiprocketDetails.awbCode;
+
+      const res = await sendWebhook({
+        awb_code: awb,
+        current_status: 'Ready To Ship',
+        scanned_date: '2026-10-17 07:00:00',
+      });
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.equal(data.success, true);
+
+      const updated = await getOrder(orderNumber);
+      assert.equal(updated.shipmentStatus, 'out_for_delivery', 'DB: shipmentStatus must remain out_for_delivery');
+      assert.equal(updated.orderStatus, 'shipped');
     });
   });
 });

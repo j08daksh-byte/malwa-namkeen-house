@@ -25,7 +25,7 @@ const MESSAGE_PLACEHOLDERS: Record<string, string> = {
 };
 
 function formatReferenceId(rawId: string): string {
-  return `MC-ENQ-${rawId.slice(-6).toUpperCase()}`;
+  return `MN-ENQ-${rawId.slice(-6).toUpperCase()}`;
 }
 
 const WA_ICON = (

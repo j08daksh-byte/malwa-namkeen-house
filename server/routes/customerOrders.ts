@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
 import { User, type IUserAddress } from '../models/User.ts';
@@ -8,7 +8,7 @@ import { Order, type IOrderItem, type IShippingAddress } from '../models/Order.t
 import { Discount } from '../models/Discount.ts';
 import { StoreSettings } from '../models/StoreSettings.ts';
 import { validateAndCalculateDiscount } from '../lib/discounts.ts';
-import { requireAuth, type AuthenticatedRequest } from '../lib/auth.ts';
+import { requireAuth, extractToken, verifyToken, type AuthenticatedRequest } from '../lib/auth.ts';
 import { sendCustomerOrderConfirmation, sendNewOrderAdminAlert } from '../lib/emailService.ts';
 import {
   createRazorpayOrder,
@@ -1243,6 +1243,108 @@ router.post('/:orderId/cancel', requireAuth, async (req: AuthenticatedRequest, r
   } catch (err: unknown) {
     console.error('[Customer Order Cancel Error]:', err);
     res.status(500).json({ success: false, message: 'Failed to cancel order.' });
+  }
+});
+
+/**
+ * GET /api/orders/:orderId/track
+ * Returns live tracking details for an order.
+ * Accessible by:
+ *  1. Authenticated customer who owns the order
+ *  2. Admin or super_admin
+ *  3. Guest customer who provides matching email or phone in query params (?email=... or ?phone=...)
+ */
+router.get('/:orderId/track', async (req: Request, res: Response) => {
+  try {
+    const { orderId } = req.params;
+    if (!orderId || typeof orderId !== 'string' || !orderId.trim()) {
+      res.status(400).json({ success: false, message: 'Order identifier is required.' });
+      return;
+    }
+
+    const cleanId = orderId.trim();
+    const query = mongoose.Types.ObjectId.isValid(cleanId)
+      ? { $or: [{ _id: cleanId }, { orderNumber: cleanId }] }
+      : { orderNumber: cleanId };
+
+    const order = await Order.findOne(query);
+    if (!order) {
+      res.status(404).json({ success: false, message: 'Order not found.' });
+      return;
+    }
+
+    // Authorization check
+    let authorized = false;
+    const token = extractToken(req);
+    if (token) {
+      const payload = verifyToken(token);
+      if (payload) {
+        if (
+          payload.role === 'admin' ||
+          payload.role === 'super_admin' ||
+          (order.customer && order.customer.toString() === payload.userId) ||
+          (order.customerInfo?.email && order.customerInfo.email.toLowerCase() === payload.email.toLowerCase())
+        ) {
+          authorized = true;
+        }
+      }
+    }
+
+    // Guest fallback authorization via verified contact parameters
+    if (!authorized) {
+      const reqEmail = String(req.query.email || '').trim().toLowerCase();
+      const reqPhone = String(req.query.phone || '').trim();
+
+      const orderEmail = (order.customerInfo?.email || '').trim().toLowerCase();
+      const orderPhone = (order.customerInfo?.phone || '').trim();
+      const shippingPhone = (order.shippingAddress?.phone || '').trim();
+
+      if (
+        (reqEmail && reqEmail === orderEmail) ||
+        (reqPhone && (reqPhone === orderPhone || reqPhone === shippingPhone))
+      ) {
+        authorized = true;
+      }
+    }
+
+    if (!authorized) {
+      res.status(403).json({
+        success: false,
+        message: 'You do not have permission to view tracking for this order. Please sign in or provide the order email/phone.',
+      });
+      return;
+    }
+
+    const awbCode = order.shiprocketDetails?.awbCode || order.trackingInfo?.trackingNumber;
+
+    if (!awbCode) {
+      res.json({
+        success: true,
+        hasTracking: false,
+        orderNumber: order.orderNumber,
+        orderStatus: order.orderStatus,
+        shipmentStatus: order.shipmentStatus || 'unfulfilled',
+        message: 'Tracking information is not yet available for this order. Tracking will appear once dispatched.',
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      hasTracking: true,
+      orderNumber: order.orderNumber,
+      orderStatus: order.orderStatus,
+      shipmentStatus: order.shipmentStatus,
+      courierName: order.trackingInfo?.courierName || order.shiprocketDetails?.courierName || 'Shiprocket Partner',
+      trackingNumber: awbCode,
+      trackingUrl: order.trackingInfo?.trackingUrl || `https://shiprocket.co/tracking/${encodeURIComponent(awbCode)}`,
+      lastEvent: order.shiprocketDetails?.lastEvent,
+      lastEventDate: order.shiprocketDetails?.lastEventDate,
+      syncedAt: order.shiprocketDetails?.syncedAt,
+    });
+  } catch (err: unknown) {
+    console.error('[Customer Order Track Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to retrieve order tracking.' });
   }
 });
 

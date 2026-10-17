@@ -658,3 +658,198 @@ export function verifyShiprocketWebhook(
 
   return crypto.timingSafeEqual(expectedBuf, receivedBuf);
 }
+
+export interface ShiprocketCancelOrderResponse {
+  status_code?: number;
+  status?: number;
+  message?: string;
+}
+
+/**
+ * Cancels an order in Shiprocket by Shiprocket Order IDs.
+ * Ensures that cancelled orders are not dispatched by courier partners.
+ * Fails safely without throwing unhandled exceptions.
+ */
+export async function cancelShiprocketOrder(
+  shiprocketOrderIds: number[]
+): Promise<ShiprocketServiceResult<ShiprocketCancelOrderResponse>> {
+  if (!Array.isArray(shiprocketOrderIds) || shiprocketOrderIds.length === 0) {
+    return {
+      success: false,
+      error: 'At least one Shiprocket Order ID is required for cancellation.',
+      statusCode: 400,
+    };
+  }
+
+  const validIds = shiprocketOrderIds.filter(id => typeof id === 'number' && !isNaN(id) && id > 0);
+  if (validIds.length === 0) {
+    return {
+      success: false,
+      error: 'Valid numeric Shiprocket Order IDs are required.',
+      statusCode: 400,
+    };
+  }
+
+  // If mock client is injected, route through it
+  if (_testClient?.orders?.cancel) {
+    try {
+      const mockRes = await _testClient.orders.cancel(validIds);
+      return { success: true, data: mockRes };
+    } catch (testErr: unknown) {
+      const errMsg = testErr instanceof Error ? testErr.message : String(testErr);
+      return { success: false, error: errMsg, statusCode: 500 };
+    }
+  }
+
+  const authRes = await getShiprocketAuthToken();
+  if (!authRes.success || !authRes.data) {
+    return {
+      success: false,
+      error: authRes.error || 'Failed to authenticate with Shiprocket.',
+      statusCode: authRes.statusCode || 503,
+    };
+  }
+
+  try {
+    const res = await fetch(`${SHIPROCKET_BASE_URL}/orders/cancel`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authRes.data}`,
+      },
+      body: JSON.stringify({ ids: validIds }),
+      signal: AbortSignal.timeout(12000),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      const msg = data.message || data.error || 'Shiprocket order cancellation failed.';
+      return {
+        success: false,
+        error: typeof msg === 'string' ? msg : JSON.stringify(msg),
+        statusCode: res.status || 400,
+      };
+    }
+
+    return {
+      success: true,
+      data,
+    };
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error('[Shiprocket Cancel Order Exception]:', errMsg);
+    return {
+      success: false,
+      error: 'Shiprocket cancellation service timed out or was unreachable.',
+      statusCode: 502,
+    };
+  }
+}
+
+/**
+ * Synchronizes tracking activities and current status from Shiprocket for an order.
+ * Strictly prevents backward status regressions (e.g. delivered orders cannot be regressed).
+ * Reconciles COD payment status if shipment status advances to delivered.
+ */
+export async function syncOrderTrackingFromShiprocket(
+  order: IOrder
+): Promise<ShiprocketServiceResult<ShiprocketTrackingResponse>> {
+  const awbCode = order.shiprocketDetails?.awbCode || order.trackingInfo?.trackingNumber;
+  if (!awbCode || typeof awbCode !== 'string' || !awbCode.trim()) {
+    return {
+      success: false,
+      error: 'Order has no AWB tracking code assigned.',
+      statusCode: 400,
+    };
+  }
+
+  const result = await trackShipmentByAWB(awbCode.trim());
+  if (!result.success || !result.data) {
+    return result;
+  }
+
+  const trackingData = result.data.tracking_data;
+  const trackEntries = trackingData.shipment_track || [];
+  const primaryTrack = trackEntries[0];
+  const currentStatus = primaryTrack?.current_status || '';
+
+  order.shiprocketDetails = order.shiprocketDetails || {};
+  order.shiprocketDetails.syncedAt = new Date();
+
+  if (currentStatus) {
+    order.shiprocketDetails.rawStatus = currentStatus;
+    order.shiprocketDetails.lastEvent = currentStatus;
+    order.shiprocketDetails.lastEventDate = new Date();
+
+    const statusUpper = currentStatus.toUpperCase();
+
+    // Prevent regressions: if already delivered or cancelled, never regress status
+    if (order.orderStatus !== 'cancelled') {
+      const SHIPMENT_STATUS_RANK: Record<string, number> = {
+        unfulfilled: 0,
+        ready_to_ship: 1,
+        in_transit: 2,
+        out_for_delivery: 3,
+        delivered: 4,
+        returned: 4,
+      };
+
+      const currentRank = SHIPMENT_STATUS_RANK[order.shipmentStatus || 'unfulfilled'] ?? 0;
+
+      if (statusUpper.includes('DELIVERED') && !statusUpper.includes('RTO')) {
+        order.shipmentStatus = 'delivered';
+        order.orderStatus = 'delivered';
+        if (order.paymentMethod === 'cod' && order.paymentStatus !== 'paid') {
+          order.paymentStatus = 'paid';
+          order.paymentDetails = {
+            ...(order.paymentDetails || {}),
+            gateway: 'cod',
+            paidAt: new Date(),
+          };
+        }
+      } else if (statusUpper.includes('OUT FOR DELIVERY')) {
+        if (currentRank < 3) {
+          order.shipmentStatus = 'out_for_delivery';
+          if (['pending', 'confirmed', 'processing'].includes(order.orderStatus)) {
+            order.orderStatus = 'shipped';
+          }
+        }
+      } else if (
+        statusUpper.includes('IN TRANSIT') ||
+        statusUpper.includes('PICKED UP') ||
+        statusUpper.includes('REACHED')
+      ) {
+        if (currentRank < 2) {
+          order.shipmentStatus = 'in_transit';
+          if (['pending', 'confirmed', 'processing'].includes(order.orderStatus)) {
+            order.orderStatus = 'shipped';
+          }
+        }
+      } else if (statusUpper.includes('AWB') || statusUpper === 'READY TO SHIP') {
+        if (currentRank < 1) {
+          order.shipmentStatus = 'ready_to_ship';
+        }
+      } else if (statusUpper.includes('RTO') || statusUpper.includes('RETURN')) {
+        if (order.shipmentStatus !== 'delivered') {
+          order.shipmentStatus = 'returned';
+        }
+      }
+    }
+  }
+
+  if (primaryTrack?.courier_name && !order.shiprocketDetails.courierName) {
+    order.shiprocketDetails.courierName = primaryTrack.courier_name;
+  }
+  if (!order.trackingInfo?.trackingUrl && (trackingData.track_url || awbCode)) {
+    order.trackingInfo = {
+      courierName: order.shiprocketDetails.courierName || order.trackingInfo?.courierName || 'Shiprocket Partner',
+      trackingNumber: awbCode.trim(),
+      trackingUrl: trackingData.track_url || `https://shiprocket.co/tracking/${encodeURIComponent(awbCode.trim())}`,
+    };
+  }
+
+  await order.save();
+
+  return result;
+}

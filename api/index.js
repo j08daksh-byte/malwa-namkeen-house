@@ -5035,6 +5035,551 @@ var Order = mongoose14.models.Order || mongoose14.model("Order", orderSchema);
 
 // server/lib/orderRestoration.ts
 import mongoose15 from "mongoose";
+
+// server/lib/shiprocketService.ts
+import crypto3 from "node:crypto";
+var SHIPROCKET_BASE_URL = "https://apiv2.shiprocket.in/v1/external";
+var cachedAuthToken = null;
+var tokenExpiresAt = 0;
+var _testClient = null;
+function getShiprocketConfig() {
+  const isTest = process.env.NODE_ENV === "test" || process.env.IS_E2E_TEST === "true";
+  const email2 = (process.env.SHIPROCKET_EMAIL || "").trim();
+  const password = (process.env.SHIPROCKET_PASSWORD || "").trim();
+  const webhookToken = (process.env.SHIPROCKET_WEBHOOK_TOKEN || "").trim();
+  const pickupLocation = (process.env.SHIPROCKET_PICKUP_LOCATION || "Primary").trim();
+  const isSandbox = process.env.SHIPROCKET_SANDBOX === "true" || email2.includes("test") || isTest;
+  const isConfigured = Boolean(email2 && password);
+  return {
+    email: email2,
+    password,
+    webhookToken,
+    pickupLocation,
+    isConfigured,
+    isSandbox
+  };
+}
+async function getShiprocketAuthToken() {
+  if (_testClient?.auth) {
+    try {
+      const res = await _testClient.auth.login("mock@malwanamkeen.com", "mock_password");
+      return { success: true, data: res.token };
+    } catch (testErr) {
+      const errMsg = testErr instanceof Error ? testErr.message : String(testErr);
+      return { success: false, error: errMsg, statusCode: 401 };
+    }
+  }
+  if (cachedAuthToken && Date.now() < tokenExpiresAt - 6e4) {
+    return { success: true, data: cachedAuthToken };
+  }
+  const config = getShiprocketConfig();
+  if (!config.isConfigured) {
+    return {
+      success: false,
+      error: "Shiprocket logistics integration is not configured on this server.",
+      statusCode: 503
+    };
+  }
+  try {
+    const res = await fetch(`${SHIPROCKET_BASE_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: config.email,
+        password: config.password
+      }),
+      signal: AbortSignal.timeout(1e4)
+      // 10s timeout
+    });
+    const data = await res.json();
+    if (!res.ok || !data.token) {
+      const msg = data.message || "Authentication with Shiprocket failed.";
+      console.error("[Shiprocket Auth Error]:", msg);
+      return {
+        success: false,
+        error: msg,
+        statusCode: res.status || 401
+      };
+    }
+    cachedAuthToken = data.token;
+    tokenExpiresAt = Date.now() + 24 * 60 * 60 * 1e3;
+    return {
+      success: true,
+      data: data.token
+    };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[Shiprocket Auth Exception]:", errMsg);
+    return {
+      success: false,
+      error: "Shiprocket authentication service timed out or was unreachable.",
+      statusCode: 502
+    };
+  }
+}
+function parseVariantWeightKg(variantLabel) {
+  if (!variantLabel || typeof variantLabel !== "string") return null;
+  const clean = variantLabel.trim().toLowerCase();
+  const kgMatch = clean.match(/^(\d+(?:\.\d+)?)\s*kg(?:\s+(?:pack|pouch|box|jar|tin|bag|container))?$/);
+  if (kgMatch) {
+    const val = parseFloat(kgMatch[1]);
+    return val > 0 ? val : null;
+  }
+  const gMatch = clean.match(/^(\d+(?:\.\d+)?)\s*(?:g|gm|gms|grams)(?:\s+(?:pack|pouch|box|jar|tin|bag|container))?$/);
+  if (gMatch) {
+    const grams = parseFloat(gMatch[1]);
+    return grams > 0 ? grams / 1e3 : null;
+  }
+  return null;
+}
+function validateAndCalculateShipmentPackage(order, customDimensions) {
+  const missingMetadata = [];
+  let totalWeightKg = 0;
+  const orderItems = [];
+  const items = Array.isArray(order.items) ? order.items : [];
+  for (const item of items) {
+    const itemWeightKg = parseVariantWeightKg(item.variantLabel);
+    if (itemWeightKg === null || itemWeightKg <= 0) {
+      missingMetadata.push(
+        `Item "${item.productName}" (Packaging: "${item.variantLabel || "Unspecified"}") lacks standard weight metadata.`
+      );
+    } else {
+      totalWeightKg += itemWeightKg * (item.quantity || 1);
+    }
+    orderItems.push({
+      name: item.productName,
+      sku: item.sku || `SKU-${item.productId || "GENERIC"}`,
+      units: item.quantity,
+      selling_price: item.price,
+      discount: 0,
+      tax: 0
+    });
+  }
+  totalWeightKg = Math.max(0.05, Math.round(totalWeightKg * 1e3) / 1e3);
+  const dimensions = customDimensions && customDimensions.length > 0 && customDimensions.breadth > 0 && customDimensions.height > 0 ? customDimensions : { length: 20, breadth: 15, height: 10 };
+  const valid = missingMetadata.length === 0;
+  return {
+    valid,
+    totalWeightKg,
+    dimensions,
+    missingMetadata,
+    orderItems
+  };
+}
+async function createShiprocketOrder(order, options) {
+  if (order.shiprocketDetails?.shipmentId || order.shiprocketDetails?.orderId) {
+    return {
+      success: false,
+      error: `Shipment already exists for Order #${order.orderNumber} (Shiprocket Shipment ID: ${order.shiprocketDetails.shipmentId || order.shiprocketDetails.orderId}).`,
+      statusCode: 409
+    };
+  }
+  if (order.orderStatus === "cancelled") {
+    return {
+      success: false,
+      error: `Cannot create shipment for cancelled Order #${order.orderNumber}.`,
+      statusCode: 400
+    };
+  }
+  const packageInfo = validateAndCalculateShipmentPackage(order, options?.customDimensions);
+  if (!packageInfo.valid) {
+    return {
+      success: false,
+      error: `Cannot create shipment due to missing product packaging metadata: ${packageInfo.missingMetadata.join("; ")}`,
+      statusCode: 422
+    };
+  }
+  const shippingAddr = order.shippingAddress;
+  if (!shippingAddr || !shippingAddr.name || !shippingAddr.addressLine1 || !shippingAddr.city || !shippingAddr.state || !shippingAddr.pincode || !shippingAddr.phone) {
+    return {
+      success: false,
+      error: "Order has incomplete shipping address information.",
+      statusCode: 400
+    };
+  }
+  const config = getShiprocketConfig();
+  if (_testClient?.orders) {
+    try {
+      const mockRes = await _testClient.orders.create({
+        order_id: order.orderNumber,
+        weight: packageInfo.totalWeightKg
+      });
+      return { success: true, data: mockRes };
+    } catch (testErr) {
+      const errMsg = testErr instanceof Error ? testErr.message : String(testErr);
+      return { success: false, error: errMsg, statusCode: 500 };
+    }
+  }
+  const authRes = await getShiprocketAuthToken();
+  if (!authRes.success || !authRes.data) {
+    return {
+      success: false,
+      error: authRes.error || "Failed to authenticate with Shiprocket.",
+      statusCode: authRes.statusCode || 503
+    };
+  }
+  const token = authRes.data;
+  const dateObj = order.createdAt ? new Date(order.createdAt) : /* @__PURE__ */ new Date();
+  const formattedDate = dateObj.toISOString().slice(0, 16).replace("T", " ");
+  const isCOD = order.paymentMethod === "cod";
+  const payload = {
+    order_id: order.orderNumber,
+    order_date: formattedDate,
+    pickup_location: config.pickupLocation,
+    channel_id: "",
+    comment: order.notes || "Handle with care \u2014 Authentic Indian Savouries",
+    billing_customer_name: shippingAddr.name,
+    billing_last_name: "",
+    billing_address: shippingAddr.addressLine1,
+    billing_address_2: shippingAddr.addressLine2 || shippingAddr.landmark || "",
+    billing_city: shippingAddr.city,
+    billing_pincode: shippingAddr.pincode,
+    billing_state: shippingAddr.state,
+    billing_country: "India",
+    billing_email: order.customerInfo?.email || "orders@malwanamkeen.com",
+    billing_phone: shippingAddr.phone,
+    shipping_is_billing: true,
+    order_items: packageInfo.orderItems,
+    payment_method: isCOD ? "COD" : "Prepaid",
+    shipping_charges: order.shipping || 0,
+    total_discount: order.discount || 0,
+    sub_total: order.subtotal,
+    length: packageInfo.dimensions.length,
+    breadth: packageInfo.dimensions.breadth,
+    height: packageInfo.dimensions.height,
+    weight: packageInfo.totalWeightKg
+  };
+  try {
+    const res = await fetch(`${SHIPROCKET_BASE_URL}/orders/create/adhoc`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(12e3)
+    });
+    const data = await res.json();
+    if (!res.ok || data.status_code && data.status_code !== 1 && !data.shipment_id) {
+      const errorMsg = data.message || data.error || "Shiprocket order creation failed.";
+      console.error("[Shiprocket Order Creation Failed]:", errorMsg, data);
+      return {
+        success: false,
+        error: typeof errorMsg === "string" ? errorMsg : JSON.stringify(errorMsg),
+        statusCode: res.status || 400
+      };
+    }
+    return {
+      success: true,
+      data: {
+        order_id: data.order_id,
+        shipment_id: data.shipment_id,
+        status: data.status || "NEW",
+        status_code: data.status_code || 1,
+        onboarding_completed_now: data.onboarding_completed_now,
+        awb_code: data.awb_code,
+        courier_company_id: data.courier_company_id,
+        courier_name: data.courier_name
+      }
+    };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[Shiprocket Network Error]:", errMsg);
+    return {
+      success: false,
+      error: "Shiprocket API request timed out or was interrupted.",
+      statusCode: 502
+    };
+  }
+}
+async function assignShiprocketAWB(shipmentId, courierId) {
+  if (!shipmentId || shipmentId <= 0) {
+    return {
+      success: false,
+      error: "Valid shipment ID is required.",
+      statusCode: 400
+    };
+  }
+  if (_testClient?.courier) {
+    try {
+      const mockRes = await _testClient.courier.assignAWB(shipmentId, courierId);
+      return { success: true, data: mockRes };
+    } catch (testErr) {
+      const errMsg = testErr instanceof Error ? testErr.message : String(testErr);
+      return { success: false, error: errMsg, statusCode: 500 };
+    }
+  }
+  const authRes = await getShiprocketAuthToken();
+  if (!authRes.success || !authRes.data) {
+    return {
+      success: false,
+      error: authRes.error || "Failed to authenticate with Shiprocket.",
+      statusCode: authRes.statusCode || 503
+    };
+  }
+  const payload = { shipment_id: shipmentId };
+  if (courierId) {
+    payload.courier_id = courierId;
+  }
+  try {
+    const res = await fetch(`${SHIPROCKET_BASE_URL}/courier/assign/awb`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authRes.data}`
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(12e3)
+    });
+    const data = await res.json();
+    if (!res.ok || data.awb_assign_status !== 1) {
+      const msg = data.message || data.response?.data?.error || "Failed to generate AWB code with courier partner.";
+      return {
+        success: false,
+        error: msg,
+        statusCode: res.status || 400
+      };
+    }
+    return {
+      success: true,
+      data
+    };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      error: errMsg,
+      statusCode: 502
+    };
+  }
+}
+async function trackShipmentByAWB(awbCode) {
+  if (!awbCode || typeof awbCode !== "string" || !awbCode.trim()) {
+    return {
+      success: false,
+      error: "Valid AWB tracking code is required.",
+      statusCode: 400
+    };
+  }
+  if (_testClient?.courier) {
+    try {
+      const mockRes = await _testClient.courier.track(awbCode.trim());
+      return { success: true, data: mockRes };
+    } catch (testErr) {
+      const errMsg = testErr instanceof Error ? testErr.message : String(testErr);
+      return { success: false, error: errMsg, statusCode: 500 };
+    }
+  }
+  const authRes = await getShiprocketAuthToken();
+  if (!authRes.success || !authRes.data) {
+    return {
+      success: false,
+      error: authRes.error || "Failed to authenticate with Shiprocket.",
+      statusCode: authRes.statusCode || 503
+    };
+  }
+  try {
+    const res = await fetch(`${SHIPROCKET_BASE_URL}/courier/track/awb/${encodeURIComponent(awbCode.trim())}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${authRes.data}`
+      },
+      signal: AbortSignal.timeout(1e4)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return {
+        success: false,
+        error: data.message || "Tracking query failed.",
+        statusCode: res.status
+      };
+    }
+    return {
+      success: true,
+      data
+    };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      error: errMsg,
+      statusCode: 502
+    };
+  }
+}
+function verifyShiprocketWebhook(headers, expectedToken) {
+  const config = getShiprocketConfig();
+  const token = (expectedToken || config.webhookToken || "").trim();
+  if (!token) {
+    return false;
+  }
+  const rawReceived = headers["x-api-key"] || headers["http_x_api_key"] || headers["authorization"] || headers["x-shiprocket-token"];
+  if (!rawReceived || typeof rawReceived !== "string") {
+    return false;
+  }
+  const cleanReceived = rawReceived.replace(/^Bearer\s+/i, "").trim();
+  if (!cleanReceived) {
+    return false;
+  }
+  const expectedBuf = Buffer.from(token, "utf8");
+  const receivedBuf = Buffer.from(cleanReceived, "utf8");
+  if (expectedBuf.length !== receivedBuf.length) {
+    crypto3.timingSafeEqual(expectedBuf, expectedBuf);
+    return false;
+  }
+  return crypto3.timingSafeEqual(expectedBuf, receivedBuf);
+}
+async function cancelShiprocketOrder(shiprocketOrderIds) {
+  if (!Array.isArray(shiprocketOrderIds) || shiprocketOrderIds.length === 0) {
+    return {
+      success: false,
+      error: "At least one Shiprocket Order ID is required for cancellation.",
+      statusCode: 400
+    };
+  }
+  const validIds = shiprocketOrderIds.filter((id) => typeof id === "number" && !isNaN(id) && id > 0);
+  if (validIds.length === 0) {
+    return {
+      success: false,
+      error: "Valid numeric Shiprocket Order IDs are required.",
+      statusCode: 400
+    };
+  }
+  if (_testClient?.orders?.cancel) {
+    try {
+      const mockRes = await _testClient.orders.cancel(validIds);
+      return { success: true, data: mockRes };
+    } catch (testErr) {
+      const errMsg = testErr instanceof Error ? testErr.message : String(testErr);
+      return { success: false, error: errMsg, statusCode: 500 };
+    }
+  }
+  const authRes = await getShiprocketAuthToken();
+  if (!authRes.success || !authRes.data) {
+    return {
+      success: false,
+      error: authRes.error || "Failed to authenticate with Shiprocket.",
+      statusCode: authRes.statusCode || 503
+    };
+  }
+  try {
+    const res = await fetch(`${SHIPROCKET_BASE_URL}/orders/cancel`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authRes.data}`
+      },
+      body: JSON.stringify({ ids: validIds }),
+      signal: AbortSignal.timeout(12e3)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const msg = data.message || data.error || "Shiprocket order cancellation failed.";
+      return {
+        success: false,
+        error: typeof msg === "string" ? msg : JSON.stringify(msg),
+        statusCode: res.status || 400
+      };
+    }
+    return {
+      success: true,
+      data
+    };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[Shiprocket Cancel Order Exception]:", errMsg);
+    return {
+      success: false,
+      error: "Shiprocket cancellation service timed out or was unreachable.",
+      statusCode: 502
+    };
+  }
+}
+async function syncOrderTrackingFromShiprocket(order) {
+  const awbCode = order.shiprocketDetails?.awbCode || order.trackingInfo?.trackingNumber;
+  if (!awbCode || typeof awbCode !== "string" || !awbCode.trim()) {
+    return {
+      success: false,
+      error: "Order has no AWB tracking code assigned.",
+      statusCode: 400
+    };
+  }
+  const result = await trackShipmentByAWB(awbCode.trim());
+  if (!result.success || !result.data) {
+    return result;
+  }
+  const trackingData = result.data.tracking_data;
+  const trackEntries = trackingData.shipment_track || [];
+  const primaryTrack = trackEntries[0];
+  const currentStatus = primaryTrack?.current_status || "";
+  order.shiprocketDetails = order.shiprocketDetails || {};
+  order.shiprocketDetails.syncedAt = /* @__PURE__ */ new Date();
+  if (currentStatus) {
+    order.shiprocketDetails.rawStatus = currentStatus;
+    order.shiprocketDetails.lastEvent = currentStatus;
+    order.shiprocketDetails.lastEventDate = /* @__PURE__ */ new Date();
+    const statusUpper = currentStatus.toUpperCase();
+    if (order.orderStatus !== "cancelled") {
+      const SHIPMENT_STATUS_RANK = {
+        unfulfilled: 0,
+        ready_to_ship: 1,
+        in_transit: 2,
+        out_for_delivery: 3,
+        delivered: 4,
+        returned: 4
+      };
+      const currentRank = SHIPMENT_STATUS_RANK[order.shipmentStatus || "unfulfilled"] ?? 0;
+      if (statusUpper.includes("DELIVERED") && !statusUpper.includes("RTO")) {
+        order.shipmentStatus = "delivered";
+        order.orderStatus = "delivered";
+        if (order.paymentMethod === "cod" && order.paymentStatus !== "paid") {
+          order.paymentStatus = "paid";
+          order.paymentDetails = {
+            ...order.paymentDetails || {},
+            gateway: "cod",
+            paidAt: /* @__PURE__ */ new Date()
+          };
+        }
+      } else if (statusUpper.includes("OUT FOR DELIVERY")) {
+        if (currentRank < 3) {
+          order.shipmentStatus = "out_for_delivery";
+          if (["pending", "confirmed", "processing"].includes(order.orderStatus)) {
+            order.orderStatus = "shipped";
+          }
+        }
+      } else if (statusUpper.includes("IN TRANSIT") || statusUpper.includes("PICKED UP") || statusUpper.includes("REACHED")) {
+        if (currentRank < 2) {
+          order.shipmentStatus = "in_transit";
+          if (["pending", "confirmed", "processing"].includes(order.orderStatus)) {
+            order.orderStatus = "shipped";
+          }
+        }
+      } else if (statusUpper.includes("AWB") || statusUpper === "READY TO SHIP") {
+        if (currentRank < 1) {
+          order.shipmentStatus = "ready_to_ship";
+        }
+      } else if (statusUpper.includes("RTO") || statusUpper.includes("RETURN")) {
+        if (order.shipmentStatus !== "delivered") {
+          order.shipmentStatus = "returned";
+        }
+      }
+    }
+  }
+  if (primaryTrack?.courier_name && !order.shiprocketDetails.courierName) {
+    order.shiprocketDetails.courierName = primaryTrack.courier_name;
+  }
+  if (!order.trackingInfo?.trackingUrl && (trackingData.track_url || awbCode)) {
+    order.trackingInfo = {
+      courierName: order.shiprocketDetails.courierName || order.trackingInfo?.courierName || "Shiprocket Partner",
+      trackingNumber: awbCode.trim(),
+      trackingUrl: trackingData.track_url || `https://shiprocket.co/tracking/${encodeURIComponent(awbCode.trim())}`
+    };
+  }
+  await order.save();
+  return result;
+}
+
+// server/lib/orderRestoration.ts
 var NON_CANCELLABLE_ORDER_STATUSES = ["shipped", "delivered"];
 var NON_CANCELLABLE_SHIPMENT_STATUSES = ["in_transit", "out_for_delivery", "delivered"];
 async function cancelAndRestockOrder(orderId, options) {
@@ -5329,6 +5874,13 @@ async function cancelAndRestockOrder(orderId, options) {
               cancelledBy: "customer",
               reason: options.reason
             });
+          }
+        }
+        if (updatedOrder.shiprocketDetails?.orderId) {
+          try {
+            await cancelShiprocketOrder([updatedOrder.shiprocketDetails.orderId]);
+          } catch (srErr) {
+            console.warn("[Cancellation Shiprocket Warning] Failed to cancel Shiprocket order:", srErr);
           }
         }
       } catch (emailErr) {
@@ -5669,6 +6221,58 @@ router5.get("/orders/:orderId", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to fetch order detail." });
   }
 });
+router5.get("/orders/:orderId/track", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const user = await User.findById(req.user?.userId);
+    if (!user || !user.active) {
+      res.status(404).json({ success: false, message: "Account not found or inactive." });
+      return;
+    }
+    const query = mongoose16.Types.ObjectId.isValid(orderId) ? { $or: [{ _id: orderId }, { orderNumber: orderId }] } : { orderNumber: orderId };
+    const order = await Order.findOne(query).lean();
+    if (!order) {
+      res.status(404).json({ success: false, message: "Order not found." });
+      return;
+    }
+    const isOwner = order.customer && order.customer.toString() === user._id.toString() || order.customerInfo && order.customerInfo.email.toLowerCase() === user.email.toLowerCase() || req.user?.role === "admin" || req.user?.role === "super_admin";
+    if (!isOwner) {
+      res.status(403).json({
+        success: false,
+        message: "You do not have permission to view tracking for this order."
+      });
+      return;
+    }
+    const awbCode = order.shiprocketDetails?.awbCode || order.trackingInfo?.trackingNumber;
+    if (!awbCode) {
+      res.json({
+        success: true,
+        hasTracking: false,
+        orderNumber: order.orderNumber,
+        orderStatus: order.orderStatus,
+        shipmentStatus: order.shipmentStatus || "unfulfilled",
+        message: "Tracking information is not yet available for this order."
+      });
+      return;
+    }
+    res.json({
+      success: true,
+      hasTracking: true,
+      orderNumber: order.orderNumber,
+      orderStatus: order.orderStatus,
+      shipmentStatus: order.shipmentStatus,
+      courierName: order.trackingInfo?.courierName || order.shiprocketDetails?.courierName || "Shiprocket Partner",
+      trackingNumber: awbCode,
+      trackingUrl: order.trackingInfo?.trackingUrl || `https://shiprocket.co/tracking/${encodeURIComponent(awbCode)}`,
+      lastEvent: order.shiprocketDetails?.lastEvent,
+      lastEventDate: order.shiprocketDetails?.lastEventDate,
+      syncedAt: order.shiprocketDetails?.syncedAt
+    });
+  } catch (err) {
+    console.error("[Customer Order Track Error]", err);
+    res.status(500).json({ success: false, message: "Failed to fetch tracking details." });
+  }
+});
 router5.post("/orders/:orderId/cancel", async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -5840,8 +6444,8 @@ var storeSettingsSchema = new Schema9(
 var StoreSettings = mongoose17.models.StoreSettings || mongoose17.model("StoreSettings", storeSettingsSchema);
 
 // server/lib/razorpayService.ts
-import crypto3 from "crypto";
-var _testClient = null;
+import crypto4 from "crypto";
+var _testClient2 = null;
 function getRazorpayConfig() {
   const isTest = process.env.NODE_ENV === "test" || process.env.IS_E2E_TEST === "true";
   const keyId = (process.env.RAZORPAY_KEY_ID || "").trim();
@@ -5885,9 +6489,9 @@ async function createRazorpayOrder(params) {
       statusCode: 400
     };
   }
-  if (_testClient) {
+  if (_testClient2) {
     try {
-      const mockOrder = await _testClient.orders.create({
+      const mockOrder = await _testClient2.orders.create({
         amount: params.amount,
         currency,
         receipt: params.receipt.trim(),
@@ -5961,13 +6565,13 @@ function verifyPaymentSignature(params) {
   }
   try {
     const payload = `${razorpayOrderId.trim()}|${razorpayPaymentId.trim()}`;
-    const expectedSignature = crypto3.createHmac("sha256", secret).update(payload).digest("hex");
+    const expectedSignature = crypto4.createHmac("sha256", secret).update(payload).digest("hex");
     const expectedBuf = Buffer.from(expectedSignature, "utf-8");
     const actualBuf = Buffer.from(razorpaySignature.trim(), "utf-8");
     if (expectedBuf.length !== actualBuf.length) {
       return false;
     }
-    return crypto3.timingSafeEqual(expectedBuf, actualBuf);
+    return crypto4.timingSafeEqual(expectedBuf, actualBuf);
   } catch (err) {
     console.error("[Signature Verification Error]:", err);
     return false;
@@ -5984,13 +6588,13 @@ function verifyWebhookSignature(params) {
     return false;
   }
   try {
-    const expectedSignature = crypto3.createHmac("sha256", secret).update(rawBody).digest("hex");
+    const expectedSignature = crypto4.createHmac("sha256", secret).update(rawBody).digest("hex");
     const expectedBuf = Buffer.from(expectedSignature, "utf-8");
     const actualBuf = Buffer.from(signature.trim(), "utf-8");
     if (expectedBuf.length !== actualBuf.length) {
       return false;
     }
-    return crypto3.timingSafeEqual(expectedBuf, actualBuf);
+    return crypto4.timingSafeEqual(expectedBuf, actualBuf);
   } catch (err) {
     console.error("[Webhook Signature Verification Error]:", err);
     return false;
@@ -6963,6 +7567,77 @@ router6.post("/:orderId/cancel", requireAuth, async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to cancel order." });
   }
 });
+router6.get("/:orderId/track", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!orderId || typeof orderId !== "string" || !orderId.trim()) {
+      res.status(400).json({ success: false, message: "Order identifier is required." });
+      return;
+    }
+    const cleanId = orderId.trim();
+    const query = mongoose18.Types.ObjectId.isValid(cleanId) ? { $or: [{ _id: cleanId }, { orderNumber: cleanId }] } : { orderNumber: cleanId };
+    const order = await Order.findOne(query);
+    if (!order) {
+      res.status(404).json({ success: false, message: "Order not found." });
+      return;
+    }
+    let authorized = false;
+    const token = extractToken(req);
+    if (token) {
+      const payload = verifyToken(token);
+      if (payload) {
+        if (payload.role === "admin" || payload.role === "super_admin" || order.customer && order.customer.toString() === payload.userId || order.customerInfo?.email && order.customerInfo.email.toLowerCase() === payload.email.toLowerCase()) {
+          authorized = true;
+        }
+      }
+    }
+    if (!authorized) {
+      const reqEmail = String(req.query.email || "").trim().toLowerCase();
+      const reqPhone = String(req.query.phone || "").trim();
+      const orderEmail = (order.customerInfo?.email || "").trim().toLowerCase();
+      const orderPhone = (order.customerInfo?.phone || "").trim();
+      const shippingPhone = (order.shippingAddress?.phone || "").trim();
+      if (reqEmail && reqEmail === orderEmail || reqPhone && (reqPhone === orderPhone || reqPhone === shippingPhone)) {
+        authorized = true;
+      }
+    }
+    if (!authorized) {
+      res.status(403).json({
+        success: false,
+        message: "You do not have permission to view tracking for this order. Please sign in or provide the order email/phone."
+      });
+      return;
+    }
+    const awbCode = order.shiprocketDetails?.awbCode || order.trackingInfo?.trackingNumber;
+    if (!awbCode) {
+      res.json({
+        success: true,
+        hasTracking: false,
+        orderNumber: order.orderNumber,
+        orderStatus: order.orderStatus,
+        shipmentStatus: order.shipmentStatus || "unfulfilled",
+        message: "Tracking information is not yet available for this order. Tracking will appear once dispatched."
+      });
+      return;
+    }
+    res.json({
+      success: true,
+      hasTracking: true,
+      orderNumber: order.orderNumber,
+      orderStatus: order.orderStatus,
+      shipmentStatus: order.shipmentStatus,
+      courierName: order.trackingInfo?.courierName || order.shiprocketDetails?.courierName || "Shiprocket Partner",
+      trackingNumber: awbCode,
+      trackingUrl: order.trackingInfo?.trackingUrl || `https://shiprocket.co/tracking/${encodeURIComponent(awbCode)}`,
+      lastEvent: order.shiprocketDetails?.lastEvent,
+      lastEventDate: order.shiprocketDetails?.lastEventDate,
+      syncedAt: order.shiprocketDetails?.syncedAt
+    });
+  } catch (err) {
+    console.error("[Customer Order Track Error]:", err);
+    res.status(500).json({ success: false, message: "Failed to retrieve order tracking." });
+  }
+});
 var customerOrders_default = router6;
 
 // server/routes/adminProducts.ts
@@ -7808,402 +8483,6 @@ var adminCategories_default = router8;
 // server/routes/adminOrders.ts
 import { Router as Router9 } from "express";
 import mongoose21 from "mongoose";
-
-// server/lib/shiprocketService.ts
-import crypto4 from "node:crypto";
-var SHIPROCKET_BASE_URL = "https://apiv2.shiprocket.in/v1/external";
-var cachedAuthToken = null;
-var tokenExpiresAt = 0;
-var _testClient2 = null;
-function getShiprocketConfig() {
-  const isTest = process.env.NODE_ENV === "test" || process.env.IS_E2E_TEST === "true";
-  const email2 = (process.env.SHIPROCKET_EMAIL || "").trim();
-  const password = (process.env.SHIPROCKET_PASSWORD || "").trim();
-  const webhookToken = (process.env.SHIPROCKET_WEBHOOK_TOKEN || "").trim();
-  const pickupLocation = (process.env.SHIPROCKET_PICKUP_LOCATION || "Primary").trim();
-  const isSandbox = process.env.SHIPROCKET_SANDBOX === "true" || email2.includes("test") || isTest;
-  const isConfigured = Boolean(email2 && password);
-  return {
-    email: email2,
-    password,
-    webhookToken,
-    pickupLocation,
-    isConfigured,
-    isSandbox
-  };
-}
-async function getShiprocketAuthToken() {
-  if (_testClient2?.auth) {
-    try {
-      const res = await _testClient2.auth.login("mock@malwanamkeen.com", "mock_password");
-      return { success: true, data: res.token };
-    } catch (testErr) {
-      const errMsg = testErr instanceof Error ? testErr.message : String(testErr);
-      return { success: false, error: errMsg, statusCode: 401 };
-    }
-  }
-  if (cachedAuthToken && Date.now() < tokenExpiresAt - 6e4) {
-    return { success: true, data: cachedAuthToken };
-  }
-  const config = getShiprocketConfig();
-  if (!config.isConfigured) {
-    return {
-      success: false,
-      error: "Shiprocket logistics integration is not configured on this server.",
-      statusCode: 503
-    };
-  }
-  try {
-    const res = await fetch(`${SHIPROCKET_BASE_URL}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: config.email,
-        password: config.password
-      }),
-      signal: AbortSignal.timeout(1e4)
-      // 10s timeout
-    });
-    const data = await res.json();
-    if (!res.ok || !data.token) {
-      const msg = data.message || "Authentication with Shiprocket failed.";
-      console.error("[Shiprocket Auth Error]:", msg);
-      return {
-        success: false,
-        error: msg,
-        statusCode: res.status || 401
-      };
-    }
-    cachedAuthToken = data.token;
-    tokenExpiresAt = Date.now() + 24 * 60 * 60 * 1e3;
-    return {
-      success: true,
-      data: data.token
-    };
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    console.error("[Shiprocket Auth Exception]:", errMsg);
-    return {
-      success: false,
-      error: "Shiprocket authentication service timed out or was unreachable.",
-      statusCode: 502
-    };
-  }
-}
-function parseVariantWeightKg(variantLabel) {
-  if (!variantLabel || typeof variantLabel !== "string") return null;
-  const clean = variantLabel.trim().toLowerCase();
-  const kgMatch = clean.match(/^(\d+(?:\.\d+)?)\s*kg(?:\s+(?:pack|pouch|box|jar|tin|bag|container))?$/);
-  if (kgMatch) {
-    const val = parseFloat(kgMatch[1]);
-    return val > 0 ? val : null;
-  }
-  const gMatch = clean.match(/^(\d+(?:\.\d+)?)\s*(?:g|gm|gms|grams)(?:\s+(?:pack|pouch|box|jar|tin|bag|container))?$/);
-  if (gMatch) {
-    const grams = parseFloat(gMatch[1]);
-    return grams > 0 ? grams / 1e3 : null;
-  }
-  return null;
-}
-function validateAndCalculateShipmentPackage(order, customDimensions) {
-  const missingMetadata = [];
-  let totalWeightKg = 0;
-  const orderItems = [];
-  const items = Array.isArray(order.items) ? order.items : [];
-  for (const item of items) {
-    const itemWeightKg = parseVariantWeightKg(item.variantLabel);
-    if (itemWeightKg === null || itemWeightKg <= 0) {
-      missingMetadata.push(
-        `Item "${item.productName}" (Packaging: "${item.variantLabel || "Unspecified"}") lacks standard weight metadata.`
-      );
-    } else {
-      totalWeightKg += itemWeightKg * (item.quantity || 1);
-    }
-    orderItems.push({
-      name: item.productName,
-      sku: item.sku || `SKU-${item.productId || "GENERIC"}`,
-      units: item.quantity,
-      selling_price: item.price,
-      discount: 0,
-      tax: 0
-    });
-  }
-  totalWeightKg = Math.max(0.05, Math.round(totalWeightKg * 1e3) / 1e3);
-  const dimensions = customDimensions && customDimensions.length > 0 && customDimensions.breadth > 0 && customDimensions.height > 0 ? customDimensions : { length: 20, breadth: 15, height: 10 };
-  const valid = missingMetadata.length === 0;
-  return {
-    valid,
-    totalWeightKg,
-    dimensions,
-    missingMetadata,
-    orderItems
-  };
-}
-async function createShiprocketOrder(order, options) {
-  if (order.shiprocketDetails?.shipmentId || order.shiprocketDetails?.orderId) {
-    return {
-      success: false,
-      error: `Shipment already exists for Order #${order.orderNumber} (Shiprocket Shipment ID: ${order.shiprocketDetails.shipmentId || order.shiprocketDetails.orderId}).`,
-      statusCode: 409
-    };
-  }
-  if (order.orderStatus === "cancelled") {
-    return {
-      success: false,
-      error: `Cannot create shipment for cancelled Order #${order.orderNumber}.`,
-      statusCode: 400
-    };
-  }
-  const packageInfo = validateAndCalculateShipmentPackage(order, options?.customDimensions);
-  if (!packageInfo.valid) {
-    return {
-      success: false,
-      error: `Cannot create shipment due to missing product packaging metadata: ${packageInfo.missingMetadata.join("; ")}`,
-      statusCode: 422
-    };
-  }
-  const shippingAddr = order.shippingAddress;
-  if (!shippingAddr || !shippingAddr.name || !shippingAddr.addressLine1 || !shippingAddr.city || !shippingAddr.state || !shippingAddr.pincode || !shippingAddr.phone) {
-    return {
-      success: false,
-      error: "Order has incomplete shipping address information.",
-      statusCode: 400
-    };
-  }
-  const config = getShiprocketConfig();
-  if (_testClient2?.orders) {
-    try {
-      const mockRes = await _testClient2.orders.create({
-        order_id: order.orderNumber,
-        weight: packageInfo.totalWeightKg
-      });
-      return { success: true, data: mockRes };
-    } catch (testErr) {
-      const errMsg = testErr instanceof Error ? testErr.message : String(testErr);
-      return { success: false, error: errMsg, statusCode: 500 };
-    }
-  }
-  const authRes = await getShiprocketAuthToken();
-  if (!authRes.success || !authRes.data) {
-    return {
-      success: false,
-      error: authRes.error || "Failed to authenticate with Shiprocket.",
-      statusCode: authRes.statusCode || 503
-    };
-  }
-  const token = authRes.data;
-  const dateObj = order.createdAt ? new Date(order.createdAt) : /* @__PURE__ */ new Date();
-  const formattedDate = dateObj.toISOString().slice(0, 16).replace("T", " ");
-  const isCOD = order.paymentMethod === "cod";
-  const payload = {
-    order_id: order.orderNumber,
-    order_date: formattedDate,
-    pickup_location: config.pickupLocation,
-    channel_id: "",
-    comment: order.notes || "Handle with care \u2014 Authentic Indian Savouries",
-    billing_customer_name: shippingAddr.name,
-    billing_last_name: "",
-    billing_address: shippingAddr.addressLine1,
-    billing_address_2: shippingAddr.addressLine2 || shippingAddr.landmark || "",
-    billing_city: shippingAddr.city,
-    billing_pincode: shippingAddr.pincode,
-    billing_state: shippingAddr.state,
-    billing_country: "India",
-    billing_email: order.customerInfo?.email || "orders@malwanamkeen.com",
-    billing_phone: shippingAddr.phone,
-    shipping_is_billing: true,
-    order_items: packageInfo.orderItems,
-    payment_method: isCOD ? "COD" : "Prepaid",
-    shipping_charges: order.shipping || 0,
-    total_discount: order.discount || 0,
-    sub_total: order.subtotal,
-    length: packageInfo.dimensions.length,
-    breadth: packageInfo.dimensions.breadth,
-    height: packageInfo.dimensions.height,
-    weight: packageInfo.totalWeightKg
-  };
-  try {
-    const res = await fetch(`${SHIPROCKET_BASE_URL}/orders/create/adhoc`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(12e3)
-    });
-    const data = await res.json();
-    if (!res.ok || data.status_code && data.status_code !== 1 && !data.shipment_id) {
-      const errorMsg = data.message || data.error || "Shiprocket order creation failed.";
-      console.error("[Shiprocket Order Creation Failed]:", errorMsg, data);
-      return {
-        success: false,
-        error: typeof errorMsg === "string" ? errorMsg : JSON.stringify(errorMsg),
-        statusCode: res.status || 400
-      };
-    }
-    return {
-      success: true,
-      data: {
-        order_id: data.order_id,
-        shipment_id: data.shipment_id,
-        status: data.status || "NEW",
-        status_code: data.status_code || 1,
-        onboarding_completed_now: data.onboarding_completed_now,
-        awb_code: data.awb_code,
-        courier_company_id: data.courier_company_id,
-        courier_name: data.courier_name
-      }
-    };
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    console.error("[Shiprocket Network Error]:", errMsg);
-    return {
-      success: false,
-      error: "Shiprocket API request timed out or was interrupted.",
-      statusCode: 502
-    };
-  }
-}
-async function assignShiprocketAWB(shipmentId, courierId) {
-  if (!shipmentId || shipmentId <= 0) {
-    return {
-      success: false,
-      error: "Valid shipment ID is required.",
-      statusCode: 400
-    };
-  }
-  if (_testClient2?.courier) {
-    try {
-      const mockRes = await _testClient2.courier.assignAWB(shipmentId, courierId);
-      return { success: true, data: mockRes };
-    } catch (testErr) {
-      const errMsg = testErr instanceof Error ? testErr.message : String(testErr);
-      return { success: false, error: errMsg, statusCode: 500 };
-    }
-  }
-  const authRes = await getShiprocketAuthToken();
-  if (!authRes.success || !authRes.data) {
-    return {
-      success: false,
-      error: authRes.error || "Failed to authenticate with Shiprocket.",
-      statusCode: authRes.statusCode || 503
-    };
-  }
-  const payload = { shipment_id: shipmentId };
-  if (courierId) {
-    payload.courier_id = courierId;
-  }
-  try {
-    const res = await fetch(`${SHIPROCKET_BASE_URL}/courier/assign/awb`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${authRes.data}`
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(12e3)
-    });
-    const data = await res.json();
-    if (!res.ok || data.awb_assign_status !== 1) {
-      const msg = data.message || data.response?.data?.error || "Failed to generate AWB code with courier partner.";
-      return {
-        success: false,
-        error: msg,
-        statusCode: res.status || 400
-      };
-    }
-    return {
-      success: true,
-      data
-    };
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    return {
-      success: false,
-      error: errMsg,
-      statusCode: 502
-    };
-  }
-}
-async function trackShipmentByAWB(awbCode) {
-  if (!awbCode || typeof awbCode !== "string" || !awbCode.trim()) {
-    return {
-      success: false,
-      error: "Valid AWB tracking code is required.",
-      statusCode: 400
-    };
-  }
-  if (_testClient2?.courier) {
-    try {
-      const mockRes = await _testClient2.courier.track(awbCode.trim());
-      return { success: true, data: mockRes };
-    } catch (testErr) {
-      const errMsg = testErr instanceof Error ? testErr.message : String(testErr);
-      return { success: false, error: errMsg, statusCode: 500 };
-    }
-  }
-  const authRes = await getShiprocketAuthToken();
-  if (!authRes.success || !authRes.data) {
-    return {
-      success: false,
-      error: authRes.error || "Failed to authenticate with Shiprocket.",
-      statusCode: authRes.statusCode || 503
-    };
-  }
-  try {
-    const res = await fetch(`${SHIPROCKET_BASE_URL}/courier/track/awb/${encodeURIComponent(awbCode.trim())}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${authRes.data}`
-      },
-      signal: AbortSignal.timeout(1e4)
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      return {
-        success: false,
-        error: data.message || "Tracking query failed.",
-        statusCode: res.status
-      };
-    }
-    return {
-      success: true,
-      data
-    };
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    return {
-      success: false,
-      error: errMsg,
-      statusCode: 502
-    };
-  }
-}
-function verifyShiprocketWebhook(headers, expectedToken) {
-  const config = getShiprocketConfig();
-  const token = (expectedToken || config.webhookToken || "").trim();
-  if (!token) {
-    return false;
-  }
-  const rawReceived = headers["x-api-key"] || headers["http_x_api_key"] || headers["authorization"] || headers["x-shiprocket-token"];
-  if (!rawReceived || typeof rawReceived !== "string") {
-    return false;
-  }
-  const cleanReceived = rawReceived.replace(/^Bearer\s+/i, "").trim();
-  if (!cleanReceived) {
-    return false;
-  }
-  const expectedBuf = Buffer.from(token, "utf8");
-  const receivedBuf = Buffer.from(cleanReceived, "utf8");
-  if (expectedBuf.length !== receivedBuf.length) {
-    crypto4.timingSafeEqual(expectedBuf, expectedBuf);
-    return false;
-  }
-  return crypto4.timingSafeEqual(expectedBuf, receivedBuf);
-}
-
-// server/routes/adminOrders.ts
 var router9 = Router9();
 router9.use(requireAdmin);
 router9.get("/", async (req, res) => {
@@ -8299,6 +8578,22 @@ router9.get("/", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to retrieve orders." });
   }
 });
+router9.get("/shipping/status", async (_req, res) => {
+  try {
+    const config = getShiprocketConfig();
+    res.json({
+      success: true,
+      provider: "shiprocket",
+      isConfigured: config.isConfigured,
+      isSandbox: config.isSandbox,
+      pickupLocation: config.pickupLocation,
+      webhookConfigured: Boolean(config.webhookToken)
+    });
+  } catch (err) {
+    console.error("[Admin Shipping Status Error]:", err);
+    res.status(500).json({ success: false, message: "Failed to retrieve shipping status." });
+  }
+});
 router9.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -8389,6 +8684,18 @@ var updateOrderHandler = async (req, res) => {
         order.cancelledBy = refreshed.cancelledBy;
         order.cancellationReason = refreshed.cancellationReason;
         order.restorationDetails = refreshed.restorationDetails;
+      }
+      if (order.shiprocketDetails?.orderId) {
+        try {
+          const srCancelRes = await cancelShiprocketOrder([order.shiprocketDetails.orderId]);
+          if (srCancelRes.success) {
+            order.shiprocketDetails.rawStatus = "CANCELED";
+            order.shiprocketDetails.lastEvent = "CANCELED";
+            order.shiprocketDetails.syncedAt = /* @__PURE__ */ new Date();
+          }
+        } catch (srErr) {
+          console.warn("[Admin Shiprocket Cancel Order Warning]:", srErr);
+        }
       }
       await order.save();
     } else {
@@ -8702,7 +9009,7 @@ router9.get("/:id/shiprocket/track", async (req, res) => {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
-    const order = await Order.findById(id).lean();
+    const order = await Order.findById(id);
     if (!order) {
       res.status(404).json({ success: false, message: "Order not found." });
       return;
@@ -8715,7 +9022,7 @@ router9.get("/:id/shiprocket/track", async (req, res) => {
       });
       return;
     }
-    const result = await trackShipmentByAWB(awbCode);
+    const result = await syncOrderTrackingFromShiprocket(order);
     if (!result.success || !result.data) {
       res.status(result.statusCode || 400).json({
         success: false,
@@ -8725,11 +9032,51 @@ router9.get("/:id/shiprocket/track", async (req, res) => {
     }
     res.json({
       success: true,
-      tracking: result.data.tracking_data
+      tracking: result.data.tracking_data,
+      order
     });
   } catch (err) {
     console.error("[Admin Shiprocket Track Error]:", err);
     res.status(500).json({ success: false, message: "Internal error querying Shiprocket tracking." });
+  }
+});
+router9.post("/:id/shiprocket/sync-tracking", async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
+      res.status(400).json({ success: false, message: "Invalid order ID format." });
+      return;
+    }
+    const order = await Order.findById(id);
+    if (!order) {
+      res.status(404).json({ success: false, message: "Order not found." });
+      return;
+    }
+    const awbCode = order.shiprocketDetails?.awbCode || order.trackingInfo?.trackingNumber;
+    if (!awbCode) {
+      res.status(400).json({
+        success: false,
+        message: "No AWB tracking code assigned to this order."
+      });
+      return;
+    }
+    const result = await syncOrderTrackingFromShiprocket(order);
+    if (!result.success || !result.data) {
+      res.status(result.statusCode || 400).json({
+        success: false,
+        message: result.error || "Failed to sync tracking from Shiprocket."
+      });
+      return;
+    }
+    res.json({
+      success: true,
+      message: `Tracking synchronized for Order #${order.orderNumber}.`,
+      tracking: result.data.tracking_data,
+      order
+    });
+  } catch (err) {
+    console.error("[Admin Shiprocket Sync Tracking Error]:", err);
+    res.status(500).json({ success: false, message: "Internal error synchronizing Shiprocket tracking." });
   }
 });
 var adminOrders_default = router9;
@@ -11584,21 +11931,16 @@ router23.post(["/webhook/shiprocket", "/webhook", "/"], async (req, res) => {
       }
     }
     const statusUpper = currentStatus.toUpperCase();
-    if (statusUpper.includes("AWB") || statusUpper === "READY TO SHIP") {
-      order.shipmentStatus = "ready_to_ship";
-    } else if (statusUpper.includes("IN TRANSIT") || statusUpper.includes("PICKED UP") || statusUpper.includes("REACHED")) {
-      order.shipmentStatus = "in_transit";
-      if (["pending", "confirmed", "processing"].includes(order.orderStatus)) {
-        order.orderStatus = "shipped";
-        shouldNotifyCustomer = true;
-      }
-    } else if (statusUpper.includes("OUT FOR DELIVERY")) {
-      order.shipmentStatus = "out_for_delivery";
-      if (order.orderStatus !== "shipped" && order.orderStatus !== "delivered") {
-        order.orderStatus = "shipped";
-        shouldNotifyCustomer = true;
-      }
-    } else if (statusUpper.includes("DELIVERED") && !statusUpper.includes("RTO")) {
+    const SHIPMENT_STATUS_RANK = {
+      unfulfilled: 0,
+      ready_to_ship: 1,
+      in_transit: 2,
+      out_for_delivery: 3,
+      delivered: 4,
+      returned: 4
+    };
+    const currentRank = SHIPMENT_STATUS_RANK[order.shipmentStatus || "unfulfilled"] ?? 0;
+    if (statusUpper.includes("DELIVERED") && !statusUpper.includes("RTO")) {
       order.shipmentStatus = "delivered";
       order.orderStatus = "delivered";
       if (order.paymentMethod === "cod" && order.paymentStatus !== "paid") {
@@ -11610,8 +11952,30 @@ router23.post(["/webhook/shiprocket", "/webhook", "/"], async (req, res) => {
         };
       }
       shouldNotifyCustomer = true;
+    } else if (statusUpper.includes("OUT FOR DELIVERY")) {
+      if (currentRank < 3) {
+        order.shipmentStatus = "out_for_delivery";
+        if (order.orderStatus !== "shipped" && order.orderStatus !== "delivered") {
+          order.orderStatus = "shipped";
+          shouldNotifyCustomer = true;
+        }
+      }
+    } else if (statusUpper.includes("IN TRANSIT") || statusUpper.includes("PICKED UP") || statusUpper.includes("REACHED")) {
+      if (currentRank < 2) {
+        order.shipmentStatus = "in_transit";
+        if (["pending", "confirmed", "processing"].includes(order.orderStatus)) {
+          order.orderStatus = "shipped";
+          shouldNotifyCustomer = true;
+        }
+      }
+    } else if (statusUpper.includes("AWB") || statusUpper === "READY TO SHIP") {
+      if (currentRank < 1) {
+        order.shipmentStatus = "ready_to_ship";
+      }
     } else if (statusUpper.includes("RTO") || statusUpper.includes("RETURN")) {
-      order.shipmentStatus = "returned";
+      if (order.shipmentStatus !== "delivered") {
+        order.shipmentStatus = "returned";
+      }
     }
     await order.save();
     if (shouldNotifyCustomer) {

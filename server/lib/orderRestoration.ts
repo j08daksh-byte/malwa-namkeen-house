@@ -4,6 +4,7 @@ import { Product } from '../models/Product.ts';
 import { Discount } from '../models/Discount.ts';
 import { User } from '../models/User.ts';
 import { sendOrderStatusUpdate, sendCustomerOrderCancellationAdminAlert } from './emailService.ts';
+import { cancelShiprocketOrder } from './shiprocketService.ts';
 
 export interface CancelOrderResult {
   success: boolean;
@@ -390,6 +391,15 @@ export async function cancelAndRestockOrder(
               cancelledBy: 'customer',
               reason: options.reason,
             });
+          }
+        }
+
+        // If order has an active Shiprocket order ID, notify Shiprocket to cancel the shipment
+        if (updatedOrder.shiprocketDetails?.orderId) {
+          try {
+            await cancelShiprocketOrder([updatedOrder.shiprocketDetails.orderId]);
+          } catch (srErr) {
+            console.warn('[Cancellation Shiprocket Warning] Failed to cancel Shiprocket order:', srErr);
           }
         }
       } catch (emailErr) {

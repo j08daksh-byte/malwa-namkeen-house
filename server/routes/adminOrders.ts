@@ -9,6 +9,9 @@ import {
   createShiprocketOrder,
   assignShiprocketAWB,
   trackShipmentByAWB,
+  cancelShiprocketOrder,
+  syncOrderTrackingFromShiprocket,
+  getShiprocketConfig,
 } from '../lib/shiprocketService.ts';
 
 const router = Router();
@@ -130,6 +133,28 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 /**
+ * GET /api/admin/orders/shipping/status
+ * Returns operational readiness status of the Shiprocket integration.
+ * Never logs or exposes credentials.
+ */
+router.get('/shipping/status', async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const config = getShiprocketConfig();
+    res.json({
+      success: true,
+      provider: 'shiprocket',
+      isConfigured: config.isConfigured,
+      isSandbox: config.isSandbox,
+      pickupLocation: config.pickupLocation,
+      webhookConfigured: Boolean(config.webhookToken),
+    });
+  } catch (err: unknown) {
+    console.error('[Admin Shipping Status Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to retrieve shipping status.' });
+  }
+});
+
+/**
  * GET /api/admin/orders/:id
  */
 router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
@@ -247,6 +272,19 @@ const updateOrderHandler = async (req: AuthenticatedRequest, res: Response) => {
         order.cancelledBy = refreshed.cancelledBy;
         order.cancellationReason = refreshed.cancellationReason;
         order.restorationDetails = refreshed.restorationDetails;
+      }
+
+      if (order.shiprocketDetails?.orderId) {
+        try {
+          const srCancelRes = await cancelShiprocketOrder([order.shiprocketDetails.orderId]);
+          if (srCancelRes.success) {
+            order.shiprocketDetails.rawStatus = 'CANCELED';
+            order.shiprocketDetails.lastEvent = 'CANCELED';
+            order.shiprocketDetails.syncedAt = new Date();
+          }
+        } catch (srErr) {
+          console.warn('[Admin Shiprocket Cancel Order Warning]:', srErr);
+        }
       }
 
       await order.save();
@@ -626,7 +664,7 @@ router.post('/:id/shiprocket/generate-awb', async (req: AuthenticatedRequest, re
 
 /**
  * GET /api/admin/orders/:id/shiprocket/track
- * Fetches live courier tracking activities from Shiprocket.
+ * Fetches live courier tracking activities from Shiprocket and syncs status to MongoDB.
  */
 router.get('/:id/shiprocket/track', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -637,7 +675,7 @@ router.get('/:id/shiprocket/track', async (req: AuthenticatedRequest, res: Respo
       return;
     }
 
-    const order = await Order.findById(id).lean();
+    const order = await Order.findById(id);
     if (!order) {
       res.status(404).json({ success: false, message: 'Order not found.' });
       return;
@@ -652,7 +690,7 @@ router.get('/:id/shiprocket/track', async (req: AuthenticatedRequest, res: Respo
       return;
     }
 
-    const result = await trackShipmentByAWB(awbCode);
+    const result = await syncOrderTrackingFromShiprocket(order);
     if (!result.success || !result.data) {
       res.status(result.statusCode || 400).json({
         success: false,
@@ -664,10 +702,60 @@ router.get('/:id/shiprocket/track', async (req: AuthenticatedRequest, res: Respo
     res.json({
       success: true,
       tracking: result.data.tracking_data,
+      order,
     });
   } catch (err: unknown) {
     console.error('[Admin Shiprocket Track Error]:', err);
     res.status(500).json({ success: false, message: 'Internal error querying Shiprocket tracking.' });
+  }
+});
+
+/**
+ * POST /api/admin/orders/:id/shiprocket/sync-tracking
+ * Explicitly synchronizes tracking activities and current status from Shiprocket to the order in MongoDB.
+ */
+router.post('/:id/shiprocket/sync-tracking', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(400).json({ success: false, message: 'Invalid order ID format.' });
+      return;
+    }
+
+    const order = await Order.findById(id);
+    if (!order) {
+      res.status(404).json({ success: false, message: 'Order not found.' });
+      return;
+    }
+
+    const awbCode = order.shiprocketDetails?.awbCode || order.trackingInfo?.trackingNumber;
+    if (!awbCode) {
+      res.status(400).json({
+        success: false,
+        message: 'No AWB tracking code assigned to this order.',
+      });
+      return;
+    }
+
+    const result = await syncOrderTrackingFromShiprocket(order);
+    if (!result.success || !result.data) {
+      res.status(result.statusCode || 400).json({
+        success: false,
+        message: result.error || 'Failed to sync tracking from Shiprocket.',
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: `Tracking synchronized for Order #${order.orderNumber}.`,
+      tracking: result.data.tracking_data,
+      order,
+    });
+  } catch (err: unknown) {
+    console.error('[Admin Shiprocket Sync Tracking Error]:', err);
+    res.status(500).json({ success: false, message: 'Internal error synchronizing Shiprocket tracking.' });
   }
 });
 

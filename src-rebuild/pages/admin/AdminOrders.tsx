@@ -78,6 +78,18 @@ interface OrderRecord {
     trackingNumber?: string;
     trackingUrl?: string;
   };
+  shiprocketDetails?: {
+    orderId?: number;
+    shipmentId?: number;
+    courierCompanyId?: number;
+    courierName?: string;
+    awbCode?: string;
+    labelUrl?: string;
+    manifestUrl?: string;
+    rawStatus?: string;
+    lastEvent?: string;
+    syncedAt?: string;
+  };
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -192,6 +204,111 @@ export default function AdminOrders() {
     setEditTrackingUrl(order.trackingInfo?.trackingUrl || '');
     setEditNotes(order.notes || '');
     setStatusSaveMsg(null);
+    setShiprocketActionMsg(null);
+  };
+
+  const [isShiprocketAction, setIsShiprocketAction] = useState(false);
+  const [shiprocketActionMsg, setShiprocketActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleCreateShiprocketShipment = async (orderId: string) => {
+    if (!orderId) return;
+    setIsShiprocketAction(true);
+    setShiprocketActionMsg(null);
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/shiprocket/create-shipment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to create Shiprocket shipment.');
+      }
+      setShiprocketActionMsg({ type: 'success', text: data.message || 'Shiprocket shipment created.' });
+      if (data.order) {
+        setSelectedOrder(data.order);
+        setEditShipmentStatus(data.order.shipmentStatus);
+        setEditOrderStatus(data.order.orderStatus);
+        if (data.order.trackingInfo?.trackingNumber) {
+          setEditTrackingNumber(data.order.trackingInfo.trackingNumber);
+          setEditCourierName(data.order.trackingInfo.courierName || '');
+          setEditTrackingUrl(data.order.trackingInfo.trackingUrl || '');
+        }
+      }
+      fetchOrders();
+    } catch (err: unknown) {
+      setShiprocketActionMsg({ type: 'error', text: err instanceof Error ? err.message : 'Error creating shipment.' });
+    } finally {
+      setIsShiprocketAction(false);
+    }
+  };
+
+  const handleGenerateShiprocketAWB = async (orderId: string) => {
+    if (!orderId) return;
+    setIsShiprocketAction(true);
+    setShiprocketActionMsg(null);
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/shiprocket/generate-awb`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to generate AWB.');
+      }
+      setShiprocketActionMsg({ type: 'success', text: data.message || 'AWB generated successfully.' });
+      if (data.order) {
+        setSelectedOrder(data.order);
+        if (data.order.trackingInfo?.trackingNumber) {
+          setEditTrackingNumber(data.order.trackingInfo.trackingNumber);
+          setEditCourierName(data.order.trackingInfo.courierName || '');
+          setEditTrackingUrl(data.order.trackingInfo.trackingUrl || '');
+        }
+      }
+      fetchOrders();
+    } catch (err: unknown) {
+      setShiprocketActionMsg({ type: 'error', text: err instanceof Error ? err.message : 'Error generating AWB.' });
+    } finally {
+      setIsShiprocketAction(false);
+    }
+  };
+
+  const handleSyncShiprocketTracking = async (orderId: string) => {
+    if (!orderId) return;
+    setIsShiprocketAction(true);
+    setShiprocketActionMsg(null);
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/shiprocket/sync-tracking`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to sync tracking.');
+      }
+      setShiprocketActionMsg({ type: 'success', text: data.message || 'Tracking synchronized successfully.' });
+      if (data.order) {
+        setSelectedOrder(data.order);
+        setEditShipmentStatus(data.order.shipmentStatus);
+        setEditOrderStatus(data.order.orderStatus);
+      }
+      fetchOrders();
+    } catch (err: unknown) {
+      setShiprocketActionMsg({ type: 'error', text: err instanceof Error ? err.message : 'Error syncing tracking.' });
+    } finally {
+      setIsShiprocketAction(false);
+    }
   };
 
   // Save Order Status Update
@@ -739,6 +856,193 @@ export default function AdminOrders() {
                       <span>₹{selectedOrder.total.toLocaleString('en-IN')}</span>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Shiprocket Automated Logistics & Courier Operations */}
+              <div style={{ background: '#F8F6F2', border: '1px solid #EAE3D2', borderRadius: '12px', padding: '18px', display: 'grid', gap: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #EAE3D2', paddingBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', color: '#881337' }}>
+                    <Truck size={16} />
+                    <span>Shiprocket Automated Courier Logistics</span>
+                  </div>
+                  {selectedOrder.shiprocketDetails?.shipmentId && (
+                    <span style={{ fontSize: '11px', background: '#EDE9FE', color: '#6D28D9', padding: '3px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                      Shipment #{selectedOrder.shiprocketDetails.shipmentId}
+                    </span>
+                  )}
+                </div>
+
+                {/* Status/Error Messages */}
+                {shiprocketActionMsg && (
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      background: shiprocketActionMsg.type === 'error' ? '#FEE2E2' : '#D1FAE5',
+                      color: shiprocketActionMsg.type === 'error' ? '#991B1B' : '#065F46',
+                      border: `1px solid ${shiprocketActionMsg.type === 'error' ? '#FECACA' : '#A7F3D0'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <AlertCircle size={15} />
+                    <span>{shiprocketActionMsg.text}</span>
+                  </div>
+                )}
+
+                {/* Details Breakdown */}
+                {selectedOrder.shiprocketDetails?.shipmentId ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', fontSize: '12.5px', background: '#FFFFFF', padding: '12px', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
+                    <div>
+                      <span style={{ color: '#6B7280', fontSize: '11px', display: 'block' }}>Courier Partner</span>
+                      <strong>{selectedOrder.shiprocketDetails.courierName || selectedOrder.trackingInfo?.courierName || 'Pending Assignment'}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#6B7280', fontSize: '11px', display: 'block' }}>AWB / Airway Bill</span>
+                      <strong style={{ fontFamily: 'monospace' }}>{selectedOrder.shiprocketDetails.awbCode || selectedOrder.trackingInfo?.trackingNumber || 'Pending AWB'}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#6B7280', fontSize: '11px', display: 'block' }}>Shiprocket Status</span>
+                      <strong style={{ color: '#059669' }}>{selectedOrder.shiprocketDetails.rawStatus || selectedOrder.shipmentStatus}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#6B7280', fontSize: '11px', display: 'block' }}>Last Sync</span>
+                      <span>{selectedOrder.shiprocketDetails.syncedAt ? new Date(selectedOrder.shiprocketDetails.syncedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Just now'}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p style={{ margin: 0, fontSize: '12.5px', color: '#6B7280', lineHeight: 1.5 }}>
+                    No automated shipment order has been booked with Shiprocket yet. You can create an ad-hoc shipment or use manual tracking entry below.
+                  </p>
+                )}
+
+                {/* Actions Toolbar */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  {!selectedOrder.shiprocketDetails?.shipmentId && selectedOrder.orderStatus !== 'cancelled' && (
+                    <button
+                      type="button"
+                      disabled={isShiprocketAction}
+                      onClick={() => handleCreateShiprocketShipment(selectedOrder._id)}
+                      style={{
+                        background: '#881337',
+                        color: '#FFF9EF',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '8px 14px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: isShiprocketAction ? 'wait' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <Truck size={13} />
+                      <span>{isShiprocketAction ? 'Booking Shipment…' : 'Create Shiprocket Shipment'}</span>
+                    </button>
+                  )}
+
+                  {selectedOrder.shiprocketDetails?.shipmentId && !selectedOrder.shiprocketDetails.awbCode && selectedOrder.orderStatus !== 'cancelled' && (
+                    <button
+                      type="button"
+                      disabled={isShiprocketAction}
+                      onClick={() => handleGenerateShiprocketAWB(selectedOrder._id)}
+                      style={{
+                        background: '#1D4ED8',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '8px 14px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: isShiprocketAction ? 'wait' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <Package size={13} />
+                      <span>{isShiprocketAction ? 'Assigning AWB…' : 'Assign Courier & Generate AWB'}</span>
+                    </button>
+                  )}
+
+                  {(selectedOrder.shiprocketDetails?.awbCode || selectedOrder.trackingInfo?.trackingNumber) && (
+                    <button
+                      type="button"
+                      disabled={isShiprocketAction}
+                      onClick={() => handleSyncShiprocketTracking(selectedOrder._id)}
+                      style={{
+                        background: '#FFFFFF',
+                        color: '#374151',
+                        border: '1px solid #D1D5DB',
+                        borderRadius: '6px',
+                        padding: '8px 14px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: isShiprocketAction ? 'wait' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <RefreshCw size={13} className={isShiprocketAction ? 'animate-spin' : ''} />
+                      <span>Sync Live Tracking</span>
+                    </button>
+                  )}
+
+                  {selectedOrder.shiprocketDetails?.labelUrl && (
+                    <a
+                      href={selectedOrder.shiprocketDetails.labelUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        background: '#ECFDF5',
+                        color: '#065F46',
+                        border: '1px solid #A7F3D0',
+                        borderRadius: '6px',
+                        padding: '8px 14px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <FileText size={13} />
+                      <span>Print Shipping Label</span>
+                      <ExternalLink size={11} />
+                    </a>
+                  )}
+
+                  {selectedOrder.shiprocketDetails?.manifestUrl && (
+                    <a
+                      href={selectedOrder.shiprocketDetails.manifestUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        background: '#EFF6FF',
+                        color: '#1E40AF',
+                        border: '1px solid #BFDBFE',
+                        borderRadius: '6px',
+                        padding: '8px 14px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <FileText size={13} />
+                      <span>Manifest</span>
+                      <ExternalLink size={11} />
+                    </a>
+                  )}
                 </div>
               </div>
 

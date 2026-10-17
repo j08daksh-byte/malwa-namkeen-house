@@ -85,6 +85,15 @@ export interface CustomerOrder {
     trackingNumber?: string;
     trackingUrl?: string;
   };
+  shiprocketDetails?: {
+    shipmentId?: number;
+    awbCode?: string;
+    courierName?: string;
+    trackingUrl?: string;
+    status?: string;
+    rawStatus?: string;
+    lastEvent?: string;
+  };
   createdAt: string;
 }
 
@@ -1837,13 +1846,18 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
                 <span className={`order-status-badge status-${selectedOrder.orderStatus}`}>
                   Order: {selectedOrder.orderStatus}
                 </span>
                 <span className={`order-status-badge status-${selectedOrder.paymentStatus === 'paid' ? 'delivered' : 'pending'}`}>
                   Payment: {selectedOrder.paymentStatus}
                 </span>
+                {selectedOrder.shipmentStatus && (
+                  <span className={`order-status-badge status-${selectedOrder.shipmentStatus === 'delivered' ? 'delivered' : ['in_transit', 'out_for_delivery'].includes(selectedOrder.shipmentStatus) ? 'shipped' : 'pending'}`}>
+                    Shipment: {selectedOrder.shipmentStatus.replace(/_/g, ' ')}
+                  </span>
+                )}
               </div>
 
               {/* Items List */}
@@ -1898,6 +1912,36 @@ export default function Dashboard() {
                   {selectedOrder.shippingAddress.addressLine1}, {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state} — {selectedOrder.shippingAddress.pincode}
                 </div>
               )}
+
+              {/* Live Tracking Information Card */}
+              {Boolean(selectedOrder.trackingInfo?.trackingNumber || selectedOrder.shiprocketDetails?.awbCode) && (() => {
+                const trackingNumber = selectedOrder.trackingInfo?.trackingNumber || selectedOrder.shiprocketDetails?.awbCode;
+                const courierName = selectedOrder.trackingInfo?.courierName || selectedOrder.shiprocketDetails?.courierName || 'Shiprocket Partner';
+                const trackingUrl = selectedOrder.trackingInfo?.trackingUrl || selectedOrder.shiprocketDetails?.trackingUrl || (trackingNumber ? `https://shiprocket.co/tracking/${trackingNumber}` : undefined);
+                return (
+                  <div style={{ marginTop: '14px', background: '#F0FDF4', border: '1px solid #BBF7D0', padding: '14px', borderRadius: '10px', fontSize: '12.5px', color: '#166534' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <strong style={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '10.5px', color: '#15803D', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Truck size={14} /> Shipment Tracking
+                      </strong>
+                      {trackingUrl && (
+                        <a
+                          href={trackingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', fontWeight: 700, color: '#15803D', textDecoration: 'underline' }}
+                        >
+                          Track Online <ExternalLink size={12} />
+                        </a>
+                      )}
+                    </div>
+                    <div>
+                      <strong>Courier:</strong> {courierName}<br />
+                      <strong>AWB / Tracking #:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{trackingNumber}</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Payment Action Error Notification */}
               {paymentActionError && (

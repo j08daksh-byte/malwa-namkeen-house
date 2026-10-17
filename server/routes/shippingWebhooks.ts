@@ -219,28 +219,21 @@ router.post(['/webhook/shiprocket', '/webhook', '/'], async (req: Request, res: 
       }
     }
 
-    // State machine transitions based on Shiprocket status
+    // State machine transitions based on Shiprocket status (Forward-only, preventing status regressions)
     const statusUpper = currentStatus.toUpperCase();
 
-    if (statusUpper.includes('AWB') || statusUpper === 'READY TO SHIP') {
-      order.shipmentStatus = 'ready_to_ship';
-    } else if (
-      statusUpper.includes('IN TRANSIT') ||
-      statusUpper.includes('PICKED UP') ||
-      statusUpper.includes('REACHED')
-    ) {
-      order.shipmentStatus = 'in_transit';
-      if (['pending', 'confirmed', 'processing'].includes(order.orderStatus)) {
-        order.orderStatus = 'shipped';
-        shouldNotifyCustomer = true;
-      }
-    } else if (statusUpper.includes('OUT FOR DELIVERY')) {
-      order.shipmentStatus = 'out_for_delivery';
-      if (order.orderStatus !== 'shipped' && order.orderStatus !== 'delivered') {
-        order.orderStatus = 'shipped';
-        shouldNotifyCustomer = true;
-      }
-    } else if (statusUpper.includes('DELIVERED') && !statusUpper.includes('RTO')) {
+    const SHIPMENT_STATUS_RANK: Record<string, number> = {
+      unfulfilled: 0,
+      ready_to_ship: 1,
+      in_transit: 2,
+      out_for_delivery: 3,
+      delivered: 4,
+      returned: 4,
+    };
+
+    const currentRank = SHIPMENT_STATUS_RANK[order.shipmentStatus || 'unfulfilled'] ?? 0;
+
+    if (statusUpper.includes('DELIVERED') && !statusUpper.includes('RTO')) {
       order.shipmentStatus = 'delivered';
       order.orderStatus = 'delivered';
 
@@ -257,8 +250,37 @@ router.post(['/webhook/shiprocket', '/webhook', '/'], async (req: Request, res: 
         };
       }
       shouldNotifyCustomer = true;
+    } else if (statusUpper.includes('OUT FOR DELIVERY')) {
+      // Never regress if already delivered or returned
+      if (currentRank < 3) {
+        order.shipmentStatus = 'out_for_delivery';
+        if (order.orderStatus !== 'shipped' && order.orderStatus !== 'delivered') {
+          order.orderStatus = 'shipped';
+          shouldNotifyCustomer = true;
+        }
+      }
+    } else if (
+      statusUpper.includes('IN TRANSIT') ||
+      statusUpper.includes('PICKED UP') ||
+      statusUpper.includes('REACHED')
+    ) {
+      // Never regress if already out_for_delivery, delivered, or returned
+      if (currentRank < 2) {
+        order.shipmentStatus = 'in_transit';
+        if (['pending', 'confirmed', 'processing'].includes(order.orderStatus)) {
+          order.orderStatus = 'shipped';
+          shouldNotifyCustomer = true;
+        }
+      }
+    } else if (statusUpper.includes('AWB') || statusUpper === 'READY TO SHIP') {
+      // Never regress if already in_transit or higher
+      if (currentRank < 1) {
+        order.shipmentStatus = 'ready_to_ship';
+      }
     } else if (statusUpper.includes('RTO') || statusUpper.includes('RETURN')) {
-      order.shipmentStatus = 'returned';
+      if (order.shipmentStatus !== 'delivered') {
+        order.shipmentStatus = 'returned';
+      }
     }
 
     await order.save();

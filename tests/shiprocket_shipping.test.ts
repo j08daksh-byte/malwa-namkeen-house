@@ -26,6 +26,8 @@ import {
   trackShipmentByAWB,
   verifyShiprocketWebhook,
   getShiprocketAuthToken,
+  cancelShiprocketOrder,
+  syncOrderTrackingFromShiprocket,
   _setShiprocketClientForTesting,
   _resetShiprocketTokenCache,
   getShiprocketConfig,
@@ -688,6 +690,255 @@ describe('Gate 10: Shiprocket Logistics Integration & Shipping Safety Suite', ()
       assert.equal(mockOrder.paymentStatus, 'pending');
       assert.equal(mockOrder.shipmentStatus, 'unfulfilled');
       assert.equal(mockOrder.shiprocketDetails, undefined);
+    });
+  });
+
+  // ── 9. Shiprocket Order Cancellation Handling ───────────────────────────
+  describe('9. Shiprocket Order Cancellation Handling', () => {
+    it('successfully cancels Shiprocket order via mock client', async () => {
+      let cancelledIds: number[] = [];
+      _setShiprocketClientForTesting({
+        orders: {
+          create: async () => ({} as any),
+          cancel: async (ids: number[]) => {
+            cancelledIds = ids;
+            return { status: 200, message: 'Order cancelled successfully.' };
+          },
+        },
+      });
+
+      const res = await cancelShiprocketOrder([882910]);
+      assert.equal(res.success, true);
+      assert.equal(res.data?.status, 200);
+      assert.deepEqual(cancelledIds, [882910]);
+    });
+
+    it('rejects empty or non-numeric order IDs with HTTP 400', async () => {
+      const resEmpty = await cancelShiprocketOrder([]);
+      assert.equal(resEmpty.success, false);
+      assert.equal(resEmpty.statusCode, 400);
+
+      const resInvalid = await cancelShiprocketOrder([NaN, 0, -5]);
+      assert.equal(resInvalid.success, false);
+      assert.equal(resInvalid.statusCode, 400);
+    });
+
+    it('handles network failure or timeout gracefully without throwing unhandled exceptions', async () => {
+      _setShiprocketClientForTesting({
+        orders: {
+          create: async () => ({} as any),
+          cancel: async () => {
+            const err = new Error('Shiprocket cancel request timed out.');
+            err.name = 'TimeoutError';
+            throw err;
+          },
+        },
+      });
+
+      const res = await cancelShiprocketOrder([991823]);
+      assert.equal(res.success, false);
+      assert.equal(res.statusCode, 500);
+      assert.match(res.error || '', /timed out/i);
+    });
+  });
+
+  // ── 10. Live Tracking Synchronization & Regression Safety ───────────────
+  describe('10. Live Tracking Synchronization & Regression Safety', () => {
+    it('syncs live tracking and advances status from ready_to_ship to in_transit', async () => {
+      _setShiprocketClientForTesting({
+        courier: {
+          assignAWB: async () => ({} as any),
+          track: async (awb: string) => ({
+            tracking_data: {
+              track_status: 1,
+              shipment_status: 2,
+              shipment_track: [
+                {
+                  id: 101,
+                  awb_code: awb,
+                  current_status: 'IN TRANSIT - DEPARTED HUB',
+                  origin: 'Indore',
+                  destination: 'Bhopal',
+                  courier_name: 'Blue Dart',
+                },
+              ],
+              shipment_track_activities: [],
+              track_url: `https://shiprocket.co/tracking/${awb}`,
+            },
+          }),
+        },
+      });
+
+      let saved = false;
+      const mockOrder: any = {
+        orderNumber: 'MN-20261017-5001',
+        orderStatus: 'confirmed',
+        shipmentStatus: 'ready_to_ship',
+        paymentMethod: 'online',
+        paymentStatus: 'paid',
+        shiprocketDetails: {
+          awbCode: 'BLUEDART-991122',
+        },
+        save: async () => {
+          saved = true;
+        },
+      };
+
+      const res = await syncOrderTrackingFromShiprocket(mockOrder as any);
+      assert.equal(res.success, true);
+      assert.equal(saved, true);
+      assert.equal(mockOrder.shipmentStatus, 'in_transit');
+      assert.equal(mockOrder.orderStatus, 'shipped');
+      assert.equal(mockOrder.shiprocketDetails.rawStatus, 'IN TRANSIT - DEPARTED HUB');
+      assert.equal(mockOrder.shiprocketDetails.courierName, 'Blue Dart');
+      assert.ok(mockOrder.shiprocketDetails.syncedAt instanceof Date);
+    });
+
+    it('advances status forward to delivered and auto-reconciles COD payment', async () => {
+      _setShiprocketClientForTesting({
+        courier: {
+          assignAWB: async () => ({} as any),
+          track: async (awb: string) => ({
+            tracking_data: {
+              track_status: 1,
+              shipment_status: 7,
+              shipment_track: [
+                {
+                  id: 102,
+                  awb_code: awb,
+                  current_status: 'DELIVERED TO CUSTOMER',
+                  origin: 'Indore',
+                  destination: 'Delhi',
+                  courier_name: 'Delhivery',
+                },
+              ],
+              shipment_track_activities: [],
+            },
+          }),
+        },
+      });
+
+      const mockOrder: any = {
+        orderNumber: 'MN-20261017-5002',
+        orderStatus: 'shipped',
+        shipmentStatus: 'out_for_delivery',
+        paymentMethod: 'cod',
+        paymentStatus: 'pending',
+        shiprocketDetails: {
+          awbCode: 'DELHIVERY-334455',
+        },
+        save: async () => {},
+      };
+
+      const res = await syncOrderTrackingFromShiprocket(mockOrder as any);
+      assert.equal(res.success, true);
+      assert.equal(mockOrder.shipmentStatus, 'delivered');
+      assert.equal(mockOrder.orderStatus, 'delivered');
+      assert.equal(mockOrder.paymentStatus, 'paid', 'COD order must be reconciled to paid upon delivery sync');
+      assert.ok(mockOrder.paymentDetails?.paidAt instanceof Date);
+    });
+
+    it('strictly prevents status regression: delivered order is never regressed by old tracking scan', async () => {
+      _setShiprocketClientForTesting({
+        courier: {
+          assignAWB: async () => ({} as any),
+          track: async (awb: string) => ({
+            tracking_data: {
+              track_status: 1,
+              shipment_status: 2,
+              shipment_track: [
+                {
+                  id: 103,
+                  awb_code: awb,
+                  current_status: 'IN TRANSIT',
+                  origin: 'Indore',
+                  destination: 'Mumbai',
+                  courier_name: 'Delhivery',
+                },
+              ],
+              shipment_track_activities: [],
+            },
+          }),
+        },
+      });
+
+      const mockOrder: any = {
+        orderNumber: 'MN-20261017-5003',
+        orderStatus: 'delivered',
+        shipmentStatus: 'delivered',
+        paymentMethod: 'cod',
+        paymentStatus: 'paid',
+        shiprocketDetails: {
+          awbCode: 'DELHIVERY-778899',
+          lastEvent: 'DELIVERED',
+        },
+        save: async () => {},
+      };
+
+      const res = await syncOrderTrackingFromShiprocket(mockOrder as any);
+      assert.equal(res.success, true);
+      assert.equal(mockOrder.shipmentStatus, 'delivered', 'Shipment status must not regress from delivered to in_transit');
+      assert.equal(mockOrder.orderStatus, 'delivered', 'Order status must not regress from delivered to shipped');
+      assert.equal(mockOrder.paymentStatus, 'paid');
+    });
+
+    it('rejects tracking synchronization when order has no AWB tracking code', async () => {
+      const mockOrder: any = {
+        orderNumber: 'MN-20261017-5004',
+        orderStatus: 'confirmed',
+        shipmentStatus: 'unfulfilled',
+        shiprocketDetails: {},
+        trackingInfo: null,
+      };
+
+      const res = await syncOrderTrackingFromShiprocket(mockOrder as any);
+      assert.equal(res.success, false);
+      assert.equal(res.statusCode, 400);
+      assert.match(res.error || '', /no AWB tracking code/i);
+    });
+
+    it('never mutates orderStatus or shipmentStatus of a cancelled order during tracking sync', async () => {
+      _setShiprocketClientForTesting({
+        courier: {
+          assignAWB: async () => ({} as any),
+          track: async (awb: string) => ({
+            tracking_data: {
+              track_status: 1,
+              shipment_status: 7,
+              shipment_track: [
+                {
+                  id: 105,
+                  awb_code: awb,
+                  current_status: 'DELIVERED',
+                  origin: 'Indore',
+                  destination: 'Jaipur',
+                  courier_name: 'DTDC',
+                },
+              ],
+              shipment_track_activities: [],
+            },
+          }),
+        },
+      });
+
+      const mockOrder: any = {
+        orderNumber: 'MN-20261017-5005',
+        orderStatus: 'cancelled',
+        shipmentStatus: 'ready_to_ship',
+        paymentMethod: 'cod',
+        paymentStatus: 'pending',
+        inventoryRestored: true,
+        shiprocketDetails: {
+          awbCode: 'DTDC-556677',
+        },
+        save: async () => {},
+      };
+
+      const res = await syncOrderTrackingFromShiprocket(mockOrder as any);
+      assert.equal(res.success, true);
+      assert.equal(mockOrder.orderStatus, 'cancelled', 'Cancelled order must never be re-activated');
+      assert.equal(mockOrder.shipmentStatus, 'ready_to_ship', 'Shipment status must not advance to delivered');
+      assert.equal(mockOrder.paymentStatus, 'pending', 'Payment must not be marked paid on cancelled order');
     });
   });
 });
