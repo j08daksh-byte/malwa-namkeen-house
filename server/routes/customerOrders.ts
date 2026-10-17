@@ -705,10 +705,20 @@ export async function handleVerifyPayment(req: AuthenticatedRequest, res: Respon
 
     // If order was already marked paid (e.g. by fast webhook), return success idempotently
     if (order.paymentStatus === 'paid') {
-      res.json({
-        success: true,
-        message: 'Payment has already been verified and recorded.',
-        order,
+      if (
+        !order.paymentDetails?.razorpayPaymentId ||
+        order.paymentDetails.razorpayPaymentId === razorpayPaymentId.trim()
+      ) {
+        res.json({
+          success: true,
+          message: 'Payment has already been verified and recorded.',
+          order,
+        });
+        return;
+      }
+      res.status(400).json({
+        success: false,
+        message: 'Order is already marked as paid with a different payment reference.',
       });
       return;
     }
@@ -780,36 +790,56 @@ export async function handleVerifyPayment(req: AuthenticatedRequest, res: Respon
     }
 
     // Atomic update to transition to paid
-    const updatedOrder = await Order.findOneAndUpdate(
-      {
-        _id: order._id,
-        paymentStatus: { $ne: 'paid' },
-        orderStatus: { $ne: 'cancelled' },
-      },
-      {
-        $set: {
-          paymentStatus: 'paid',
-          orderStatus: 'confirmed',
-          'paymentDetails.gateway': 'razorpay',
-          'paymentDetails.transactionId': razorpayPaymentId.trim(),
-          'paymentDetails.razorpayPaymentId': razorpayPaymentId.trim(),
-          'paymentDetails.razorpaySignature': razorpaySignature.trim(),
-          'paymentDetails.paidAt': new Date(),
+    let updatedOrder;
+    try {
+      updatedOrder = await Order.findOneAndUpdate(
+        {
+          _id: order._id,
+          paymentStatus: { $ne: 'paid' },
+          orderStatus: { $ne: 'cancelled' },
         },
-      },
-      { new: true }
-    );
-
-    if (!updatedOrder) {
-      // Re-fetch to see if concurrent request already completed payment
-      const current = await Order.findById(order._id);
-      if (current?.paymentStatus === 'paid') {
-        res.json({
-          success: true,
-          message: 'Payment already verified.',
-          order: current,
+        {
+          $set: {
+            paymentStatus: 'paid',
+            orderStatus: 'confirmed',
+            'paymentDetails.gateway': 'razorpay',
+            'paymentDetails.transactionId': razorpayPaymentId.trim(),
+            'paymentDetails.razorpayPaymentId': razorpayPaymentId.trim(),
+            'paymentDetails.razorpaySignature': razorpaySignature.trim(),
+            'paymentDetails.paidAt': new Date(),
+          },
+        },
+        { new: true }
+      );
+    } catch (err: any) {
+      if (err?.code === 11000 || (err?.name === 'MongoServerError' && err?.code === 11000)) {
+        console.warn(
+          `[Security Alert] Duplicate key conflict: paymentId ${razorpayPaymentId.trim()} already credited to another order`
+        );
+        res.status(400).json({
+          success: false,
+          message: 'Payment ID has already been credited to another order.',
         });
         return;
+      }
+      throw err;
+    }
+
+    if (!updatedOrder) {
+      // Re-fetch to see if concurrent request already completed payment for this order
+      const current = await Order.findById(order._id);
+      if (current?.paymentStatus === 'paid') {
+        if (
+          !current.paymentDetails?.razorpayPaymentId ||
+          current.paymentDetails.razorpayPaymentId === razorpayPaymentId.trim()
+        ) {
+          res.json({
+            success: true,
+            message: 'Payment already verified.',
+            order: current,
+          });
+          return;
+        }
       }
       res.status(400).json({
         success: false,
@@ -918,27 +948,61 @@ export async function handleRazorpayWebhook(req: any, res: Response) {
         return;
       }
 
+      // Security check: paymentId must not be credited to any other order
+      if (paymentId) {
+        const duplicatePayment = await Order.findOne({
+          _id: { $ne: order._id },
+          'paymentDetails.razorpayPaymentId': paymentId,
+        }).lean();
+
+        if (duplicatePayment) {
+          console.warn(
+            `[Razorpay Security Alert] Webhook replay attack: paymentId ${paymentId} already credited to order ${duplicatePayment.orderNumber}`
+          );
+          res.status(400).json({
+            success: false,
+            message: 'Payment ID has already been credited to another order.',
+          });
+          return;
+        }
+      }
+
       // Atomic transition to paid if not already paid
-      const updated = await Order.findOneAndUpdate(
-        {
-          _id: order._id,
-          paymentStatus: { $ne: 'paid' },
-          orderStatus: { $ne: 'cancelled' },
-        },
-        {
-          $set: {
-            paymentStatus: 'paid',
-            orderStatus: 'confirmed',
-            'paymentDetails.gateway': 'razorpay',
-            'paymentDetails.transactionId': paymentId,
-            'paymentDetails.razorpayPaymentId': paymentId,
-            'paymentDetails.webhookEventId': eventId,
-            'paymentDetails.paidAt': new Date(),
+      let updated;
+      try {
+        updated = await Order.findOneAndUpdate(
+          {
+            _id: order._id,
+            paymentStatus: { $ne: 'paid' },
+            orderStatus: { $ne: 'cancelled' },
           },
-          ...(eventId ? { $addToSet: { processedWebhookEvents: eventId } } : {}),
-        },
-        { new: true }
-      );
+          {
+            $set: {
+              paymentStatus: 'paid',
+              orderStatus: 'confirmed',
+              'paymentDetails.gateway': 'razorpay',
+              'paymentDetails.transactionId': paymentId,
+              'paymentDetails.razorpayPaymentId': paymentId,
+              'paymentDetails.webhookEventId': eventId,
+              'paymentDetails.paidAt': new Date(),
+            },
+            ...(eventId ? { $addToSet: { processedWebhookEvents: eventId } } : {}),
+          },
+          { new: true }
+        );
+      } catch (err: any) {
+        if (err?.code === 11000 || (err?.name === 'MongoServerError' && err?.code === 11000)) {
+          console.warn(
+            `[Razorpay Security Alert] Duplicate key conflict in webhook: paymentId ${paymentId} already credited to another order`
+          );
+          res.status(400).json({
+            success: false,
+            message: 'Payment ID has already been credited to another order.',
+          });
+          return;
+        }
+        throw err;
+      }
 
       if (updated) {
         dispatchOrderConfirmationEmails(updated);

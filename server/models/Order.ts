@@ -356,7 +356,7 @@ orderSchema.index({ 'customerInfo.email': 1, createdAt: -1 });
 orderSchema.index({ orderStatus: 1, createdAt: -1 });
 orderSchema.index({ paymentStatus: 1, createdAt: -1 });
 orderSchema.index({ 'paymentDetails.razorpayOrderId': 1 }, { sparse: true });
-orderSchema.index({ 'paymentDetails.razorpayPaymentId': 1 }, { sparse: true });
+orderSchema.index({ 'paymentDetails.razorpayPaymentId': 1 }, { unique: true, sparse: true });
 orderSchema.index({ processedWebhookEvents: 1 }, { sparse: true });
 orderSchema.index({ 'shiprocketDetails.shipmentId': 1 }, { sparse: true });
 orderSchema.index({ 'shiprocketDetails.orderId': 1 }, { sparse: true });

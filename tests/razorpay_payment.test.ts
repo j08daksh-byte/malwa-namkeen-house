@@ -732,6 +732,19 @@ describe('Gate 9: Razorpay Payment Integration & Security Suite', () => {
           if (filter.orderStatus?.$ne && target.orderStatus === filter.orderStatus.$ne) return null;
 
           if (update.$set) {
+            if (update.$set['paymentDetails.razorpayPaymentId']) {
+              const targetPayId = update.$set['paymentDetails.razorpayPaymentId'];
+              for (const other of inMemoryOrders.values()) {
+                if (other._id.toString() !== id && other.paymentDetails?.razorpayPaymentId === targetPayId) {
+                  const err: any = new Error(
+                    `E11000 duplicate key error index: paymentDetails.razorpayPaymentId_1 dup key: { paymentDetails.razorpayPaymentId: "${targetPayId}" }`
+                  );
+                  err.code = 11000;
+                  err.name = 'MongoServerError';
+                  throw err;
+                }
+              }
+            }
             for (const [key, val] of Object.entries(update.$set)) {
               if (key.includes('.')) {
                 const parts = key.split('.');
@@ -1084,6 +1097,133 @@ describe('Gate 9: Razorpay Payment Integration & Security Suite', () => {
       assert.match(getJsonB().message, /already been credited to another order/);
     });
 
+    it('handleVerifyPayment: concurrent race condition — two requests attempting to credit the same paymentId to different orders cannot both succeed', async () => {
+      const orderA = await createTestOrder();
+      const orderB = await createTestOrder();
+      const rzpOrderIdA = orderA.paymentDetails!.razorpayOrderId!;
+      const rzpOrderIdB = orderB.paymentDetails!.razorpayOrderId!;
+      const sharedPaymentId = `pay_CONCURRENT_RACE_${Date.now()}`;
+      const sigA = crypto
+        .createHmac('sha256', TEST_KEY_SECRET)
+        .update(`${rzpOrderIdA}|${sharedPaymentId}`)
+        .digest('hex');
+      const sigB = crypto
+        .createHmac('sha256', TEST_KEY_SECRET)
+        .update(`${rzpOrderIdB}|${sharedPaymentId}`)
+        .digest('hex');
+
+      const httpA = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        body: {
+          orderId: orderA._id.toString(),
+          razorpayOrderId: rzpOrderIdA,
+          razorpayPaymentId: sharedPaymentId,
+          razorpaySignature: sigA,
+        },
+      });
+      const httpB = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        body: {
+          orderId: orderB._id.toString(),
+          razorpayOrderId: rzpOrderIdB,
+          razorpayPaymentId: sharedPaymentId,
+          razorpaySignature: sigB,
+        },
+      });
+
+      // Fire both verification calls concurrently
+      await Promise.all([
+        handleVerifyPayment(httpA.req, httpA.res),
+        handleVerifyPayment(httpB.req, httpB.res),
+      ]);
+
+      const statuses = [httpA.getStatus(), httpB.getStatus()].sort();
+      // Exactly one must succeed (200) and the other must be rejected (400)
+      assert.deepEqual(statuses, [200, 400], 'Exactly one concurrent verification must succeed with 200, the other must fail with 400');
+
+      const failedJson = httpA.getStatus() === 400 ? httpA.getJson() : httpB.getJson();
+      assert.match(failedJson.message, /already been credited to another order/);
+
+      // Verify database state: only one order can be marked paid
+      const dbOrderA = await Order.findById(orderA._id);
+      const dbOrderB = await Order.findById(orderB._id);
+      const paidOrders = [dbOrderA, dbOrderB].filter(o => o?.paymentStatus === 'paid');
+      assert.equal(paidOrders.length, 1, 'Exactly one order must be paid in the database');
+      assert.equal(paidOrders[0]?.paymentDetails?.razorpayPaymentId, sharedPaymentId);
+
+      const pendingOrders = [dbOrderA, dbOrderB].filter(o => o?.paymentStatus === 'pending');
+      assert.equal(pendingOrders.length, 1, 'The other order must remain pending');
+      assert.notEqual(pendingOrders[0]?.paymentDetails?.razorpayPaymentId, sharedPaymentId);
+    });
+
+    it('handleVerifyPayment: safely handles MongoServerError E11000 duplicate key error and rejects with HTTP 400', async () => {
+      const order = await createTestOrder();
+      const rzpOrderId = order.paymentDetails!.razorpayOrderId!;
+      const rzpPaymentId = `pay_DUP_KEY_${Date.now()}`;
+      const sig = crypto
+        .createHmac('sha256', TEST_KEY_SECRET)
+        .update(`${rzpOrderId}|${rzpPaymentId}`)
+        .digest('hex');
+
+      const origFindOneAndUpdate = Order.findOneAndUpdate;
+      try {
+        Order.findOneAndUpdate = (async () => {
+          const dupErr: any = new Error(
+            `E11000 duplicate key error collection: malwa_namkeen_test.orders index: paymentDetails.razorpayPaymentId_1 dup key: { paymentDetails.razorpayPaymentId: "${rzpPaymentId}" }`
+          );
+          dupErr.code = 11000;
+          dupErr.name = 'MongoServerError';
+          throw dupErr;
+        }) as any;
+
+        const { req, res, getStatus, getJson } = mockHttp({
+          user: { userId: testUser._id.toString(), role: 'customer' },
+          body: {
+            orderId: order._id.toString(),
+            razorpayOrderId: rzpOrderId,
+            razorpayPaymentId: rzpPaymentId,
+            razorpaySignature: sig,
+          },
+        });
+
+        await handleVerifyPayment(req, res);
+
+        assert.equal(getStatus(), 400);
+        assert.equal(getJson().success, false);
+        assert.match(getJson().message, /already been credited to another order/);
+      } finally {
+        Order.findOneAndUpdate = origFindOneAndUpdate;
+      }
+    });
+
+    it('handleVerifyPayment: rejects payment verification on already-paid order if a different paymentId is supplied', async () => {
+      const order = await createTestOrder({
+        paymentStatus: 'paid',
+        orderStatus: 'confirmed',
+        paymentDetails: {
+          gateway: 'razorpay',
+          razorpayOrderId: `order_ALREADY_PAID_${Date.now()}`,
+          razorpayPaymentId: `pay_ORIGINAL_${Date.now()}`,
+        },
+      });
+
+      const { req, res, getStatus, getJson } = mockHttp({
+        user: { userId: testUser._id.toString(), role: 'customer' },
+        body: {
+          orderId: order._id.toString(),
+          razorpayOrderId: order.paymentDetails!.razorpayOrderId,
+          razorpayPaymentId: `pay_ATTACKER_DIFFERENT_${Date.now()}`,
+          razorpaySignature: 'any_signature',
+        },
+      });
+
+      await handleVerifyPayment(req, res);
+
+      assert.equal(getStatus(), 400);
+      assert.equal(getJson().success, false);
+      assert.match(getJson().message, /already marked as paid with a different payment reference/);
+    });
+
     it('handleVerifyPayment: idempotently returns HTTP 200 for already paid order', async () => {
       const order = await createTestOrder({
         paymentStatus: 'paid',
@@ -1292,6 +1432,130 @@ describe('Gate 9: Razorpay Payment Integration & Security Suite', () => {
       assert.equal(getStatus(), 200);
       assert.equal(getJson().success, true);
       assert.equal(getJson().alreadyProcessed, true);
+    });
+
+    it('handleRazorpayWebhook: detects and rejects cross-order replay of already credited paymentId with HTTP 400', async () => {
+      const orderA = await createTestOrder({ total: 349 });
+      const sharedPaymentId = `pay_WB_REPLAY_${Date.now()}`;
+      const eventIdA = `evt_WB_A_${Date.now()}`;
+
+      // Mark order A paid via webhook with sharedPaymentId
+      const payloadA = {
+        event: 'payment.captured',
+        id: eventIdA,
+        payload: {
+          payment: {
+            entity: {
+              id: sharedPaymentId,
+              order_id: orderA.paymentDetails!.razorpayOrderId,
+              amount: 34900,
+              currency: 'INR',
+              status: 'captured',
+            },
+          },
+        },
+      };
+      const rawBodyA = JSON.stringify(payloadA);
+      const sigA = crypto
+        .createHmac('sha256', TEST_WEBHOOK_SECRET)
+        .update(rawBodyA)
+        .digest('hex');
+
+      const httpA = mockHttp({
+        headers: { 'x-razorpay-signature': sigA, 'x-razorpay-event-id': eventIdA },
+        body: payloadA,
+        rawBody: rawBodyA,
+      });
+      await handleRazorpayWebhook(httpA.req, httpA.res);
+      assert.equal(httpA.getStatus(), 200);
+
+      // Now attempt to credit the same sharedPaymentId to order B via webhook
+      const orderB = await createTestOrder({ total: 349 });
+      const eventIdB = `evt_WB_B_${Date.now()}`;
+      const payloadB = {
+        event: 'payment.captured',
+        id: eventIdB,
+        payload: {
+          payment: {
+            entity: {
+              id: sharedPaymentId,
+              order_id: orderB.paymentDetails!.razorpayOrderId,
+              amount: 34900,
+              currency: 'INR',
+              status: 'captured',
+            },
+          },
+        },
+      };
+      const rawBodyB = JSON.stringify(payloadB);
+      const sigB = crypto
+        .createHmac('sha256', TEST_WEBHOOK_SECRET)
+        .update(rawBodyB)
+        .digest('hex');
+
+      const httpB = mockHttp({
+        headers: { 'x-razorpay-signature': sigB, 'x-razorpay-event-id': eventIdB },
+        body: payloadB,
+        rawBody: rawBodyB,
+      });
+      await handleRazorpayWebhook(httpB.req, httpB.res);
+
+      assert.equal(httpB.getStatus(), 400);
+      assert.equal(httpB.getJson().success, false);
+      assert.match(httpB.getJson().message, /already been credited to another order/);
+    });
+
+    it('handleRazorpayWebhook: safely handles MongoServerError E11000 duplicate key error and rejects with HTTP 400', async () => {
+      const order = await createTestOrder({ total: 349 });
+      const eventId = `evt_DUP_KEY_WB_${Date.now()}`;
+      const paymentId = `pay_DUP_KEY_WB_${Date.now()}`;
+
+      const payload = {
+        event: 'payment.captured',
+        id: eventId,
+        payload: {
+          payment: {
+            entity: {
+              id: paymentId,
+              order_id: order.paymentDetails!.razorpayOrderId,
+              amount: 34900,
+              currency: 'INR',
+              status: 'captured',
+            },
+          },
+        },
+      };
+      const rawBody = JSON.stringify(payload);
+      const sig = crypto
+        .createHmac('sha256', TEST_WEBHOOK_SECRET)
+        .update(rawBody)
+        .digest('hex');
+
+      const origFindOneAndUpdate = Order.findOneAndUpdate;
+      try {
+        Order.findOneAndUpdate = (async () => {
+          const dupErr: any = new Error(
+            `E11000 duplicate key error collection: malwa_namkeen_test.orders index: paymentDetails.razorpayPaymentId_1 dup key: { paymentDetails.razorpayPaymentId: "${paymentId}" }`
+          );
+          dupErr.code = 11000;
+          dupErr.name = 'MongoServerError';
+          throw dupErr;
+        }) as any;
+
+        const { req, res, getStatus, getJson } = mockHttp({
+          headers: { 'x-razorpay-signature': sig, 'x-razorpay-event-id': eventId },
+          body: payload,
+          rawBody,
+        });
+
+        await handleRazorpayWebhook(req, res);
+
+        assert.equal(getStatus(), 400);
+        assert.equal(getJson().success, false);
+        assert.match(getJson().message, /already been credited to another order/);
+      } finally {
+        Order.findOneAndUpdate = origFindOneAndUpdate;
+      }
     });
 
     it('handleRazorpayWebhook: detects and rejects underpaid amount mismatch with HTTP 400', async () => {
