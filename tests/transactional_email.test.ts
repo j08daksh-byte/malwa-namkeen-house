@@ -498,4 +498,78 @@ describe('Gate 3: Transactional Email Service & Template Engine Suite', () => {
       }
     });
   });
+
+  describe('8. Provider Credential Safety & Duplicate Notification Prevention', () => {
+    it('returns unconfigured status when EMAIL_PROVIDER=resend but RESEND_API_KEY is missing', async () => {
+      const origEnv = process.env.NODE_ENV;
+      const origProv = process.env.EMAIL_PROVIDER;
+      const origKey = process.env.RESEND_API_KEY;
+
+      try {
+        delete process.env.NODE_ENV;
+        process.env.EMAIL_PROVIDER = 'resend';
+        delete process.env.RESEND_API_KEY;
+
+        const result = await sendEmail({
+          to: 'customer@example.com',
+          subject: 'Unconfigured Resend Check',
+          html: '<p>Testing missing key</p>',
+        });
+
+        assert.equal(result.success, false);
+        assert.equal(result.provider, 'unconfigured');
+        assert.equal(result.error, 'Email provider unconfigured.');
+        assert.equal(result.delivered, false);
+      } finally {
+        if (origEnv) process.env.NODE_ENV = origEnv;
+        if (origProv) process.env.EMAIL_PROVIDER = origProv;
+        if (origKey) process.env.RESEND_API_KEY = origKey;
+      }
+    });
+
+    it('identifies and prevents duplicate notification on retried order event when log exists', async () => {
+      // Mock Mongoose connection and EmailLog model check
+      const { EmailLog } = await import('../server/models/EmailLog.ts');
+      const mongoose = (await import('mongoose')).default;
+
+      // Ensure a mock findOne on EmailLog returns an existing sent record
+      const origFindOne = EmailLog.findOne;
+      const origReadyState = Object.getOwnPropertyDescriptor(mongoose.connection, 'readyState');
+
+      try {
+        // Emulate connected readyState
+        Object.defineProperty(mongoose.connection, 'readyState', { value: 1, configurable: true });
+
+        (EmailLog as any).findOne = () => ({
+          lean: async () => ({
+            eventType: 'order_confirmation',
+            relatedId: 'MN-261017-DEDUP',
+            recipient: 'customer@example.com',
+            provider: 'resend',
+            providerMessageId: 'msg_existing_recorded_123',
+            status: 'sent',
+          }),
+        });
+
+        const result = await sendEmail({
+          to: 'customer@example.com',
+          subject: 'Order Confirmation',
+          html: '<p>Order Confirmation</p>',
+          eventType: 'order_confirmation',
+          relatedId: 'MN-261017-DEDUP',
+        });
+
+        assert.equal(result.success, true);
+        assert.equal(result.alreadySent, true, 'Must identify email as already sent');
+        assert.equal(result.delivered, true);
+        assert.equal(result.messageId, 'msg_existing_recorded_123');
+      } finally {
+        EmailLog.findOne = origFindOne;
+        if (origReadyState) {
+          Object.defineProperty(mongoose.connection, 'readyState', origReadyState);
+        }
+      }
+    });
+  });
 });
+

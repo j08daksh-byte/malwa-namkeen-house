@@ -9,6 +9,7 @@ export interface EmailResult {
   error?: string;
   simulated?: boolean;
   delivered?: boolean;
+  alreadySent?: boolean;
 }
 
 export function maskEmail(email: string): string {
@@ -145,6 +146,17 @@ function wrapEmailTemplate({
   `;
 }
 
+export const DEDUPLICATED_EVENT_TYPES: Set<EmailEventType> = new Set([
+  'order_confirmation',
+  'order_status_update',
+  'admin_new_order_alert',
+  'admin_order_cancellation_alert',
+  'customer_welcome',
+  'inquiry_acknowledgement',
+  'admin_new_inquiry_alert',
+  'role_changed_notification',
+]);
+
 /**
  * Dispatch transactional email via configured provider or safe dev simulation.
  * Logs delivery attempt in EmailLog for auditability and idempotency.
@@ -173,33 +185,68 @@ export async function sendEmail({
     return { success: false, provider: 'none', error: 'Invalid recipient email address.', delivered: false };
   }
 
+  // Idempotency: Check for duplicate dispatch on retried events (avoids spamming customers or admins)
+  if (
+    eventType &&
+    relatedId &&
+    DEDUPLICATED_EVENT_TYPES.has(eventType) &&
+    mongoose.connection.readyState === 1
+  ) {
+    try {
+      const existingSent = await EmailLog.findOne({
+        eventType,
+        relatedId,
+        recipient: cleanTo,
+        status: { $in: ['sent', 'simulated'] },
+      }).lean();
+
+      if (existingSent) {
+        return {
+          success: true,
+          provider: existingSent.provider,
+          messageId: existingSent.providerMessageId || undefined,
+          simulated: existingSent.status === 'simulated',
+          delivered: existingSent.status === 'sent',
+          alreadySent: true,
+        };
+      }
+    } catch (dedupErr) {
+      console.warn('[Email Deduplication Warning]:', dedupErr);
+    }
+  }
+
   const plainText = text && text.trim() ? text.trim() : generatePlainTextFallback(html);
   let result: EmailResult = { success: false, provider: config.provider, delivered: false };
 
   // 1. Resend Provider (Production / Configured Key & Provider)
-  if (config.provider === 'resend' && config.resendApiKey) {
-    try {
-      const client = getResendClient();
-      if (!client) throw new Error('Resend client initialization failed');
+  if (config.provider === 'resend') {
+    if (!config.resendApiKey) {
+      console.warn(`[Email Service] Resend provider selected but RESEND_API_KEY is not configured. Message to <${maskEmail(cleanTo)}> safely dropped.`);
+      result = { success: false, provider: 'unconfigured', error: 'Email provider unconfigured.', delivered: false };
+    } else {
+      try {
+        const client = getResendClient();
+        if (!client) throw new Error('Resend client initialization failed');
 
-      const response = await client.emails.send({
-        from: config.emailFrom,
-        to: [cleanTo],
-        subject,
-        html,
-        text: plainText,
-      });
+        const response = await client.emails.send({
+          from: config.emailFrom,
+          to: [cleanTo],
+          subject,
+          html,
+          text: plainText,
+        });
 
-      if (response.error) {
-        result = { success: false, provider: 'resend', error: response.error.message, delivered: false };
-      } else {
-        result = { success: true, provider: 'resend', messageId: response.data?.id, delivered: true };
+        if (response.error) {
+          result = { success: false, provider: 'resend', error: response.error.message, delivered: false };
+        } else {
+          result = { success: true, provider: 'resend', messageId: response.data?.id, delivered: true };
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        result = { success: false, provider: 'resend', error: msg, delivered: false };
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      result = { success: false, provider: 'resend', error: msg, delivered: false };
     }
-  } else if (isProd && config.provider !== 'simulated') {
+  } else if (config.provider === 'unconfigured' || (isProd && config.provider !== 'simulated')) {
     // 2. Production without configured provider (Fail safely without throwing)
     console.warn(`[Email Service] Production email provider unconfigured. Message to <${maskEmail(cleanTo)}> safely dropped.`);
     result = { success: false, provider: 'unconfigured', error: 'Email provider unconfigured.', delivered: false };

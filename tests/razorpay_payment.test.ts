@@ -449,6 +449,46 @@ describe('Gate 9: Razorpay Payment Integration & Security Suite', () => {
       const canRetry = mockOrder.orderStatus === 'pending' && mockOrder.paymentStatus !== 'paid';
       assert.equal(canRetry, true, 'Unpaid pending orders must allow payment retry');
     });
+
+    it('verifies that retry payment calculates exact paise and retains receipt order number', async () => {
+      let createdParams: any = null;
+      _setRazorpayClientForTesting({
+        orders: {
+          create: async (params) => {
+            createdParams = params;
+            return {
+              id: 'order_retry_abc999',
+              entity: 'order',
+              amount: params.amount,
+              amount_paid: 0,
+              amount_due: params.amount,
+              currency: params.currency || 'INR',
+              receipt: params.receipt,
+              status: 'created',
+              attempts: 0,
+              notes: params.notes || {},
+              created_at: Math.floor(Date.now() / 1000),
+            };
+          },
+        },
+      });
+
+      try {
+        const orderTotal = 649; // ₹649
+        const res = await createRazorpayOrder({
+          amount: Math.round(orderTotal * 100),
+          currency: 'INR',
+          receipt: 'MN-20261017-RETRY',
+          notes: { orderNumber: 'MN-20261017-RETRY' },
+        });
+
+        assert.equal(res.success, true);
+        assert.equal(createdParams.amount, 64900, 'Must convert ₹649 to 64900 paise exactly');
+        assert.equal(createdParams.receipt, 'MN-20261017-RETRY');
+      } finally {
+        _setRazorpayClientForTesting(null);
+      }
+    });
   });
 
   // ── 6. Cash on Delivery (COD) Regression Protection ─────────────────────
@@ -474,4 +514,26 @@ describe('Gate 9: Razorpay Payment Integration & Security Suite', () => {
       assert.equal(codOrder.paymentDetails.razorpayOrderId, undefined);
     });
   });
+
+  // ── 7. Edge Case Defensive Signatures ────────────────────────────────────
+  describe('7. Edge Case Signature Security', () => {
+    it('rejects payment signature verification with whitespace-only parameters', () => {
+      const isValid = verifyPaymentSignature({
+        razorpayOrderId: '   ',
+        razorpayPaymentId: 'pay_123',
+        razorpaySignature: 'sig_123',
+        secret: TEST_KEY_SECRET,
+      });
+      assert.equal(isValid, false, 'Whitespace-only order ID must be rejected');
+
+      const isValid2 = verifyPaymentSignature({
+        razorpayOrderId: 'order_123',
+        razorpayPaymentId: '   ',
+        razorpaySignature: 'sig_123',
+        secret: TEST_KEY_SECRET,
+      });
+      assert.equal(isValid2, false, 'Whitespace-only payment ID must be rejected');
+    });
+  });
 });
+

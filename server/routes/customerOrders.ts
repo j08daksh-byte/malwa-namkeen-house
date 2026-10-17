@@ -230,7 +230,15 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
         return;
       }
 
-      const qty = Math.max(1, parseInt(String(item.quantity), 10) || 1);
+      const rawQty = parseInt(String(item.quantity), 10);
+      if (isNaN(rawQty) || rawQty <= 0 || !Number.isInteger(Number(item.quantity))) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid quantity for "${product.name}". Quantity must be a positive whole number.`,
+        });
+        return;
+      }
+      const qty = rawQty;
       const stock = typeof variant.stock === 'number' ? variant.stock : 100;
 
       if (stock < qty) {
@@ -1095,6 +1103,94 @@ router.post('/:orderId/cancel-unpaid', requireAuth, async (req: AuthenticatedReq
   } catch (err: unknown) {
     console.error('[Cancel Unpaid Order Error]:', err);
     res.status(500).json({ success: false, message: 'Failed to cancel unpaid order.' });
+  }
+});
+
+/**
+ * POST /api/orders/:orderId/cancel
+ * Allows an authenticated customer to cancel their own pending, unfulfilled order.
+ * Automatically and idempotently restores reserved variant stock and rolls back coupon usage.
+ */
+router.post('/:orderId/cancel', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { orderId } = req.params;
+    const { reason = 'Cancelled by customer' } = req.body || {};
+
+    const query: any = mongoose.Types.ObjectId.isValid(orderId)
+      ? { _id: orderId }
+      : { orderNumber: orderId };
+
+    const order = await Order.findOne(query);
+    if (!order) {
+      res.status(404).json({ success: false, message: 'Order not found.' });
+      return;
+    }
+
+    const isOwner =
+      (order.customer && order.customer.toString() === req.user?.userId) ||
+      (!order.customer && order.customerInfo?.email && req.user?.email && order.customerInfo.email.toLowerCase() === req.user.email.toLowerCase()) ||
+      req.user?.role === 'admin' ||
+      req.user?.role === 'super_admin';
+
+    if (!isOwner) {
+      res.status(403).json({ success: false, message: 'You do not have permission to cancel this order.' });
+      return;
+    }
+
+    if (order.orderStatus === 'cancelled' || order.inventoryRestored) {
+      res.json({
+        success: true,
+        alreadyCancelled: true,
+        message: 'This order is already cancelled.',
+        order,
+      });
+      return;
+    }
+
+    if (order.orderStatus !== 'pending') {
+      res.status(400).json({
+        success: false,
+        message: `Orders that are already in "${order.orderStatus}" status cannot be cancelled online. Please contact support.`,
+        order,
+      });
+      return;
+    }
+
+    if (order.shipmentStatus && order.shipmentStatus !== 'unfulfilled') {
+      res.status(400).json({
+        success: false,
+        message: 'This order has already been prepared or dispatched for shipping and cannot be cancelled.',
+        order,
+      });
+      return;
+    }
+
+    const cancelResult = await cancelAndRestockOrder(order._id, {
+      cancelledBy: 'customer',
+      reason: typeof reason === 'string' && reason.trim() ? reason.trim() : 'Cancelled by customer',
+      allowedCurrentStatuses: ['pending'],
+    });
+
+    if (!cancelResult.success && !cancelResult.alreadyCancelled) {
+      res.status(400).json({
+        success: false,
+        message: cancelResult.message || 'Failed to cancel order.',
+        warnings: cancelResult.warnings,
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      alreadyCancelled: Boolean(cancelResult.alreadyCancelled),
+      message: cancelResult.alreadyCancelled
+        ? 'This order is already cancelled.'
+        : 'Your order has been cancelled successfully. Any reserved items have been returned to stock.',
+      order: cancelResult.order || order,
+    });
+  } catch (err: unknown) {
+    console.error('[Customer Order Cancel Error]:', err);
+    res.status(500).json({ success: false, message: 'Failed to cancel order.' });
   }
 });
 

@@ -277,6 +277,15 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
           },
         });
 
+        rzp.on('payment.failed', function (response: any) {
+          setIsSubmitting(false);
+          const reason =
+            response?.error?.description ||
+            response?.error?.reason ||
+            'Payment could not be completed.';
+          setErrorMessage(`Payment failed: ${reason}. You can retry or choose Cash on Delivery.`);
+        });
+
         rzp.open();
         return;
       }

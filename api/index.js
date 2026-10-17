@@ -1728,6 +1728,16 @@ function wrapEmailTemplate({
 </html>
   `;
 }
+var DEDUPLICATED_EVENT_TYPES = /* @__PURE__ */ new Set([
+  "order_confirmation",
+  "order_status_update",
+  "admin_new_order_alert",
+  "admin_order_cancellation_alert",
+  "customer_welcome",
+  "inquiry_acknowledgement",
+  "admin_new_inquiry_alert",
+  "role_changed_notification"
+]);
 async function sendEmail({
   to,
   subject,
@@ -1742,29 +1752,56 @@ async function sendEmail({
   if (!cleanTo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanTo)) {
     return { success: false, provider: "none", error: "Invalid recipient email address.", delivered: false };
   }
+  if (eventType && relatedId && DEDUPLICATED_EVENT_TYPES.has(eventType) && mongoose9.connection.readyState === 1) {
+    try {
+      const existingSent = await EmailLog.findOne({
+        eventType,
+        relatedId,
+        recipient: cleanTo,
+        status: { $in: ["sent", "simulated"] }
+      }).lean();
+      if (existingSent) {
+        return {
+          success: true,
+          provider: existingSent.provider,
+          messageId: existingSent.providerMessageId || void 0,
+          simulated: existingSent.status === "simulated",
+          delivered: existingSent.status === "sent",
+          alreadySent: true
+        };
+      }
+    } catch (dedupErr) {
+      console.warn("[Email Deduplication Warning]:", dedupErr);
+    }
+  }
   const plainText = text && text.trim() ? text.trim() : generatePlainTextFallback(html);
   let result = { success: false, provider: config.provider, delivered: false };
-  if (config.provider === "resend" && config.resendApiKey) {
-    try {
-      const client = getResendClient();
-      if (!client) throw new Error("Resend client initialization failed");
-      const response = await client.emails.send({
-        from: config.emailFrom,
-        to: [cleanTo],
-        subject,
-        html,
-        text: plainText
-      });
-      if (response.error) {
-        result = { success: false, provider: "resend", error: response.error.message, delivered: false };
-      } else {
-        result = { success: true, provider: "resend", messageId: response.data?.id, delivered: true };
+  if (config.provider === "resend") {
+    if (!config.resendApiKey) {
+      console.warn(`[Email Service] Resend provider selected but RESEND_API_KEY is not configured. Message to <${maskEmail(cleanTo)}> safely dropped.`);
+      result = { success: false, provider: "unconfigured", error: "Email provider unconfigured.", delivered: false };
+    } else {
+      try {
+        const client = getResendClient();
+        if (!client) throw new Error("Resend client initialization failed");
+        const response = await client.emails.send({
+          from: config.emailFrom,
+          to: [cleanTo],
+          subject,
+          html,
+          text: plainText
+        });
+        if (response.error) {
+          result = { success: false, provider: "resend", error: response.error.message, delivered: false };
+        } else {
+          result = { success: true, provider: "resend", messageId: response.data?.id, delivered: true };
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        result = { success: false, provider: "resend", error: msg, delivered: false };
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      result = { success: false, provider: "resend", error: msg, delivered: false };
     }
-  } else if (isProd2 && config.provider !== "simulated") {
+  } else if (config.provider === "unconfigured" || isProd2 && config.provider !== "simulated") {
     console.warn(`[Email Service] Production email provider unconfigured. Message to <${maskEmail(cleanTo)}> safely dropped.`);
     result = { success: false, provider: "unconfigured", error: "Email provider unconfigured.", delivered: false };
   } else {
@@ -6059,7 +6096,15 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
         });
         return;
       }
-      const qty = Math.max(1, parseInt(String(item.quantity), 10) || 1);
+      const rawQty = parseInt(String(item.quantity), 10);
+      if (isNaN(rawQty) || rawQty <= 0 || !Number.isInteger(Number(item.quantity))) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid quantity for "${product.name}". Quantity must be a positive whole number.`
+        });
+        return;
+      }
+      const qty = rawQty;
       const stock = typeof variant.stock === "number" ? variant.stock : 100;
       if (stock < qty) {
         res.status(400).json({
@@ -6753,6 +6798,70 @@ router6.post("/:orderId/cancel-unpaid", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("[Cancel Unpaid Order Error]:", err);
     res.status(500).json({ success: false, message: "Failed to cancel unpaid order." });
+  }
+});
+router6.post("/:orderId/cancel", requireAuth, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { reason = "Cancelled by customer" } = req.body || {};
+    const query = mongoose18.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderNumber: orderId };
+    const order = await Order.findOne(query);
+    if (!order) {
+      res.status(404).json({ success: false, message: "Order not found." });
+      return;
+    }
+    const isOwner = order.customer && order.customer.toString() === req.user?.userId || !order.customer && order.customerInfo?.email && req.user?.email && order.customerInfo.email.toLowerCase() === req.user.email.toLowerCase() || req.user?.role === "admin" || req.user?.role === "super_admin";
+    if (!isOwner) {
+      res.status(403).json({ success: false, message: "You do not have permission to cancel this order." });
+      return;
+    }
+    if (order.orderStatus === "cancelled" || order.inventoryRestored) {
+      res.json({
+        success: true,
+        alreadyCancelled: true,
+        message: "This order is already cancelled.",
+        order
+      });
+      return;
+    }
+    if (order.orderStatus !== "pending") {
+      res.status(400).json({
+        success: false,
+        message: `Orders that are already in "${order.orderStatus}" status cannot be cancelled online. Please contact support.`,
+        order
+      });
+      return;
+    }
+    if (order.shipmentStatus && order.shipmentStatus !== "unfulfilled") {
+      res.status(400).json({
+        success: false,
+        message: "This order has already been prepared or dispatched for shipping and cannot be cancelled.",
+        order
+      });
+      return;
+    }
+    const cancelResult = await cancelAndRestockOrder(order._id, {
+      cancelledBy: "customer",
+      reason: typeof reason === "string" && reason.trim() ? reason.trim() : "Cancelled by customer",
+      allowedCurrentStatuses: ["pending"]
+    });
+    if (!cancelResult.success && !cancelResult.alreadyCancelled) {
+      res.status(400).json({
+        success: false,
+        message: cancelResult.message || "Failed to cancel order.",
+        warnings: cancelResult.warnings
+      });
+      return;
+    }
+    res.json({
+      success: true,
+      alreadyCancelled: Boolean(cancelResult.alreadyCancelled),
+      message: cancelResult.alreadyCancelled ? "This order is already cancelled." : "Your order has been cancelled successfully. Any reserved items have been returned to stock.",
+      order: cancelResult.order || order
+    });
+  } catch (err) {
+    console.error("[Customer Order Cancel Error]:", err);
+    res.status(500).json({ success: false, message: "Failed to cancel order." });
   }
 });
 var customerOrders_default = router6;
@@ -7602,6 +7711,7 @@ import { Router as Router9 } from "express";
 import mongoose21 from "mongoose";
 
 // server/lib/shiprocketService.ts
+import crypto4 from "node:crypto";
 var SHIPROCKET_BASE_URL = "https://apiv2.shiprocket.in/v1/external";
 var cachedAuthToken = null;
 var tokenExpiresAt = 0;
@@ -7684,12 +7794,12 @@ async function getShiprocketAuthToken() {
 function parseVariantWeightKg(variantLabel) {
   if (!variantLabel || typeof variantLabel !== "string") return null;
   const clean = variantLabel.trim().toLowerCase();
-  const kgMatch = clean.match(/^(\d+(?:\.\d+)?)\s*kg$/);
+  const kgMatch = clean.match(/^(\d+(?:\.\d+)?)\s*kg(?:\s+(?:pack|pouch|box|jar|tin|bag|container))?$/);
   if (kgMatch) {
     const val = parseFloat(kgMatch[1]);
     return val > 0 ? val : null;
   }
-  const gMatch = clean.match(/^(\d+(?:\.\d+)?)\s*(?:g|gm|gms|grams)$/);
+  const gMatch = clean.match(/^(\d+(?:\.\d+)?)\s*(?:g|gm|gms|grams)(?:\s+(?:pack|pouch|box|jar|tin|bag|container))?$/);
   if (gMatch) {
     const grams = parseFloat(gMatch[1]);
     return grams > 0 ? grams / 1e3 : null;
@@ -7977,12 +8087,21 @@ function verifyShiprocketWebhook(headers, expectedToken) {
   if (!token) {
     return false;
   }
-  const receivedToken = headers["x-api-key"] || headers["http_x_api_key"] || headers["authorization"] || headers["x-shiprocket-token"];
-  if (!receivedToken || typeof receivedToken !== "string") {
+  const rawReceived = headers["x-api-key"] || headers["http_x_api_key"] || headers["authorization"] || headers["x-shiprocket-token"];
+  if (!rawReceived || typeof rawReceived !== "string") {
     return false;
   }
-  const cleanReceived = receivedToken.replace(/^Bearer\s+/i, "").trim();
-  return cleanReceived === token;
+  const cleanReceived = rawReceived.replace(/^Bearer\s+/i, "").trim();
+  if (!cleanReceived) {
+    return false;
+  }
+  const expectedBuf = Buffer.from(token, "utf8");
+  const receivedBuf = Buffer.from(cleanReceived, "utf8");
+  if (expectedBuf.length !== receivedBuf.length) {
+    crypto4.timingSafeEqual(expectedBuf, expectedBuf);
+    return false;
+  }
+  return crypto4.timingSafeEqual(expectedBuf, receivedBuf);
 }
 
 // server/routes/adminOrders.ts
@@ -9309,7 +9428,7 @@ var adminInquiries_default = router12;
 
 // server/routes/adminStaff.ts
 import { Router as Router13 } from "express";
-import crypto4 from "crypto";
+import crypto5 from "crypto";
 import mongoose26 from "mongoose";
 var router13 = Router13();
 router13.use(requireSuperAdmin);
@@ -9371,8 +9490,8 @@ router13.post("/invite", async (req, res) => {
       });
       return;
     }
-    const rawToken = crypto4.randomBytes(32).toString("hex");
-    const tokenHash = crypto4.createHash("sha256").update(rawToken).digest("hex");
+    const rawToken = crypto5.randomBytes(32).toString("hex");
+    const tokenHash = crypto5.createHash("sha256").update(rawToken).digest("hex");
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1e3);
     const newStaff = await User.create({
       name: cleanName,
@@ -11131,7 +11250,27 @@ var concierge_default = router21;
 // server/routes/shippingWebhooks.ts
 import { Router as Router22 } from "express";
 var router22 = Router22();
-router22.post("/webhook/shiprocket", async (req, res) => {
+function buildStableEventId(headers, payload, awb, shipmentId, orderNumber, currentStatus) {
+  const headerEventId = headers["x-event-id"];
+  if (headerEventId && typeof headerEventId === "string" && headerEventId.trim()) {
+    return headerEventId.trim();
+  }
+  const payloadEventId = payload.event_id;
+  if (payloadEventId && String(payloadEventId).trim()) {
+    return String(payloadEventId).trim();
+  }
+  const stableRef = awb || (shipmentId ? String(shipmentId) : orderNumber || "");
+  const stableStatus = currentStatus.toUpperCase().replace(/\s+/g, "_");
+  const stableTimestamp = (payload.scanned_date || payload.etd || "").trim();
+  if (!stableRef || !stableStatus) {
+    return null;
+  }
+  if (!stableTimestamp) {
+    return `sr_${stableRef}_${stableStatus}`;
+  }
+  return `sr_${stableRef}_${stableStatus}_${stableTimestamp}`;
+}
+router22.post(["/webhook/shiprocket", "/webhook", "/"], async (req, res) => {
   try {
     const isAuthorized = verifyShiprocketWebhook(req.headers);
     if (!isAuthorized) {
@@ -11142,30 +11281,77 @@ router22.post("/webhook/shiprocket", async (req, res) => {
     const payload = req.body || {};
     const awb = String(payload.awb || payload.awb_code || "").trim();
     const shipmentId = payload.shipment_id ? Number(payload.shipment_id) : void 0;
-    const orderNumber = String(payload.order_id || "").trim();
+    const orderNumber = String(payload.channel_order_id || payload.order_id || "").trim();
     const currentStatus = String(payload.current_status || payload.status || "").trim();
     if (!awb && !shipmentId && !orderNumber) {
       res.status(400).json({ success: false, message: "Missing shipment identifiers in webhook payload." });
       return;
     }
-    const query = {
-      $or: [
-        ...orderNumber ? [{ orderNumber }] : [],
-        ...shipmentId ? [{ "shiprocketDetails.shipmentId": shipmentId }] : [],
-        ...awb ? [{ "shiprocketDetails.awbCode": awb }] : []
-      ]
-    };
-    const order = await Order.findOne(query);
-    if (!order) {
-      console.warn(`[Shiprocket Webhook] No matching order found for AWB: "${awb}", Shipment: "${shipmentId}", Order: "${orderNumber}".`);
-      res.status(200).json({ success: true, message: "Order not found, event acknowledged." });
+    const eventIdentifier = buildStableEventId(
+      req.headers,
+      payload,
+      awb,
+      shipmentId,
+      orderNumber,
+      currentStatus
+    );
+    if (eventIdentifier === null) {
+      console.warn(
+        `[Shiprocket Webhook] Received event with no stable identifier (AWB: "${awb}", Shipment: "${shipmentId}", Status: "${currentStatus}"). Acknowledged without processing to preserve replay safety.`
+      );
+      res.status(200).json({
+        success: true,
+        message: "Event acknowledged without processing: no stable event identifier available.",
+        unidentifiable: true
+      });
       return;
     }
-    const eventIdentifier = String(
-      req.headers["x-event-id"] || payload.event_id || `${awb || shipmentId}_${currentStatus}_${payload.scanned_date || payload.etd || Date.now()}`
+    const orderQuery = {
+      $or: [
+        ...orderNumber ? [{ orderNumber }] : [],
+        ...orderNumber && !isNaN(Number(orderNumber)) ? [{ "shiprocketDetails.orderId": Number(orderNumber) }] : [],
+        ...shipmentId ? [{ "shiprocketDetails.shipmentId": shipmentId }] : [],
+        ...awb ? [{ "shiprocketDetails.awbCode": awb }] : []
+      ],
+      // Atomic replay-protection: only match orders that have NOT yet recorded this event.
+      // $nin is more reliable than $not+$elemMatch on empty/null/missing array fields.
+      processedShippingEvents: { $nin: [eventIdentifier] }
+    };
+    const claimedOrder = await Order.findOneAndUpdate(
+      orderQuery,
+      { $addToSet: { processedShippingEvents: eventIdentifier } },
+      { new: false }
+      // return the pre-update doc so we can read previous state
     );
-    if (order.processedShippingEvents && order.processedShippingEvents.includes(eventIdentifier)) {
+    if (!claimedOrder) {
+      const existingOrder = await Order.findOne({
+        $or: [
+          ...orderNumber ? [{ orderNumber }] : [],
+          ...orderNumber && !isNaN(Number(orderNumber)) ? [{ "shiprocketDetails.orderId": Number(orderNumber) }] : [],
+          ...shipmentId ? [{ "shiprocketDetails.shipmentId": shipmentId }] : [],
+          ...awb ? [{ "shiprocketDetails.awbCode": awb }] : []
+        ]
+      });
+      if (!existingOrder) {
+        console.warn(
+          `[Shiprocket Webhook] No matching order found for AWB: "${awb}", Shipment: "${shipmentId}", Order: "${orderNumber}".`
+        );
+        res.status(200).json({ success: true, message: "Order not found, event acknowledged." });
+        return;
+      }
       res.json({ success: true, message: "Event already processed.", alreadyProcessed: true });
+      return;
+    }
+    const order = claimedOrder;
+    if (order.orderStatus === "cancelled") {
+      console.warn(
+        `[Shiprocket Webhook] Late event "${currentStatus}" received for CANCELLED Order #${order.orderNumber} \u2014 no state change applied.`
+      );
+      res.status(200).json({
+        success: true,
+        message: `Event "${currentStatus}" acknowledged for cancelled order #${order.orderNumber}. No state change applied.`,
+        cancelledOrderGuard: true
+      });
       return;
     }
     const previousStatus = order.orderStatus;
@@ -11222,10 +11408,8 @@ router22.post("/webhook/shiprocket", async (req, res) => {
     } else if (statusUpper.includes("RTO") || statusUpper.includes("RETURN")) {
       order.shipmentStatus = "returned";
     }
-    order.processedShippingEvents = order.processedShippingEvents || [];
-    order.processedShippingEvents.push(eventIdentifier);
     await order.save();
-    if (shouldNotifyCustomer && order.orderStatus !== "cancelled") {
+    if (shouldNotifyCustomer) {
       (async () => {
         try {
           await sendOrderStatusUpdate({

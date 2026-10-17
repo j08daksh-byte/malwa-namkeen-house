@@ -13,7 +13,7 @@ const files = fs.readdirSync(testDir)
   .filter(f => f.endsWith('.test.ts'))
   .sort();
 
-const LIVE_E2E_SUITES = ['e2e_live_server.test.ts', 'full_system_e2e.test.ts'];
+const LIVE_E2E_SUITES = ['e2e_live_server.test.ts', 'full_system_e2e.test.ts', 'comprehensive_integration.test.ts', 'webhook_shiprocket.test.ts'];
 const hasConfiguredTestDb = Boolean(
   process.env.MONGODB_TEST_URI &&
   process.env.MONGODB_TEST_URI.trim() !== '' &&
@@ -68,6 +68,7 @@ async function ensureServer() {
     IS_E2E_TEST: 'true',
     MONGODB_TEST_URI: process.env.MONGODB_TEST_URI,
     MONGODB_TEST_DB_NAME: process.env.MONGODB_TEST_DB_NAME,
+    SHIPROCKET_WEBHOOK_TOKEN: process.env.SHIPROCKET_WEBHOOK_TOKEN || 'shiprocket_webhook_secret_daksh_2026',
   };
 
   if (serverPath.endsWith('.cjs')) {

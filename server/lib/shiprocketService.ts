@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { IOrder, IOrderItem } from '../models/Order.ts';
 
 export interface ShiprocketConfig {
@@ -220,15 +221,15 @@ export function parseVariantWeightKg(variantLabel: string): number | null {
   if (!variantLabel || typeof variantLabel !== 'string') return null;
   const clean = variantLabel.trim().toLowerCase();
 
-  // Match pattern: "1.25kg" or "1 kg"
-  const kgMatch = clean.match(/^(\d+(?:\.\d+)?)\s*kg$/);
+  // Match pattern: "1.25kg" or "1 kg" or "1kg Box"
+  const kgMatch = clean.match(/^(\d+(?:\.\d+)?)\s*kg(?:\s+(?:pack|pouch|box|jar|tin|bag|container))?$/);
   if (kgMatch) {
     const val = parseFloat(kgMatch[1]);
     return val > 0 ? val : null;
   }
 
-  // Match pattern: "500g" or "500 gm" or "500 grams"
-  const gMatch = clean.match(/^(\d+(?:\.\d+)?)\s*(?:g|gm|gms|grams)$/);
+  // Match pattern: "500g" or "500 gm" or "500 grams" or "250g Pack"
+  const gMatch = clean.match(/^(\d+(?:\.\d+)?)\s*(?:g|gm|gms|grams)(?:\s+(?:pack|pouch|box|jar|tin|bag|container))?$/);
   if (gMatch) {
     const grams = parseFloat(gMatch[1]);
     return grams > 0 ? grams / 1000 : null;
@@ -608,8 +609,11 @@ export async function trackShipmentByAWB(
 }
 
 /**
- * Cryptographically verifies Shiprocket webhook authenticity.
- * Shiprocket passes custom header 'x-api-key' or 'Authorization' configured in Webhook settings.
+ * Cryptographically verifies Shiprocket webhook authenticity using timing-safe comparison.
+ * Shiprocket passes a custom header ('x-api-key', 'Authorization', or 'x-shiprocket-token')
+ * configured in Webhook settings.
+ *
+ * Uses crypto.timingSafeEqual to prevent timing side-channel attacks on the secret comparison.
  */
 export function verifyShiprocketWebhook(
   headers: Record<string, any>,
@@ -618,20 +622,39 @@ export function verifyShiprocketWebhook(
   const config = getShiprocketConfig();
   const token = (expectedToken || config.webhookToken || '').trim();
 
+  // Reject if the server-side expected token is not configured
   if (!token) {
     return false;
   }
 
-  const receivedToken =
+  const rawReceived =
     headers['x-api-key'] ||
     headers['http_x_api_key'] ||
     headers['authorization'] ||
     headers['x-shiprocket-token'];
 
-  if (!receivedToken || typeof receivedToken !== 'string') {
+  // Input validation: must be a non-empty string
+  if (!rawReceived || typeof rawReceived !== 'string') {
     return false;
   }
 
-  const cleanReceived = receivedToken.replace(/^Bearer\s+/i, '').trim();
-  return cleanReceived === token;
+  const cleanReceived = rawReceived.replace(/^Bearer\s+/i, '').trim();
+
+  // Reject obviously-empty tokens before allocation
+  if (!cleanReceived) {
+    return false;
+  }
+
+  // Timing-safe comparison — allocate equal-length buffers to avoid length-leak
+  const expectedBuf = Buffer.from(token, 'utf8');
+  const receivedBuf = Buffer.from(cleanReceived, 'utf8');
+
+  if (expectedBuf.length !== receivedBuf.length) {
+    // Lengths differ — tokens cannot match, but still perform a dummy comparison
+    // against itself to keep timing uniform relative to token presence checks.
+    crypto.timingSafeEqual(expectedBuf, expectedBuf);
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expectedBuf, receivedBuf);
 }

@@ -6,6 +6,7 @@
 import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
@@ -378,14 +379,16 @@ async function startServer() {
 
   // ── Static / Vite ─────────────────────────────────────────────────────────
 
-  if (!isProd) {
+  const distPath = path.join(process.cwd(), 'dist');
+  const hasBuiltDist = fs.existsSync(path.join(distPath, 'index.html'));
+
+  if (!isProd && !hasBuiltDist) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));

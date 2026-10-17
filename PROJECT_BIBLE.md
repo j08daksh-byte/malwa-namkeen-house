@@ -2,7 +2,8 @@
 
 **System Name:** Malwa Namkeen House D2C E-Commerce & Administrative Platform
 **Established:** 1954 (Ujjain / Bengaluru Heritage Savouries & Sweets)
-**Version:** 1.1.0 Canonical Consolidated Main (`bf2ef58d6a9e8b1c644f4d8072640f787a16bab9`)
+**Version:** 1.2.0 (Canonical Main: `8e9d031c26b52a138bb36279f19630c79ca2e4c9`, consolidated merge `bf2ef58`)
+**Active Integration Branch:** `feat/comprehensive-integration-pass` (HEAD: `78feac2` + uncommitted working changes)
 **Canonical Repository:** `j08daksh-byte/malwa-namkeen-house` (`daksh_repo/main`)
 **Production Host:** Vercel (`malwa-namkeen`)
 **Database Host:** MongoDB Atlas
@@ -302,8 +303,12 @@ npx tsx tests/e2e_safety_guard.test.ts
 npx tsx tests/product_card_availability.test.ts  # 23 / 23 PASS
 npx tsx tests/order_cancellation_restock.test.ts # 23 / 23 PASS
 npx tsx tests/admin_permissions.test.ts          # 14 / 14 PASS
-npx tsx tests/transactional_email.test.ts        # 13 / 13 PASS
+npx tsx tests/transactional_email.test.ts        # 24 / 24 PASS
 npx tsx tests/regression.test.ts                 # 21 / 21 PASS
+npx tsx tests/razorpay_payment.test.ts            # 24 / 24 PASS
+npx tsx tests/shiprocket_shipping.test.ts         # 32 / 32 PASS
+npx tsx tests/webhook_shiprocket.test.ts          # 16 / 16 PASS
+npx tsx tests/comprehensive_integration.test.ts   # 32 / 32 PASS
 
 # 4. Run Live E2E tests against an authorized test database (malwa_namkeen_test)
 # Terminal 1: Launch test server on port 3001
@@ -311,7 +316,9 @@ npx tsx tests/regression.test.ts                 # 21 / 21 PASS
 # Terminal 2: Run live suites
 # BASE_URL=http://127.0.0.1:3001 npx tsx tests/e2e_live_server.test.ts    # 18 / 18 PASS (3 records cleaned)
 # BASE_URL=http://127.0.0.1:3001 npx tsx tests/full_system_e2e.test.ts   # 43 / 43 PASS (4 records cleaned)
-# Grand Total: 206 / 206 Tests Passing Across All 18 Suites (145/145 offline)
+# Grand Total:
+#  - Baseline on main: 206 / 206 Tests Passing Across 18 Suites (145/145 offline)
+#  - Active integration branch (feat/comprehensive-integration-pass): 321 / 321 Tests Passing Across 22 Suites (236/236 offline)
 ```
 
 #### 4. Dedicated Test Database Setup in MongoDB Atlas
@@ -329,10 +336,18 @@ npx tsx tests/regression.test.ts                 # 21 / 21 PASS
 - **Pre-removal Requirements:** Before deleting `0.0.0.0/0` from Atlas Network Access, verify whether Vercel is configured with Dedicated Static Outbound IPs or VPC Peering. Removing `0.0.0.0/0` without static peering will immediately sever Vercel production serverless API connections to MongoDB Atlas.
 
 ### 6.5 Operational Scope & Release Readiness Boundaries
-1. **Interactive Browser QA Incomplete:** While automated suites pass 100% (206/206 assertions across 18 suites), manual browser QA across multiple viewport sizes and browsers has not been executed. Do NOT claim manual QA passed.
-2. **Cancellation Inventory Restoration Pending Verification with Genuine Checkout Order:** The Gate 2A fixture pending order (`MN-QA-20261017-001`) was seeded directly via `Order.create` without decremented starting inventory. While unit tests (`order_cancellation_restock.test.ts`) verify mathematical and database restoration logic, full lifecycle verification of stock decrement during checkout followed by stock restoration upon cancellation against a genuine checkout-created order in the test database remains to be executed.
-3. **Transactional Email (Resend Delivery Unverified):** Verified in code and simulated tests, but unverified live. Vercel environment audit confirmed `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are not yet populated. Domain DNS (SPF/DKIM/DMARC) must be verified in Resend before enabling real delivery.
-4. **Payment Processing (Razorpay Online & Cash on Delivery):** Fully architected and tested with 22/22 tests passing in `tests/razorpay_payment.test.ts`. Supports server-validated amounts in paise, constant-time HMAC-SHA256 signature verification, idempotent webhook processing, and retry/restoration protection. Real live charges require merchant account configuration (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`) in Vercel. Cash on Delivery (COD) remains fully operational.
-5. **Logistics & Shipping (Shiprocket Integrated & Tested):** Server-side Shiprocket integration is fully architected and verified with 32/32 tests passing in `tests/shiprocket_shipping.test.ts`. Supports packaging weight calculation strictly from server metadata, duplicate shipment protection (HTTP 409), AWB assignment, tracking lookup, webhook token authentication, replay attack deduplication, and COD auto-reconciliation upon verified delivery. Manual administrative tracking entry (`courierName`, `trackingNumber`, `trackingUrl`) remains 100% functional. Live courier operations require configuring `SHIPROCKET_EMAIL`, `SHIPROCKET_PASSWORD`, and `SHIPROCKET_WEBHOOK_TOKEN` in Vercel.
+1. **Interactive Browser QA (UNVERIFIED):** While automated suites pass 100% (321/321 assertions across 22 suites in `run_all.mjs`), and mobile viewport tags/responsive layouts are verified via integration tests, manual cross-device / cross-browser QA is **UNVERIFIED**. Manual staging checks required before customer launch:
+   - Variant/weight switching (250g, 500g, 1kg) and dynamic price updates on `/shop`.
+   - Out-of-stock badge display and disabled CTA enforcement for depleted products.
+   - Cart limit boundaries (max 10 / stock cap) and coupon validation (`QA10PERCENT`).
+   - Cash on Delivery (COD) checkout placement and confirmation screen.
+   - Razorpay Test Mode checkout popup invocation, dismissed modal handling, and declined card alert (`payment.failed`).
+   - Customer self-service order cancellation from `/dashboard` and stock restoration verification.
+   - Admin order fulfillment drawer and manual tracking fallback (`courierName`, `trackingNumber`, `trackingUrl`) on `/admin/orders`.
+2. **Cancellation Inventory & Coupon Restoration Empirically Verified:** Full lifecycle verification of variant stock decrement during checkout followed by stock restoration and coupon rollback upon cancellation against a genuine checkout-created order in the test database was completed and verified in `tests/comprehensive_integration.test.ts` Section 6. Pre-seeded order `MN-QA-20261017-001` remains completely untouched in the test database.
+3. **Transactional Email — Resend Live Delivery (UNVERIFIED IN PRODUCTION):** Verified in code, mocked integration tests, and simulated tests with non-blocking error handling (24/24 tests). Real live network delivery is **UNVERIFIED** pending configuration of `RESEND_API_KEY` and `RESEND_FROM_EMAIL` in Vercel and domain DNS verification (SPF/DKIM/DMARC) in Resend.
+4. **Payment Processing — Razorpay Live Transactions (UNVERIFIED IN PRODUCTION):** Fully architected and tested with 24/24 tests in `tests/razorpay_payment.test.ts` and 9-domain comprehensive integration. Supports server-validated amounts in paise, constant-time HMAC-SHA256 signature verification, idempotent webhook processing, and retry/restoration protection. Real live charges are **UNVERIFIED** pending merchant credentials (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`) in Vercel. Cash on Delivery (COD) remains fully operational.
+5. **Logistics & Shipping — Shiprocket Live Courier (UNVERIFIED IN PRODUCTION):** Server-side Shiprocket integration is fully architected and verified with 32/32 tests in `tests/shiprocket_shipping.test.ts` and 16/16 tests in `tests/webhook_shiprocket.test.ts`. Supports packaging weight calculation strictly from server metadata, duplicate shipment protection (HTTP 409), AWB assignment, tracking lookup, webhook token authentication, replay attack deduplication, and COD auto-reconciliation upon verified delivery. Manual administrative tracking entry (`courierName`, `trackingNumber`, `trackingUrl`) remains 100% functional. Live courier dispatches are **UNVERIFIED** pending configuration of `SHIPROCKET_EMAIL`, `SHIPROCKET_PASSWORD`, and `SHIPROCKET_WEBHOOK_TOKEN` in Vercel.
 6. **Serverless Concurrency:** In-memory rate limiting and idempotency caching (`MemoryStore`) protect within a single warm lambda instance; distributed rate limiting across concurrent cold lambdas requires an external Redis cache (e.g. Upstash) in future milestones.
-7. **Canonical Release & Production Deployment Status:** Canonical `main` is consolidated at `bf2ef58d6a9e8b1c644f4d8072640f787a16bab9` and pushed to `daksh_repo/main`. Release branch `release/malwa-production-ready` remains strictly preserved at `73f3fd12ca254a295d8f8c630aae8bd83c7a988b`. Zero deployment was performed during this consolidation. Active Vercel production deployment remains on baseline `9fd812d` / `8dca758` ([`dpl_DayLHyctUicwMKCshgVRtsVLXFET`](https://malwa-namkeen.vercel.app)).
+7. **Canonical Release & Production Deployment Status:** Canonical `main` is consolidated at `8e9d031c26b52a138bb36279f19630c79ca2e4c9` (consolidated merge `bf2ef58d6a9e8b1c644f4d8072640f787a16bab9`) and pushed to `daksh_repo/main` and `origin/main`. Active integration branch is `feat/comprehensive-integration-pass` (HEAD: `78feac2` + uncommitted changes). Release branch `release/malwa-production-ready` remains strictly preserved at `73f3fd12ca254a295d8f8c630aae8bd83c7a988b`. Zero deployment was performed during this consolidation. Active Vercel production deployment remains on baseline `9fd812d` / `8dca758` ([`dpl_DayLHyctUicwMKCshgVRtsVLXFET`](https://malwa-namkeen.vercel.app)).
+8. **Exact Single Safest Next Action:** Commit the uncommitted working-tree changes on branch `feat/comprehensive-integration-pass` with message: `feat(integration): consolidate comprehensive integration pass and Shiprocket webhook safety suite` prior to preparing candidate PR/merge into `main`.
