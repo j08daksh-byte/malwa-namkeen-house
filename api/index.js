@@ -1,7 +1,7 @@
 // server/api-entry.ts
 import express from "express";
 import cookieParser from "cookie-parser";
-import mongoose32 from "mongoose";
+import mongoose33 from "mongoose";
 
 // server/lib/mongodb.ts
 import mongoose5 from "mongoose";
@@ -1454,8 +1454,149 @@ import crypto from "crypto";
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 
+// server/lib/mongoRateLimitStore.ts
+import mongoose6 from "mongoose";
+var MongoRateLimitStore = class {
+  constructor(optionsOrPrefix, windowMs) {
+    this.localKeys = false;
+    // Cross-instance distributed keys
+    // Fallback memory tracking if DB is offline/disconnected
+    this.fallbackMemory = /* @__PURE__ */ new Map();
+    if (typeof optionsOrPrefix === "string") {
+      this.prefix = optionsOrPrefix.endsWith(":") ? optionsOrPrefix : `${optionsOrPrefix}:`;
+      this.windowMs = windowMs || 6e4;
+      this.failClosed = true;
+    } else {
+      const p = optionsOrPrefix?.prefix || "rl:";
+      this.prefix = p.endsWith(":") ? p : `${p}:`;
+      this.windowMs = optionsOrPrefix?.windowMs || windowMs || 6e4;
+      this.failClosed = optionsOrPrefix?.failClosed !== false;
+    }
+  }
+  init(options) {
+    if (options.windowMs) {
+      this.windowMs = options.windowMs;
+    }
+  }
+  async increment(key) {
+    const fullKey = `${this.prefix}${key}`;
+    const now = Date.now();
+    const resetTime = new Date(now + this.windowMs);
+    if (mongoose6.connection.readyState === 1 && mongoose6.connection.db) {
+      try {
+        const collection = mongoose6.connection.collection("ratelimitrecords");
+        const updated = await collection.findOneAndUpdate(
+          { _id: fullKey, resetTime: { $gt: new Date(now) } },
+          { $inc: { totalHits: 1 } },
+          { returnDocument: "after" }
+        );
+        if (updated) {
+          const doc = updated;
+          return {
+            totalHits: doc.totalHits,
+            resetTime: doc.resetTime
+          };
+        }
+        const resetDoc = await collection.findOneAndUpdate(
+          { _id: fullKey, resetTime: { $lte: new Date(now) } },
+          {
+            $set: {
+              totalHits: 1,
+              resetTime,
+              expiresAt: resetTime
+            }
+          },
+          { returnDocument: "after" }
+        );
+        if (resetDoc) {
+          const doc = resetDoc;
+          return {
+            totalHits: doc.totalHits,
+            resetTime: doc.resetTime
+          };
+        }
+        try {
+          await collection.insertOne({
+            _id: fullKey,
+            totalHits: 1,
+            resetTime,
+            expiresAt: resetTime
+          });
+          return { totalHits: 1, resetTime };
+        } catch (insertErr) {
+          if (insertErr && (insertErr.code === 11e3 || insertErr.name === "MongoServerError")) {
+            const retryDoc = await collection.findOneAndUpdate(
+              { _id: fullKey },
+              { $inc: { totalHits: 1 } },
+              { returnDocument: "after" }
+            );
+            if (retryDoc) {
+              const doc = retryDoc;
+              return {
+                totalHits: doc.totalHits,
+                resetTime: doc.resetTime
+              };
+            }
+          }
+          throw insertErr;
+        }
+      } catch (err) {
+        console.warn(`[MongoRateLimitStore Warning] DB operation failed for key "${fullKey}":`, err);
+        if (this.failClosed) {
+          throw err;
+        }
+      }
+    }
+    const mem = this.fallbackMemory.get(fullKey);
+    if (mem && mem.resetTime.getTime() > now) {
+      mem.totalHits += 1;
+      return { totalHits: mem.totalHits, resetTime: mem.resetTime };
+    }
+    const newMem = { totalHits: 1, resetTime };
+    this.fallbackMemory.set(fullKey, newMem);
+    return { totalHits: 1, resetTime };
+  }
+  async decrement(key) {
+    const fullKey = `${this.prefix}${key}`;
+    if (mongoose6.connection.readyState === 1 && mongoose6.connection.db) {
+      try {
+        await mongoose6.connection.collection("ratelimitrecords").updateOne(
+          { _id: fullKey, totalHits: { $gt: 0 } },
+          { $inc: { totalHits: -1 } }
+        );
+      } catch {
+      }
+    }
+    const mem = this.fallbackMemory.get(fullKey);
+    if (mem && mem.totalHits > 0) {
+      mem.totalHits -= 1;
+    }
+  }
+  async resetKey(key) {
+    const fullKey = `${this.prefix}${key}`;
+    if (mongoose6.connection.readyState === 1 && mongoose6.connection.db) {
+      try {
+        await mongoose6.connection.collection("ratelimitrecords").deleteOne({ _id: fullKey });
+      } catch {
+      }
+    }
+    this.fallbackMemory.delete(fullKey);
+  }
+  async resetAll() {
+    if (mongoose6.connection.readyState === 1 && mongoose6.connection.db) {
+      try {
+        await mongoose6.connection.collection("ratelimitrecords").deleteMany({
+          _id: { $regex: `^${this.prefix}` }
+        });
+      } catch {
+      }
+    }
+    this.fallbackMemory.clear();
+  }
+};
+
 // server/models/OtpVerification.ts
-import mongoose6, { Schema as Schema4 } from "mongoose";
+import mongoose7, { Schema as Schema4 } from "mongoose";
 var otpVerificationSchema = new Schema4(
   {
     userId: {
@@ -1507,10 +1648,10 @@ var otpVerificationSchema = new Schema4(
   }
 );
 otpVerificationSchema.index({ userId: 1, purpose: 1 });
-var OtpVerification = mongoose6.models.OtpVerification || mongoose6.model("OtpVerification", otpVerificationSchema);
+var OtpVerification = mongoose7.models.OtpVerification || mongoose7.model("OtpVerification", otpVerificationSchema);
 
 // server/models/AuditLog.ts
-import mongoose7, { Schema as Schema5 } from "mongoose";
+import mongoose8, { Schema as Schema5 } from "mongoose";
 var auditLogSchema = new Schema5(
   {
     action: {
@@ -1545,14 +1686,14 @@ var auditLogSchema = new Schema5(
     timestamps: false
   }
 );
-var AuditLog = mongoose7.models.AuditLog || mongoose7.model("AuditLog", auditLogSchema);
+var AuditLog = mongoose8.models.AuditLog || mongoose8.model("AuditLog", auditLogSchema);
 
 // server/lib/emailService.ts
 import { Resend } from "resend";
-import mongoose9 from "mongoose";
+import mongoose10 from "mongoose";
 
 // server/models/EmailLog.ts
-import mongoose8, { Schema as Schema6 } from "mongoose";
+import mongoose9, { Schema as Schema6 } from "mongoose";
 var emailLogSchema = new Schema6(
   {
     eventType: {
@@ -1629,7 +1770,7 @@ var emailLogSchema = new Schema6(
   }
 );
 emailLogSchema.index({ eventType: 1, relatedId: 1, recipient: 1 });
-var EmailLog = mongoose8.models.EmailLog || mongoose8.model("EmailLog", emailLogSchema);
+var EmailLog = mongoose9.models.EmailLog || mongoose9.model("EmailLog", emailLogSchema);
 
 // server/lib/emailService.ts
 function maskEmail(email2) {
@@ -1761,7 +1902,7 @@ async function sendEmail({
   if (!cleanTo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanTo)) {
     return { success: false, provider: "none", error: "Invalid recipient email address.", delivered: false };
   }
-  if (eventType && relatedId && DEDUPLICATED_EVENT_TYPES.has(eventType) && mongoose9.connection.readyState === 1) {
+  if (eventType && relatedId && DEDUPLICATED_EVENT_TYPES.has(eventType) && mongoose10.connection.readyState === 1) {
     try {
       const existingSent = await EmailLog.findOne({
         eventType,
@@ -1844,7 +1985,7 @@ ${plainText.slice(0, 300)}...`);
     console.log("===========================================================\n");
     result = { success: true, provider: "simulated", simulated: true, delivered: false };
   }
-  if (eventType && mongoose9.connection.readyState === 1) {
+  if (eventType && mongoose10.connection.readyState === 1) {
     try {
       await EmailLog.create({
         eventType,
@@ -2976,6 +3117,7 @@ var passwordChangeRequestLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore("auth:pwd-req", 15 * 60 * 1e3),
   message: {
     success: false,
     message: "Too many password change requests. Please try again after 15 minutes."
@@ -2988,6 +3130,7 @@ var passwordChangeVerifyLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore("auth:pwd-verify", 15 * 60 * 1e3),
   message: {
     success: false,
     message: "Too many verification attempts. Please try again after 15 minutes."
@@ -3000,6 +3143,7 @@ var loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore("auth:login", 15 * 60 * 1e3),
   message: {
     success: false,
     message: "Too many sign in attempts. Please try again after 15 minutes."
@@ -3012,6 +3156,7 @@ var adminLoginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore("auth:admin-login", 15 * 60 * 1e3),
   message: {
     success: false,
     message: "Too many admin sign in attempts. Please try again after 15 minutes."
@@ -3024,6 +3169,7 @@ var registerLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore("auth:register", 60 * 60 * 1e3),
   message: {
     success: false,
     message: "Too many registration requests from this network. Please try again later."
@@ -3733,6 +3879,7 @@ var forgotPasswordLimiter = rateLimit2({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore("auth:forgot-pwd", 15 * 60 * 1e3),
   message: {
     success: true,
     // Maintain generic response even if rate limited
@@ -3745,6 +3892,7 @@ var tokenSubmissionLimiter = rateLimit2({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore("auth:token-submit", 15 * 60 * 1e3),
   message: {
     success: false,
     message: "Too many requests. Please try again after 15 minutes."
@@ -3996,7 +4144,7 @@ var authRecovery_default = router2;
 
 // server/routes/products.ts
 import { Router as Router3 } from "express";
-import mongoose10 from "mongoose";
+import mongoose11 from "mongoose";
 var router3 = Router3();
 function formatPublicProduct(p) {
   const primaryImage = Array.isArray(p.images) && p.images[0] || p.image || "/hero-banner-1.png";
@@ -4063,7 +4211,7 @@ function escapeRegex(s) {
 }
 router3.get("/categories", async (_req, res) => {
   try {
-    if (mongoose10.connection.readyState === 1) {
+    if (mongoose11.connection.readyState === 1) {
       const [categories, productCountGroups, totalActiveProducts] = await Promise.all([
         Category.find({ active: true }).sort({ sortOrder: 1, name: 1 }).lean(),
         Product.aggregate([
@@ -4134,7 +4282,7 @@ router3.get("/categories", async (_req, res) => {
 });
 router3.get("/products/best-sellers", async (_req, res) => {
   try {
-    if (mongoose10.connection.readyState === 1) {
+    if (mongoose11.connection.readyState === 1) {
       let bestSellers = await Product.find({ active: { $ne: false }, isBestSeller: true }).populate({ path: "category", select: "name slug image", strictPopulate: false }).sort({ bestSellerAt: -1, updatedAt: -1, createdAt: -1 }).limit(4).lean();
       if (bestSellers.length < 4) {
         const existingIds = bestSellers.map((p) => p._id);
@@ -4176,11 +4324,11 @@ router3.get("/products", async (req, res) => {
       page = "1",
       limit = "100"
     } = req.query;
-    if (mongoose10.connection.readyState === 1) {
+    if (mongoose11.connection.readyState === 1) {
       const filter = { active: { $ne: false } };
       if (category2 && category2 !== "all") {
-        if (mongoose10.Types.ObjectId.isValid(category2)) {
-          filter.category = new mongoose10.Types.ObjectId(category2);
+        if (mongoose11.Types.ObjectId.isValid(category2)) {
+          filter.category = new mongoose11.Types.ObjectId(category2);
         } else {
           const catDoc = await Category.findOne({
             $or: [
@@ -4301,9 +4449,9 @@ router3.get("/products/:slugOrId", async (req, res) => {
   const cleanParam = decodeURIComponent(slugOrId || "").trim();
   const cleanSlug = cleanParam.toLowerCase();
   try {
-    if (mongoose10.connection.readyState === 1) {
+    if (mongoose11.connection.readyState === 1) {
       let productDoc = null;
-      if (mongoose10.Types.ObjectId.isValid(cleanParam)) {
+      if (mongoose11.Types.ObjectId.isValid(cleanParam)) {
         productDoc = await Product.findOne({ _id: cleanParam, active: true }).populate({ path: "category", select: "name slug image", strictPopulate: false }).lean();
       }
       if (!productDoc) {
@@ -4339,13 +4487,13 @@ var products_default = router3;
 // server/routes/cartWishlist.ts
 import { Router as Router4 } from "express";
 import rateLimit3 from "express-rate-limit";
-import mongoose13 from "mongoose";
+import mongoose14 from "mongoose";
 
 // server/lib/discounts.ts
-import mongoose12 from "mongoose";
+import mongoose13 from "mongoose";
 
 // server/models/Discount.ts
-import mongoose11, { Schema as Schema7 } from "mongoose";
+import mongoose12, { Schema as Schema7 } from "mongoose";
 var discountSchema = new Schema7(
   {
     code: {
@@ -4419,7 +4567,7 @@ var discountSchema = new Schema7(
     timestamps: true
   }
 );
-var Discount = mongoose11.models.Discount || mongoose11.model("Discount", discountSchema);
+var Discount = mongoose12.models.Discount || mongoose12.model("Discount", discountSchema);
 
 // server/lib/discounts.ts
 async function validateAndCalculateDiscount(rawCode, subtotal, cartItems) {
@@ -4477,7 +4625,7 @@ async function validateAndCalculateDiscount(rawCode, subtotal, cartItems) {
         discountAmount: 0
       };
     }
-    const productIds = cartItems.map((item) => item.productId).filter((id) => id && mongoose12.Types.ObjectId.isValid(String(id)));
+    const productIds = cartItems.map((item) => item.productId).filter((id) => id && mongoose13.Types.ObjectId.isValid(String(id)));
     let dbProductMap = /* @__PURE__ */ new Map();
     if (productIds.length > 0) {
       const dbProducts = await Product.find({ _id: { $in: productIds } }).select("_id isCombo name").lean();
@@ -4543,6 +4691,7 @@ var cartRevalidateLimiter = rateLimit3({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore("cart:revalidate", 15 * 60 * 1e3),
   message: {
     success: false,
     message: "Too many cart revalidations. Please wait a moment before trying again."
@@ -4564,10 +4713,10 @@ router4.post("/revalidate", cartRevalidateLimiter, async (req, res) => {
       return;
     }
     const objectIds = [
-      ...new Set(items.map((it) => it.productId).filter((id) => id && mongoose13.Types.ObjectId.isValid(id)))
+      ...new Set(items.map((it) => it.productId).filter((id) => id && mongoose14.Types.ObjectId.isValid(id)))
     ];
     const slugs = [
-      ...new Set(items.map((it) => it.productId).filter((id) => id && !mongoose13.Types.ObjectId.isValid(id)))
+      ...new Set(items.map((it) => it.productId).filter((id) => id && !mongoose14.Types.ObjectId.isValid(id)))
     ];
     const orClauses = [];
     if (objectIds.length > 0) {
@@ -4717,7 +4866,7 @@ router4.get("/wishlist", requireAuth, async (req, res) => {
 router4.post("/wishlist/toggle", requireAuth, async (req, res) => {
   try {
     const { productId } = req.body;
-    if (!productId || !mongoose13.Types.ObjectId.isValid(productId)) {
+    if (!productId || !mongoose14.Types.ObjectId.isValid(productId)) {
       res.status(400).json({ success: false, message: "Valid productId is required." });
       return;
     }
@@ -4731,7 +4880,7 @@ router4.post("/wishlist/toggle", requireAuth, async (req, res) => {
     if (exists) {
       user.wishlist = (user.wishlist || []).filter((id) => String(id) !== productId);
     } else {
-      user.wishlist = [...user.wishlist || [], new mongoose13.Types.ObjectId(productId)];
+      user.wishlist = [...user.wishlist || [], new mongoose14.Types.ObjectId(productId)];
     }
     await user.save();
     res.json({
@@ -4748,7 +4897,7 @@ router4.post("/wishlist/toggle", requireAuth, async (req, res) => {
 router4.post("/wishlist/sync", requireAuth, async (req, res) => {
   try {
     const { productIds = [] } = req.body;
-    const validIds = productIds.filter((id) => mongoose13.Types.ObjectId.isValid(id));
+    const validIds = productIds.filter((id) => mongoose14.Types.ObjectId.isValid(id));
     const user = await User.findById(req.user?.userId);
     if (!user) {
       res.status(404).json({ success: false, message: "Customer account not found." });
@@ -4757,7 +4906,7 @@ router4.post("/wishlist/sync", requireAuth, async (req, res) => {
     const existingStrings = new Set((user.wishlist || []).map((id) => String(id)));
     for (const id of validIds) {
       if (!existingStrings.has(id)) {
-        user.wishlist?.push(new mongoose13.Types.ObjectId(id));
+        user.wishlist?.push(new mongoose14.Types.ObjectId(id));
         existingStrings.add(id);
       }
     }
@@ -4776,10 +4925,10 @@ var cartWishlist_default = router4;
 
 // server/routes/customerAccount.ts
 import { Router as Router5 } from "express";
-import mongoose16 from "mongoose";
+import mongoose17 from "mongoose";
 
 // server/models/Order.ts
-import mongoose14, { Schema as Schema8 } from "mongoose";
+import mongoose15, { Schema as Schema8 } from "mongoose";
 var orderItemSchema = new Schema8(
   {
     productId: {
@@ -5036,10 +5185,10 @@ orderSchema.index({ "shiprocketDetails.shipmentId": 1 }, { sparse: true });
 orderSchema.index({ "shiprocketDetails.orderId": 1 }, { sparse: true });
 orderSchema.index({ "shiprocketDetails.awbCode": 1 }, { sparse: true });
 orderSchema.index({ processedShippingEvents: 1 }, { sparse: true });
-var Order = mongoose14.models.Order || mongoose14.model("Order", orderSchema);
+var Order = mongoose15.models.Order || mongoose15.model("Order", orderSchema);
 
 // server/lib/orderRestoration.ts
-import mongoose15 from "mongoose";
+import mongoose16 from "mongoose";
 
 // server/lib/shiprocketService.ts
 import crypto3 from "node:crypto";
@@ -5589,7 +5738,7 @@ var NON_CANCELLABLE_ORDER_STATUSES = ["shipped", "delivered"];
 var NON_CANCELLABLE_SHIPMENT_STATUSES = ["in_transit", "out_for_delivery", "delivered"];
 async function cancelAndRestockOrder(orderId, options) {
   const cleanId = typeof orderId === "string" ? orderId.trim() : orderId;
-  if (!mongoose15.Types.ObjectId.isValid(cleanId)) {
+  if (!mongoose16.Types.ObjectId.isValid(cleanId)) {
     return {
       success: false,
       restoredItems: [],
@@ -6063,7 +6212,7 @@ router5.put("/addresses/:addressId", async (req, res) => {
   try {
     const { addressId } = req.params;
     const { name: name2, phone: phone2, addressLine1, addressLine2, city, state, pincode, landmark, isDefault } = req.body;
-    if (!mongoose16.Types.ObjectId.isValid(addressId)) {
+    if (!mongoose17.Types.ObjectId.isValid(addressId)) {
       res.status(400).json({ success: false, message: "Invalid address ID format." });
       return;
     }
@@ -6115,7 +6264,7 @@ router5.put("/addresses/:addressId", async (req, res) => {
 router5.delete("/addresses/:addressId", async (req, res) => {
   try {
     const { addressId } = req.params;
-    if (!mongoose16.Types.ObjectId.isValid(addressId)) {
+    if (!mongoose17.Types.ObjectId.isValid(addressId)) {
       res.status(400).json({ success: false, message: "Invalid address ID format." });
       return;
     }
@@ -6148,7 +6297,7 @@ router5.delete("/addresses/:addressId", async (req, res) => {
 router5.put("/addresses/:addressId/default", async (req, res) => {
   try {
     const { addressId } = req.params;
-    if (!mongoose16.Types.ObjectId.isValid(addressId)) {
+    if (!mongoose17.Types.ObjectId.isValid(addressId)) {
       res.status(400).json({ success: false, message: "Invalid address ID format." });
       return;
     }
@@ -6203,7 +6352,7 @@ router5.get("/orders/:orderId", async (req, res) => {
       res.status(404).json({ success: false, message: "Account not found or inactive." });
       return;
     }
-    const query = mongoose16.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderNumber: orderId };
+    const query = mongoose17.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderNumber: orderId };
     const order = await Order.findOne(query).lean();
     if (!order) {
       res.status(404).json({ success: false, message: "Order not found." });
@@ -6234,7 +6383,7 @@ router5.get("/orders/:orderId/track", async (req, res) => {
       res.status(404).json({ success: false, message: "Account not found or inactive." });
       return;
     }
-    const query = mongoose16.Types.ObjectId.isValid(orderId) ? { $or: [{ _id: orderId }, { orderNumber: orderId }] } : { orderNumber: orderId };
+    const query = mongoose17.Types.ObjectId.isValid(orderId) ? { $or: [{ _id: orderId }, { orderNumber: orderId }] } : { orderNumber: orderId };
     const order = await Order.findOne(query).lean();
     if (!order) {
       res.status(404).json({ success: false, message: "Order not found." });
@@ -6287,7 +6436,7 @@ router5.post("/orders/:orderId/cancel", async (req, res) => {
       res.status(401).json({ success: false, message: "Account not found or inactive. Please sign in again." });
       return;
     }
-    const query = mongoose16.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderNumber: orderId };
+    const query = mongoose17.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderNumber: orderId };
     const order = await Order.findOne(query);
     if (!order) {
       res.status(404).json({ success: false, message: "Order not found." });
@@ -6357,11 +6506,11 @@ var customerAccount_default = router5;
 // server/routes/customerOrders.ts
 import { Router as Router6 } from "express";
 import rateLimit4 from "express-rate-limit";
-import mongoose19 from "mongoose";
+import mongoose20 from "mongoose";
 import crypto5 from "crypto";
 
 // server/models/StoreSettings.ts
-import mongoose17, { Schema as Schema9 } from "mongoose";
+import mongoose18, { Schema as Schema9 } from "mongoose";
 var storeSettingsSchema = new Schema9(
   {
     storeName: {
@@ -6447,10 +6596,10 @@ var storeSettingsSchema = new Schema9(
     timestamps: true
   }
 );
-var StoreSettings = mongoose17.models.StoreSettings || mongoose17.model("StoreSettings", storeSettingsSchema);
+var StoreSettings = mongoose18.models.StoreSettings || mongoose18.model("StoreSettings", storeSettingsSchema);
 
 // server/models/IdempotencyRecord.ts
-import mongoose18, { Schema as Schema10 } from "mongoose";
+import mongoose19, { Schema as Schema10 } from "mongoose";
 var idempotencyRecordSchema = new Schema10(
   {
     scopeKey: {
@@ -6512,7 +6661,7 @@ var idempotencyRecordSchema = new Schema10(
 );
 idempotencyRecordSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 idempotencyRecordSchema.index({ user: 1, key: 1 }, { unique: true });
-var IdempotencyRecord = mongoose18.models.IdempotencyRecord || mongoose18.model("IdempotencyRecord", idempotencyRecordSchema);
+var IdempotencyRecord = mongoose19.models.IdempotencyRecord || mongoose19.model("IdempotencyRecord", idempotencyRecordSchema);
 
 // server/lib/razorpayService.ts
 import crypto4 from "crypto";
@@ -6717,6 +6866,7 @@ var orderCreationLimiter = rateLimit4({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false, keyGeneratorIpFallback: false },
+  store: new MongoRateLimitStore("orders:create", 15 * 60 * 1e3),
   keyGenerator: (req) => {
     return req.user?.userId ? `user_${req.user.userId}` : req.ip || "127.0.0.1";
   },
@@ -6949,7 +7099,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
     }
     const productIds = [
       ...new Set(
-        items.map((it) => it.productId).filter((id) => mongoose19.Types.ObjectId.isValid(id))
+        items.map((it) => it.productId).filter((id) => mongoose20.Types.ObjectId.isValid(id))
       )
     ];
     const products = await Product.find({
@@ -7400,7 +7550,7 @@ async function handleVerifyPayment(req, res) {
       });
       return;
     }
-    if (!mongoose19.Types.ObjectId.isValid(orderId)) {
+    if (!mongoose20.Types.ObjectId.isValid(orderId)) {
       res.status(400).json({
         success: false,
         message: "Invalid order ID format."
@@ -7591,7 +7741,7 @@ async function handleRazorpayWebhook(req, res) {
       const order = await Order.findOne({
         $or: [
           { "paymentDetails.razorpayOrderId": rzpOrderId },
-          ...paymentEntity?.notes?.orderId && mongoose19.Types.ObjectId.isValid(paymentEntity.notes.orderId) ? [{ _id: paymentEntity.notes.orderId }] : []
+          ...paymentEntity?.notes?.orderId && mongoose20.Types.ObjectId.isValid(paymentEntity.notes.orderId) ? [{ _id: paymentEntity.notes.orderId }] : []
         ]
       });
       if (!order) {
@@ -7687,7 +7837,7 @@ async function handleRazorpayWebhook(req, res) {
         const order = await Order.findOne({
           $or: [
             ...rzpOrderId ? [{ "paymentDetails.razorpayOrderId": rzpOrderId }] : [],
-            ...paymentEntity?.notes?.orderId && mongoose19.Types.ObjectId.isValid(paymentEntity.notes.orderId) ? [{ _id: paymentEntity.notes.orderId }] : []
+            ...paymentEntity?.notes?.orderId && mongoose20.Types.ObjectId.isValid(paymentEntity.notes.orderId) ? [{ _id: paymentEntity.notes.orderId }] : []
           ]
         });
         if (order && order.paymentStatus !== "paid" && order.orderStatus !== "cancelled") {
@@ -7714,7 +7864,7 @@ router6.post("/webhook", handleRazorpayWebhook);
 async function handleRetryPayment(req, res) {
   try {
     const { orderId } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(orderId)) {
+    if (!mongoose20.Types.ObjectId.isValid(orderId)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -7792,7 +7942,7 @@ router6.post("/:orderId/retry-payment", requireAuth, handleRetryPayment);
 async function handleCancelUnpaid(req, res) {
   try {
     const { orderId } = req.params;
-    if (!mongoose19.Types.ObjectId.isValid(orderId)) {
+    if (!mongoose20.Types.ObjectId.isValid(orderId)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -7848,7 +7998,7 @@ router6.post("/:orderId/cancel", requireAuth, async (req, res) => {
   try {
     const { orderId } = req.params;
     const { reason = "Cancelled by customer" } = req.body || {};
-    const query = mongoose19.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderNumber: orderId };
+    const query = mongoose20.Types.ObjectId.isValid(orderId) ? { _id: orderId } : { orderNumber: orderId };
     const order = await Order.findOne(query);
     if (!order) {
       res.status(404).json({ success: false, message: "Order not found." });
@@ -7916,7 +8066,7 @@ router6.get("/:orderId/track", async (req, res) => {
       return;
     }
     const cleanId = orderId.trim();
-    const query = mongoose19.Types.ObjectId.isValid(cleanId) ? { $or: [{ _id: cleanId }, { orderNumber: cleanId }] } : { orderNumber: cleanId };
+    const query = mongoose20.Types.ObjectId.isValid(cleanId) ? { $or: [{ _id: cleanId }, { orderNumber: cleanId }] } : { orderNumber: cleanId };
     const order = await Order.findOne(query);
     if (!order) {
       res.status(404).json({ success: false, message: "Order not found." });
@@ -7983,7 +8133,7 @@ var customerOrders_default = router6;
 
 // server/routes/adminProducts.ts
 import { Router as Router7 } from "express";
-import mongoose20 from "mongoose";
+import mongoose21 from "mongoose";
 var router7 = Router7();
 router7.use(requireAdmin);
 async function enforceMaxBestSellers(currentProductId) {
@@ -8101,8 +8251,8 @@ router7.get("/", async (req, res) => {
       ];
     }
     if (category && category !== "all") {
-      if (mongoose20.Types.ObjectId.isValid(category)) {
-        filter.category = new mongoose20.Types.ObjectId(category);
+      if (mongoose21.Types.ObjectId.isValid(category)) {
+        filter.category = new mongoose21.Types.ObjectId(category);
       } else {
         const cat = await Category.findOne({ slug: category });
         if (cat) filter.category = cat._id;
@@ -8145,7 +8295,7 @@ router7.get("/", async (req, res) => {
 router7.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID format." });
       return;
     }
@@ -8216,7 +8366,7 @@ router7.post("/", async (req, res) => {
       return;
     }
     let categoryId = category;
-    if (!mongoose20.Types.ObjectId.isValid(category)) {
+    if (!mongoose21.Types.ObjectId.isValid(category)) {
       const cat = await Category.findOne({ slug: category });
       if (!cat) {
         res.status(400).json({ success: false, message: "Invalid category specified." });
@@ -8334,7 +8484,7 @@ router7.post("/", async (req, res) => {
 router7.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID format." });
       return;
     }
@@ -8416,8 +8566,8 @@ router7.put("/:id", async (req, res) => {
       }
     }
     if (category) {
-      if (mongoose20.Types.ObjectId.isValid(category)) {
-        existingProduct.category = new mongoose20.Types.ObjectId(category);
+      if (mongoose21.Types.ObjectId.isValid(category)) {
+        existingProduct.category = new mongoose21.Types.ObjectId(category);
       } else {
         const cat = await Category.findOne({ slug: category });
         if (cat) existingProduct.category = cat._id;
@@ -8490,7 +8640,7 @@ router7.put("/:id", async (req, res) => {
 router7.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -8513,7 +8663,7 @@ router7.patch("/:id/toggle", async (req, res) => {
 router7.patch("/:id/toggle-bestseller", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -8547,7 +8697,7 @@ router7.patch("/:id/toggle-bestseller", async (req, res) => {
 router7.patch("/:id/toggle-combo", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -8571,7 +8721,7 @@ router7.patch("/:id/toggle-combo", async (req, res) => {
 router7.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose20.Types.ObjectId.isValid(id)) {
+    if (!mongoose21.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid product ID." });
       return;
     }
@@ -8592,7 +8742,7 @@ var adminProducts_default = router7;
 
 // server/routes/adminCategories.ts
 import { Router as Router8 } from "express";
-import mongoose21 from "mongoose";
+import mongoose22 from "mongoose";
 var router8 = Router8();
 router8.use(requireAdmin);
 async function ensureCategoriesSeeded() {
@@ -8658,7 +8808,7 @@ router8.get("/", async (req, res) => {
 router8.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose22.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -8721,7 +8871,7 @@ router8.post("/", async (req, res) => {
 router8.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose22.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -8764,7 +8914,7 @@ router8.put("/:id", async (req, res) => {
 router8.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose22.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID." });
       return;
     }
@@ -8787,7 +8937,7 @@ router8.patch("/:id/toggle", async (req, res) => {
 router8.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose21.Types.ObjectId.isValid(id)) {
+    if (!mongoose22.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid category ID format." });
       return;
     }
@@ -8823,7 +8973,7 @@ var adminCategories_default = router8;
 
 // server/routes/adminOrders.ts
 import { Router as Router9 } from "express";
-import mongoose22 from "mongoose";
+import mongoose23 from "mongoose";
 var router9 = Router9();
 router9.use(requireAdmin);
 router9.get("/", async (req, res) => {
@@ -8938,7 +9088,7 @@ router9.get("/shipping/status", async (_req, res) => {
 router9.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose22.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -8955,7 +9105,7 @@ router9.get("/:id", async (req, res) => {
 var updateOrderHandler = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose22.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID." });
       return;
     }
@@ -9162,7 +9312,7 @@ router9.patch("/:id/status", updateOrderHandler);
 router9.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose22.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID." });
       return;
     }
@@ -9199,7 +9349,7 @@ router9.post("/:id/shiprocket/create-shipment", async (req, res) => {
   try {
     const { id } = req.params;
     const { customDimensions } = req.body || {};
-    if (!mongoose22.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -9269,7 +9419,7 @@ router9.post("/:id/shiprocket/generate-awb", async (req, res) => {
   try {
     const { id } = req.params;
     const { courierId } = req.body || {};
-    if (!mongoose22.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -9346,7 +9496,7 @@ router9.post("/:id/shiprocket/generate-awb", async (req, res) => {
 router9.get("/:id/shiprocket/track", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose22.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -9384,7 +9534,7 @@ router9.get("/:id/shiprocket/track", async (req, res) => {
 router9.post("/:id/shiprocket/sync-tracking", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose22.Types.ObjectId.isValid(id)) {
+    if (!mongoose23.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid order ID format." });
       return;
     }
@@ -9424,7 +9574,7 @@ var adminOrders_default = router9;
 
 // server/routes/adminCustomers.ts
 import { Router as Router10 } from "express";
-import mongoose23 from "mongoose";
+import mongoose24 from "mongoose";
 var router10 = Router10();
 router10.use(requireAdmin);
 router10.get("/", async (req, res) => {
@@ -9540,7 +9690,7 @@ router10.get("/", async (req, res) => {
 router10.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose23.Types.ObjectId.isValid(id)) {
+    if (!mongoose24.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -9570,7 +9720,7 @@ router10.get("/:id", async (req, res) => {
 router10.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose23.Types.ObjectId.isValid(id)) {
+    if (!mongoose24.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -9593,7 +9743,7 @@ router10.patch("/:id/toggle", async (req, res) => {
 router10.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose23.Types.ObjectId.isValid(id)) {
+    if (!mongoose24.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
@@ -9632,7 +9782,7 @@ var adminCustomers_default = router10;
 // server/routes/adminDiscounts.ts
 import { Router as Router11 } from "express";
 import rateLimit5 from "express-rate-limit";
-import mongoose24 from "mongoose";
+import mongoose25 from "mongoose";
 var router11 = Router11();
 var couponValidateLimiter = rateLimit5({
   windowMs: 15 * 60 * 1e3,
@@ -9641,6 +9791,7 @@ var couponValidateLimiter = rateLimit5({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore("discounts:validate", 15 * 60 * 1e3),
   message: {
     success: false,
     message: "Too many coupon validation attempts. Please try again after 15 minutes."
@@ -9716,7 +9867,7 @@ router11.get("/", async (req, res) => {
 router11.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose24.Types.ObjectId.isValid(id)) {
+    if (!mongoose25.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -9798,7 +9949,7 @@ router11.post("/", async (req, res) => {
 router11.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose24.Types.ObjectId.isValid(id)) {
+    if (!mongoose25.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -9879,7 +10030,7 @@ router11.put("/:id", async (req, res) => {
 router11.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose24.Types.ObjectId.isValid(id)) {
+    if (!mongoose25.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -9902,7 +10053,7 @@ router11.patch("/:id/toggle", async (req, res) => {
 router11.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose24.Types.ObjectId.isValid(id)) {
+    if (!mongoose25.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid discount ID." });
       return;
     }
@@ -9923,10 +10074,10 @@ var adminDiscounts_default = router11;
 
 // server/routes/adminInquiries.ts
 import { Router as Router12 } from "express";
-import mongoose26 from "mongoose";
+import mongoose27 from "mongoose";
 
 // server/models/Inquiry.ts
-import mongoose25, { Schema as Schema11 } from "mongoose";
+import mongoose26, { Schema as Schema11 } from "mongoose";
 var inquirySchema = new Schema11(
   {
     name: {
@@ -9971,7 +10122,7 @@ var inquirySchema = new Schema11(
   }
 );
 inquirySchema.index({ status: 1, createdAt: -1 });
-var Inquiry = mongoose25.models.Inquiry || mongoose25.model("Inquiry", inquirySchema);
+var Inquiry = mongoose26.models.Inquiry || mongoose26.model("Inquiry", inquirySchema);
 
 // server/routes/adminInquiries.ts
 var router12 = Router12();
@@ -10000,9 +10151,9 @@ var handlePublicInquiry = async (req, res) => {
       res.status(400).json({ success: false, message: "Please provide a descriptive inquiry message." });
       return;
     }
-    if (mongoose26.connection.readyState !== 1) {
+    if (mongoose27.connection.readyState !== 1) {
       const fallbackInquiry = {
-        _id: new mongoose26.Types.ObjectId(),
+        _id: new mongoose27.Types.ObjectId(),
         name: name2.trim(),
         email: email2.trim().toLowerCase(),
         phone: phone2 ? String(phone2).trim() : "",
@@ -10143,7 +10294,7 @@ router12.get("/", async (req, res) => {
 router12.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose26.Types.ObjectId.isValid(id)) {
+    if (!mongoose27.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -10160,7 +10311,7 @@ router12.get("/:id", async (req, res) => {
 var updateInquiryHandler = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose26.Types.ObjectId.isValid(id)) {
+    if (!mongoose27.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -10194,7 +10345,7 @@ router12.patch("/:id/status", updateInquiryHandler);
 router12.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose26.Types.ObjectId.isValid(id)) {
+    if (!mongoose27.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid inquiry ID." });
       return;
     }
@@ -10216,7 +10367,7 @@ var adminInquiries_default = router12;
 // server/routes/adminStaff.ts
 import { Router as Router13 } from "express";
 import crypto6 from "crypto";
-import mongoose27 from "mongoose";
+import mongoose28 from "mongoose";
 var router13 = Router13();
 router13.use(requireSuperAdmin);
 var EMAIL_REGEX2 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -10287,7 +10438,7 @@ router13.post("/invite", async (req, res) => {
       active: true,
       invitationTokenHash: tokenHash,
       invitationExpiresAt: expiresAt,
-      invitedBy: req.user?.userId ? new mongoose27.Types.ObjectId(req.user.userId) : void 0,
+      invitedBy: req.user?.userId ? new mongoose28.Types.ObjectId(req.user.userId) : void 0,
       invitedAt: /* @__PURE__ */ new Date()
     });
     const emailResult = await sendAdminInvitationEmail({
@@ -10320,7 +10471,7 @@ router13.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const { name: name2, role, active } = req.body;
-    if (!mongoose27.Types.ObjectId.isValid(id)) {
+    if (!mongoose28.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid staff ID." });
       return;
     }
@@ -10356,7 +10507,7 @@ router13.patch("/:id", async (req, res) => {
       try {
         await AuditLog.create({
           action: "ROLE_CHANGED",
-          actorId: req.user?.userId ? new mongoose27.Types.ObjectId(req.user.userId) : void 0,
+          actorId: req.user?.userId ? new mongoose28.Types.ObjectId(req.user.userId) : void 0,
           targetUserId: staffMember._id,
           metadata: {
             oldRole,
@@ -10412,7 +10563,7 @@ router13.post("/promote", async (req, res) => {
       return;
     }
     let query = {};
-    if (userId && mongoose27.Types.ObjectId.isValid(userId)) {
+    if (userId && mongoose28.Types.ObjectId.isValid(userId)) {
       query = { _id: userId };
     } else if (email2 && typeof email2 === "string" && EMAIL_REGEX2.test(email2.trim().toLowerCase())) {
       query = { email: email2.trim().toLowerCase() };
@@ -10451,7 +10602,7 @@ router13.post("/promote", async (req, res) => {
     try {
       await AuditLog.create({
         action: "ROLE_CHANGED",
-        actorId: req.user?.userId ? new mongoose27.Types.ObjectId(req.user.userId) : void 0,
+        actorId: req.user?.userId ? new mongoose28.Types.ObjectId(req.user.userId) : void 0,
         targetUserId: targetUser._id,
         metadata: {
           oldRole,
@@ -10500,7 +10651,7 @@ router13.post("/promote", async (req, res) => {
 router13.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose27.Types.ObjectId.isValid(id)) {
+    if (!mongoose28.Types.ObjectId.isValid(id)) {
       res.status(400).json({ success: false, message: "Invalid staff ID." });
       return;
     }
@@ -10540,11 +10691,11 @@ var adminStaff_default = router13;
 
 // server/routes/adminSettings.ts
 import { Router as Router15 } from "express";
-import mongoose29 from "mongoose";
+import mongoose30 from "mongoose";
 
 // server/routes/adminEmail.ts
 import { Router as Router14 } from "express";
-import mongoose28 from "mongoose";
+import mongoose29 from "mongoose";
 import rateLimit6 from "express-rate-limit";
 var router14 = Router14();
 router14.use(requireAdmin);
@@ -10554,6 +10705,7 @@ var smokeTestLimiter = rateLimit6({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  store: new MongoRateLimitStore("admin:email-smoke", 10 * 60 * 1e3),
   message: {
     success: false,
     message: "Too many smoke test requests. Please wait a few minutes before trying again."
@@ -10619,7 +10771,7 @@ router14.get("/status", async (_req, res) => {
     );
     let totalLogs = 0;
     let recentLogs = [];
-    if (mongoose28.connection.readyState === 1) {
+    if (mongoose29.connection.readyState === 1) {
       totalLogs = await EmailLog.countDocuments();
       const rawLogs = await EmailLog.find().sort({ createdAt: -1 }).limit(10).select("eventType recipient subject provider status error attemptedAt createdAt").lean();
       recentLogs = rawLogs.map((log) => ({
@@ -10697,7 +10849,7 @@ var DEFAULT_PUBLIC_SETTINGS = {
 var handlePublicSettings = async (_req, res) => {
   try {
     let settings = null;
-    if (mongoose29.connection.readyState === 1) {
+    if (mongoose30.connection.readyState === 1) {
       settings = await StoreSettings.findOne().lean();
     }
     if (!settings) {
@@ -11198,7 +11350,7 @@ var uploads_default = router17;
 // server/routes/enquiries.ts
 import { Router as Router18 } from "express";
 import { ZodError } from "zod";
-import mongoose30 from "mongoose";
+import mongoose31 from "mongoose";
 
 // server/validate.ts
 import { z } from "zod";
@@ -11368,7 +11520,7 @@ router18.post("/contact", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose30.Types.ObjectId().toString();
+  let id = new mongoose31.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -11426,7 +11578,7 @@ router18.post(["/enquiries/bulk", "/enquiry/bulk", "/bulk-enquiry"], async (req,
     }
     throw err;
   }
-  let id = new mongoose30.Types.ObjectId().toString();
+  let id = new mongoose31.Types.ObjectId().toString();
   const summaryMessage = [
     `Requirement: ${parsed.requirement_type}`,
     `Quantity: ${parsed.approx_quantity}`,
@@ -11493,7 +11645,7 @@ router18.post("/reservation", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose30.Types.ObjectId().toString();
+  let id = new mongoose31.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.customer_name,
@@ -11552,7 +11704,7 @@ router18.post("/katering", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose30.Types.ObjectId().toString();
+  let id = new mongoose31.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -11594,7 +11746,7 @@ router18.post("/gifting", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose30.Types.ObjectId().toString();
+  let id = new mongoose31.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -11621,7 +11773,7 @@ var enquiries_default = router18;
 import { Router as Router19 } from "express";
 
 // server/models/Banner.ts
-import mongoose31, { Schema as Schema12 } from "mongoose";
+import mongoose32, { Schema as Schema12 } from "mongoose";
 var bannerSchema = new Schema12(
   {
     title: {
@@ -11678,7 +11830,7 @@ var bannerSchema = new Schema12(
 );
 bannerSchema.index({ active: 1, sortOrder: 1 });
 bannerSchema.index({ sortOrder: 1 });
-var Banner = mongoose31.models.Banner || mongoose31.model("Banner", bannerSchema);
+var Banner = mongoose32.models.Banner || mongoose32.model("Banner", bannerSchema);
 
 // server/routes/adminBanners.ts
 var router19 = Router19();
@@ -12075,6 +12227,7 @@ var conciergeLimiter = rateLimit7({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore("concierge:chat", 5 * 60 * 1e3),
   message: {
     success: false,
     message: "Too many requests to the concierge. Please wait a moment."
@@ -12370,7 +12523,7 @@ app.use((req, res, next) => {
   }
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Idempotency-Key, x-idempotency-key");
   res.setHeader("Vary", "Origin");
   if (req.method === "OPTIONS") {
     res.sendStatus(204);
@@ -12397,10 +12550,10 @@ app.use("/", sitemap_default);
 app.get(["/health", "/api/health"], async (_req, res) => {
   const mongo = getMongoStatus();
   let dbHealthy = false;
-  if (mongo.connected && mongoose32.connection.db) {
+  if (mongo.connected && mongoose33.connection.db) {
     try {
       await Promise.race([
-        mongoose32.connection.db.command({ ping: 1 }),
+        mongoose33.connection.db.command({ ping: 1 }),
         new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 2e3))
       ]);
       dbHealthy = true;
@@ -12413,7 +12566,7 @@ app.get(["/health", "/api/health"], async (_req, res) => {
     time: (/* @__PURE__ */ new Date()).toISOString(),
     service: BUSINESS.name,
     mongodb: dbHealthy ? "connected" : mongo.state,
-    database: mongoose32.connection.name || null
+    database: mongoose33.connection.name || null
   });
 });
 var routeConfigs = [

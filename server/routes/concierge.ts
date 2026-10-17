@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
+import { MongoRateLimitStore } from '../lib/mongoRateLimitStore.ts';
 import { GoogleGenAI } from '@google/genai';
 
 const router = Router();
@@ -36,6 +37,7 @@ export const conciergeLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore('concierge:chat', 5 * 60 * 1000),
   message: {
     success: false,
     message: 'Too many requests to the concierge. Please wait a moment.',

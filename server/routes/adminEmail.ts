@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import mongoose from 'mongoose';
 import rateLimit from 'express-rate-limit';
+import { MongoRateLimitStore } from '../lib/mongoRateLimitStore.ts';
 import { requireAdmin, type AuthenticatedRequest } from '../lib/auth.ts';
 import {
   runEmailSmokeTest,
@@ -26,6 +27,7 @@ const smokeTestLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  store: new MongoRateLimitStore('admin:email-smoke', 10 * 60 * 1000),
   message: {
     success: false,
     message: 'Too many smoke test requests. Please wait a few minutes before trying again.',

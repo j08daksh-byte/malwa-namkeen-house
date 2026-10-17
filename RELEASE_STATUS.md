@@ -1,13 +1,16 @@
 # Malwa Namkeen House — Release Verification Status
 
-**Document Version:** 1.8.0 (Release Candidate)
+**Document Version:** 1.9.0 (Consolidated Release Candidate)
 **Updated:** 17 October 2026
-**Target Branch:** `feat/transactional-email-hardening` (Release Candidate HEAD: `675501aa88f0f52d74c57811ccb5ae82067b20e9`, branched from canonical `main` at `f7ead1e`)
+**Target Branch:** `feat/transactional-email-hardening`
+**Hardening Ancestry Chain:**
+- Prompt 1 Hardening Commit: `d9fdd5b0540094ee70bd67ecdbd396bbf2bf247a` (Razorpay payment-ID uniqueness & concurrency handling)
+- Prompt 2 Hardening Commit: `1399b6bb67619d564539efa35b1e771664bce7e6` (Distributed checkout idempotency hardening)
+- Prompt 3 Consolidated Release Stabilization: In progress (Frontend-to-backend idempotency, distributed serverless rate limiting, 25/25 suites passing)
 **Current Canonical Production main SHA:** `f7ead1e7d5b7a72759f36bc67e3fad6ef0b1eabb` (Consolidated with `feat/comprehensive-integration-pass`, verified in sync with `daksh_repo/main`)
 **Previous Production main SHA:** `8e9d031c26b52a138bb36279f19630c79ca2e4c9`
 **Candidate Merge Commit SHA (on main):** `bf2ef58d6a9e8b1c644f4d8072640f787a16bab9`
 **Consolidated Candidate SHA:** `7fca7c3b1e23b38ac443a9856a117b6d29f55781`
-**Active Hardening Branch (RC):** `feat/transactional-email-hardening` (HEAD: `675501aa88f0f52d74c57811ccb5ae82067b20e9`, clean working tree)
 **Canonical Remote:** `daksh_repo` (`https://github.com/j08daksh-byte/malwa-namkeen-house.git`)
 **Vercel Production Project:** `malwa-namkeen` (`dakshs-projects-45d693b3`)
 **Active Production Deployment (Known-Good):** [`dpl_4DGFYbBhPvvJHhHaAWxChXz9A95b`](https://malwa-namkeen-8imdhu89x-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready**, aliased to `https://malwa-namkeen.vercel.app`)
@@ -26,14 +29,16 @@
 | **Gate 1** | Consolidate Repositories Safely | **PASS (On main)** | Linear consolidation merged cleanly into `main` (`9fd812d` -> `bf2ef58` -> `8e9d031`). Canonical baseline preserved. |
 | **Gate 3** | Implement Transactional Email | **EMAIL CODE GATE CLOSED — LIVE DELIVERY UNVERIFIED (OWNER ACTION REQUIRED)** | Centralized Resend email service with 14 event types wired across order, auth, staff, and enquiry workflows. Clean plain text fallback (CSS/script stripped), PII masking in logs, delivered flag accounting, duplicate event prevention on retried events, error string sanitization scrubbing API keys/bearer tokens, bounded in-flight retries on transient network errors, and non-blocking fault isolation. Authenticated admin smoke test mounted at `POST /api/admin/email/smoke-test` (and `/api/admin/settings/email/smoke-test`) and provider status check at `GET /api/admin/email/status` with rate limiting, input validation, and zero credential leakage. 43/43 tests passing in `tests/transactional_email.test.ts` (11 suites). Live delivery is UNVERIFIED: `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are absent from Vercel Preview; `malwanamkeen.com` is non-existent in DNS (`NXDOMAIN` on 8.8.8.8) and unconnected in Vercel (`0 Domains found`). Real live network delivery remains unverified until credentials are configured in Preview and a test email is received in a real inbox. |
 | **Gate 4** | Branding and UI Excellence | **PASS (On main & branch)** | Authentic heritage assets verified (`/logo.png`, `/logo-gold.png`, `/logo-nav.png`). Stale email placeholders cleaned from UI. Playfair Display & DM Sans typography intact. |
-| **Gate 5** | Comprehensive Verification | **PASS (419 / 419 across 23 suites)** | TypeScript check (`npm run lint`): **PASS (0 errors)**. Production build (`npm run build`): **PASS (0 errors)**. 23 suites (419 tests passing in `tests/run_all.mjs`: 310 offline + 109 live test-server). |
+| **Gate 5** | Comprehensive Verification | **PASS (436 / 436 across 25 suites)** | TypeScript check (`npm run lint`): **PASS (0 errors)**. Production build (`npm run build`): **PASS (0 errors)**. 25 suites (436 tests passing in `tests/run_all.mjs`: 327 offline + 109 live test-server). |
 | **Gate 6** | Order Lifecycle & Inventory Restoration | **PASS (VERIFIED)** | Implemented safe, idempotent variant stock restock & coupon rollback on order cancellation (`orderRestoration.ts`). Customer cancellation added (`POST /api/customer/orders/:orderId/cancel`). Delete order guard added. `tests/order_cancellation_restock.test.ts` passed 23/23. Verified on genuine checkout order in `tests/comprehensive_integration.test.ts`. |
 | **Gate 7** | Storefront Product Card Availability | **PASS (On main & branch)** | Component-level availability indicators in `ProductCard.tsx` (`SOLD OUT` badges, disabled CTA, variant prop sync, `:focus-visible`). `tests/product_card_availability.test.ts` passed 23/23. |
 | **Gate 8** | Candidate Integration & Canonical Merge | **CONSOLIDATED & PUSHED (main)** | Merged candidate `7fca7c3` into canonical `main` (`bf2ef58` -> `8e9d031`) via `--no-ff`. Fast-forward pushed to `daksh_repo/main` and `origin/main`. |
-| **Gate 9** | Implement Razorpay Payment Integration | **CODE & MOCK VERIFIED — LIVE PAYMENT UNVERIFIED (PENDING OWNER CREDENTIALS)** | Server-side Razorpay order creation using strictly server-validated amounts in paise (1 INR = 100 paise). Zero browser trust for pricing or payment status. Timing-safe cryptographic HMAC-SHA256 signature verification (`crypto.timingSafeEqual`). Strict order ID match, ownership enforcement, cancelled order prevention, online payment method checks. Replay attack protection with duplicate `razorpayPaymentId` cross-order database lookup and sparse compound index. Idempotent webhook processing (`processedWebhookEvents`), amount/currency match enforcement against server order total, safe ignoring of captured payments for cancelled orders, failure reason capture without inventory corruption. Unpaid order cancellation (`POST /api/orders/:orderId/cancel-unpaid`) with stock/coupon restoration. Payment retry support (`POST /api/orders/:orderId/retry-payment`) generating a fresh Razorpay order and switching paymentMethod to online. Dashboard retry/pay integration (`handleRetryPayment`, `loadRazorpayScript`). COD flow regression preserved. 50/50 tests passing in `tests/razorpay_payment.test.ts` (9 suites). **Live payment charges are UNVERIFIED**: pending merchant credentials (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`) in Vercel. |
+| **Gate 9** | Implement Razorpay Payment Integration | **CODE & MOCK VERIFIED — LIVE PAYMENT UNVERIFIED (PENDING OWNER CREDENTIALS)** | Server-side Razorpay order creation using strictly server-validated amounts in paise (1 INR = 100 paise). Zero browser trust for pricing or payment status. Timing-safe cryptographic HMAC-SHA256 signature verification (`crypto.timingSafeEqual`). Strict order ID match, ownership enforcement, cancelled order prevention, online payment method checks. Replay attack protection with duplicate `razorpayPaymentId` cross-order database lookup and sparse unique index `paymentDetails.razorpayPaymentId_1` (`unique: true, sparse: true`). Idempotent webhook processing (`processedWebhookEvents`), amount/currency match enforcement against server order total, safe ignoring of captured payments for cancelled orders, failure reason capture without inventory corruption. Unpaid order cancellation (`POST /api/orders/:orderId/cancel-unpaid`) with stock/coupon restoration. Payment retry support (`POST /api/orders/:orderId/retry-payment`) generating a fresh Razorpay order and switching paymentMethod to online. Dashboard retry/pay integration (`handleRetryPayment`, `loadRazorpayScript`). COD flow regression preserved. 55/55 tests passing in `tests/razorpay_payment.test.ts` (9 suites). **Live payment charges are UNVERIFIED**: pending merchant credentials (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`) in Vercel. |
 | **Gate 10** | Implement Shiprocket Logistics Integration | **CODE & MOCK VERIFIED — LIVE COURIER DISPATCH UNVERIFIED (PENDING OWNER CREDENTIALS)** | Server-side Shiprocket client with Bearer token caching, package weight parsing strictly from server metadata (no invented dimensions/weights), duplicate shipment prevention (HTTP 409), AWB assignment, live tracking synchronization into MongoDB (`syncOrderTrackingFromShiprocket`), status regression protection (`SHIPMENT_STATUS_RANK` preventing delivered/out_for_delivery from regressing back to in_transit/ready_to_ship), customer/guest tracking authorization (`GET /api/orders/:orderId/track`), customer account tracking (`GET /api/customer/orders/:orderId/track`), admin status reporting (`GET /api/admin/orders/shipping/status`), safe order cancellation handling (`cancelShiprocketOrder`), webhook timing-safe authentication (`crypto.timingSafeEqual`), replay deduplication (`processedShippingEvents`), COD auto-reconciliation, and UI integration in Dashboard and AdminOrders. 40/40 tests passing in `tests/shiprocket_shipping.test.ts`, 14/14 tests in `tests/shipping_tracking_integration.test.ts`, and 18/18 tests in `tests/webhook_shiprocket.test.ts`. Live courier dispatch is UNVERIFIED: pending credentials in Vercel. |
 | **Gate 11** | Comprehensive Automated Integration & Regression Pass | **PASS (Branch feat/comprehensive-integration-pass)** | End-to-end integration pass across real application code covering all 9 operational & security domains: product catalog & cart totals, COD checkout, Razorpay, Resend email mocks, Shiprocket logistics mocks, genuine checkout stock decrement & cancellation restock, RBAC & auth recovery, input validation & concurrency boundaries, and storefront/admin regressions. 32/32 tests passing in `tests/comprehensive_integration.test.ts`. Uncommitted on branch. |
 | **Gate 12** | Shiprocket Webhook Safety Hardening | **PASS (Branch feat/comprehensive-integration-pass)** | Route-level safety hardening for `/api/shipping/webhook/shiprocket`: (1) Cancelled order guard (late events never transition, mark paid, or alter inventory of cancelled orders), (2) Stable event identity (removed `Date.now()` fallback; deterministic IDs from provider header or stable shipment attributes), (3) Concurrent replay protection (atomic `$addToSet` + `findOneAndUpdate` guard), (4) Cryptographic timing-safe webhook token verification (`crypto.timingSafeEqual`), (5) Guarded COD delivery reconciliation, (6) Endpoint aliases (`/api/shipping/webhook`, `/api/shipping`). 18/18 tests passing in `tests/webhook_shiprocket.test.ts`. Uncommitted on branch. |
+| **Gate 13** | Distributed Checkout Idempotency Hardening | **PASS (11 / 11 PASS)** | End-to-end checkout idempotency across distributed Vercel serverless containers. Client generates cryptographically secure, unpredictable key (`crypto.randomUUID()`), sent in both `Idempotency-Key` header and body payload. Key refreshes on modal open and order completion. Backend derives customer scope strictly from authenticated session token (`userId:key`). MongoDB unique index on `IdempotencyRecord` (`scopeKey_1`) prevents duplicate order creation and duplicate inventory deduction under concurrent cross-instance requests. Material checkout inputs hashed with SHA-256 (`requestHash`); parameter mismatches return HTTP 400. 11/11 tests passing in `tests/checkout_distributed_idempotency.test.ts`. |
+| **Gate 14** | Distributed Serverless Rate Limiting Hardening | **PASS (6 / 6 PASS)** | Closes PH-016 serverless rate-limiting exposure. Implemented `RateLimitRecord` MongoDB collection with TTL eviction on `expiresAt` (`expireAfterSeconds: 0`) and `MongoRateLimitStore` for `express-rate-limit`. Atomically manages rate windows across separate Lambda containers via atomic `findOneAndUpdate` operations. Strictly enforced across sensitive routes: login, admin login, registration, password recovery, checkout orders, coupon validation, cart revalidation, and concierge chat. Fails safely and maintains per-IP/per-user isolation. 6/6 tests passing in `tests/distributed_rate_limiting.test.ts`. |
 
 ---
 
@@ -43,18 +48,20 @@
 
 | Test Suite | Category | Results | Execution Command |
 | :--- | :--- | :---: | :--- |
+| `checkout_distributed_idempotency.test.ts` | Distributed Checkout Idempotency & Concurrency | **11 / 11 PASS** | `npx tsx tests/checkout_distributed_idempotency.test.ts` |
+| `distributed_rate_limiting.test.ts` | Distributed Serverless Rate Limiting & TTL | **6 / 6 PASS** | `npx tsx tests/distributed_rate_limiting.test.ts` |
 | `webhook_shiprocket.test.ts` | Route-Level Webhook Safety, Auth & Concurrency | **18 / 18 PASS** | `npx tsx tests/webhook_shiprocket.test.ts` |
 | `shipping_tracking_integration.test.ts` | Gate 10 Shipping & Tracking Integration | **14 / 14 PASS** | `npx tsx tests/shipping_tracking_integration.test.ts` |
 | `shiprocket_shipping.test.ts` | Shiprocket Logistics, Package Safety & Webhooks | **40 / 40 PASS** | `npx tsx tests/shiprocket_shipping.test.ts` |
 | `comprehensive_integration.test.ts` | 9-Domain Real App Integration & Regression Pass | **32 / 32 PASS** | `npx tsx tests/comprehensive_integration.test.ts` |
 | `product_card_availability.test.ts` | Storefront UX Availability, Stock & Badges | **23 / 23 PASS** | `npx tsx tests/product_card_availability.test.ts` |
 | `order_cancellation_restock.test.ts` | Order Restock, Concurrency & Ownership | **23 / 23 PASS** | `npx tsx tests/order_cancellation_restock.test.ts` |
-| `full_system_e2e.test.ts` | Exhaustive Live System E2E (Port 3001) | **43 / 43 PASS** | `BASE_URL=http://127.0.0.1:3001 npx tsx tests/full_system_e2e.test.ts` |
-| `e2e_live_server.test.ts` | Controlled Live Server E2E (Port 3001) | **18 / 18 PASS** | `BASE_URL=http://127.0.0.1:3001 npx tsx tests/e2e_live_server.test.ts` |
+| `full_system_e2e.test.ts` | Exhaustive Live System E2E (Port 3000) | **43 / 43 PASS** | `npx tsx tests/full_system_e2e.test.ts` |
+| `e2e_live_server.test.ts` | Controlled Live Server E2E (Port 3000) | **26 / 26 PASS** | `npx tsx tests/e2e_live_server.test.ts` |
 | `e2e_safety_guard.test.ts` | Safety & URI Isolation Guard | **36 / 36 PASS** | `npx tsx tests/e2e_safety_guard.test.ts` |
 | `admin_permissions.test.ts` | Mocked / RBAC Matrix | **14 / 14 PASS** | `npx tsx tests/admin_permissions.test.ts` |
 | `transactional_email.test.ts` | Mocked / Email Engine, Retries & Admin Smoke Router | **43 / 43 PASS** | `npx tsx tests/transactional_email.test.ts` |
-| `razorpay_payment.test.ts` | Razorpay Gateway, Webhooks, Router & Edge Cases | **50 / 50 PASS** | `npx tsx tests/razorpay_payment.test.ts` |
+| `razorpay_payment.test.ts` | Razorpay Gateway, Webhooks, Router & Edge Cases | **55 / 55 PASS** | `npx tsx tests/razorpay_payment.test.ts` |
 | `regression.test.ts` | Unit Regression | **21 / 21 PASS** | `npx tsx tests/regression.test.ts` |
 | `ph001_regex_escape.test.ts` | Unit Security | **7 / 7 PASS** | `npx tsx tests/ph001_regex_escape.test.ts` |
 | `ph002_coupon_rate_limit.test.ts` | Unit Security | **4 / 4 PASS** | `npx tsx tests/ph002_coupon_rate_limit.test.ts` |
@@ -66,16 +73,16 @@
 | `ph008_csp_hardening.test.ts` | Unit HTTP Headers | **4 / 4 PASS** | `npx tsx tests/ph008_csp_hardening.test.ts` |
 | `ph009_user_compound_index.test.ts` | Schema Verification | **3 / 3 PASS** | `npx tsx tests/ph009_user_compound_index.test.ts` |
 | `ph010_inquiry_compound_index.test.ts` | Schema Verification | **3 / 3 PASS** | `npx tsx tests/ph010_inquiry_compound_index.test.ts` |
-| **Grand Total** | **All Live & Offline Suites (23 Suites)** | **419 / 419 PASS** | **100% Green (310 offline + 109 live test-server)** |
+| **Grand Total** | **All Live & Offline Suites (25 Suites)** | **436 / 436 PASS** | **100% Green (327 offline + 109 live test-server)** |
 
 ### 2.2 Compilation & Static Checks
 
 | Check | Tool / Engine | Status | Duration |
 | :--- | :--- | :---: | :--- |
-| TypeScript Type Check | `tsc --noEmit` (`npm run lint`) | **PASS (0 errors)** | ~4s |
-| Vite Frontend Build | Vite 6.4.3 (`npm run build`) | **PASS** | 2.19s |
-| Node Server Bundle | esbuild CJS (`dist/server.cjs`) | **PASS (338.1 kB)** | 414ms |
-| Serverless API Entry | esbuild ESM (`api/index.js`) | **PASS (329.5 kB)** | 54ms |
+| TypeScript Type Check | `tsc --noEmit` (`npm run lint`) | **PASS (0 errors)** | ~5s |
+| Vite Frontend Build | Vite 6.4.3 (`npm run build`) | **PASS** | 1.99s |
+| Node Server Bundle | esbuild CJS (`dist/server.cjs`) | **PASS (455.5 kB)** | 15ms |
+| Serverless API Entry | esbuild ESM (`api/index.js`) | **PASS (445.9 kB)** | 11ms |
 
 ### 2.3 Database Connectivity & Strict Test-DB URI Isolation Status
 

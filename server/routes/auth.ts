@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
+import { MongoRateLimitStore } from '../lib/mongoRateLimitStore.ts';
 import { User } from '../models/User.ts';
 import { OtpVerification } from '../models/OtpVerification.ts';
 import { AuditLog } from '../models/AuditLog.ts';
@@ -39,6 +40,7 @@ const passwordChangeRequestLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore('auth:pwd-req', 15 * 60 * 1000),
   message: {
     success: false,
     message: 'Too many password change requests. Please try again after 15 minutes.',
@@ -51,6 +53,7 @@ const passwordChangeVerifyLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore('auth:pwd-verify', 15 * 60 * 1000),
   message: {
     success: false,
     message: 'Too many verification attempts. Please try again after 15 minutes.',
@@ -64,6 +67,7 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore('auth:login', 15 * 60 * 1000),
   message: {
     success: false,
     message: 'Too many sign in attempts. Please try again after 15 minutes.',
@@ -76,6 +80,7 @@ const adminLoginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore('auth:admin-login', 15 * 60 * 1000),
   message: {
     success: false,
     message: 'Too many admin sign in attempts. Please try again after 15 minutes.',
@@ -88,6 +93,7 @@ const registerLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore('auth:register', 60 * 60 * 1000),
   message: {
     success: false,
     message: 'Too many registration requests from this network. Please try again later.',

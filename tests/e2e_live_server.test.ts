@@ -476,7 +476,13 @@ describe('Malwa Namkeen House — Comprehensive Live Server E2E Test Suite', () 
         Authorization: `Bearer ${customerToken}`,
       },
       body: JSON.stringify({
-        items: [{ productId: 'any', variantId: 'any', quantity: 1 }],
+        items: [
+          {
+            productId: orderedProductId,
+            variantId: orderedVariantId,
+            quantity: 1,
+          },
+        ],
         shippingAddress: {
           name: 'E2E Shopper Address',
           phone: '9826099999',
@@ -486,6 +492,7 @@ describe('Malwa Namkeen House — Comprehensive Live Server E2E Test Suite', () 
           pincode: '452002',
         },
         paymentMethod: 'cod',
+        notes: 'Fragile: Authentic Sev Delivery',
         idempotencyKey: testIdempotencyKey, // EXACT SAME KEY
       }),
     });

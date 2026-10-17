@@ -48,6 +48,13 @@ function loadRazorpayScript(): Promise<boolean> {
   });
 }
 
+function generateClientCheckoutKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'chk_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 11);
+}
+
 export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const navigate = useNavigate();
   const { settings } = useStoreSettings();
@@ -76,7 +83,7 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [createdOrder, setCreatedOrder] = useState<any | null>(null);
-  const [idempotencyKey] = useState<string>(() => `checkout_${Date.now()}_${Math.random()}`);
+  const [idempotencyKey, setIdempotencyKey] = useState<string>(() => generateClientCheckoutKey());
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('malwa_auth_token') : null;
 
@@ -109,6 +116,7 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       document.body.style.overflow = 'hidden';
       setCreatedOrder(null);
       setErrorMessage(null);
+      setIdempotencyKey(generateClientCheckoutKey());
       if (customer && token) {
         fetchAddresses();
       }
@@ -211,6 +219,7 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
+          'Idempotency-Key': idempotencyKey,
         },
         body: JSON.stringify(payload),
       });
@@ -260,6 +269,7 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
               if (verifyRes.ok && verifyData.success) {
                 setCreatedOrder(verifyData.order || data.order);
                 clearCart();
+                setIdempotencyKey(generateClientCheckoutKey());
               } else {
                 setErrorMessage(verifyData.message || 'Payment verification failed. Please contact support.');
               }
@@ -293,6 +303,7 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
       // Cash on Delivery or 100% promo order confirmed
       setCreatedOrder(data.order);
       clearCart();
+      setIdempotencyKey(generateClientCheckoutKey());
     } catch {
       setErrorMessage('Network error during checkout. Please verify your connection.');
     } finally {

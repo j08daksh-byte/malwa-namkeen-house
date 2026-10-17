@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
+import { MongoRateLimitStore } from '../lib/mongoRateLimitStore.ts';
 import mongoose from 'mongoose';
 import { Product } from '../models/Product.ts';
 import { User } from '../models/User.ts';
@@ -25,7 +26,7 @@ export interface CartRevalidateItemInput {
  * Threshold: 20 requests per 15-minute window.
  * Rationale: Frontend calls this only on "Checkout" clicks. 20 attempts
  * per 15 minutes is extremely generous for normal shopping while stopping abuse.
- * NOTE: Uses in-memory MemoryStore (PH-016 limitation applies).
+ * NOTE: Backed by distributed MongoRateLimitStore.
  */
 const cartRevalidateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -33,6 +34,7 @@ const cartRevalidateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore('cart:revalidate', 15 * 60 * 1000),
   message: {
     success: false,
     message: 'Too many cart revalidations. Please wait a moment before trying again.',

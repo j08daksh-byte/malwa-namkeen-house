@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Response } from 'express';
 import rateLimit from 'express-rate-limit';
+import { MongoRateLimitStore } from '../lib/mongoRateLimitStore.ts';
 import mongoose from 'mongoose';
 import { Discount, type DiscountType } from '../models/Discount.ts';
 import { requireAdmin, type AuthenticatedRequest } from '../lib/auth.ts';
@@ -16,7 +17,7 @@ const router = Router();
  * 3–5 codes; 30/15min absorbs retries comfortably while making
  * automated coupon enumeration (needing thousands of requests)
  * infeasible within a single rate-limit window.
- * NOTE: Uses in-memory MemoryStore (see PH-016 for serverless limitation).
+ * NOTE: Backed by distributed MongoRateLimitStore.
  */
 const couponValidateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -24,6 +25,7 @@ const couponValidateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore('discounts:validate', 15 * 60 * 1000),
   message: {
     success: false,
     message: 'Too many coupon validation attempts. Please try again after 15 minutes.',

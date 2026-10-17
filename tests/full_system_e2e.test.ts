@@ -425,6 +425,9 @@ describe('Malwa Namkeen House — Exhaustive Full-System Verification', () => {
     });
 
     it('H. Duplicate replay on identical idempotency key', async () => {
+      assert.ok(sampleProduct);
+      const variant = (sampleProduct.options && sampleProduct.options[0]) || (sampleProduct.variants && sampleProduct.variants[0]);
+
       const res = await fetch(`${BASE_URL}/api/orders`, {
         method: 'POST',
         headers: {
@@ -432,7 +435,13 @@ describe('Malwa Namkeen House — Exhaustive Full-System Verification', () => {
           Authorization: `Bearer ${customerToken}`,
         },
         body: JSON.stringify({
-          items: [{ productId: 'any', variantId: 'any', quantity: 1 }],
+          items: [
+            {
+              productId: sampleProduct._id || sampleProduct.id,
+              variantId: variant.id || variant._id,
+              quantity: 1,
+            },
+          ],
           shippingAddress: {
             name: 'Anjali Sharma',
             phone: '9826022222',

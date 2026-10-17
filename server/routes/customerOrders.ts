@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
+import { MongoRateLimitStore } from '../lib/mongoRateLimitStore.ts';
 import mongoose from 'mongoose';
 import crypto from 'crypto';
 import { User, type IUserAddress } from '../models/User.ts';
@@ -96,6 +97,7 @@ const orderCreationLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false, keyGeneratorIpFallback: false },
+  store: new MongoRateLimitStore('orders:create', 15 * 60 * 1000),
   keyGenerator: (req: any) => {
     // Key by user ID since this is an authenticated route
     return req.user?.userId ? `user_${req.user.userId}` : (req.ip || '127.0.0.1');

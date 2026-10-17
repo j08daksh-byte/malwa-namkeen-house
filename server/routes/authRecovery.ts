@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
+import { MongoRateLimitStore } from '../lib/mongoRateLimitStore.ts';
 import { User } from '../models/User.ts';
 import { hashPassword, generateToken, setAuthCookie } from '../lib/auth.ts';
 import {
@@ -19,6 +20,7 @@ const forgotPasswordLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore('auth:forgot-pwd', 15 * 60 * 1000),
   message: {
     success: true, // Maintain generic response even if rate limited
     message: 'If an account exists for this email, password reset instructions have been dispatched.',
@@ -32,6 +34,7 @@ const tokenSubmissionLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { default: false },
+  store: new MongoRateLimitStore('auth:token-submit', 15 * 60 * 1000),
   message: {
     success: false,
     message: 'Too many requests. Please try again after 15 minutes.',
