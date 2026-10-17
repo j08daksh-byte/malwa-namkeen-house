@@ -2,18 +2,19 @@
 
 **Document Version:** 1.8.0 (Release Candidate)
 **Updated:** 17 October 2026
-**Target Branch:** `feat/transactional-email-hardening` (Release Candidate HEAD: `cd852651ae870ed7d131285b9cbb748883fc8c2f`, branched from canonical `main` at `f7ead1e`)
+**Target Branch:** `feat/transactional-email-hardening` (Release Candidate HEAD: `675501aa88f0f52d74c57811ccb5ae82067b20e9`, branched from canonical `main` at `f7ead1e`)
 **Current Canonical Production main SHA:** `f7ead1e7d5b7a72759f36bc67e3fad6ef0b1eabb` (Consolidated with `feat/comprehensive-integration-pass`, verified in sync with `daksh_repo/main`)
 **Previous Production main SHA:** `8e9d031c26b52a138bb36279f19630c79ca2e4c9`
 **Candidate Merge Commit SHA (on main):** `bf2ef58d6a9e8b1c644f4d8072640f787a16bab9`
 **Consolidated Candidate SHA:** `7fca7c3b1e23b38ac443a9856a117b6d29f55781`
-**Active Hardening Branch (RC):** `feat/transactional-email-hardening` (HEAD: `cd852651ae870ed7d131285b9cbb748883fc8c2f`, clean working tree)
+**Active Hardening Branch (RC):** `feat/transactional-email-hardening` (HEAD: `675501aa88f0f52d74c57811ccb5ae82067b20e9`, clean working tree)
 **Canonical Remote:** `daksh_repo` (`https://github.com/j08daksh-byte/malwa-namkeen-house.git`)
 **Vercel Production Project:** `malwa-namkeen` (`dakshs-projects-45d693b3`)
 **Active Production Deployment (Known-Good):** [`dpl_4DGFYbBhPvvJHhHaAWxChXz9A95b`](https://malwa-namkeen-8imdhu89x-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready**, aliased to `https://malwa-namkeen.vercel.app`)
-**Usable Staging Preview Deployment:** [`dpl_9rykb8hDa9YAi4Jnasz8jXUU9x2e`](https://malwa-namkeen-btoliab4k-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready**, aliased to `https://malwa-namkeen-git-feat-transact-b29aea-dakshs-projects-45d693b3.vercel.app`)
+**Usable Staging Preview Deployment:** [`dpl_CSqLiWRSvoCQnYHU7QM11a586pFg`](https://malwa-namkeen-kl3nonlb3-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready**, aliased to `https://malwa-namkeen-git-feat-transact-b29aea-dakshs-projects-45d693b3.vercel.app`)
 **Domain Status:** `malwanamkeen.com` is **NOT connected** in Vercel (`0 Domains found under dakshs-projects-45d693b3`). Default URL: [https://malwa-namkeen.vercel.app](https://malwa-namkeen.vercel.app)
 **Production Database:** `malwa_namkeen` (MongoDB Atlas — Protected / Untouched, 6 baseline orders)
+**Preview Database:** `malwa_namkeen_preview` (MongoDB Atlas — Isolated & Verified over wire)
 **Active Isolated Test Database:** `malwa_namkeen_test` (MongoDB Atlas)
 
 ---
@@ -367,9 +368,12 @@ npx tsx tests/full_system_e2e.test.ts
    - Create API user in Shiprocket Dashboard (**Settings → API → Configure**).
    - Configure `SHIPROCKET_EMAIL`, `SHIPROCKET_PASSWORD`, `SHIPROCKET_WEBHOOK_TOKEN`, and `SHIPROCKET_PICKUP_LOCATION` in Vercel.
    - Register webhook URL `https://malwa-namkeen.vercel.app/api/shipping/webhook/shiprocket`.
-5. **Step 5: Staging Manual Browser QA (DATABASE ISOLATION VERIFIED — GATE CLOSED):**
-   - **Isolation Status:** Database isolation verified (`MONGODB_DB_NAME=malwa_namkeen_preview` active on Preview, `malwa_namkeen_preview` initialized on Atlas, production untouched). Staging order, cancellation, coupon, and inventory tests are **AUTHORIZED ON PREVIEW**.
-   - Execute the 8-step staging acceptance runbook on active preview deployment [`dpl_9rykb8hDa9YAi4Jnasz8jXUU9x2e`](https://malwa-namkeen-btoliab4k-dakshs-projects-45d693b3.vercel.app) across desktop and mobile devices.
+5. **Step 5: Staging Manual Browser QA (DATABASE ISOLATION VERIFIED & BYPASS AUTHENTICATED):**
+   - **Isolation Status:** Runtime database isolation verified over the wire (`database: "malwa_namkeen_preview"` returned by `/api/health` with `status: "ok"`, `mongodb: "connected"`).
+   - **Preview Deployment:** [`dpl_CSqLiWRSvoCQnYHU7QM11a586pFg`](https://malwa-namkeen-kl3nonlb3-dakshs-projects-45d693b3.vercel.app) (built from commit `675501a`, aliased to `https://malwa-namkeen-git-feat-transact-b29aea-dakshs-projects-45d693b3.vercel.app`).
+   - **Access Mechanism:** Authorized via Vercel Automation Protection Bypass header (`x-vercel-protection-bypass`).
+   - **Production Integrity:** Confirmed unmutated (`database: "malwa_namkeen"` returned by production `/api/health`). Staging QA is authorized on Preview.
+   - Execute staging acceptance runbook on active preview deployment across desktop and mobile devices.
 6. **Step 6: Final Release Approval & Live Mode Switch:**
    - Once staging QA is signed off, promote Razorpay keys to Live (`rzp_live_...`), conduct live smoke test, and point primary traffic to `https://malwanamkeen.com`.
 

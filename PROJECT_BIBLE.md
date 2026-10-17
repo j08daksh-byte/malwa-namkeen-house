@@ -3,12 +3,12 @@
 **System Name:** Malwa Namkeen House D2C E-Commerce & Administrative Platform
 **Established:** 1954 (Ujjain / Bengaluru Heritage Savouries & Sweets)
 **Version:** 1.8.0 (Canonical Main: `f7ead1e7d5b7a72759f36bc67e3fad6ef0b1eabb`, tracking `daksh_repo/main`)
-**Active Hardening Branch (RC):** `feat/transactional-email-hardening` (HEAD: `cd852651ae870ed7d131285b9cbb748883fc8c2f`)
+**Active Hardening Branch (RC):** `feat/transactional-email-hardening` (HEAD: `675501aa88f0f52d74c57811ccb5ae82067b20e9`)
 **Canonical Repository:** `j08daksh-byte/malwa-namkeen-house` (`daksh_repo/main`)
 **Production Host:** Vercel (`malwa-namkeen`)
 **Production Deployment:** `dpl_4DGFYbBhPvvJHhHaAWxChXz9A95b` (`https://malwa-namkeen.vercel.app`)
-**Usable Staging Preview:** `dpl_9rykb8hDa9YAi4Jnasz8jXUU9x2e` (`https://malwa-namkeen-btoliab4k-dakshs-projects-45d693b3.vercel.app`)
-**Database Host:** MongoDB Atlas
+**Usable Staging Preview:** `dpl_CSqLiWRSvoCQnYHU7QM11a586pFg` (`https://malwa-namkeen-kl3nonlb3-dakshs-projects-45d693b3.vercel.app`, aliased to `https://malwa-namkeen-git-feat-transact-b29aea-dakshs-projects-45d693b3.vercel.app`)
+**Database Host:** MongoDB Atlas (Production: `malwa_namkeen`, Preview: `malwa_namkeen_preview`, Test: `malwa_namkeen_test`)
 
 ---
 
