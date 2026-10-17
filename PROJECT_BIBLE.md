@@ -3,7 +3,7 @@
 **System Name:** Malwa Namkeen House D2C E-Commerce & Administrative Platform
 **Established:** 1954 (Ujjain / Bengaluru Heritage Savouries & Sweets)
 **Version:** 1.2.0 (Canonical Main: `8e9d031c26b52a138bb36279f19630c79ca2e4c9`, consolidated merge `bf2ef58`)
-**Active Integration Branch:** `feat/comprehensive-integration-pass` (HEAD: `78feac2` + uncommitted working changes)
+**Active Integration Branch:** `feat/comprehensive-integration-pass` (HEAD: `808a9ba`, clean working tree, published on `daksh_repo`)
 **Canonical Repository:** `j08daksh-byte/malwa-namkeen-house` (`daksh_repo/main`)
 **Production Host:** Vercel (`malwa-namkeen`)
 **Database Host:** MongoDB Atlas

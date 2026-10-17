@@ -7,7 +7,7 @@
 **Previous Production main SHA:** `8dca7583a27b7ef8034cbd364b6db55ea8c87d48`
 **Candidate Merge Commit SHA (on main):** `bf2ef58d6a9e8b1c644f4d8072640f787a16bab9`
 **Consolidated Candidate SHA:** `7fca7c3b1e23b38ac443a9856a117b6d29f55781`
-**Active Integration Branch:** `feat/comprehensive-integration-pass` (HEAD: `78feac2` + uncommitted working changes)
+**Active Integration Branch:** `feat/comprehensive-integration-pass` (HEAD: `808a9ba`, clean working tree, published on `daksh_repo`)
 **Canonical Remote:** `daksh_repo` (`https://github.com/j08daksh-byte/malwa-namkeen-house.git`)
 **Vercel Production Project:** `malwa-namkeen` (`dakshs-projects-45d693b3`)
 **Active Production Deployment:** [`dpl_DayLHyctUicwMKCshgVRtsVLXFET`](https://malwa-namkeen-77c9d7yf7-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready** on baseline `9fd812d` / `8dca758`)
