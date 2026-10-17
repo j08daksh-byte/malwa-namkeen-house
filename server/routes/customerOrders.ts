@@ -624,7 +624,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
 });
 
 // Helper: Dispatches order confirmation and admin alert emails non-blockingly
-async function dispatchOrderConfirmationEmails(order: any) {
+export async function dispatchOrderConfirmationEmails(order: any) {
   try {
     await sendCustomerOrderConfirmation({ order });
 

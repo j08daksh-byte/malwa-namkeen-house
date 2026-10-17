@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { StoreSettings, type IStoreSettings } from '../models/StoreSettings.ts';
 import { requireAdmin, requireSuperAdmin, type AuthenticatedRequest } from '../lib/auth.ts';
+import { handleSmokeTest } from './adminEmail.ts';
 
 import { BUSINESS } from '../config.ts';
 
@@ -201,5 +202,11 @@ router.put('/', requireSuperAdmin, async (req: AuthenticatedRequest, res: Respon
     res.status(400).json({ success: false, message: msg });
   }
 });
+
+/**
+ * POST /api/admin/settings/email/smoke-test
+ * Settings alias to trigger transactional email delivery smoke test.
+ */
+router.post('/email/smoke-test', handleSmokeTest);
 
 export default router;

@@ -25,6 +25,7 @@ import adminInquiryRoutes from './server/routes/adminInquiries.ts';
 import adminStaffRoutes from './server/routes/adminStaff.ts';
 import authRecoveryRoutes from './server/routes/authRecovery.ts';
 import adminSettingsRoutes, { publicSettingsRouter } from './server/routes/adminSettings.ts';
+import adminEmailRoutes from './server/routes/adminEmail.ts';
 import adminDashboardRoutes from './server/routes/adminDashboard.ts';
 import adminBannerRoutes from './server/routes/adminBanners.ts';
 import publicBannerRoutes from './server/routes/banners.ts';
@@ -270,6 +271,9 @@ async function startServer() {
 
   // Admin store settings routes (protected by requireAdmin)
   app.use('/api/admin/settings', adminSettingsRoutes);
+
+  // Admin email testing and status routes (protected by requireAdmin)
+  app.use('/api/admin/email', adminEmailRoutes);
 
   // Public customer store settings (store details, address, contact, GST, policies)
   app.use('/api/settings', publicSettingsRouter);

@@ -20,6 +20,7 @@ import adminDiscountRoutes from './routes/adminDiscounts.ts';
 import adminInquiryRoutes from './routes/adminInquiries.ts';
 import adminStaffRoutes from './routes/adminStaff.ts';
 import adminSettingsRoutes, { publicSettingsRouter } from './routes/adminSettings.ts';
+import adminEmailRoutes from './routes/adminEmail.ts';
 import adminDashboardRoutes from './routes/adminDashboard.ts';
 import uploadRoutes from './routes/uploads.ts';
 import enquiryRoutes from './routes/enquiries.ts';
@@ -129,6 +130,7 @@ const routeConfigs = [
   { path: '/admin/dashboard', router: adminDashboardRoutes },
   { path: '/admin/staff', router: adminStaffRoutes },
   { path: '/admin/settings', router: adminSettingsRoutes },
+  { path: '/admin/email', router: adminEmailRoutes },
   { path: '/admin/inquiries', router: adminInquiryRoutes },
   { path: '/admin/discounts', router: adminDiscountRoutes },
   { path: '/admin/customers', router: adminCustomerRoutes },

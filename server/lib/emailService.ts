@@ -158,6 +158,39 @@ export const DEDUPLICATED_EVENT_TYPES: Set<EmailEventType> = new Set([
 ]);
 
 /**
+ * Sanitizes error messages by scrubbing potential API keys, Bearer tokens, or credentials.
+ */
+export function sanitizeErrorMessage(err: unknown): string {
+  if (!err) return '';
+  const str = err instanceof Error ? err.message : String(err);
+  return str
+    .replace(/re_[a-zA-Z0-9_]{8,}/g, 're_***')
+    .replace(/Bearer\s+[a-zA-Z0-9_.-]{8,}/gi, 'Bearer ***')
+    .replace(/key=[a-zA-Z0-9_.-]{8,}/gi, 'key=***');
+}
+
+/**
+ * Checks if an error is transient (network timeout, connection reset, or rate limit)
+ * suitable for a safe, bounded in-flight retry.
+ */
+export function isTransientNetworkError(errorMsg: string): boolean {
+  const lower = (errorMsg || '').toLowerCase();
+  return (
+    lower.includes('etimedout') ||
+    lower.includes('econnreset') ||
+    lower.includes('econnrefused') ||
+    lower.includes('eai_again') ||
+    lower.includes('socket hang up') ||
+    lower.includes('timeout') ||
+    lower.includes('rate_limit') ||
+    lower.includes('500') ||
+    lower.includes('502') ||
+    lower.includes('503') ||
+    lower.includes('504')
+  );
+}
+
+/**
  * Dispatch transactional email via configured provider or safe dev simulation.
  * Logs delivery attempt in EmailLog for auditability and idempotency.
  */
@@ -220,30 +253,53 @@ export async function sendEmail({
 
   // 1. Resend Provider (Production / Configured Key & Provider)
   if (config.provider === 'resend') {
-    if (!config.resendApiKey) {
+    if (!config.resendApiKey && !resendClient) {
       console.warn(`[Email Service] Resend provider selected but RESEND_API_KEY is not configured. Message to <${maskEmail(cleanTo)}> safely dropped.`);
       result = { success: false, provider: 'unconfigured', error: 'Email provider unconfigured.', delivered: false };
     } else {
-      try {
-        const client = getResendClient();
-        if (!client) throw new Error('Resend client initialization failed');
+      let attempts = 0;
+      const maxAttempts = 2; // Initial attempt + 1 bounded in-flight retry for transient network errors
+      let lastError = '';
 
-        const response = await client.emails.send({
-          from: config.emailFrom,
-          to: [cleanTo],
-          subject,
-          html,
-          text: plainText,
-        });
+      while (attempts < maxAttempts) {
+        attempts++;
+        try {
+          const client = getResendClient();
+          if (!client) throw new Error('Resend client initialization failed');
 
-        if (response.error) {
-          result = { success: false, provider: 'resend', error: response.error.message, delivered: false };
-        } else {
-          result = { success: true, provider: 'resend', messageId: response.data?.id, delivered: true };
+          const response = await client.emails.send({
+            from: config.emailFrom,
+            to: [cleanTo],
+            subject,
+            html,
+            text: plainText,
+          });
+
+          if (response.error) {
+            lastError = sanitizeErrorMessage(response.error.message);
+            if (!isTransientNetworkError(lastError)) {
+              break; // Permanent error (e.g. unverified sender domain) — do not retry
+            }
+          } else {
+            result = { success: true, provider: 'resend', messageId: response.data?.id, delivered: true };
+            lastError = '';
+            break;
+          }
+        } catch (err: unknown) {
+          lastError = sanitizeErrorMessage(err);
+          if (!isTransientNetworkError(lastError) || attempts >= maxAttempts) {
+            break;
+          }
         }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        result = { success: false, provider: 'resend', error: msg, delivered: false };
+
+        if (attempts < maxAttempts) {
+          // Bounded backoff pause (150ms) before second attempt
+          await new Promise((r) => setTimeout(r, 150));
+        }
+      }
+
+      if (lastError) {
+        result = { success: false, provider: 'resend', error: lastError, delivered: false };
       }
     }
   } else if (config.provider === 'unconfigured' || (isProd && config.provider !== 'simulated')) {
@@ -299,7 +355,7 @@ export async function runEmailSmokeTest(options: { targetEmail?: string } = {}):
   const config = getEmailConfig();
   const recipient = options.targetEmail || process.env.ADMIN_NOTIFICATION_EMAIL || 'malwanamkeenhouse@gmail.com';
 
-  if (!config.resendApiKey) {
+  if (!config.resendApiKey && !resendClient) {
     return {
       success: false,
       provider: 'none',

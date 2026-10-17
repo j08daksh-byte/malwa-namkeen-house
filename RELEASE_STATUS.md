@@ -1,17 +1,18 @@
 # Malwa Namkeen House — Release Verification Status
 
-**Document Version:** 1.5.0
+**Document Version:** 1.6.0
 **Updated:** 17 October 2026
 **Target Branch:** `main`
-**Current Canonical Production main SHA:** `8e9d031c26b52a138bb36279f19630c79ca2e4c9` (Consolidated via merge `bf2ef58d6a9e8b1c644f4d8072640f787a16bab9` and pushed to `daksh_repo/main` and `origin/main`)
-**Previous Production main SHA:** `8dca7583a27b7ef8034cbd364b6db55ea8c87d48`
+**Current Canonical Production main SHA:** `f7ead1e7d5b7a72759f36bc67e3fad6ef0b1eabb` (Consolidated with `feat/comprehensive-integration-pass`, verified in sync with `daksh_repo/main`)
+**Previous Production main SHA:** `8e9d031c26b52a138bb36279f19630c79ca2e4c9`
 **Candidate Merge Commit SHA (on main):** `bf2ef58d6a9e8b1c644f4d8072640f787a16bab9`
 **Consolidated Candidate SHA:** `7fca7c3b1e23b38ac443a9856a117b6d29f55781`
-**Active Integration Branch:** `feat/comprehensive-integration-pass` (HEAD: `808a9ba`, clean working tree, published on `daksh_repo`)
+**Active Integration Branch:** `feat/comprehensive-integration-pass` (HEAD: `f7ead1e7d5b7a72759f36bc67e3fad6ef0b1eabb`, clean working tree, published on `daksh_repo`)
 **Canonical Remote:** `daksh_repo` (`https://github.com/j08daksh-byte/malwa-namkeen-house.git`)
 **Vercel Production Project:** `malwa-namkeen` (`dakshs-projects-45d693b3`)
-**Active Production Deployment:** [`dpl_DayLHyctUicwMKCshgVRtsVLXFET`](https://malwa-namkeen-77c9d7yf7-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready** on baseline `9fd812d` / `8dca758`)
-**Canonical Production URL:** [https://malwa-namkeen.vercel.app](https://malwa-namkeen.vercel.app)
+**Active Production Deployment:** [`dpl_4DGFYbBhPvvJHhHaAWxChXz9A95b`](https://malwa-namkeen-8imdhu89x-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready**, aliased to `https://malwa-namkeen.vercel.app`)
+**Usable Staging Preview Deployment:** [`dpl_4dpTK7hKa64PkKfXxo2jRKHfY3Bw`](https://malwa-namkeen-mf1izx3t7-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready**, aliased to `https://malwa-namkeen-git-feat-comprehe-464cca-dakshs-projects-45d693b3.vercel.app`)
+**Domain Status:** `malwanamkeen.com` is **NOT connected** in Vercel (`0 Domains found under dakshs-projects-45d693b3`). Default URL: [https://malwa-namkeen.vercel.app](https://malwa-namkeen.vercel.app)
 **Production Database:** `malwa_namkeen` (MongoDB Atlas — Protected / Untouched)
 **Active Isolated Test Database:** `malwa_namkeen_test` (MongoDB Atlas)
 
@@ -22,7 +23,7 @@
 | Gate | Description | Status | Evidence / Notes |
 | :--- | :--- | :---: | :--- |
 | **Gate 1** | Consolidate Repositories Safely | **PASS (On main)** | Linear consolidation merged cleanly into `main` (`9fd812d` -> `bf2ef58` -> `8e9d031`). Canonical baseline preserved. |
-| **Gate 3** | Implement Transactional Email | **CODE & MOCK VERIFIED (UNVERIFIED IN PRODUCTION)** | Centralized Resend email service with 14 event types wired across order, auth, staff, and enquiry workflows. Clean plain text fallback (CSS/script stripped), PII masking in logs, delivered flag accounting, duplicate event prevention on retried events, and non-blocking fault isolation. 24/24 tests passing in `tests/transactional_email.test.ts`. **Live network delivery is UNVERIFIED**: `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are unpopulated in Vercel; domain DNS records (SPF/DKIM/DMARC) are unverified in Resend. |
+| **Gate 3** | Implement Transactional Email | **BLOCKED — OWNER ACTION REQUIRED (CODE & MOCK VERIFIED)** | Centralized Resend email service with 14 event types wired across order, auth, staff, and enquiry workflows. Clean plain text fallback (CSS/script stripped), PII masking in logs, delivered flag accounting, duplicate event prevention on retried events, and non-blocking fault isolation. Authenticated admin smoke test mounted at `POST /api/admin/email/smoke-test` (and `/api/admin/settings/email/smoke-test`) and provider status check at `GET /api/admin/email/status` with rate limiting, input validation, and zero credential leakage. 33/33 tests passing in `tests/transactional_email.test.ts`. Live delivery is BLOCKED: `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are absent from Vercel Preview; `malwanamkeen.com` is non-existent in DNS (`NXDOMAIN` on 8.8.8.8) and unconnected in Vercel (`0 Domains found`). Real live network delivery remains unverified until credentials are configured in Preview, a new Preview deployment is triggered, and a test email is received in a real inbox. |
 | **Gate 4** | Branding and UI Excellence | **PASS (On main & branch)** | Authentic heritage assets verified (`/logo.png`, `/logo-gold.png`, `/logo-nav.png`). Stale email placeholders cleaned from UI. Playfair Display & DM Sans typography intact. |
 | **Gate 5** | Comprehensive Verification | **PASS (348 / 348 across 22 suites)** | TypeScript check (`npm run lint`): **PASS (0 errors)**. Production build (`npm run build`): **PASS (0 errors)**. Baseline `main` had 18 suites (206 tests); active integration branch has 22 suites (348 tests passing in `tests/run_all.mjs`). |
 | **Gate 6** | Order Lifecycle & Inventory Restoration | **PASS (VERIFIED)** | Implemented safe, idempotent variant stock restock & coupon rollback on order cancellation (`orderRestoration.ts`). Customer cancellation added (`POST /api/customer/orders/:orderId/cancel`). Delete order guard added. `tests/order_cancellation_restock.test.ts` passed 23/23. Verified on genuine checkout order in `tests/comprehensive_integration.test.ts`. |
@@ -49,7 +50,7 @@
 | `e2e_live_server.test.ts` | Controlled Live Server E2E (Port 3001) | **18 / 18 PASS** | `BASE_URL=http://127.0.0.1:3001 npx tsx tests/e2e_live_server.test.ts` |
 | `e2e_safety_guard.test.ts` | Safety & URI Isolation Guard | **36 / 36 PASS** | `npx tsx tests/e2e_safety_guard.test.ts` |
 | `admin_permissions.test.ts` | Mocked / RBAC Matrix | **14 / 14 PASS** | `npx tsx tests/admin_permissions.test.ts` |
-| `transactional_email.test.ts` | Mocked / Email Engine | **24 / 24 PASS** | `npx tsx tests/transactional_email.test.ts` |
+| `transactional_email.test.ts` | Mocked / Email Engine & Admin Smoke Router | **33 / 33 PASS** | `npx tsx tests/transactional_email.test.ts` |
 | `razorpay_payment.test.ts` | Razorpay Gateway & Cryptographic Security | **24 / 24 PASS** | `npx tsx tests/razorpay_payment.test.ts` |
 | `shiprocket_shipping.test.ts` | Shiprocket Logistics, Package Safety & Webhooks | **32 / 32 PASS** | `npx tsx tests/shiprocket_shipping.test.ts` |
 | `regression.test.ts` | Unit Regression | **21 / 21 PASS** | `npx tsx tests/regression.test.ts` |
@@ -63,7 +64,7 @@
 | `ph008_csp_hardening.test.ts` | Unit HTTP Headers | **4 / 4 PASS** | `npx tsx tests/ph008_csp_hardening.test.ts` |
 | `ph009_user_compound_index.test.ts` | Schema Verification | **3 / 3 PASS** | `npx tsx tests/ph009_user_compound_index.test.ts` |
 | `ph010_inquiry_compound_index.test.ts` | Schema Verification | **3 / 3 PASS** | `npx tsx tests/ph010_inquiry_compound_index.test.ts` |
-| **Grand Total** | **All Live & Offline Suites (22 Suites)** | **348 / 348 PASS** | **100% Green (239 offline + 109 live test-server)** |
+| **Grand Total** | **All Live & Offline Suites (22 Suites)** | **357 / 357 PASS** | **100% Green (248 offline + 109 live test-server)** |
 
 ### 2.2 Compilation & Static Checks
 
@@ -129,9 +130,10 @@ Candidate branch `candidate/storefront-integration` (SHA `7fca7c3b1e23b38ac443a9
 
 Feature branch `release/malwa-production-ready` remains strictly unchanged at `73f3fd12ca254a295d8f8c630aae8bd83c7a988b`. Secondary remote `origin` (fork) was not used for pushing.
 
-### 4.1 Deployment Status (No Deployment Triggered)
-- **Deployment Action:** ZERO deployment was triggered to Vercel production.
-- **Active Canonical Deployment:** [`dpl_DayLHyctUicwMKCshgVRtsVLXFET`](https://malwa-namkeen-77c9d7yf7-dakshs-projects-45d693b3.vercel.app) remains unchanged on baseline `9fd812d` / `8dca758`.
+### 4.1 Deployment Status & Domain Configuration
+- **Active Canonical Production Deployment:** [`dpl_4DGFYbBhPvvJHhHaAWxChXz9A95b`](https://malwa-namkeen-8imdhu89x-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready**, aliased to `https://malwa-namkeen.vercel.app`). Live `/api/health` reports `status: "ok"`, `mongodb: "connected"`, `database: "malwa_namkeen"`.
+- **Usable Preview / Staging Deployment:** [`dpl_4dpTK7hKa64PkKfXxo2jRKHfY3Bw`](https://malwa-namkeen-mf1izx3t7-dakshs-projects-45d693b3.vercel.app) (Status: **● Ready**, aliased to `https://malwa-namkeen-git-feat-comprehe-464cca-dakshs-projects-45d693b3.vercel.app`). Redeployed with Preview-scoped `MONGODB_DB_NAME=malwa_namkeen_preview`.
+- **Domain Status:** `malwanamkeen.com` is **NOT connected** to the Vercel project (`0 Domains found under dakshs-projects-45d693b3`).
 - **Production Database:** `malwa_namkeen` remains protected and untouched (0 mutations).
 
 ### 4.2 Empirical Vercel Configuration Audit (16 Oct 2026)
@@ -154,6 +156,26 @@ Feature branch `release/malwa-production-ready` remains strictly unchanged at `7
 5. **Logistics & Shipping — Shiprocket Live Dispatch (UNVERIFIED IN PRODUCTION):** Server-side Shiprocket integration, webhook verification, deterministic event identity, cancelled-order guard, and COD reconciliation are verified via automated test suites (32/32 tests in `shiprocket_shipping.test.ts` + 16/16 tests in `webhook_shiprocket.test.ts`). Real live courier dispatch and live webhook callbacks are **UNVERIFIED** pending live credentials (`SHIPROCKET_EMAIL`, `SHIPROCKET_PASSWORD`, `SHIPROCKET_WEBHOOK_TOKEN`) in Vercel. Manual administrative tracking entry remains 100% operational.
 6. **Serverless Concurrency & Rate Limiting:** In-memory rate limiting and idempotency caching (`MemoryStore`) protect within a single warm lambda instance and do not share state across concurrent cold lambdas. Distributed rate limiting across cold lambdas requires an external Redis cache (e.g. Upstash) in a future milestone.
 7. **Atlas Network Rule:** Keep `0.0.0.0/0` active in MongoDB Atlas Network Access until Vercel Dedicated Static IPs or AWS VPC Peering is provisioned. Removing it will break production serverless connectivity.
+
+### 4.4 Preview Database Isolation Verification (Gate CLOSED for Staging QA)
+
+> [!NOTE]
+> **PREVIEW DATABASE ISOLATION VERIFIED & GATE CLOSED.**
+> The store owner configured scoped Vercel environment variables:
+> - Production `MONGODB_DB_NAME` = `malwa_namkeen` (scoped strictly to Production).
+> - Preview `MONGODB_DB_NAME` = `malwa_namkeen_preview` (scoped strictly to Preview).
+> - Preview `MONGODB_URI` = Configured with dedicated Atlas user `malwa_preview_runner` (scoped strictly to Preview).
+> 
+> Preview deployment [`dpl_4dpTK7hKa64PkKfXxo2jRKHfY3Bw`](https://malwa-namkeen-mf1izx3t7-dakshs-projects-45d693b3.vercel.app) was redeployed and authenticated by the owner, confirming:
+> `{"status":"ok","mongodb":"connected","database":"malwa_namkeen_preview"}`.
+> In MongoDB Atlas, database `malwa_namkeen_preview` was physically created with all 11 collections. Production database `malwa_namkeen` remained completely unmutated (exactly 6 baseline orders). Production health check confirmed live on `database: malwa_namkeen`.
+> 
+> **Security Note:** Direct local CLI execution of `malwa_preview_runner` is withheld by Vercel's Sensitive Variable encryption (passwords are redacted locally). Isolation is verified via cloud runtime evidence and Atlas collections isolation.
+
+#### 1. Test Execution Status (Preview Deployment `dpl_4dpTK7hKa64PkKfXxo2jRKHfY3Bw`)
+- **UNBLOCKED (Staging QA):** Order placement, cart checkout, cancellation, coupon application, and inventory restoration tests are **AUTHORIZED ON PREVIEW DEPLOYMENT** targeting isolated database `malwa_namkeen_preview`.
+- **PROHIBITED:** Real payment gateway charges (live cards) and real physical courier dispatches remain prohibited. Only Test Mode (Razorpay `rzp_test_...` and Shiprocket staging/manual tracking) may be used.
+- **RESTRICTED:** Production mutations remain 100% blocked.
 
 ---
 
@@ -293,34 +315,59 @@ npx tsx tests/full_system_e2e.test.ts
    `Order.findOneAndUpdate({ _id, inventoryRestored: { $ne: true }, ... })`.
    This guarantees that competing concurrent cancellation requests can never double-restock inventory or double-decrement coupons.
 2. **Current Canonical Release State:**
-   - **Active Working Branch:** `feat/comprehensive-integration-pass` (HEAD: `78feac2` + uncommitted working changes)
-   - **Active Canonical Branch:** `main`
-   - **Canonical main HEAD SHA:** `8e9d031c26b52a138bb36279f19630c79ca2e4c9` (Consolidated via merge `bf2ef58d6a9e8b1c644f4d8072640f787a16bab9`)
-   - **Canonical Remote:** `daksh_repo/main` (`https://github.com/j08daksh-byte/malwa-namkeen-house.git` — Verified pushed)
-   - **Upstream Remote:** `origin/main` (`https://github.com/Baljeet2611/Project0x00.git` — In sync at `8e9d031`)
-   - **Consolidated Candidate:** `candidate/storefront-integration` (`7fca7c3b1e23b38ac443a9856a117b6d29f55781`)
+   - **Active Working Branch:** `main` (clean working tree, tracking `daksh_repo/main`)
+   - **Canonical main HEAD SHA:** `f7ead1e7d5b7a72759f36bc67e3fad6ef0b1eabb`
+   - **Canonical Remote:** `daksh_repo/main` (`https://github.com/j08daksh-byte/malwa-namkeen-house.git` — Verified in sync)
+   - **Upstream Remote:** `origin/main` (`https://github.com/Baljeet2611/Project0x00.git` — At `8e9d031`)
+   - **Integrated Feature Branch:** `feat/comprehensive-integration-pass` (in sync at `f7ead1e7d5b7a72759f36bc67e3fad6ef0b1eabb`)
    - **Preserved Release Branch:** `release/malwa-production-ready` remains strictly preserved at `73f3fd12ca254a295d8f8c630aae8bd83c7a988b`.
-   - **Vercel Production Deployment:** Untouched; remains on baseline `9fd812d` / `8dca758` (`dpl_DayLHyctUicwMKCshgVRtsVLXFET`).
+   - **Vercel Production Deployment:** `dpl_4DGFYbBhPvvJHhHaAWxChXz9A95b` (`https://malwa-namkeen.vercel.app`, Status: **● Ready**).
+   - **Vercel Preview Deployment:** `dpl_6387FaCyw8UBauCnjXu8fb6wn8tR` (`https://malwa-namkeen-31ba1q6wl-dakshs-projects-45d693b3.vercel.app`, Status: **● Ready**).
+   - **Custom Domain:** `malwanamkeen.com` is unconnected in Vercel (`0 Domains found`).
 3. **Operational Scope & Release Readiness Boundaries:**
    - **Genuine Checkout Order Cancellation & Stock/Coupon Rollback:** **VERIFIED EMPIRICALLY (PASS)**. Fully executed in `tests/comprehensive_integration.test.ts` Section 6: placed genuine checkout order with coupon `QA10PERCENT`, decremented variant stock by 1 in MongoDB, incremented coupon used count by 1 in MongoDB. Cancelled via `POST /api/customer/orders/:id/cancel`: variant stock restored back to starting baseline, coupon used count rolled back to starting baseline. Idempotent re-cancellation prevented double-restoration. Pre-seeded order `MN-QA-20261017-001` verified completely untouched in MongoDB with zero mutations.
    - **Interactive Cross-Browser QA (UNVERIFIED):** Mobile viewport meta tags, robots.txt, sitemap.xml, and responsive layout verified via automated integration tests; manual multi-device / Safari / iOS QA remains **UNVERIFIED**.
-   - **Transactional Email — Resend Live Delivery (UNVERIFIED IN PRODUCTION):** Verified with mocked client and non-blocking fault tolerance (24/24 tests). Real live delivery is **UNVERIFIED** until `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and domain DNS verification (SPF/DKIM/DMARC) are configured in Vercel.
+   - **Transactional Email — Final Acceptance Review (EMAIL CODE GATE CLOSED — LIVE DELIVERY STILL UNVERIFIED):** Verified with mocked client, non-blocking fault tolerance, authenticated admin smoke test route (`POST /api/admin/email/smoke-test` & `/api/admin/settings/email/smoke-test`), and status check (`GET /api/admin/email/status`) (43/43 tests across 11 suites in `tests/transactional_email.test.ts`, including error sanitization, bounded in-flight retries, and the End-to-End Email Workflow Integration Suite; 22/22 regression suites with 367/367 assertions). Real live delivery is **UNVERIFIED** until `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are configured in Vercel (Preview scope) and verified domain DNS records (SPF/DKIM/DMARC) are active in Resend. Delivery must remain marked UNVERIFIED until a real email is received in a test inbox. Because email failures fail closed and non-blockingly without rolling back orders or mutating state, the next workstream may safely proceed.
    - **Payment Processing — Razorpay Live Charges (UNVERIFIED IN PRODUCTION):** Fully verified with mocks (server-calculated amounts in paise, constant-time HMAC-SHA256 signature verification, webhook replay deduplication, 24/24 tests). Real live charges are **UNVERIFIED** until merchant credentials (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`) are provisioned in Vercel. COD checkout remains 100% operational.
    - **Logistics & Shipping — Shiprocket Live Courier (UNVERIFIED IN PRODUCTION):** Fully verified with mocks (packaging weight parsing from server metadata, duplicate prevention HTTP 409, AWB tracking, COD auto-reconciliation, 32/32 tests in `shiprocket_shipping.test.ts` + 16/16 tests in `webhook_shiprocket.test.ts`). Manual administrative tracking entry remains fully supported. Live dispatches are **UNVERIFIED** until `SHIPROCKET_EMAIL`, `SHIPROCKET_PASSWORD`, and `SHIPROCKET_WEBHOOK_TOKEN` are configured in Vercel.
 
 ---
 
-## 8. Release Roadmap & Exact Next Action
+## 8. Release Roadmap & Ordered Owner Next Actions
 
-1. **Exact Single Safest Next Action:**
-   - Commit the uncommitted working-tree changes (8 modified files, 2 untracked test suites) on branch `feat/comprehensive-integration-pass` with message:
-     `feat(integration): consolidate comprehensive integration pass and Shiprocket webhook safety suite`.
-2. **Next Release Gate (Gate 13 — Candidate Merge Preparation):**
-   - Create a clean release candidate branch `candidate/comprehensive-integration` from `feat/comprehensive-integration-pass`.
-   - Submit for lead engineer review and execute test pass against `malwa_namkeen_test`.
-3. **Production Deployment Prerequisites (Pending Manual Ops):**
-   - Provision `RESEND_API_KEY` and verify domain DNS in Resend.
-   - Provision `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` in Vercel.
-   - Provision `SHIPROCKET_EMAIL`, `SHIPROCKET_PASSWORD`, `SHIPROCKET_WEBHOOK_TOKEN` in Vercel.
-   - Execute manual exploratory browser QA on staging preview.
+1. **Step 1: Domain Registration & DNS Connection:**
+   - Register or configure DNS for `malwanamkeen.com`. Add custom domain to Vercel project `malwa-namkeen`. Configure root `A` record (`76.76.21.21`) and `CNAME` for `www` (`cname.vercel-dns.com`).
+2. **Step 2: Resend Transactional Email Onboarding & Preview Smoke Test:**
+   - **Step 2a (Account & API Key):** Sign in to [Resend Dashboard](https://resend.com) and create an API Key (`re_...`).
+   - **Step 2b (Domain Verification):**
+     - Add domain `malwanamkeen.com` under **Domains** in Resend.
+     - Publish required DNS records at DNS registrar:
+       - **DKIM:** TXT `resend._domainkey.malwanamkeen.com` (Value provided by Resend dashboard)
+       - **SPF:** TXT `malwanamkeen.com` (`v=spf1 include:resend.com ~all`)
+       - **DMARC:** TXT `_dmarc.malwanamkeen.com` (`v=DMARC1; p=none;`)
+     - Click **Verify Domain** in Resend until status displays **Verified**.
+     - *(Alternative immediate test sender without custom domain verification: `onboarding@resend.dev` to owner's registered Resend email address).*
+   - **Step 2c (Vercel Environment Variables — PREVIEW ONLY):**
+     - Navigate to Vercel Project Settings → Environment Variables.
+     - Add `RESEND_API_KEY`: set to `re_...` — **Scope: Preview only** (Leave Production untouched).
+     - Add `RESEND_FROM_EMAIL`: set to `Malwa Namkeen House <orders@malwanamkeen.com>` (or `onboarding@resend.dev` for test) — **Scope: Preview only**.
+   - **Step 2d (Trigger Authenticated Delivery Smoke Test):**
+     - Redeploy Preview deployment so environment variables take effect.
+     - Authenticate as admin on Preview (`POST /api/auth/login`).
+     - Send authenticated POST request to `/api/admin/email/smoke-test` (or `/api/admin/settings/email/smoke-test`) with body `{"targetEmail": "your-test-inbox@gmail.com"}` and header `Authorization: Bearer <admin_token>`.
+     - Confirm receipt of live email `[Malwa Namkeen House] Live Resend Smoke Test` in the real inbox.
+     - Only after real delivery is physically confirmed, mark Gate 3 live delivery VERIFIED.
+3. **Step 3: Razorpay Test Mode Setup:**
+   - Generate test key pair (`rzp_test_...`) in Razorpay Dashboard (**Settings → API Keys**).
+   - Configure `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_SANDBOX=true` in Vercel Environment Variables.
+   - Set up Webhook in Razorpay dashboard pointing to `https://malwa-namkeen.vercel.app/api/orders/webhook/razorpay` with secret `RAZORPAY_WEBHOOK_SECRET` for events `order.paid`, `payment.captured`, `payment.failed`.
+4. **Step 4: Shiprocket Setup:**
+   - Create API user in Shiprocket Dashboard (**Settings → API → Configure**).
+   - Configure `SHIPROCKET_EMAIL`, `SHIPROCKET_PASSWORD`, `SHIPROCKET_WEBHOOK_TOKEN`, and `SHIPROCKET_PICKUP_LOCATION` in Vercel.
+   - Register webhook URL `https://malwa-namkeen.vercel.app/api/shipping/webhook/shiprocket`.
+5. **Step 5: Staging Manual Browser QA (DATABASE ISOLATION VERIFIED — GATE CLOSED):**
+   - **Isolation Status:** Database isolation verified (`MONGODB_DB_NAME=malwa_namkeen_preview` active on Preview, `malwa_namkeen_preview` initialized on Atlas, production untouched). Staging order, cancellation, coupon, and inventory tests are **AUTHORIZED ON PREVIEW**.
+   - Execute the 8-step staging acceptance runbook on active preview deployment [`dpl_4dpTK7hKa64PkKfXxo2jRKHfY3Bw`](https://malwa-namkeen-mf1izx3t7-dakshs-projects-45d693b3.vercel.app) across desktop and mobile devices.
+6. **Step 6: Final Release Approval & Live Mode Switch:**
+   - Once staging QA is signed off, promote Razorpay keys to Live (`rzp_live_...`), conduct live smoke test, and point primary traffic to `https://malwanamkeen.com`.
 

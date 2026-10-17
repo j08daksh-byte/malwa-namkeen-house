@@ -1,7 +1,7 @@
 // server/api-entry.ts
 import express from "express";
 import cookieParser from "cookie-parser";
-import mongoose30 from "mongoose";
+import mongoose31 from "mongoose";
 
 // server/lib/mongodb.ts
 import mongoose5 from "mongoose";
@@ -1738,6 +1738,15 @@ var DEDUPLICATED_EVENT_TYPES = /* @__PURE__ */ new Set([
   "admin_new_inquiry_alert",
   "role_changed_notification"
 ]);
+function sanitizeErrorMessage(err) {
+  if (!err) return "";
+  const str = err instanceof Error ? err.message : String(err);
+  return str.replace(/re_[a-zA-Z0-9_]{8,}/g, "re_***").replace(/Bearer\s+[a-zA-Z0-9_.-]{8,}/gi, "Bearer ***").replace(/key=[a-zA-Z0-9_.-]{8,}/gi, "key=***");
+}
+function isTransientNetworkError(errorMsg) {
+  const lower = (errorMsg || "").toLowerCase();
+  return lower.includes("etimedout") || lower.includes("econnreset") || lower.includes("econnrefused") || lower.includes("eai_again") || lower.includes("socket hang up") || lower.includes("timeout") || lower.includes("rate_limit") || lower.includes("500") || lower.includes("502") || lower.includes("503") || lower.includes("504");
+}
 async function sendEmail({
   to,
   subject,
@@ -1777,28 +1786,47 @@ async function sendEmail({
   const plainText = text && text.trim() ? text.trim() : generatePlainTextFallback(html);
   let result = { success: false, provider: config.provider, delivered: false };
   if (config.provider === "resend") {
-    if (!config.resendApiKey) {
+    if (!config.resendApiKey && !resendClient) {
       console.warn(`[Email Service] Resend provider selected but RESEND_API_KEY is not configured. Message to <${maskEmail(cleanTo)}> safely dropped.`);
       result = { success: false, provider: "unconfigured", error: "Email provider unconfigured.", delivered: false };
     } else {
-      try {
-        const client = getResendClient();
-        if (!client) throw new Error("Resend client initialization failed");
-        const response = await client.emails.send({
-          from: config.emailFrom,
-          to: [cleanTo],
-          subject,
-          html,
-          text: plainText
-        });
-        if (response.error) {
-          result = { success: false, provider: "resend", error: response.error.message, delivered: false };
-        } else {
-          result = { success: true, provider: "resend", messageId: response.data?.id, delivered: true };
+      let attempts = 0;
+      const maxAttempts = 2;
+      let lastError = "";
+      while (attempts < maxAttempts) {
+        attempts++;
+        try {
+          const client = getResendClient();
+          if (!client) throw new Error("Resend client initialization failed");
+          const response = await client.emails.send({
+            from: config.emailFrom,
+            to: [cleanTo],
+            subject,
+            html,
+            text: plainText
+          });
+          if (response.error) {
+            lastError = sanitizeErrorMessage(response.error.message);
+            if (!isTransientNetworkError(lastError)) {
+              break;
+            }
+          } else {
+            result = { success: true, provider: "resend", messageId: response.data?.id, delivered: true };
+            lastError = "";
+            break;
+          }
+        } catch (err) {
+          lastError = sanitizeErrorMessage(err);
+          if (!isTransientNetworkError(lastError) || attempts >= maxAttempts) {
+            break;
+          }
         }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        result = { success: false, provider: "resend", error: msg, delivered: false };
+        if (attempts < maxAttempts) {
+          await new Promise((r) => setTimeout(r, 150));
+        }
+      }
+      if (lastError) {
+        result = { success: false, provider: "resend", error: lastError, delivered: false };
       }
     }
   } else if (config.provider === "unconfigured" || isProd2 && config.provider !== "simulated") {
@@ -1834,6 +1862,33 @@ ${plainText.slice(0, 300)}...`);
     }
   }
   return result;
+}
+async function runEmailSmokeTest(options = {}) {
+  const config = getEmailConfig();
+  const recipient = options.targetEmail || process.env.ADMIN_NOTIFICATION_EMAIL || "malwanamkeenhouse@gmail.com";
+  if (!config.resendApiKey && !resendClient) {
+    return {
+      success: false,
+      provider: "none",
+      error: "RESEND_API_KEY environment variable is not configured. Live smoke test cannot run without credentials.",
+      delivered: false
+    };
+  }
+  return sendEmail({
+    to: recipient,
+    subject: "[Malwa Namkeen House] Live Resend Smoke Test",
+    html: wrapEmailTemplate({
+      title: "Email Delivery Smoke Test",
+      contentHtml: `
+        <h2 style="color: #3C0815; margin-top: 0;">Resend Integration Verification</h2>
+        <p>This is an automated smoke test confirming that the transactional email pipeline for <strong>Malwa Namkeen House</strong> is operational.</p>
+        <p style="font-size: 13px; color: #78716C;">Timestamp: ${(/* @__PURE__ */ new Date()).toISOString()}</p>
+      `
+    }),
+    text: `[Malwa Namkeen House] Live Resend Smoke Test. Timestamp: ${(/* @__PURE__ */ new Date()).toISOString()}`,
+    eventType: "admin_security_alert",
+    relatedId: `smoke_test_${Date.now()}`
+  });
 }
 async function sendAdminInvitation({
   email: email2,
@@ -9752,9 +9807,114 @@ router13.delete("/:id", async (req, res) => {
 var adminStaff_default = router13;
 
 // server/routes/adminSettings.ts
+import { Router as Router15 } from "express";
+import mongoose28 from "mongoose";
+
+// server/routes/adminEmail.ts
 import { Router as Router14 } from "express";
 import mongoose27 from "mongoose";
+import rateLimit6 from "express-rate-limit";
 var router14 = Router14();
+router14.use(requireAdmin);
+var EMAIL_REGEX3 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+var smokeTestLimiter = rateLimit6({
+  windowMs: 10 * 60 * 1e3,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many smoke test requests. Please wait a few minutes before trying again."
+  }
+});
+async function handleSmokeTest(req, res) {
+  try {
+    const { targetEmail } = req.body || {};
+    let recipient = "";
+    if (targetEmail) {
+      if (typeof targetEmail !== "string" || !EMAIL_REGEX3.test(targetEmail.trim().toLowerCase())) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid target email address format."
+        });
+        return;
+      }
+      recipient = targetEmail.trim().toLowerCase();
+    } else {
+      recipient = req.user?.email || process.env.ADMIN_NOTIFICATION_EMAIL || "malwanamkeenhouse@gmail.com";
+    }
+    const result = await runEmailSmokeTest({ targetEmail: recipient });
+    const maskedRecipient = maskEmail(recipient);
+    if (!result.success) {
+      const statusCode = result.provider === "none" || result.provider === "unconfigured" ? 503 : 502;
+      const cleanError = sanitizeErrorMessage(result.error) || "Email smoke test failed.";
+      res.status(statusCode).json({
+        success: false,
+        message: cleanError,
+        recipient: maskedRecipient,
+        result: {
+          provider: result.provider,
+          delivered: Boolean(result.delivered),
+          simulated: Boolean(result.simulated),
+          error: cleanError
+        }
+      });
+      return;
+    }
+    res.json({
+      success: true,
+      message: result.simulated ? `Smoke test simulated successfully for <${maskedRecipient}>.` : `Smoke test email successfully delivered to <${maskedRecipient}>.`,
+      recipient: maskedRecipient,
+      result: {
+        provider: result.provider,
+        delivered: Boolean(result.delivered),
+        simulated: Boolean(result.simulated),
+        messageId: result.messageId || null
+      }
+    });
+  } catch (err) {
+    console.error("[Admin Email Smoke Test Error]:", err);
+    const msg = err instanceof Error ? err.message : "Internal error during email smoke test.";
+    res.status(500).json({ success: false, message: msg });
+  }
+}
+router14.post("/smoke-test", smokeTestLimiter, handleSmokeTest);
+router14.get("/status", async (_req, res) => {
+  try {
+    const config = getEmailConfig();
+    const isKeyConfigured = Boolean(
+      process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.trim()
+    );
+    let totalLogs = 0;
+    let recentLogs = [];
+    if (mongoose27.connection.readyState === 1) {
+      totalLogs = await EmailLog.countDocuments();
+      const rawLogs = await EmailLog.find().sort({ createdAt: -1 }).limit(10).select("eventType recipient subject provider status error attemptedAt createdAt").lean();
+      recentLogs = rawLogs.map((log) => ({
+        ...log,
+        recipient: maskEmail(log.recipient)
+      }));
+    }
+    res.json({
+      success: true,
+      provider: config.provider,
+      isConfigured: isKeyConfigured,
+      fromEmail: config.emailFrom,
+      appBaseUrl: config.appBaseUrl,
+      stats: {
+        totalLogs
+      },
+      recentLogs
+    });
+  } catch (err) {
+    console.error("[Admin Email Status Error]:", err);
+    res.status(500).json({ success: false, message: "Failed to retrieve email status." });
+  }
+});
+var adminEmail_default = router14;
+
+// server/routes/adminSettings.ts
+var router15 = Router15();
 async function getOrCreateSingletonSettings() {
   let settings = await StoreSettings.findOne();
   if (!settings) {
@@ -9805,7 +9965,7 @@ var DEFAULT_PUBLIC_SETTINGS = {
 var handlePublicSettings = async (_req, res) => {
   try {
     let settings = null;
-    if (mongoose27.connection.readyState === 1) {
+    if (mongoose28.connection.readyState === 1) {
       settings = await StoreSettings.findOne().lean();
     }
     if (!settings) {
@@ -9820,11 +9980,11 @@ var handlePublicSettings = async (_req, res) => {
     res.json({ success: true, settings: DEFAULT_PUBLIC_SETTINGS });
   }
 };
-var publicSettingsRouter = Router14();
+var publicSettingsRouter = Router15();
 publicSettingsRouter.get("/public", handlePublicSettings);
 publicSettingsRouter.get("/", handlePublicSettings);
-router14.use(requireAdmin);
-router14.get("/", async (_req, res) => {
+router15.use(requireAdmin);
+router15.get("/", async (_req, res) => {
   try {
     const settings = await getOrCreateSingletonSettings();
     res.json({
@@ -9836,7 +9996,7 @@ router14.get("/", async (_req, res) => {
     res.status(500).json({ success: false, message: "Failed to retrieve store settings." });
   }
 });
-router14.put("/", requireSuperAdmin, async (req, res) => {
+router15.put("/", requireSuperAdmin, async (req, res) => {
   try {
     const payload = req.body;
     const settings = await getOrCreateSingletonSettings();
@@ -9904,13 +10064,14 @@ router14.put("/", requireSuperAdmin, async (req, res) => {
     res.status(400).json({ success: false, message: msg });
   }
 });
-var adminSettings_default = router14;
+router15.post("/email/smoke-test", handleSmokeTest);
+var adminSettings_default = router15;
 
 // server/routes/adminDashboard.ts
-import { Router as Router15 } from "express";
-var router15 = Router15();
-router15.use(requireAdmin);
-router15.get("/stats", async (req, res) => {
+import { Router as Router16 } from "express";
+var router16 = Router16();
+router16.use(requireAdmin);
+router16.get("/stats", async (req, res) => {
   try {
     const { range = "30d" } = req.query;
     const now = /* @__PURE__ */ new Date();
@@ -10072,10 +10233,10 @@ router15.get("/stats", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to aggregate dashboard analytics." });
   }
 });
-var adminDashboard_default = router15;
+var adminDashboard_default = router16;
 
 // server/routes/uploads.ts
-import { Router as Router16 } from "express";
+import { Router as Router17 } from "express";
 import multer from "multer";
 
 // server/lib/cloudinary.ts
@@ -10200,7 +10361,7 @@ async function deleteImage(publicId) {
 }
 
 // server/routes/uploads.ts
-var router16 = Router16();
+var router17 = Router17();
 var upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -10216,7 +10377,7 @@ var upload = multer({
     }
   }
 });
-router16.post(
+router17.post(
   "/",
   requireAdmin,
   (req, res, next) => {
@@ -10282,7 +10443,7 @@ router16.post(
     }
   }
 );
-router16.delete("/", requireAdmin, async (req, res) => {
+router17.delete("/", requireAdmin, async (req, res) => {
   try {
     const publicId = req.body.publicId || req.query.publicId;
     if (!publicId || typeof publicId !== "string") {
@@ -10300,12 +10461,12 @@ router16.delete("/", requireAdmin, async (req, res) => {
     res.status(400).json({ success: false, message: msg });
   }
 });
-var uploads_default = router16;
+var uploads_default = router17;
 
 // server/routes/enquiries.ts
-import { Router as Router17 } from "express";
+import { Router as Router18 } from "express";
 import { ZodError } from "zod";
-import mongoose28 from "mongoose";
+import mongoose29 from "mongoose";
 
 // server/validate.ts
 import { z } from "zod";
@@ -10439,7 +10600,7 @@ function getWaUrlForCategory(category) {
 }
 
 // server/routes/enquiries.ts
-var router17 = Router17();
+var router18 = Router18();
 function categoryLabel(value) {
   return ENQUIRY_CATEGORIES.find((c) => c.value === value)?.label ?? value;
 }
@@ -10454,7 +10615,7 @@ function isoNow() {
     hour12: true
   }) + " IST";
 }
-router17.post("/contact", async (req, res) => {
+router18.post("/contact", async (req, res) => {
   if (req.body._hp) {
     res.json({ success: true, message: "Your enquiry has been received. Our team will contact you shortly." });
     return;
@@ -10475,7 +10636,7 @@ router17.post("/contact", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose28.Types.ObjectId().toString();
+  let id = new mongoose29.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -10512,7 +10673,7 @@ router17.post("/contact", async (req, res) => {
     whatsappUrl: getWaUrlForCategory(parsed.category)
   });
 });
-router17.post(["/enquiries/bulk", "/enquiry/bulk", "/bulk-enquiry"], async (req, res) => {
+router18.post(["/enquiries/bulk", "/enquiry/bulk", "/bulk-enquiry"], async (req, res) => {
   if (req.body._hp) {
     res.json({ success: true, message: "Bulk & gifting enquiry received. Our team will contact you shortly." });
     return;
@@ -10533,7 +10694,7 @@ router17.post(["/enquiries/bulk", "/enquiry/bulk", "/bulk-enquiry"], async (req,
     }
     throw err;
   }
-  let id = new mongoose28.Types.ObjectId().toString();
+  let id = new mongoose29.Types.ObjectId().toString();
   const summaryMessage = [
     `Requirement: ${parsed.requirement_type}`,
     `Quantity: ${parsed.approx_quantity}`,
@@ -10579,7 +10740,7 @@ router17.post(["/enquiries/bulk", "/enquiry/bulk", "/bulk-enquiry"], async (req,
     whatsappUrl: WA_URLS.catering || "https://wa.me/917987732765"
   });
 });
-router17.post("/reservation", async (req, res) => {
+router18.post("/reservation", async (req, res) => {
   if (req.body._hp) {
     res.json({ success: true, message: "Reservation enquiry received." });
     return;
@@ -10600,7 +10761,7 @@ router17.post("/reservation", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose28.Types.ObjectId().toString();
+  let id = new mongoose29.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.customer_name,
@@ -10638,7 +10799,7 @@ router17.post("/reservation", async (req, res) => {
     whatsappUrl: WA_URLS.reservation
   });
 });
-router17.post("/katering", async (req, res) => {
+router18.post("/katering", async (req, res) => {
   if (req.body._hp) {
     res.json({ success: true, message: "Enquiry received." });
     return;
@@ -10659,7 +10820,7 @@ router17.post("/katering", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose28.Types.ObjectId().toString();
+  let id = new mongoose29.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -10680,7 +10841,7 @@ router17.post("/katering", async (req, res) => {
     whatsappUrl: WA_URLS.catering
   });
 });
-router17.post("/gifting", async (req, res) => {
+router18.post("/gifting", async (req, res) => {
   if (req.body._hp) {
     res.json({ success: true, message: "Enquiry received." });
     return;
@@ -10701,7 +10862,7 @@ router17.post("/gifting", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose28.Types.ObjectId().toString();
+  let id = new mongoose29.Types.ObjectId().toString();
   try {
     const doc = await Inquiry.create({
       name: parsed.name,
@@ -10722,13 +10883,13 @@ router17.post("/gifting", async (req, res) => {
     whatsappUrl: WA_URLS.gifting
   });
 });
-var enquiries_default = router17;
+var enquiries_default = router18;
 
 // server/routes/adminBanners.ts
-import { Router as Router18 } from "express";
+import { Router as Router19 } from "express";
 
 // server/models/Banner.ts
-import mongoose29, { Schema as Schema11 } from "mongoose";
+import mongoose30, { Schema as Schema11 } from "mongoose";
 var bannerSchema = new Schema11(
   {
     title: {
@@ -10785,10 +10946,10 @@ var bannerSchema = new Schema11(
 );
 bannerSchema.index({ active: 1, sortOrder: 1 });
 bannerSchema.index({ sortOrder: 1 });
-var Banner = mongoose29.models.Banner || mongoose29.model("Banner", bannerSchema);
+var Banner = mongoose30.models.Banner || mongoose30.model("Banner", bannerSchema);
 
 // server/routes/adminBanners.ts
-var router18 = Router18();
+var router19 = Router19();
 var DEFAULT_BANNERS = [
   {
     title: "Pure Malwa Heritage in Every Crunchy Bite",
@@ -10817,8 +10978,8 @@ async function ensureInitialBanners() {
     console.warn("[Banners] Seed check warning:", err instanceof Error ? err.message : err);
   }
 }
-router18.use(requireAdmin);
-router18.get("/", async (req, res) => {
+router19.use(requireAdmin);
+router19.get("/", async (req, res) => {
   try {
     await ensureInitialBanners();
     const { search, status, sortBy } = req.query;
@@ -10855,7 +11016,7 @@ router18.get("/", async (req, res) => {
     });
   }
 });
-router18.post("/", async (req, res) => {
+router19.post("/", async (req, res) => {
   try {
     const { title, alt, image, mobileImage, link, badge, active, sortOrder } = req.body;
     if (!title || typeof title !== "string" || !title.trim()) {
@@ -10894,7 +11055,7 @@ router18.post("/", async (req, res) => {
     });
   }
 });
-router18.put("/:id", async (req, res) => {
+router19.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const { title, alt, image, mobileImage, link, badge, active, sortOrder } = req.body;
@@ -10925,7 +11086,7 @@ router18.put("/:id", async (req, res) => {
     });
   }
 });
-router18.patch("/:id/toggle", async (req, res) => {
+router19.patch("/:id/toggle", async (req, res) => {
   try {
     const { id } = req.params;
     const banner = await Banner.findById(id);
@@ -10948,7 +11109,7 @@ router18.patch("/:id/toggle", async (req, res) => {
     });
   }
 });
-router18.patch("/reorder", async (req, res) => {
+router19.patch("/reorder", async (req, res) => {
   try {
     const { orderedIds } = req.body;
     if (!Array.isArray(orderedIds)) {
@@ -10972,7 +11133,7 @@ router18.patch("/reorder", async (req, res) => {
     });
   }
 });
-router18.delete("/:id", async (req, res) => {
+router19.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const banner = await Banner.findByIdAndDelete(id);
@@ -10991,12 +11152,12 @@ router18.delete("/:id", async (req, res) => {
     });
   }
 });
-var adminBanners_default = router18;
+var adminBanners_default = router19;
 
 // server/routes/banners.ts
-import { Router as Router19 } from "express";
-var router19 = Router19();
-router19.get("/", async (_req, res) => {
+import { Router as Router20 } from "express";
+var router20 = Router20();
+router20.get("/", async (_req, res) => {
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   try {
     const banners = await Banner.find({ active: true }).sort({ sortOrder: 1, createdAt: -1 });
@@ -11064,12 +11225,12 @@ router19.get("/", async (_req, res) => {
     });
   }
 });
-var banners_default = router19;
+var banners_default = router20;
 
 // server/routes/sitemap.ts
-import { Router as Router20 } from "express";
-var router20 = Router20();
-router20.get("/sitemap.xml", async (req, res) => {
+import { Router as Router21 } from "express";
+var router21 = Router21();
+router21.get("/sitemap.xml", async (req, res) => {
   try {
     const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
     const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost:3000";
@@ -11112,7 +11273,7 @@ ${allUrls.map(
     res.status(500).send("Error generating sitemap");
   }
 });
-router20.get("/robots.txt", (req, res) => {
+router21.get("/robots.txt", (req, res) => {
   const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
   const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost:3000";
   const baseUrl = `${protocol}://${host}`;
@@ -11147,13 +11308,13 @@ Sitemap: ${baseUrl}/sitemap.xml
   res.setHeader("Cache-Control", "public, max-age=86400");
   res.status(200).send(content);
 });
-var sitemap_default = router20;
+var sitemap_default = router21;
 
 // server/routes/concierge.ts
-import { Router as Router21 } from "express";
-import rateLimit6 from "express-rate-limit";
+import { Router as Router22 } from "express";
+import rateLimit7 from "express-rate-limit";
 import { GoogleGenAI } from "@google/genai";
-var router21 = Router21();
+var router22 = Router22();
 var apiKey = process.env.GEMINI_API_KEY;
 var aiClient = null;
 function getGemini() {
@@ -11176,7 +11337,7 @@ Key Business Knowledge & Guidelines:
 6. Bulk & Corporate Gifting: Custom corporate hampers, wedding boxes, festival gifting, and wholesale namkeen orders. Advise customers to submit an online Bulk & Gifting enquiry or reach out on WhatsApp at +91 7987732765.
 7. Constraints: Never invent unverified ingredients, nutrition claims, medical claims, or stock promises. Never refer to table reservations or restaurant dine-in.
 `;
-var conciergeLimiter = rateLimit6({
+var conciergeLimiter = rateLimit7({
   windowMs: 5 * 60 * 1e3,
   max: 30,
   standardHeaders: true,
@@ -11187,7 +11348,7 @@ var conciergeLimiter = rateLimit6({
     message: "Too many requests to the concierge. Please wait a moment."
   }
 });
-router21.post("/", conciergeLimiter, async (req, res) => {
+router22.post("/", conciergeLimiter, async (req, res) => {
   try {
     const { messages } = req.body;
     if (!messages || !Array.isArray(messages)) {
@@ -11245,11 +11406,11 @@ Response:`;
     res.status(500).json({ error: "Internal server error." });
   }
 });
-var concierge_default = router21;
+var concierge_default = router22;
 
 // server/routes/shippingWebhooks.ts
-import { Router as Router22 } from "express";
-var router22 = Router22();
+import { Router as Router23 } from "express";
+var router23 = Router23();
 function buildStableEventId(headers, payload, awb, shipmentId, orderNumber, currentStatus) {
   const headerEventId = headers["x-event-id"];
   if (headerEventId && typeof headerEventId === "string" && headerEventId.trim()) {
@@ -11270,7 +11431,7 @@ function buildStableEventId(headers, payload, awb, shipmentId, orderNumber, curr
   }
   return `sr_${stableRef}_${stableStatus}_${stableTimestamp}`;
 }
-router22.post(["/webhook/shiprocket", "/webhook", "/"], async (req, res) => {
+router23.post(["/webhook/shiprocket", "/webhook", "/"], async (req, res) => {
   try {
     const isAuthorized = verifyShiprocketWebhook(req.headers);
     if (!isAuthorized) {
@@ -11434,7 +11595,7 @@ router22.post(["/webhook/shiprocket", "/webhook", "/"], async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to process shipping webhook." });
   }
 });
-var shippingWebhooks_default = router22;
+var shippingWebhooks_default = router23;
 
 // server/api-entry.ts
 var app = express();
@@ -11487,10 +11648,10 @@ app.use("/", sitemap_default);
 app.get(["/health", "/api/health"], async (_req, res) => {
   const mongo = getMongoStatus();
   let dbHealthy = false;
-  if (mongo.connected && mongoose30.connection.db) {
+  if (mongo.connected && mongoose31.connection.db) {
     try {
       await Promise.race([
-        mongoose30.connection.db.command({ ping: 1 }),
+        mongoose31.connection.db.command({ ping: 1 }),
         new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 2e3))
       ]);
       dbHealthy = true;
@@ -11503,7 +11664,7 @@ app.get(["/health", "/api/health"], async (_req, res) => {
     time: (/* @__PURE__ */ new Date()).toISOString(),
     service: BUSINESS.name,
     mongodb: dbHealthy ? "connected" : mongo.state,
-    database: mongoose30.connection.name || null
+    database: mongoose31.connection.name || null
   });
 });
 var routeConfigs = [
@@ -11520,6 +11681,7 @@ var routeConfigs = [
   { path: "/admin/dashboard", router: adminDashboard_default },
   { path: "/admin/staff", router: adminStaff_default },
   { path: "/admin/settings", router: adminSettings_default },
+  { path: "/admin/email", router: adminEmail_default },
   { path: "/admin/inquiries", router: adminInquiries_default },
   { path: "/admin/discounts", router: adminDiscounts_default },
   { path: "/admin/customers", router: adminCustomers_default },
