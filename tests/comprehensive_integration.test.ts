@@ -209,6 +209,10 @@ describe('Malwa Namkeen House — Comprehensive Automated Integration Pass', () 
     );
 
     // 5. Locate or seed test product & variants for isolation
+    await mongoose.connection.collection('products').updateOne(
+      { slug: 'qa-ratlami-sev-availability-test', 'variants.sku': 'QA-RTL-250G' },
+      { $set: { 'variants.$.stock': 50 } }
+    );
     const qaProduct = await mongoose.connection.collection('products').findOne({
       slug: 'qa-ratlami-sev-availability-test',
     });

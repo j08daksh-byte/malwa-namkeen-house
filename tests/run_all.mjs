@@ -74,6 +74,7 @@ async function ensureServer() {
   if (serverPath.endsWith('.cjs')) {
     spawnedProcess = spawn('node', [serverPath], {
       stdio: 'ignore',
+      shell: true,
       cwd: path.resolve('.'),
       env: serverEnv,
     });
