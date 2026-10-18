@@ -1803,7 +1803,7 @@ function getEmailConfig() {
   return {
     provider,
     resendApiKey: forceSimulated ? "" : process.env.RESEND_API_KEY || "",
-    emailFrom: process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || "Malwa Namkeen House <orders@malwanamkeen.com>",
+    emailFrom: process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || "Malwa Namkeen House <orders@malwanamkeenhouse.com>",
     emailReplyTo: process.env.EMAIL_REPLY_TO || process.env.RESEND_REPLY_TO || "malwanamkeenhouse@gmail.com",
     appBaseUrl: rawBaseUrl.replace(/\/+$/, "")
   };
