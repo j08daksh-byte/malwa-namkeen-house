@@ -16,6 +16,9 @@ import {
   Calendar,
   IndianRupee,
   Package,
+  Shield,
+  ShieldCheck,
+  ShieldAlert,
 } from 'lucide-react';
 import { Card, PageHeader, Spinner } from '../../components/admin/ui.tsx';
 
@@ -53,7 +56,7 @@ interface CustomerRecord {
   email: string;
   phone?: string;
   active: boolean;
-  role: 'customer';
+  role: 'customer' | 'admin' | 'super_admin';
   addresses?: CustomerAddress[];
   orderCount: number;
   totalSpent: number;
@@ -197,6 +200,54 @@ export default function AdminCustomers() {
       setActionMsg({ type: 'success', text: `Customer account is now ${!currentStatus ? 'Active' : 'Inactive'}.` });
     } catch (err: unknown) {
       setActionMsg({ type: 'error', text: err instanceof Error ? err.message : 'Error updating account status.' });
+    }
+  };
+
+  // Promote or Demote Customer Role
+  const [showPromoteModal, setShowPromoteModal] = useState(false);
+  const [promoteLoading, setPromoteLoading] = useState(false);
+
+  const handlePromoteCustomer = async (id: string, newRole: 'admin' | 'customer') => {
+    setPromoteLoading(true);
+    setActionMsg(null);
+    try {
+      const res = await fetch(`/api/admin/customers/${id}/role`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        credentials: 'include',
+        body: JSON.stringify({ role: newRole }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || `Failed to update role to ${newRole}.`);
+      }
+
+      setCustomers(prev =>
+        prev.map(c => (c._id === id ? { ...c, role: newRole } : c))
+      );
+
+      if (selectedCustomer && selectedCustomer._id === id) {
+        setSelectedCustomer(prev => (prev ? { ...prev, role: newRole } : null));
+      }
+
+      setShowPromoteModal(false);
+      setActionMsg({
+        type: 'success',
+        text: newRole === 'admin'
+          ? `Customer has been successfully promoted to Administrator.`
+          : `Administrator privileges revoked; account restored to standard customer.`,
+      });
+    } catch (err: unknown) {
+      setActionMsg({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Error updating customer role.',
+      });
+    } finally {
+      setPromoteLoading(false);
     }
   };
 
@@ -352,8 +403,19 @@ export default function AdminCustomers() {
                           </div>
                           <div>
                             <div style={{ fontWeight: 700, color: '#1A0A0F', fontSize: '13.5px' }}>{cust.name}</div>
-                            <span style={{ fontSize: '11px', color: '#881337', background: '#FFF1F2', padding: '1px 5px', borderRadius: '4px', display: 'inline-block', marginTop: '2px', fontWeight: 600 }}>
-                              Customer
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                color: cust.role === 'customer' ? '#881337' : '#B45309',
+                                background: cust.role === 'customer' ? '#FFF1F2' : '#FEF3C7',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                display: 'inline-block',
+                                marginTop: '2px',
+                                fontWeight: 700,
+                              }}
+                            >
+                              {cust.role === 'customer' ? 'Customer' : cust.role === 'super_admin' ? 'Super Admin' : 'Admin'}
                             </span>
                           </div>
                         </div>
@@ -488,7 +550,7 @@ export default function AdminCustomers() {
               )}
 
               {/* Quick Analytics Summary */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
                 <div style={{ background: '#F8F6F2', border: '1px solid #EAE3D2', borderRadius: '8px', padding: '14px' }}>
                   <div style={{ fontSize: '11px', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' }}>Lifetime Purchases</div>
                   <div style={{ fontSize: '22px', fontWeight: 800, color: '#059669', marginTop: '4px' }}>
@@ -505,6 +567,15 @@ export default function AdminCustomers() {
                   <div style={{ fontSize: '11px', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' }}>Account Status</div>
                   <div style={{ fontSize: '15px', fontWeight: 700, color: selectedCustomer.active ? '#059669' : '#DC2626', marginTop: '6px' }}>
                     {selectedCustomer.active ? '● Active & Authorized' : '● Deactivated'}
+                  </div>
+                </div>
+                <div style={{ background: '#F8F6F2', border: '1px solid #EAE3D2', borderRadius: '8px', padding: '14px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' }}>Access Role</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                    <Shield size={16} color={selectedCustomer.role === 'customer' ? '#6B7280' : '#881337'} />
+                    <span style={{ fontSize: '15px', fontWeight: 800, color: selectedCustomer.role === 'customer' ? '#374151' : '#881337', textTransform: 'capitalize' }}>
+                      {selectedCustomer.role === 'customer' ? 'Customer' : selectedCustomer.role === 'super_admin' ? 'Super Admin' : 'Administrator'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -626,23 +697,69 @@ export default function AdminCustomers() {
               </div>
 
               {/* Account Controls Footer */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '14px', borderTop: '1px solid #E5E7EB' }}>
-                <button
-                  type="button"
-                  onClick={() => handleToggleCustomerActive(selectedCustomer._id, selectedCustomer.active)}
-                  style={{
-                    background: selectedCustomer.active ? '#FFF1F2' : '#D1FAE5',
-                    color: selectedCustomer.active ? '#991B1B' : '#065F46',
-                    border: `1px solid ${selectedCustomer.active ? '#FEE2E2' : '#A7F3D0'}`,
-                    borderRadius: '8px',
-                    padding: '8px 16px',
-                    fontSize: '12.5px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {selectedCustomer.active ? 'Deactivate Customer Account' : 'Reactivate Customer Account'}
-                </button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', paddingTop: '14px', borderTop: '1px solid #E5E7EB', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleCustomerActive(selectedCustomer._id, selectedCustomer.active)}
+                    style={{
+                      background: selectedCustomer.active ? '#FFF1F2' : '#D1FAE5',
+                      color: selectedCustomer.active ? '#991B1B' : '#065F46',
+                      border: `1px solid ${selectedCustomer.active ? '#FEE2E2' : '#A7F3D0'}`,
+                      borderRadius: '8px',
+                      padding: '8px 16px',
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {selectedCustomer.active ? 'Deactivate Customer Account' : 'Reactivate Customer Account'}
+                  </button>
+
+                  {selectedCustomer.role === 'customer' ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowPromoteModal(true)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: '#FEF3C7',
+                        color: '#92400E',
+                        border: '1px solid #FDE68A',
+                        borderRadius: '8px',
+                        padding: '8px 16px',
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Shield size={14} />
+                      <span>Promote to Admin</span>
+                    </button>
+                  ) : selectedCustomer.role === 'admin' ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowPromoteModal(true)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: '#FEE2E2',
+                        color: '#991B1B',
+                        border: '1px solid #FECACA',
+                        borderRadius: '8px',
+                        padding: '8px 16px',
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <ShieldAlert size={14} />
+                      <span>Revoke Admin Role</span>
+                    </button>
+                  ) : null}
+                </div>
 
                 <button
                   type="button"
@@ -652,6 +769,116 @@ export default function AdminCustomers() {
                   Close Profile
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Promotion / Demotion Confirmation Modal */}
+      {showPromoteModal && selectedCustomer && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(26, 10, 15, 0.7)',
+            backdropFilter: 'blur(3px)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 1000,
+            padding: '16px',
+          }}
+        >
+          <div
+            style={{
+              background: '#FFFFFF',
+              borderRadius: '14px',
+              maxWidth: '460px',
+              width: '100%',
+              padding: '24px',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+              border: '1px solid #EAE5D9',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+              <div
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  background: selectedCustomer.role === 'customer' ? '#FEF3C7' : '#FEE2E2',
+                  display: 'grid',
+                  placeItems: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                {selectedCustomer.role === 'customer' ? (
+                  <Shield size={20} color="#92400E" />
+                ) : (
+                  <ShieldAlert size={20} color="#991B1B" />
+                )}
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#3C0815' }}>
+                  {selectedCustomer.role === 'customer' ? 'Promote Customer to Admin?' : 'Revoke Admin Privileges?'}
+                </h3>
+                <div style={{ fontSize: '12.5px', color: '#6B7280' }}>
+                  {selectedCustomer.name} ({selectedCustomer.email})
+                </div>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '13.5px', color: '#4B5563', lineHeight: 1.5, margin: '14px 0 20px' }}>
+              {selectedCustomer.role === 'customer'
+                ? 'Promoting this user grants administrative access to product administration, inventory management, and customer orders. Only authorized Super Administrators can perform this action. An audit log entry will be created and a notification email will be dispatched.'
+                : 'Revoking admin access will return this account to a standard customer. The user will immediately lose access to the administrative management portal.'}
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                disabled={promoteLoading}
+                onClick={() => setShowPromoteModal(false)}
+                style={{
+                  background: '#FFFFFF',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '8px',
+                  padding: '9px 16px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: '#374151',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={promoteLoading}
+                onClick={() =>
+                  handlePromoteCustomer(
+                    selectedCustomer._id,
+                    selectedCustomer.role === 'customer' ? 'admin' : 'customer'
+                  )
+                }
+                style={{
+                  background: selectedCustomer.role === 'customer' ? '#3C0815' : '#DC2626',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '9px 18px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                {promoteLoading && <Spinner />}
+                <span>
+                  {selectedCustomer.role === 'customer' ? 'Confirm Promotion' : 'Confirm Revocation'}
+                </span>
+              </button>
             </div>
           </div>
         </div>

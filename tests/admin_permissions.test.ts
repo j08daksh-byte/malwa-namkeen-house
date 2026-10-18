@@ -281,4 +281,65 @@ describe('Gate 2: Administrator Permissions & Least-Privilege Role Suite', () =>
       assert.equal(req.user?.role, 'admin');
     });
   });
+
+  // ── 6. Customer Role Promotion Authorization Guard ─────────────────────────
+  describe('6. Customer Role Promotion & Privilege Delegation Guard', () => {
+    it('strictly forbids standard admin from promoting customer to admin (403)', async () => {
+      const token = generateToken(adminPayload);
+      const { req, res } = createMockHttp({
+        headers: { authorization: `Bearer ${token}` },
+        body: { role: 'admin' },
+      });
+      let nextCalled = false;
+
+      await requireSuperAdmin(req, res, () => { nextCalled = true; });
+
+      assert.equal(nextCalled, false, 'Standard admin must NOT be able to invoke role promotion');
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.data.success, false);
+      assert.ok(res.data.message.includes('Super Administrator privilege required'));
+    });
+
+    it('strictly forbids customer from self-promoting or invoking role endpoint (403)', async () => {
+      const token = generateToken(customerPayload);
+      const { req, res } = createMockHttp({
+        headers: { authorization: `Bearer ${token}` },
+        body: { role: 'admin' },
+      });
+      let nextCalled = false;
+
+      await requireSuperAdmin(req, res, () => { nextCalled = true; });
+
+      assert.equal(nextCalled, false, 'Ordinary customer must NOT pass super admin check');
+      assert.equal(res.statusCode, 403);
+      assert.equal(res.data.success, false);
+    });
+
+    it('authorizes super_admin to perform customer role promotion', async () => {
+      const token = generateToken(superAdminPayload);
+      const { req, res } = createMockHttp({
+        headers: { authorization: `Bearer ${token}` },
+        body: { role: 'admin' },
+      });
+      let nextCalled = false;
+
+      await requireSuperAdmin(req, res, () => { nextCalled = true; });
+
+      assert.equal(nextCalled, true, 'Super Admin must pass authorization check for promotion');
+      assert.equal(req.user?.role, 'super_admin');
+    });
+
+    it('rejects unauthenticated role promotion attempt with 401', async () => {
+      const { req, res } = createMockHttp({
+        body: { role: 'admin' },
+      });
+      let nextCalled = false;
+
+      await requireSuperAdmin(req, res, () => { nextCalled = true; });
+
+      assert.equal(nextCalled, false);
+      assert.equal(res.statusCode, 401);
+      assert.equal(res.data.success, false);
+    });
+  });
 });

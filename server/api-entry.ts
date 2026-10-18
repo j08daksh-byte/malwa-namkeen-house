@@ -42,10 +42,22 @@ const allowedOrigins = (() => {
     : [];
   if (!isProd) {
     base.push('http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://localhost:3000');
+  } else {
+    base.push(
+      'https://malwanamkeenhouse.com',
+      'https://www.malwanamkeenhouse.com',
+      'https://malwa-namkeen.vercel.app'
+    );
+    if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+      base.push(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.trim().replace(/\/+$/, '')}`);
+    }
+    if (process.env.VERCEL_URL) {
+      base.push(`https://${process.env.VERCEL_URL.trim().replace(/\/+$/, '')}`);
+    }
   }
   const appUrl = process.env.APP_URL;
   if (appUrl) base.push(appUrl.trim().replace(/\/+$/, ''));
-  return base;
+  return Array.from(new Set(base));
 })();
 
 // CORS middleware

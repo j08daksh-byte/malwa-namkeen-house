@@ -1789,7 +1789,7 @@ function getEmailConfig() {
   const isTest = process.env.NODE_ENV === "test" || process.env.IS_E2E_TEST === "true";
   const forceSimulated = isTest || process.env.EMAIL_PROVIDER === "simulated";
   const isProd2 = process.env.NODE_ENV === "production";
-  const rawBaseUrl = process.env.APP_URL || process.env.APP_BASE_URL || "http://localhost:3000";
+  const rawBaseUrl = process.env.APP_URL || process.env.APP_BASE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "") || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") || (isProd2 ? "https://malwanamkeenhouse.com" : "http://localhost:3000");
   let provider = "simulated";
   if (forceSimulated) {
     provider = "simulated";
@@ -1804,6 +1804,7 @@ function getEmailConfig() {
     provider,
     resendApiKey: forceSimulated ? "" : process.env.RESEND_API_KEY || "",
     emailFrom: process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || "Malwa Namkeen House <orders@malwanamkeen.com>",
+    emailReplyTo: process.env.EMAIL_REPLY_TO || process.env.RESEND_REPLY_TO || "malwanamkeenhouse@gmail.com",
     appBaseUrl: rawBaseUrl.replace(/\/+$/, "")
   };
 }
@@ -1944,7 +1945,8 @@ async function sendEmail({
             to: [cleanTo],
             subject,
             html,
-            text: plainText
+            text: plainText,
+            ...config.emailReplyTo ? { reply_to: config.emailReplyTo } : {}
           });
           if (response.error) {
             lastError = sanitizeErrorMessage(response.error.message);
@@ -1987,6 +1989,9 @@ async function sendEmail({
     console.log("\n================== [DEV EMAIL SIMULATOR] ==================");
     console.log(`To: ${maskedTo}`);
     console.log(`From: ${config.emailFrom}`);
+    if (config.emailReplyTo) {
+      console.log(`Reply-To: ${config.emailReplyTo}`);
+    }
     console.log(`Event: ${eventType || "generic"}`);
     console.log(`Subject: ${subject}`);
     if (isSensitive) {
@@ -9616,6 +9621,7 @@ router10.get("/", async (req, res) => {
     const {
       search = "",
       status = "all",
+      role = "customer",
       sortBy = "newest",
       page = "1",
       limit = "50"
@@ -9623,7 +9629,13 @@ router10.get("/", async (req, res) => {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
     const skip = (pageNum - 1) * limitNum;
-    const filter = { role: "customer" };
+    const filter = {};
+    if (role === "all") {
+    } else if (role === "admin") {
+      filter.role = { $in: ["admin", "super_admin"] };
+    } else {
+      filter.role = "customer";
+    }
     if (search.trim()) {
       const q = search.trim();
       filter.$or = [
@@ -9728,7 +9740,7 @@ router10.get("/:id", async (req, res) => {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
-    const customer = await User.findOne({ _id: id, role: "customer" }).select("-password").lean();
+    const customer = await User.findById(id).select("-password -passwordResetTokenHash").lean();
     if (!customer) {
       res.status(404).json({ success: false, message: "Customer not found." });
       return;
@@ -9758,7 +9770,7 @@ router10.patch("/:id/toggle", async (req, res) => {
       res.status(400).json({ success: false, message: "Invalid customer ID." });
       return;
     }
-    const customer = await User.findOne({ _id: id, role: "customer" });
+    const customer = await User.findById(id);
     if (!customer) {
       res.status(404).json({ success: false, message: "Customer not found." });
       return;
@@ -9772,6 +9784,117 @@ router10.patch("/:id/toggle", async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ success: false, message: "Failed to toggle customer status." });
+  }
+});
+router10.patch("/:id/role", requireSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
+    if (!mongoose24.Types.ObjectId.isValid(id)) {
+      res.status(400).json({ success: false, message: "Invalid customer ID." });
+      return;
+    }
+    if (!role || role !== "admin" && role !== "customer" && role !== "super_admin") {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid role. Must be "admin", "customer", or "super_admin".'
+      });
+      return;
+    }
+    const targetUser = await User.findById(id);
+    if (!targetUser) {
+      res.status(404).json({ success: false, message: "Customer account not found." });
+      return;
+    }
+    const oldRole = targetUser.role;
+    if (oldRole === role) {
+      res.status(400).json({
+        success: false,
+        message: `User already possesses the "${role}" role.`
+      });
+      return;
+    }
+    if (oldRole === "super_admin" && role !== "super_admin") {
+      const designatedEmails = getDesignatedAdminEmails();
+      if (designatedEmails.includes(targetUser.email.toLowerCase())) {
+        res.status(400).json({
+          success: false,
+          message: "Operation prohibited: Cannot demote designated store owner."
+        });
+        return;
+      }
+      const activeSuperAdmins = await User.countDocuments({
+        role: "super_admin",
+        active: true
+      });
+      if (activeSuperAdmins <= 1) {
+        res.status(400).json({
+          success: false,
+          message: "Operation prohibited: Cannot demote the last remaining active Super Administrator."
+        });
+        return;
+      }
+    }
+    if (req.user?.userId === String(targetUser._id) && role === "customer") {
+      res.status(400).json({
+        success: false,
+        message: "Operation prohibited: You cannot revoke your own administrator privileges."
+      });
+      return;
+    }
+    targetUser.role = role;
+    if (role !== "customer") {
+      targetUser.active = true;
+    }
+    await targetUser.save();
+    try {
+      await AuditLog.create({
+        action: "ROLE_CHANGED",
+        actorId: req.user?.userId ? new mongoose24.Types.ObjectId(req.user.userId) : void 0,
+        targetUserId: targetUser._id,
+        metadata: {
+          oldRole,
+          newRole: targetUser.role,
+          email: targetUser.email,
+          promotedFromCustomer: oldRole === "customer",
+          timestamp: /* @__PURE__ */ new Date()
+        }
+      });
+    } catch (logErr) {
+      console.warn("[AuditLog Warning] Failed to log customer role change:", logErr);
+    }
+    let emailDispatched = false;
+    let simulatedEmail = false;
+    try {
+      const emailRes = await sendRoleChangedNotification({
+        email: targetUser.email,
+        name: targetUser.name,
+        oldRole,
+        newRole: targetUser.role
+      });
+      emailDispatched = Boolean(emailRes.success);
+      simulatedEmail = Boolean(emailRes.simulated);
+    } catch (emailErr) {
+      console.error("[Role Change Notification Error]", emailErr);
+    }
+    res.json({
+      success: true,
+      message: `User ${targetUser.email} role updated to ${role} successfully.`,
+      roleChanged: true,
+      emailDispatched,
+      simulated: simulatedEmail,
+      customer: {
+        _id: String(targetUser._id),
+        name: targetUser.name,
+        email: targetUser.email,
+        role: targetUser.role,
+        active: targetUser.active,
+        updatedAt: targetUser.updatedAt
+      }
+    });
+  } catch (err) {
+    console.error("[Admin Customer Role Update Error]", err);
+    res.status(500).json({ success: false, message: "Failed to update customer role." });
   }
 });
 router10.put("/:id", async (req, res) => {
@@ -12775,10 +12898,22 @@ var allowedOrigins = (() => {
   const base = configured ? configured.split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean) : [];
   if (!isProd) {
     base.push("http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://localhost:3000");
+  } else {
+    base.push(
+      "https://malwanamkeenhouse.com",
+      "https://www.malwanamkeenhouse.com",
+      "https://malwa-namkeen.vercel.app"
+    );
+    if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+      base.push(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.trim().replace(/\/+$/, "")}`);
+    }
+    if (process.env.VERCEL_URL) {
+      base.push(`https://${process.env.VERCEL_URL.trim().replace(/\/+$/, "")}`);
+    }
   }
   const appUrl = process.env.APP_URL;
   if (appUrl) base.push(appUrl.trim().replace(/\/+$/, ""));
-  return base;
+  return Array.from(new Set(base));
 })();
 app.use((req, res, next) => {
   const origin = req.headers.origin;

@@ -47,7 +47,12 @@ export function getEmailConfig() {
   const isTest = process.env.NODE_ENV === 'test' || process.env.IS_E2E_TEST === 'true';
   const forceSimulated = isTest || process.env.EMAIL_PROVIDER === 'simulated';
   const isProd = process.env.NODE_ENV === 'production';
-  const rawBaseUrl = process.env.APP_URL || process.env.APP_BASE_URL || 'http://localhost:3000';
+  const rawBaseUrl =
+    process.env.APP_URL ||
+    process.env.APP_BASE_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '') ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
+    (isProd ? 'https://malwanamkeenhouse.com' : 'http://localhost:3000');
 
   let provider = 'simulated';
   if (forceSimulated) {
@@ -64,6 +69,7 @@ export function getEmailConfig() {
     provider,
     resendApiKey: forceSimulated ? '' : (process.env.RESEND_API_KEY || ''),
     emailFrom: process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || 'Malwa Namkeen House <orders@malwanamkeen.com>',
+    emailReplyTo: process.env.EMAIL_REPLY_TO || process.env.RESEND_REPLY_TO || 'malwanamkeenhouse@gmail.com',
     appBaseUrl: rawBaseUrl.replace(/\/+$/, ''),
   };
 }
@@ -273,7 +279,8 @@ export async function sendEmail({
             subject,
             html,
             text: plainText,
-          });
+            ...(config.emailReplyTo ? { reply_to: config.emailReplyTo } : {}),
+          } as any);
 
           if (response.error) {
             lastError = sanitizeErrorMessage(response.error.message);
@@ -323,6 +330,9 @@ export async function sendEmail({
     console.log('\n================== [DEV EMAIL SIMULATOR] ==================');
     console.log(`To: ${maskedTo}`);
     console.log(`From: ${config.emailFrom}`);
+    if (config.emailReplyTo) {
+      console.log(`Reply-To: ${config.emailReplyTo}`);
+    }
     console.log(`Event: ${eventType || 'generic'}`);
     console.log(`Subject: ${subject}`);
     if (isSensitive) {
