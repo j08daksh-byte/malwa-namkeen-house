@@ -148,7 +148,11 @@ const handlePublicInquiry = async (req: Request, res: Response) => {
         active: true,
       }).select('email').lean();
 
-      const adminEmails = activeAdmins.map(a => a.email).filter(Boolean);
+      const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || 'malwanamkeenhouse@gmail.com';
+      const adminEmails = [
+        ...activeAdmins.map(a => a.email),
+        ...(configuredAdmin ? [configuredAdmin] : []),
+      ].filter(Boolean);
       if (adminEmails.length > 0) {
         await sendNewInquiryAdminAlert({ inquiry, adminEmails });
       }

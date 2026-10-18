@@ -897,7 +897,7 @@ export async function dispatchOrderConfirmationEmails(order: any) {
       active: true,
     }).select('email').lean();
 
-    const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL;
+    const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || 'malwanamkeenhouse@gmail.com';
     const adminEmails = [
       ...activeAdmins.map(a => a.email),
       ...(configuredAdmin ? [configuredAdmin] : []),

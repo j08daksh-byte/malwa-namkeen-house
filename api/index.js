@@ -6069,7 +6069,7 @@ async function cancelAndRestockOrder(orderId, options) {
             role: { $in: ["admin", "super_admin"] },
             active: true
           }).select("email").lean();
-          const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL;
+          const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || "malwanamkeenhouse@gmail.com";
           const adminEmails = [
             ...activeAdmins.map((a) => a.email),
             ...configuredAdmin ? [configuredAdmin] : []
@@ -7581,7 +7581,7 @@ async function dispatchOrderConfirmationEmails(order) {
       role: { $in: ["admin", "super_admin"] },
       active: true
     }).select("email").lean();
-    const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL;
+    const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || "malwanamkeenhouse@gmail.com";
     const adminEmails = [
       ...activeAdmins.map((a) => a.email),
       ...configuredAdmin ? [configuredAdmin] : []
@@ -10427,7 +10427,11 @@ var handlePublicInquiry = async (req, res) => {
         role: { $in: ["admin", "super_admin"] },
         active: true
       }).select("email").lean();
-      const adminEmails = activeAdmins.map((a) => a.email).filter(Boolean);
+      const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || "malwanamkeenhouse@gmail.com";
+      const adminEmails = [
+        ...activeAdmins.map((a) => a.email),
+        ...configuredAdmin ? [configuredAdmin] : []
+      ].filter(Boolean);
       if (adminEmails.length > 0) {
         await sendNewInquiryAdminAlert({ inquiry, adminEmails });
       }
