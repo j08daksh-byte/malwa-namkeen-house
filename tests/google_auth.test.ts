@@ -246,6 +246,9 @@ describe('Google OAuth & Authentication Hardening Suite', () => {
       assert.ok('isConfigured' in res.data, 'Must return isConfigured boolean');
       assert.equal(res.data.clientSecret, undefined, 'Must NEVER return clientSecret');
       assert.equal(res.data.GOOGLE_CLIENT_SECRET, undefined, 'Must NEVER return GOOGLE_CLIENT_SECRET');
+
+      const expectedClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '';
+      assert.equal(res.data.clientId, expectedClientId, 'clientId returned to frontend must match backend configured client ID');
     });
   });
 
