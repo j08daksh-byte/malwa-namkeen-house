@@ -10,9 +10,6 @@ import {
   Mail,
   UserRound,
   Phone,
-  Sparkles,
-  Info,
-  X,
   KeyRound,
   MessageCircle,
   ArrowRight,
@@ -48,9 +45,6 @@ export default function Account() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleClientId, setGoogleClientId] = useState<string>('');
   const [isGsiRendered, setIsGsiRendered] = useState(false);
-  const [googleSetupModalOpen, setGoogleSetupModalOpen] = useState(false);
-  const [demoName, setDemoName] = useState('Ananya Sharma');
-  const [demoEmail, setDemoEmail] = useState('ananya.sharma@gmail.com');
 
   // Forgot password & Reset states
   const [forgotEmail, setForgotEmail] = useState('');
@@ -133,21 +127,34 @@ export default function Account() {
         return;
       }
 
-      if (!document.getElementById('google-gsi-script')) {
-        const script = document.createElement('script');
-        script.id = 'google-gsi-script';
-        script.src = 'https://accounts.google.com/gsi/client';
-        script.async = true;
-        script.defer = true;
-        script.onload = () => {
+      const existingScript = document.getElementById('google-gsi-script') as HTMLScriptElement | null;
+      if (existingScript) {
+        existingScript.addEventListener('load', () => {
           if (isMounted) initGsi(clientId);
-        };
-        document.body.appendChild(script);
+        });
+        const interval = setInterval(() => {
+          if ((window as any).google?.accounts?.id) {
+            clearInterval(interval);
+            if (isMounted) initGsi(clientId);
+          }
+        }, 100);
+        setTimeout(() => clearInterval(interval), 4000);
+        return;
       }
+
+      const script = document.createElement('script');
+      script.id = 'google-gsi-script';
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        if (isMounted) initGsi(clientId);
+      };
+      document.body.appendChild(script);
     }
 
     function initGsi(clientId: string) {
-      if ((window as any).google?.accounts?.id) {
+      if ((window as any).google?.accounts?.id && googleButtonContainerRef.current) {
         try {
           (window as any).google.accounts.id.initialize({
             client_id: clientId,
@@ -156,22 +163,20 @@ export default function Account() {
             cancel_on_tap_outside: true,
           });
 
-          if (googleButtonContainerRef.current) {
-            googleButtonContainerRef.current.innerHTML = '';
-            (window as any).google.accounts.id.renderButton(
-              googleButtonContainerRef.current,
-              {
-                type: 'standard',
-                theme: 'outline',
-                size: 'large',
-                text: 'continue_with',
-                shape: 'rectangular',
-                logo_alignment: 'left',
-                width: 380,
-              }
-            );
-            setIsGsiRendered(true);
-          }
+          googleButtonContainerRef.current.innerHTML = '';
+          (window as any).google.accounts.id.renderButton(
+            googleButtonContainerRef.current,
+            {
+              type: 'standard',
+              theme: 'outline',
+              size: 'large',
+              text: 'continue_with',
+              shape: 'rectangular',
+              logo_alignment: 'left',
+              width: 380,
+            }
+          );
+          setIsGsiRendered(true);
         } catch (e) {
           console.warn('[GSI Init Error]', e);
           setIsGsiRendered(false);
@@ -187,7 +192,10 @@ export default function Account() {
   }, [mode]);
 
   const handleGoogleCredentialResponse = async (response: any) => {
-    if (!response || !response.credential) return;
+    if (!response || !response.credential) {
+      setMessage({ type: 'error', text: 'Google authentication failed: No credential token received.' });
+      return;
+    }
     setGoogleLoading(true);
     setMessage(null);
 
@@ -204,57 +212,33 @@ export default function Account() {
   };
 
   const handleGoogleButtonClick = () => {
-    if (googleClientId && (window as any).google?.accounts?.id) {
+    if (googleClientId && (window as any).google?.accounts?.id && googleButtonContainerRef.current) {
       try {
-        (window as any).google.accounts.id.prompt();
-      } catch {
-        setGoogleSetupModalOpen(true);
+        (window as any).google.accounts.id.renderButton(
+          googleButtonContainerRef.current,
+          {
+            type: 'standard',
+            theme: 'outline',
+            size: 'large',
+            text: 'continue_with',
+            shape: 'rectangular',
+            logo_alignment: 'left',
+            width: 380,
+          }
+        );
+        setIsGsiRendered(true);
+      } catch (err) {
+        console.warn('[Google Sign-In Click]', err);
+        setMessage({
+          type: 'error',
+          text: 'Google Sign-In is temporarily unavailable in this browser. Please sign in with your email and password.',
+        });
       }
     } else {
-      // Google Client ID is not yet provided or needs test modal
-      setGoogleSetupModalOpen(true);
-    }
-  };
-
-  const handleDemoGoogleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!demoEmail.trim()) return;
-
-    setGoogleLoading(true);
-    try {
-      const res = await fetch('/api/auth/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userInfo: {
-            email: demoEmail.trim().toLowerCase(),
-            name: demoName.trim() || demoEmail.split('@')[0],
-            sub: `google-demo-${Date.now()}`,
-            picture: 'https://lh3.googleusercontent.com/a/default-user=s96-c',
-          },
-        }),
-        credentials: 'include',
+      setMessage({
+        type: 'error',
+        text: 'Google Sign-In is temporarily unavailable. Please sign in with your email and password.',
       });
-
-      const data = await res.json();
-      setGoogleLoading(false);
-      setGoogleSetupModalOpen(false);
-
-      if (!res.ok || !data.success) {
-        setMessage({ type: 'error', text: data.message || 'Google sign-in failed.' });
-        return;
-      }
-
-      localStorage.setItem('malwa_auth_token', data.token);
-      localStorage.setItem('malwa-customer-session', JSON.stringify(data.user));
-
-      setMessage({ type: 'success', text: `Signed in as ${data.user.name}! Redirecting…` });
-      window.setTimeout(() => {
-        window.location.href = destination;
-      }, 500);
-    } catch {
-      setGoogleLoading(false);
-      setMessage({ type: 'error', text: 'Google Sign-In test failed.' });
     }
   };
 
@@ -1099,8 +1083,8 @@ export default function Account() {
 
                 <div className="account-divider">OR</div>
 
-                {/* SINGLE UNIFIED GOOGLE SIGN-IN BUTTON */}
-                <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                {/* GOOGLE SIGN-IN BUTTON */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
                   {/* Container for Google's Official GSI button */}
                   <div
                     ref={googleButtonContainerRef}
@@ -1108,10 +1092,11 @@ export default function Account() {
                       display: isGsiRendered && googleClientId ? 'flex' : 'none',
                       justifyContent: 'center',
                       width: '100%',
+                      minHeight: '44px',
                     }}
                   />
 
-                  {/* Branded Fallback Button (Only shown when GSI button is NOT rendered) */}
+                  {/* Fallback button shown when GSI is not yet rendered or blocked */}
                   {(!isGsiRendered || !googleClientId) && (
                     <button
                       className="social-button"
@@ -1138,119 +1123,6 @@ export default function Account() {
           </div>
         </section>
       </main>
-
-      {/* ── Google Setup & Quick-Test Modal ───────────────────────────────── */}
-      {googleSetupModalOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.55)',
-            backdropFilter: 'blur(4px)',
-            display: 'grid',
-            placeItems: 'center',
-            zIndex: 100000,
-            padding: '20px',
-          }}
-          onClick={() => setGoogleSetupModalOpen(false)}
-        >
-          <div
-            style={{
-              background: '#FFFFFF',
-              borderRadius: '16px',
-              maxWidth: '460px',
-              width: '100%',
-              padding: '28px 24px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
-              position: 'relative',
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setGoogleSetupModalOpen(false)}
-              style={{
-                position: 'absolute',
-                top: '16px',
-                right: '16px',
-                background: '#F3F4F6',
-                border: 'none',
-                borderRadius: '50%',
-                width: '32px',
-                height: '32px',
-                display: 'grid',
-                placeItems: 'center',
-                cursor: 'pointer',
-              }}
-            >
-              <X size={16} />
-            </button>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#F8F9FA', border: '1px solid #E5E7EB', display: 'grid', placeItems: 'center' }}>
-                <GoogleIcon />
-              </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#1F2937' }}>
-                  Google Sign-In
-                </h3>
-                <span style={{ fontSize: '11.5px', color: '#6B7280' }}>
-                  Quick test or add your Google Client ID
-                </span>
-              </div>
-            </div>
-
-            <p style={{ fontSize: '13px', color: '#4B5563', lineHeight: 1.5, margin: '0 0 16px' }}>
-              The authentication system supports seamless Google Sign-In. You can test it immediately below or configure your official Google Cloud OAuth Client ID.
-            </p>
-
-            <form onSubmit={handleDemoGoogleSignIn} style={{ background: '#FAF6EF', padding: '16px', borderRadius: '12px', border: '1px solid #EAE3D2', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px', fontSize: '12.5px', fontWeight: 700, color: '#55000A' }}>
-                <Sparkles size={14} color="#D4AA45" /> One-Click Instant Google Test:
-              </div>
-              <div style={{ display: 'grid', gap: '8px' }}>
-                <input
-                  value={demoName}
-                  onChange={e => setDemoName(e.target.value)}
-                  placeholder="Your Name (e.g. Ananya Sharma)"
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-                />
-                <input
-                  value={demoEmail}
-                  onChange={e => setDemoEmail(e.target.value)}
-                  placeholder="Your Google Email (e.g. user@gmail.com)"
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #D1D5DB', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
-                />
-                <button
-                  type="submit"
-                  disabled={googleLoading}
-                  style={{
-                    background: '#55000A',
-                    color: '#FFF8EC',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '10px',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    marginTop: '4px',
-                  }}
-                >
-                  {googleLoading ? 'Signing in…' : 'Sign In as Google User'}
-                </button>
-              </div>
-            </form>
-
-            <div style={{ background: '#EFF6FF', padding: '12px 14px', borderRadius: '10px', border: '1px solid #BFDBFE', fontSize: '12px', color: '#1E40AF', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-              <Info size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-              <div>
-                <strong>For Live Production Google OAuth:</strong><br />
-                Add <code style={{ background: '#DBEAFE', padding: '1px 4px', borderRadius: '4px' }}>GOOGLE_CLIENT_ID=your-id.apps.googleusercontent.com</code> to your <code style={{ background: '#DBEAFE', padding: '1px 4px', borderRadius: '4px' }}>.env.local</code>.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

@@ -3332,12 +3332,20 @@ router.get("/google/config", (_req, res) => {
     isConfigured: Boolean(clientId)
   });
 });
+var testTokenVerifier = null;
 async function verifyGoogleToken(credential) {
   if (!credential || typeof credential !== "string" || credential.trim().length < 10) {
     return null;
   }
+  if (testTokenVerifier && process.env.NODE_ENV !== "production") {
+    return testTokenVerifier(credential);
+  }
   try {
-    const configuredClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
+    const configuredClientId = (process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "").trim();
+    if (!configuredClientId) {
+      console.warn("[Google Auth Error] GOOGLE_CLIENT_ID is not configured on server.");
+      return null;
+    }
     const response = await fetch(
       `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential.trim())}`
     );
@@ -3354,8 +3362,12 @@ async function verifyGoogleToken(credential) {
       console.warn("[Google Auth Error] Invalid token issuer:", payload.iss);
       return null;
     }
-    if (configuredClientId && payload.aud && payload.aud !== configuredClientId) {
+    if (payload.aud !== configuredClientId) {
       console.warn("[Google Auth Error] Audience mismatch. Expected:", configuredClientId, "Got:", payload.aud);
+      return null;
+    }
+    if (payload.exp && Number(payload.exp) * 1e3 < Date.now()) {
+      console.warn("[Google Auth Error] Google token has expired.");
       return null;
     }
     const isEmailVerified = payload.email_verified === "true" || payload.email_verified === true;
@@ -3378,15 +3390,15 @@ async function verifyGoogleToken(credential) {
 router.post("/google", loginLimiter, async (req, res) => {
   try {
     const { credential, idToken } = req.body;
-    const tokenToVerify = credential || idToken;
-    if (!tokenToVerify || typeof tokenToVerify !== "string") {
+    const rawToken = typeof credential === "string" && credential.trim() ? credential.trim() : typeof idToken === "string" && idToken.trim() ? idToken.trim() : null;
+    if (!rawToken || rawToken.length < 10) {
       res.status(400).json({
         success: false,
         message: "Google credential token is required."
       });
       return;
     }
-    const googleUser = await verifyGoogleToken(tokenToVerify);
+    const googleUser = await verifyGoogleToken(rawToken);
     if (!googleUser || !googleUser.email) {
       res.status(401).json({
         success: false,

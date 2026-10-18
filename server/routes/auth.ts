@@ -290,19 +290,39 @@ router.get('/google/config', (_req: Request, res: Response) => {
 /**
  * Helper to securely verify Google Credential JWT with Google's OAuth2 tokeninfo endpoint
  */
-async function verifyGoogleToken(credential: string): Promise<{
+export type GoogleVerifiedUser = {
   sub: string;
   email: string;
   name: string;
   picture?: string;
   email_verified?: boolean;
-} | null> {
+};
+
+type TokenVerifierFn = (credential: string) => Promise<GoogleVerifiedUser | null>;
+let testTokenVerifier: TokenVerifierFn | null = null;
+
+export function __setGoogleTokenVerifierForTesting(verifier: TokenVerifierFn | null): void {
+  if (process.env.NODE_ENV !== 'production') {
+    testTokenVerifier = verifier;
+  }
+}
+
+export async function verifyGoogleToken(credential: string): Promise<GoogleVerifiedUser | null> {
   if (!credential || typeof credential !== 'string' || credential.trim().length < 10) {
     return null;
   }
 
+  if (testTokenVerifier && process.env.NODE_ENV !== 'production') {
+    return testTokenVerifier(credential);
+  }
+
   try {
-    const configuredClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '';
+    const configuredClientId = (process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '').trim();
+    if (!configuredClientId) {
+      console.warn('[Google Auth Error] GOOGLE_CLIENT_ID is not configured on server.');
+      return null;
+    }
+
     const response = await fetch(
       `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential.trim())}`
     );
@@ -324,9 +344,15 @@ async function verifyGoogleToken(credential: string): Promise<{
       return null;
     }
 
-    // Verify audience if GOOGLE_CLIENT_ID is configured
-    if (configuredClientId && payload.aud && payload.aud !== configuredClientId) {
+    // Verify audience
+    if (payload.aud !== configuredClientId) {
       console.warn('[Google Auth Error] Audience mismatch. Expected:', configuredClientId, 'Got:', payload.aud);
+      return null;
+    }
+
+    // Verify expiration timestamp if present
+    if (payload.exp && Number(payload.exp) * 1000 < Date.now()) {
+      console.warn('[Google Auth Error] Google token has expired.');
       return null;
     }
 
@@ -357,9 +383,11 @@ async function verifyGoogleToken(credential: string): Promise<{
 router.post('/google', loginLimiter, async (req: Request, res: Response) => {
   try {
     const { credential, idToken } = req.body;
-    const tokenToVerify = credential || idToken;
+    const rawToken = typeof credential === 'string' && credential.trim()
+      ? credential.trim()
+      : (typeof idToken === 'string' && idToken.trim() ? idToken.trim() : null);
 
-    if (!tokenToVerify || typeof tokenToVerify !== 'string') {
+    if (!rawToken || rawToken.length < 10) {
       res.status(400).json({
         success: false,
         message: 'Google credential token is required.',
@@ -367,7 +395,7 @@ router.post('/google', loginLimiter, async (req: Request, res: Response) => {
       return;
     }
 
-    const googleUser = await verifyGoogleToken(tokenToVerify);
+    const googleUser = await verifyGoogleToken(rawToken);
 
     if (!googleUser || !googleUser.email) {
       res.status(401).json({
