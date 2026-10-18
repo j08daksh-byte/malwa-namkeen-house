@@ -11119,33 +11119,33 @@ async function getOrCreateSingletonSettings() {
   return settings;
 }
 var DEFAULT_PUBLIC_SETTINGS = {
-  storeName: "MALWA NAMKEEN HOUSE",
-  tagline: "THE NAMKEEN & SNACKS HUB",
+  storeName: BUSINESS.name,
+  tagline: BUSINESS.tagline,
   description: "Authentic Ratlami Sev, Hing Sev, Ujjaini Mixture, and Mathris crafted with cold-pressed groundnut oil and hand-ground spices.",
   logo: "/logo.png",
-  gstNumber: "23AAAAA0000A1Z5",
+  gstNumber: BUSINESS.gstNumber,
   fssaiNumber: BUSINESS.fssaiNumber,
   contact: {
-    phone: "+91 7987732765",
-    email: "malwanamkeenhouse@gmail.com",
-    whatsappNumber: "+91 7987732765",
+    phone: BUSINESS.phone,
+    email: BUSINESS.email,
+    whatsappNumber: BUSINESS.phone,
     address: {
-      line1: "Near Mahakaleshwar Temple",
-      line2: "Sarafa Bazaar",
-      city: "Ujjain",
-      state: "Madhya Pradesh",
-      pincode: "456001"
+      line1: BUSINESS.address.line1,
+      line2: BUSINESS.address.line2,
+      city: BUSINESS.address.city,
+      state: BUSINESS.address.state,
+      pincode: BUSINESS.address.postalCode
     }
   },
   businessHours: {
-    openingTime: "08:00 AM",
-    closingTime: "10:00 PM",
+    openingTime: "09:00 AM",
+    closingTime: "10:30 PM",
     daysOpen: "All 7 Days"
   },
   deliverySettings: {
-    freeDeliveryThreshold: 500,
-    standardShippingFee: 50,
-    estimatedDeliveryDays: "3-5 Business Days"
+    freeDeliveryThreshold: 499,
+    standardShippingFee: 49,
+    estimatedDeliveryDays: "2-4 Business Days"
   },
   socialLinks: {
     instagram: "",
