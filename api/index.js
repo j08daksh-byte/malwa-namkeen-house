@@ -10634,51 +10634,79 @@ router13.post("/invite", async (req, res) => {
     const assignedRole = role === "super_admin" ? "super_admin" : "admin";
     const cleanEmail = email2.trim().toLowerCase();
     const cleanName = name2.trim();
-    const existing = await User.findOne({ email: cleanEmail });
-    if (existing) {
-      if (existing.role === "customer") {
-        res.status(409).json({
-          success: false,
-          message: "An account with this email is currently registered as a customer. Please use a unique staff email address."
-        });
-        return;
-      }
-      res.status(409).json({
-        success: false,
-        message: "An administrator with this email address already exists."
-      });
-      return;
-    }
     const rawToken = crypto6.randomBytes(32).toString("hex");
     const tokenHash = crypto6.createHash("sha256").update(rawToken).digest("hex");
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1e3);
-    const newStaff = await User.create({
-      name: cleanName,
-      email: cleanEmail,
-      role: assignedRole,
-      active: true,
-      invitationTokenHash: tokenHash,
-      invitationExpiresAt: expiresAt,
-      invitedBy: req.user?.userId ? new mongoose28.Types.ObjectId(req.user.userId) : void 0,
-      invitedAt: /* @__PURE__ */ new Date()
-    });
+    const existing = await User.findOne({ email: cleanEmail });
+    let staffRecord;
+    if (existing) {
+      const oldRole = existing.role;
+      existing.role = assignedRole;
+      existing.active = true;
+      if (cleanName && (!existing.name || existing.name === "Customer" || existing.name.trim().length === 0)) {
+        existing.name = cleanName;
+      }
+      existing.invitationTokenHash = tokenHash;
+      existing.invitationExpiresAt = expiresAt;
+      existing.invitedBy = req.user?.userId ? new mongoose28.Types.ObjectId(req.user.userId) : void 0;
+      existing.invitedAt = /* @__PURE__ */ new Date();
+      await existing.save();
+      staffRecord = existing;
+      try {
+        await AuditLog.create({
+          action: "ROLE_CHANGED",
+          actorId: req.user?.userId ? new mongoose28.Types.ObjectId(req.user.userId) : void 0,
+          targetUserId: existing._id,
+          metadata: {
+            email: cleanEmail,
+            previousRole: oldRole,
+            assignedRole,
+            existingAccountPromoted: true
+          }
+        });
+      } catch (logErr) {
+        console.error("[AuditLog Error]", logErr);
+      }
+    } else {
+      const newStaff = await User.create({
+        name: cleanName,
+        email: cleanEmail,
+        role: assignedRole,
+        active: true,
+        invitationTokenHash: tokenHash,
+        invitationExpiresAt: expiresAt,
+        invitedBy: req.user?.userId ? new mongoose28.Types.ObjectId(req.user.userId) : void 0,
+        invitedAt: /* @__PURE__ */ new Date()
+      });
+      staffRecord = newStaff;
+      try {
+        await AuditLog.create({
+          action: "ROLE_CHANGED",
+          actorId: req.user?.userId ? new mongoose28.Types.ObjectId(req.user.userId) : void 0,
+          targetUserId: newStaff._id,
+          metadata: { email: cleanEmail, role: assignedRole, newAccount: true }
+        });
+      } catch (logErr) {
+        console.error("[AuditLog Error]", logErr);
+      }
+    }
     const emailResult = await sendAdminInvitationEmail({
       email: cleanEmail,
-      name: cleanName,
+      name: staffRecord.name || cleanName,
       token: rawToken,
       inviterName: req.user?.email || "Super Administrator"
     });
     res.status(201).json({
       success: true,
-      message: `Invitation generated successfully for ${cleanEmail}.`,
+      message: `Administrator privileges (${assignedRole === "super_admin" ? "Super Administrator" : "Administrator"}) successfully granted to ${cleanEmail}.`,
       staff: {
-        _id: String(newStaff._id),
-        name: newStaff.name,
-        email: newStaff.email,
-        role: newStaff.role,
-        active: newStaff.active,
-        isPendingInvitation: true,
-        createdAt: newStaff.createdAt
+        _id: String(staffRecord._id),
+        name: staffRecord.name,
+        email: staffRecord.email,
+        role: staffRecord.role,
+        active: staffRecord.active,
+        isPendingInvitation: Boolean(staffRecord.invitationTokenHash && !staffRecord.invitationAcceptedAt),
+        createdAt: staffRecord.createdAt
       },
       emailDispatched: emailResult.success,
       simulated: emailResult.simulated
@@ -11101,7 +11129,7 @@ router15.get("/", async (_req, res) => {
     res.status(500).json({ success: false, message: "Failed to retrieve store settings." });
   }
 });
-router15.put("/", requireSuperAdmin, async (req, res) => {
+router15.put("/", requireAdmin, async (req, res) => {
   try {
     const payload = req.body;
     const settings = await getOrCreateSingletonSettings();

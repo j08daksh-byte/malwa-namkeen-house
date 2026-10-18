@@ -107,9 +107,9 @@ router.get('/', async (_req: AuthenticatedRequest, res: Response) => {
 /**
  * PUT /api/admin/settings
  * Admin endpoint to update the singleton StoreSettings.
- * Strictly restricted to Super Administrators.
+ * Accessible to all authorized administrators.
  */
-router.put('/', requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
+router.put('/', requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const payload = req.body;
     const settings = await getOrCreateSingletonSettings();
