@@ -189,6 +189,14 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
         setIsSubmitting(false);
         return;
       }
+      const cleanPhone = (newAddress.phone || '').replace(/[\s\-\(\)\+]/g, '').replace(/^91(?=\d{10}$)/, '').replace(/^0(?=\d{10}$)/, '').trim();
+      if (!cleanPhone || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+        setErrorMessage('Please enter a valid 10-digit Indian mobile number (e.g., 9876543210).');
+        setIsSubmitting(false);
+        return;
+      }
+      newAddress.phone = cleanPhone;
+
       if (!/^\d{6}$/.test(newAddress.pincode.trim())) {
         setErrorMessage('Please enter a valid 6-digit Indian PIN code.');
         setIsSubmitting(false);
@@ -716,10 +724,11 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
                     <div className="checkout-field">
                       <label>Contact Phone</label>
                       <input
+                        type="tel"
                         value={newAddress.phone}
                         onChange={e => setNewAddress(p => ({ ...p, phone: e.target.value }))}
                         required
-                        placeholder="+91 00000 00000"
+                        placeholder="10-digit mobile number"
                       />
                     </div>
                     <div className="checkout-field" style={{ gridColumn: '1 / -1' }}>

@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import SEOHead from './components/seo/SEOHead';
 import ScrollToTop from './components/layout/ScrollToTop';
@@ -74,22 +74,33 @@ function PublicSite() {
     '@graph': [
       {
         '@type': 'Organization',
-        '@id': 'https://malwanamkeen.com/#organization',
+        '@id': 'https://malwanamkeenhouse.com/#organization',
         name: 'MALWA NAMKEEN HOUSE',
-        url: 'https://malwanamkeen.com',
-        logo: 'https://malwanamkeen.com/logo.png',
+        url: 'https://malwanamkeenhouse.com',
+        logo: 'https://malwanamkeenhouse.com/logo.png',
         description: 'THE NAMKEEN & SNACKS HUB — Authentic Ratlami Sev, artisanal namkeens, and festive gifting.',
         telephone: '+91 7987732765',
+        sameAs: [
+          'https://www.instagram.com/malwanamkeenhouse',
+          'https://www.facebook.com/malwanamkeenhouse',
+        ],
+        contactPoint: {
+          '@type': 'ContactPoint',
+          telephone: '+91 7987732765',
+          contactType: 'customer service',
+          areaServed: 'IN',
+          availableLanguage: ['en', 'hi'],
+        },
       },
       {
         '@type': 'WebSite',
-        '@id': 'https://malwanamkeen.com/#website',
-        url: 'https://malwanamkeen.com',
+        '@id': 'https://malwanamkeenhouse.com/#website',
+        url: 'https://malwanamkeenhouse.com',
         name: 'MALWA NAMKEEN HOUSE',
-        publisher: { '@id': 'https://malwanamkeen.com/#organization' },
+        publisher: { '@id': 'https://malwanamkeenhouse.com/#organization' },
         potentialAction: {
           '@type': 'SearchAction',
-          target: 'https://malwanamkeen.com/shop?search={search_term_string}',
+          target: 'https://malwanamkeenhouse.com/shop?search={search_term_string}',
           'query-input': 'required name=search_term_string',
         },
       },
@@ -180,7 +191,7 @@ export default function App() {
                   <Route path="/admin/customers"    element={<ProtectedRoute><AdminCustomers /></ProtectedRoute>} />
                   <Route path="/admin/discounts"    element={<ProtectedRoute><AdminDiscounts /></ProtectedRoute>} />
                   <Route path="/admin/inquiries"    element={<ProtectedRoute><AdminInquiries /></ProtectedRoute>} />
-                  <Route path="/admin/enquiries"    element={<ProtectedRoute><AdminEnquiries /></ProtectedRoute>} />
+                  <Route path="/admin/enquiries"    element={<Navigate to="/admin/inquiries" replace />} />
                   <Route path="/admin/reservations" element={<ProtectedRoute><AdminReservations /></ProtectedRoute>} />
                   <Route path="/admin/staff"        element={<ProtectedRoute requireSuperAdmin><AdminStaff /></ProtectedRoute>} />
                   <Route path="/admin/settings"     element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />

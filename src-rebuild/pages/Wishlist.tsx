@@ -13,17 +13,14 @@ export default function Wishlist() {
   const navigate = useNavigate();
   const { wishlist, wishlistCount, toggleWishlist, loading } = useWishlist();
   const { addToCart, openCart } = useCart();
+  const [selectedVariants, setSelectedVariants] = React.useState<Record<string, number>>({});
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, []);
 
-  const handleAddToCart = (product: Product, e?: React.MouseEvent) => {
+  const handleAddToCart = (product: Product, opt: ProductWeightOption, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    const opt: ProductWeightOption =
-      product.options && product.options.length > 0
-        ? product.options[0]
-        : { weight: 'Standard', price: (product as any).price || 120 };
     addToCart(product, opt, 1);
     openCart();
   };
@@ -46,6 +43,7 @@ export default function Wishlist() {
         title="Your Saved Delicacies — Wishlist | MALWA NAMKEEN HOUSE"
         description="Review and manage your saved Malwa Namkeen delicacies, festive hampers, and authentic Ratlami snacks."
         canonicalPath="/wishlist"
+        noIndex={true}
       />
       <Navbar />
 
@@ -197,8 +195,12 @@ export default function Wishlist() {
             >
               {wishlist.map(product => {
                 const prodId = String(product.id || (product as any)._id);
-                const price =
-                  product.options?.[0]?.price ?? (product as any).price ?? 120;
+                const selectedIdx = selectedVariants[prodId] ?? 0;
+                const currentOption: ProductWeightOption =
+                  (product.options && product.options[selectedIdx]) ||
+                  (product.options && product.options[0]) ||
+                  { weight: 'Standard', price: (product as any).price || 120 };
+                const currentPrice = currentOption.price;
                 const inStock = isProductAvailable(product);
                 const image =
                   (Array.isArray((product as any).images) && (product as any).images[0]) ||
@@ -336,6 +338,60 @@ export default function Wishlist() {
                         </div>
                       )}
 
+                      {/* Weight Variant Selector if multiple options exist */}
+                      {product.options && product.options.length > 1 && (
+                        <div
+                          style={{ marginBottom: '12px' }}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <label
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              color: '#75645C',
+                              display: 'block',
+                              marginBottom: '5px',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.03em',
+                            }}
+                          >
+                            Select Pack Size:
+                          </label>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            {product.options.map((opt, idx) => {
+                              const isSelected = selectedIdx === idx;
+                              return (
+                                <button
+                                  key={opt.weight}
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedVariants(prev => ({
+                                      ...prev,
+                                      [prodId]: idx,
+                                    }))
+                                  }
+                                  style={{
+                                    padding: '4px 9px',
+                                    fontSize: '11.5px',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    border: isSelected
+                                      ? '1.5px solid #3C0815'
+                                      : '1px solid rgba(200, 154, 61, 0.35)',
+                                    background: isSelected ? '#3C0815' : '#FFFDF8',
+                                    color: isSelected ? '#FFF8EC' : '#5E4940',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                >
+                                  {opt.weight}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
                       <div
                         style={{
                           marginTop: 'auto',
@@ -347,21 +403,34 @@ export default function Wishlist() {
                           gap: '10px',
                         }}
                       >
-                        <span
-                          style={{
-                            fontFamily: "var(--font-primary, 'DM Sans', sans-serif)",
-                            fontSize: '17px',
-                            fontWeight: 800,
-                            color: '#3C0815',
-                          }}
-                        >
-                          ₹{price}
-                        </span>
+                        <div>
+                          <span
+                            style={{
+                              fontFamily: "var(--font-primary, 'DM Sans', sans-serif)",
+                              fontSize: '18px',
+                              fontWeight: 800,
+                              color: '#3C0815',
+                            }}
+                          >
+                            ₹{currentPrice}
+                          </span>
+                          {currentOption.weight && currentOption.weight !== 'Standard' && (
+                            <span
+                              style={{
+                                fontSize: '11.5px',
+                                color: '#75645C',
+                                marginLeft: '5px',
+                              }}
+                            >
+                              ({currentOption.weight})
+                            </span>
+                          )}
+                        </div>
 
                         <button
                           type="button"
                           disabled={!inStock}
-                          onClick={e => handleAddToCart(product, e)}
+                          onClick={e => handleAddToCart(product, currentOption, e)}
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',

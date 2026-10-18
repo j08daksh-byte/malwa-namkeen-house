@@ -82,12 +82,20 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req: Request, res:
     user.passwordResetExpiresAt = expiresAt;
     await user.save();
 
-    // Dispatch customer reset email
-    await sendCustomerPasswordReset({
-      email: user.email,
-      name: user.name,
-      token: rawToken,
-    });
+    // Dispatch reset email based on role
+    if (user.role === 'admin' || user.role === 'super_admin') {
+      await sendPasswordResetEmail({
+        email: user.email,
+        name: user.name,
+        token: rawToken,
+      });
+    } else {
+      await sendCustomerPasswordReset({
+        email: user.email,
+        name: user.name,
+        token: rawToken,
+      });
+    }
 
     res.json(genericSuccess);
   } catch (err: unknown) {
@@ -211,10 +219,10 @@ router.post('/reset-password', tokenSubmissionLimiter, async (req: Request, res:
       return;
     }
 
-    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
       res.status(400).json({
         success: false,
-        message: 'Your new password must be at least 8 characters long.',
+        message: 'Your new password must be at least 6 characters long.',
       });
       return;
     }

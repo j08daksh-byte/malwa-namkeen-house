@@ -6,8 +6,24 @@ import { User } from '../models/User.ts';
 import { requireAdmin, type AuthenticatedRequest } from '../lib/auth.ts';
 import { sendInquiryAcknowledgement, sendNewInquiryAdminAlert } from '../lib/emailService.ts';
 import { connectMongoDB } from '../lib/mongodb.ts';
+import rateLimit from 'express-rate-limit';
+import { MongoRateLimitStore } from '../lib/mongoRateLimitStore.ts';
 
 const router = Router();
+
+const publicInquiryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: (process.env.NODE_ENV === 'production' && !process.env.CI) ? 5 : 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { default: false },
+  skip: () => process.env.NODE_ENV === 'test' || process.env.IS_E2E_TEST === 'true' || Boolean(process.env.CI),
+  store: new MongoRateLimitStore({ prefix: 'inquiry:submit', windowMs: 15 * 60 * 1000, failClosed: false }),
+  message: {
+    success: false,
+    message: 'Too many enquiry submissions from this IP. Please wait a few minutes or reach us on WhatsApp.',
+  },
+});
 
 /**
  * Public endpoint for customer contact / bulk inquiries
@@ -178,8 +194,8 @@ const handlePublicInquiry = async (req: Request, res: Response) => {
   }
 };
 
-router.post('/public', handlePublicInquiry);
-router.post('/', handlePublicInquiry);
+router.post('/public', publicInquiryLimiter, handlePublicInquiry);
+router.post('/', publicInquiryLimiter, handlePublicInquiry);
 
 // Protect administrative endpoints with requireAdmin
 router.use(requireAdmin);

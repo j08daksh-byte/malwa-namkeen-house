@@ -60,6 +60,8 @@ const CartContext = createContext<CartContextType | null>(null);
 const STORAGE_KEY = 'malwa_cart_items_v2';
 const COUPON_STORAGE_KEY = 'malwa_cart_coupon_v2';
 
+export const MAX_RETAIL_QUANTITY = 50;
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
@@ -241,9 +243,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // Add To Cart with Stock Enforcement
   const addToCart = useCallback((product: Product, option: ProductWeightOption, quantity = 1) => {
-    const availableStock = typeof (option as any).stock === 'number' ? (option as any).stock : 100;
+    const stockLimit = typeof (option as any).stock === 'number' ? (option as any).stock : 100;
+    const availableStock = Math.min(stockLimit, MAX_RETAIL_QUANTITY);
 
-    if (availableStock <= 0) {
+    if (stockLimit <= 0) {
       setToastMessage(`Sorry, ${product.name} (${option.weight}) is out of stock.`);
       return { success: false, message: 'Item is out of stock' };
     }
@@ -265,7 +268,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
         if (newQty > availableStock) {
           addedSuccess = false;
-          warningMsg = `Only ${availableStock} units available in stock.`;
+          warningMsg = stockLimit < MAX_RETAIL_QUANTITY
+            ? `Only ${stockLimit} units available in stock.`
+            : `Maximum limit is ${MAX_RETAIL_QUANTITY} units per item for online retail orders.`;
           const updated = [...prev];
           updated[existingIdx] = {
             ...updated[existingIdx],
@@ -365,14 +370,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
           const matchWeight = !weight || item.selectedOption.weight === weight || (item.selectedOption as any).id === weight;
 
           if (matchProduct && matchWeight) {
-            const stock = typeof (item.selectedOption as any).stock === 'number'
+            const stockLimit = typeof (item.selectedOption as any).stock === 'number'
               ? (item.selectedOption as any).stock
               : 100;
+            const maxAllowed = Math.min(stockLimit, MAX_RETAIL_QUANTITY);
 
-            if (targetQty > stock) {
+            if (targetQty > maxAllowed) {
               capped = true;
-              limit = stock;
-              return { ...item, quantity: stock };
+              limit = maxAllowed;
+              return { ...item, quantity: maxAllowed };
             }
             return { ...item, quantity: targetQty };
           }
@@ -381,8 +387,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
       );
 
       if (capped) {
-        setToastMessage(`Only ${limit} units available in stock.`);
-        return { success: false, message: `Only ${limit} units available.` };
+        setToastMessage(
+          limit === MAX_RETAIL_QUANTITY
+            ? `Maximum limit is ${MAX_RETAIL_QUANTITY} units per item for retail orders.`
+            : `Only ${limit} units available in stock.`
+        );
+        return {
+          success: false,
+          message:
+            limit === MAX_RETAIL_QUANTITY
+              ? `Maximum limit is ${MAX_RETAIL_QUANTITY} units.`
+              : `Only ${limit} units available.`,
+        };
       }
 
       return { success: true };

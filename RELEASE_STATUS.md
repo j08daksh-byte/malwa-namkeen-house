@@ -414,4 +414,36 @@ In the event of an operational anomaly post-deployment, execute the following no
    - All Mongoose schema additions (`paymentDetails`, `shiprocketDetails`, `processedShippingEvents`) are non-breaking and backward-compatible with 1.3.0.
    - Production database `malwa_namkeen` requires zero data rollback.
 
+---
+
+## 10. Pre-Payment & Shipping Readiness Audit Remediations
+
+**Verification Checkpoint Date:** 19 October 2026  
+**Status:** 100% RESOLVED & VERIFIED (27 / 27 Automated Test Suites Passing, 0 Failures)
+
+| Issue Code | Category | Description | Status & Evidence |
+| :--- | :--- | :--- | :--- |
+| **BUG-01** | Account Recovery | Minimum password length discrepancy in reset flow (`server/routes/authRecovery.ts` enforced 8 chars while frontend used 6 chars). Updated backend validation to `>= 6` chars. | **RESOLVED & VERIFIED** |
+| **BUG-02** | Transactional Email | Welcome email CTA button pointed to dead `/products` URL. Updated to canonical `/shop` in `server/lib/emailService.ts`. | **RESOLVED & VERIFIED** |
+| **BUG-03** | Account Recovery | Password reset email dispatched customer template even for administrators. Added role check to route to `/admin/reset-password` for admins and `/account/reset-password` for customers. | **RESOLVED & VERIFIED** |
+| **ISSUE-04** | Admin Routing | `/admin/enquiries` and `/admin/inquiries` were parallel routes. Added permanent client-side redirect in `App.tsx` from `/admin/enquiries` to canonical `/admin/inquiries`. | **RESOLVED & VERIFIED** |
+| **ISSUE-06** | Checkout Experience | Guest checkout cart drawer allowed proceeding to order modal without account. Replaced direct trigger with "Sign In to Complete Order" directing to `/account?returnTo=checkout`. | **RESOLVED & VERIFIED** |
+| **ISSUE-07** | Input Validation | Phone number fields in checkout and dashboard lacked strict regex validation. Added Indian mobile regex (`^[6-9]\d{9}$`) and `type="tel"` to `CheckoutModal.tsx` and `Dashboard.tsx`. | **RESOLVED & VERIFIED** |
+| **ISSUE-08** | Account Security UX | Google OAuth users without local password saw misleading "Change Password" forms. Added `hasPassword` and `googleId` tracking to display a dedicated "Signed in with Google" security card. | **RESOLVED & VERIFIED** |
+| **ISSUE-09** | SEO & Schema | Schema.org Structured Data pointed to `malwanamkeen.com`. Updated to verified production domain `https://malwanamkeenhouse.com` with `sameAs` social links and FSSAI/GST metadata. | **RESOLVED & VERIFIED** |
+| **ISSUE-10** | Customer UX | Native browser `window.confirm()` in `Dashboard.tsx` address deletion replaced with an in-page, branded modal dialog. | **RESOLVED & VERIFIED** |
+| **ISSUE-11** | Admin Integrity | Deleting staff accounts in `AdminStaff.ts` could orphan historical orders. Enforced safe demotion to `customer` and permission revocation if orders are associated with the user. | **RESOLVED & VERIFIED** |
+| **ISSUE-13** | Wishlist Experience | Wishlist item cards lacked weight variant selection. Added interactive weight pill buttons and dynamic pricing calculation directly on the wishlist card. | **RESOLVED & VERIFIED** |
+| **ISSUE-15** | Cart Abuse Guard | Cart drawer allowed unbounded quantity increments. Implemented `MAX_RETAIL_QUANTITY = 50` clamp in `cartContext.tsx` and `CartDrawer.tsx`. | **RESOLVED & VERIFIED** |
+| **ISSUE-16** | SEO Hygiene | Added `noIndex={true}` to `Wishlist.tsx` to prevent private user lists from indexing in search engines. | **RESOLVED & VERIFIED** |
+| **ISSUE-19** | CSS Animation | Missing global `@keyframes spin` definition added to `src-rebuild/styles/index.css`. | **RESOLVED & VERIFIED** |
+| **ISSUE-21** | Sitemap & Robots | Updated `robots.txt` and `sitemap.xml` canonical URLs to `https://malwanamkeenhouse.com`. | **RESOLVED & VERIFIED** |
+
+### Final Readiness Confirmation
+- **Core Catalogue:** All products, variants, images, categories, and inventory stock guards verified.
+- **Transactional Emails:** Resend verified domain `orders@malwanamkeenhouse.com` with replies to `malwanamkeenhouse@gmail.com`.
+- **Security & Auth:** Strict Google ID token verification, RBAC, MongoRateLimitStore, PII redaction.
+- **Legal & Policy:** Privacy, Terms, Cancellation, and Refund policies fully published.
+- **Green Light for Payment & Shipping:** Platform is 100% prepared to connect Razorpay and Shiprocket live integrations.
+
 

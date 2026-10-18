@@ -17,4 +17,4 @@ Disallow: /account
 Disallow: /login
 Disallow: /api/
 
-Sitemap: https://malwanamkeen.com/sitemap.xml
+Sitemap: https://malwanamkeenhouse.com/sitemap.xml

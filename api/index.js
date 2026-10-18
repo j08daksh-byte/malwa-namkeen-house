@@ -2219,7 +2219,7 @@ async function sendCustomerWelcomeEmail({
         </ul>
       </div>
       <div style="text-align: center; margin: 28px 0 16px;">
-        <a href="${appBaseUrl}/products" class="btn">Explore Heritage Delicacies</a>
+        <a href="${appBaseUrl}/shop" class="btn">Explore Heritage Delicacies</a>
       </div>
       <p style="font-size: 13px; color: #78716C; text-align: center; line-height: 1.5;">
         You can track orders, manage addresses, and discover seasonal specialties in your <a href="${appBaseUrl}/dashboard" style="color: #3C0815; font-weight: 600;">Account Dashboard</a>.
@@ -2236,7 +2236,7 @@ Our Heritage Promise:
 - Fresh Batch Delivery: Sealed for peak crispness
 
 Explore our savouries and sweets:
-${appBaseUrl}/products
+${appBaseUrl}/shop
 
 Access your account dashboard:
 ${appBaseUrl}/dashboard
@@ -3465,7 +3465,9 @@ router.post("/google", loginLimiter, async (req, res) => {
         email: user.email,
         phone: user.phone || "",
         avatar: user.avatar || "",
-        role: user.role
+        role: user.role,
+        googleId: user.googleId || null,
+        hasPassword: Boolean(user.password)
       }
     });
   } catch (err) {
@@ -3558,7 +3560,7 @@ router.get("/me", requireAuth, async (req, res) => {
       res.status(401).json({ success: false, message: "Not authenticated." });
       return;
     }
-    const user = await User.findById(req.user.userId);
+    const user = await User.findById(req.user.userId).select("+password");
     if (!user) {
       clearAuthCookie(res);
       res.status(404).json({ success: false, message: "User profile not found." });
@@ -3571,7 +3573,9 @@ router.get("/me", requireAuth, async (req, res) => {
         name: user.name,
         email: user.email,
         phone: user.phone,
-        role: user.role
+        role: user.role,
+        googleId: user.googleId || null,
+        hasPassword: Boolean(user.password)
       }
     });
   } catch (err) {
@@ -3587,7 +3591,7 @@ router.post("/refresh", requireAuth, async (req, res) => {
       res.status(401).json({ success: false, message: "Not authenticated." });
       return;
     }
-    const user = await User.findById(req.user.userId);
+    const user = await User.findById(req.user.userId).select("+password");
     if (!user || !user.active) {
       clearAuthCookie(res);
       res.status(401).json({ success: false, message: "User account is inactive or not found." });
@@ -3608,7 +3612,9 @@ router.post("/refresh", requireAuth, async (req, res) => {
         name: user.name,
         email: user.email,
         phone: user.phone,
-        role: user.role
+        role: user.role,
+        googleId: user.googleId || null,
+        hasPassword: Boolean(user.password)
       }
     });
   } catch (err) {
@@ -3963,11 +3969,19 @@ router2.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
     user.passwordResetTokenHash = tokenHash;
     user.passwordResetExpiresAt = expiresAt;
     await user.save();
-    await sendCustomerPasswordReset({
-      email: user.email,
-      name: user.name,
-      token: rawToken
-    });
+    if (user.role === "admin" || user.role === "super_admin") {
+      await sendPasswordResetEmail({
+        email: user.email,
+        name: user.name,
+        token: rawToken
+      });
+    } else {
+      await sendCustomerPasswordReset({
+        email: user.email,
+        name: user.name,
+        token: rawToken
+      });
+    }
     res.json(genericSuccess);
   } catch (err) {
     console.error("[Customer Forgot Password Error]", err);
@@ -4054,10 +4068,10 @@ router2.post("/reset-password", tokenSubmissionLimiter, async (req, res) => {
       res.status(400).json({ success: false, message: "Recovery token is required." });
       return;
     }
-    if (!newPassword || typeof newPassword !== "string" || newPassword.length < 8) {
+    if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
       res.status(400).json({
         success: false,
-        message: "Your new password must be at least 8 characters long."
+        message: "Your new password must be at least 6 characters long."
       });
       return;
     }
@@ -10303,7 +10317,21 @@ inquirySchema.index({ status: 1, createdAt: -1 });
 var Inquiry = mongoose26.models.Inquiry || mongoose26.model("Inquiry", inquirySchema);
 
 // server/routes/adminInquiries.ts
+import rateLimit6 from "express-rate-limit";
 var router12 = Router12();
+var publicInquiryLimiter = rateLimit6({
+  windowMs: 15 * 60 * 1e3,
+  max: process.env.NODE_ENV === "production" && !process.env.CI ? 5 : 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { default: false },
+  skip: () => process.env.NODE_ENV === "test" || process.env.IS_E2E_TEST === "true" || Boolean(process.env.CI),
+  store: new MongoRateLimitStore({ prefix: "inquiry:submit", windowMs: 15 * 60 * 1e3, failClosed: false }),
+  message: {
+    success: false,
+    message: "Too many enquiry submissions from this IP. Please wait a few minutes or reach us on WhatsApp."
+  }
+});
 var handlePublicInquiry = async (req, res) => {
   try {
     const { name: name2, email: email2, phone: phone2, category = "general", message: message2 } = req.body;
@@ -10432,8 +10460,8 @@ var handlePublicInquiry = async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to submit inquiry. Please try again or WhatsApp us." });
   }
 };
-router12.post("/public", handlePublicInquiry);
-router12.post("/", handlePublicInquiry);
+router12.post("/public", publicInquiryLimiter, handlePublicInquiry);
+router12.post("/", publicInquiryLimiter, handlePublicInquiry);
 router12.use(requireAdmin);
 router12.get("/", async (req, res) => {
   try {
@@ -10926,7 +10954,38 @@ router13.delete("/:id", async (req, res) => {
         return;
       }
     }
+    const hasOrders = await Order.exists({
+      $or: [{ customer: staffMember._id }, { "customerInfo.email": staffMember.email }]
+    });
+    if (hasOrders) {
+      const oldRole = staffMember.role;
+      staffMember.role = "customer";
+      await staffMember.save();
+      try {
+        await AuditLog.create({
+          action: "ROLE_CHANGED",
+          actorId: req.user?.userId ? new mongoose28.Types.ObjectId(req.user.userId) : void 0,
+          targetUserId: staffMember._id,
+          metadata: { email: staffMember.email, oldRole, newRole: "customer", reason: "Preserved customer order history" }
+        });
+      } catch {
+      }
+      res.json({
+        success: true,
+        message: `Administrator privileges revoked for ${staffMember.email}. Account demoted to Customer to preserve associated order records.`
+      });
+      return;
+    }
     await User.findByIdAndDelete(id);
+    try {
+      await AuditLog.create({
+        action: "ROLE_CHANGED",
+        actorId: req.user?.userId ? new mongoose28.Types.ObjectId(req.user.userId) : void 0,
+        targetUserId: staffMember._id,
+        metadata: { email: staffMember.email, deletedStaffRole: staffMember.role, event: "STAFF_DELETED" }
+      });
+    } catch {
+    }
     res.json({
       success: true,
       message: `Administrator account for ${staffMember.email} has been permanently deleted.`
@@ -10945,11 +11004,11 @@ import mongoose30 from "mongoose";
 // server/routes/adminEmail.ts
 import { Router as Router14 } from "express";
 import mongoose29 from "mongoose";
-import rateLimit6 from "express-rate-limit";
+import rateLimit7 from "express-rate-limit";
 var router14 = Router14();
 router14.use(requireAdmin);
 var EMAIL_REGEX3 = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-var smokeTestLimiter = rateLimit6({
+var smokeTestLimiter = rateLimit7({
   windowMs: 10 * 60 * 1e3,
   max: 10,
   standardHeaders: true,
@@ -11733,7 +11792,22 @@ function getWaUrlForCategory(category) {
 }
 
 // server/routes/enquiries.ts
+import rateLimit8 from "express-rate-limit";
 var router18 = Router18();
+var enquiryLimiter = rateLimit8({
+  windowMs: 15 * 60 * 1e3,
+  max: process.env.NODE_ENV === "production" && !process.env.CI ? 5 : 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { default: false },
+  skip: () => process.env.NODE_ENV === "test" || process.env.IS_E2E_TEST === "true" || Boolean(process.env.CI),
+  store: new MongoRateLimitStore({ prefix: "enquiry:submit", windowMs: 15 * 60 * 1e3, failClosed: false }),
+  message: {
+    success: false,
+    message: "Too many requests. Please wait a few minutes before submitting another enquiry, or connect directly on WhatsApp.",
+    whatsappUrl: WA_URLS.general || "https://wa.me/917987732765"
+  }
+});
 function categoryLabel(value) {
   return ENQUIRY_CATEGORIES.find((c) => c.value === value)?.label ?? value;
 }
@@ -11748,7 +11822,7 @@ function isoNow() {
     hour12: true
   }) + " IST";
 }
-router18.post("/contact", async (req, res) => {
+router18.post("/contact", enquiryLimiter, async (req, res) => {
   if (req.body._hp) {
     res.json({ success: true, message: "Your enquiry has been received. Our team will contact you shortly." });
     return;
@@ -11869,7 +11943,7 @@ router18.post("/contact", async (req, res) => {
     emailStatus: deliveryStatus
   });
 });
-router18.post(["/enquiries/bulk", "/enquiry/bulk", "/bulk-enquiry"], async (req, res) => {
+router18.post(["/enquiries/bulk", "/enquiry/bulk", "/bulk-enquiry"], enquiryLimiter, async (req, res) => {
   if (req.body._hp) {
     res.json({ success: true, message: "Bulk & gifting enquiry received. Our team will contact you shortly." });
     return;
@@ -11964,7 +12038,7 @@ router18.post(["/enquiries/bulk", "/enquiry/bulk", "/bulk-enquiry"], async (req,
     whatsappUrl: WA_URLS.catering || "https://wa.me/917987732765"
   });
 });
-router18.post("/reservation", async (req, res) => {
+router18.post("/reservation", enquiryLimiter, async (req, res) => {
   if (req.body._hp) {
     res.json({ success: true, message: "Reservation enquiry received." });
     return;
@@ -12051,7 +12125,7 @@ router18.post("/reservation", async (req, res) => {
     whatsappUrl: WA_URLS.reservation
   });
 });
-router18.post("/katering", async (req, res) => {
+router18.post("/katering", enquiryLimiter, async (req, res) => {
   if (req.body._hp) {
     res.json({ success: true, message: "Enquiry received." });
     return;
@@ -12118,7 +12192,7 @@ router18.post("/katering", async (req, res) => {
     whatsappUrl: WA_URLS.catering
   });
 });
-router18.post("/gifting", async (req, res) => {
+router18.post("/gifting", enquiryLimiter, async (req, res) => {
   if (req.body._hp) {
     res.json({ success: true, message: "Enquiry received." });
     return;
@@ -12614,7 +12688,7 @@ var sitemap_default = router21;
 
 // server/routes/concierge.ts
 import { Router as Router22 } from "express";
-import rateLimit7 from "express-rate-limit";
+import rateLimit9 from "express-rate-limit";
 import { GoogleGenAI } from "@google/genai";
 var router22 = Router22();
 var apiKey = process.env.GEMINI_API_KEY;
@@ -12639,7 +12713,7 @@ Key Business Knowledge & Guidelines:
 6. Bulk & Corporate Gifting: Custom corporate hampers, wedding boxes, festival gifting, and wholesale namkeen orders. Advise customers to submit an online Bulk & Gifting enquiry or reach out on WhatsApp at +91 7987732765.
 7. Constraints: Never invent unverified ingredients, nutrition claims, medical claims, or stock promises. Never refer to table reservations or restaurant dine-in.
 `;
-var conciergeLimiter = rateLimit7({
+var conciergeLimiter = rateLimit9({
   windowMs: 5 * 60 * 1e3,
   max: 30,
   standardHeaders: true,

@@ -6,6 +6,9 @@
  * without breaking legitimate business flow.
  */
 
+process.env.NODE_ENV = 'test';
+process.env.CI = 'true';
+
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';

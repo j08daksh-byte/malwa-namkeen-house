@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../lib/cartContext';
 import { BUSINESS } from '../../lib/business';
 import { useStoreSettings } from '../../lib/storeSettingsContext';
+import { useCustomerSession } from '../layout/CustomerSessionContext';
 
 interface CartDrawerProps {
   onOpenCheckout?: () => void;
@@ -12,6 +13,7 @@ const DEFAULT_FREE_SHIPPING_THRESHOLD = 499;
 
 export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
   const navigate = useNavigate();
+  const { customer } = useCustomerSession();
   const { settings } = useStoreSettings();
   const FREE_SHIPPING_THRESHOLD = settings.deliverySettings?.freeShippingThreshold || DEFAULT_FREE_SHIPPING_THRESHOLD;
   const {
@@ -82,7 +84,9 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
     } finally {
       setIsRevalidating(false);
       closeCart();
-      if (onOpenCheckout) {
+      if (!customer) {
+        navigate('/account', { state: { returnTo: 'checkout' } });
+      } else if (onOpenCheckout) {
         onOpenCheckout();
       } else if (openCheckout) {
         openCheckout();
@@ -669,8 +673,10 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
                     <button
                       type="button"
                       className="cart-item__step-btn"
+                      disabled={item.quantity >= 50}
                       onClick={() => updateQuantity(item.product.id, item.selectedOption.weight, item.quantity + 1)}
                       aria-label="Increase quantity"
+                      style={item.quantity >= 50 ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
                     >
                       +
                     </button>
@@ -767,8 +773,17 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
               disabled={isRevalidating}
               onClick={handleProceedCheckout}
             >
-              {isRevalidating ? 'Verifying items…' : 'Proceed to Delivery Details'}
+              {isRevalidating
+                ? 'Verifying items…'
+                : customer
+                ? 'Proceed to Delivery Details'
+                : 'Sign In to Complete Order'}
             </button>
+            {!customer && (
+              <p style={{ textAlign: 'center', fontSize: '11.5px', color: '#75645C', margin: '-4px 0 2px', lineHeight: 1.4 }}>
+                An account is required for delivery tracking & order updates.
+              </p>
+            )}
 
             <button
               type="button"

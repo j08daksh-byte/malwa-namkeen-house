@@ -595,7 +595,7 @@ export async function sendCustomerWelcomeEmail({
         </ul>
       </div>
       <div style="text-align: center; margin: 28px 0 16px;">
-        <a href="${appBaseUrl}/products" class="btn">Explore Heritage Delicacies</a>
+        <a href="${appBaseUrl}/shop" class="btn">Explore Heritage Delicacies</a>
       </div>
       <p style="font-size: 13px; color: #78716C; text-align: center; line-height: 1.5;">
         You can track orders, manage addresses, and discover seasonal specialties in your <a href="${appBaseUrl}/dashboard" style="color: #3C0815; font-weight: 600;">Account Dashboard</a>.
@@ -603,7 +603,7 @@ export async function sendCustomerWelcomeEmail({
     `,
   });
 
-  const text = `Swagatam, ${customerName}!\n\nWelcome to the Malwa Namkeen House family. We are delighted to share the timeless culinary traditions of Ujjain and the Malwa region with you.\n\nOur Heritage Promise:\n- Authentic Ujjaini Recipes handcrafted with secret family spice blends since 1954\n- Purity First: Prepared only in cold-pressed groundnut oil or pure desi ghee\n- Fresh Batch Delivery: Sealed for peak crispness\n\nExplore our savouries and sweets:\n${appBaseUrl}/products\n\nAccess your account dashboard:\n${appBaseUrl}/dashboard\n\nDhanyawaad,\nMalwa Namkeen House · Ujjain`;
+  const text = `Swagatam, ${customerName}!\n\nWelcome to the Malwa Namkeen House family. We are delighted to share the timeless culinary traditions of Ujjain and the Malwa region with you.\n\nOur Heritage Promise:\n- Authentic Ujjaini Recipes handcrafted with secret family spice blends since 1954\n- Purity First: Prepared only in cold-pressed groundnut oil or pure desi ghee\n- Fresh Batch Delivery: Sealed for peak crispness\n\nExplore our savouries and sweets:\n${appBaseUrl}/shop\n\nAccess your account dashboard:\n${appBaseUrl}/dashboard\n\nDhanyawaad,\nMalwa Namkeen House · Ujjain`;
 
   return sendEmail({
     to: cleanEmail,

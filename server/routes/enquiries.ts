@@ -23,8 +23,26 @@ import {
 import { getWaUrlForCategory, WA_URLS } from '../lib/whatsapp.ts';
 import { ENQUIRY_CATEGORIES } from '../config.ts';
 import { connectMongoDB } from '../lib/mongodb.ts';
+import rateLimit from 'express-rate-limit';
+import { MongoRateLimitStore } from '../lib/mongoRateLimitStore.ts';
 
 const router = Router();
+
+// Rate limiter for enquiry submissions (5 submissions per 15 min per IP)
+const enquiryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: (process.env.NODE_ENV === 'production' && !process.env.CI) ? 5 : 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { default: false },
+  skip: () => process.env.NODE_ENV === 'test' || process.env.IS_E2E_TEST === 'true' || Boolean(process.env.CI),
+  store: new MongoRateLimitStore({ prefix: 'enquiry:submit', windowMs: 15 * 60 * 1000, failClosed: false }),
+  message: {
+    success: false,
+    message: 'Too many requests. Please wait a few minutes before submitting another enquiry, or connect directly on WhatsApp.',
+    whatsappUrl: WA_URLS.general || 'https://wa.me/917987732765',
+  },
+});
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -46,7 +64,7 @@ function isoNow(): string {
 
 // ── POST /api/contact ────────────────────────────────────────────────────────
 
-router.post('/contact', async (req: Request, res: Response) => {
+router.post('/contact', enquiryLimiter, async (req: Request, res: Response) => {
   if (req.body._hp) {
     res.json({ success: true, message: 'Your enquiry has been received. Our team will contact you shortly.' });
     return;
@@ -195,7 +213,7 @@ router.post('/contact', async (req: Request, res: Response) => {
 
 // ── POST /api/enquiries/bulk ────────────────────────────────────────────────
 
-router.post(['/enquiries/bulk', '/enquiry/bulk', '/bulk-enquiry'], async (req: Request, res: Response) => {
+router.post(['/enquiries/bulk', '/enquiry/bulk', '/bulk-enquiry'], enquiryLimiter, async (req: Request, res: Response) => {
   if (req.body._hp) {
     res.json({ success: true, message: 'Bulk & gifting enquiry received. Our team will contact you shortly.' });
     return;
@@ -303,7 +321,7 @@ router.post(['/enquiries/bulk', '/enquiry/bulk', '/bulk-enquiry'], async (req: R
 
 // ── POST /api/reservation ────────────────────────────────────────────────────
 
-router.post('/reservation', async (req: Request, res: Response) => {
+router.post('/reservation', enquiryLimiter, async (req: Request, res: Response) => {
   if (req.body._hp) {
     res.json({ success: true, message: 'Reservation enquiry received.' });
     return;
@@ -402,7 +420,7 @@ router.post('/reservation', async (req: Request, res: Response) => {
 
 // ── POST /api/katering ───────────────────────────────────────────────────────
 
-router.post('/katering', async (req: Request, res: Response) => {
+router.post('/katering', enquiryLimiter, async (req: Request, res: Response) => {
   if (req.body._hp) {
     res.json({ success: true, message: 'Enquiry received.' });
     return;
@@ -479,7 +497,7 @@ router.post('/katering', async (req: Request, res: Response) => {
 
 // ── POST /api/gifting ────────────────────────────────────────────────────────
 
-router.post('/gifting', async (req: Request, res: Response) => {
+router.post('/gifting', enquiryLimiter, async (req: Request, res: Response) => {
   if (req.body._hp) {
     res.json({ success: true, message: 'Enquiry received.' });
     return;

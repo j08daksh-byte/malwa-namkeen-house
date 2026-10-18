@@ -472,6 +472,8 @@ router.post('/google', loginLimiter, async (req: Request, res: Response) => {
         phone: user.phone || '',
         avatar: user.avatar || '',
         role: user.role,
+        googleId: user.googleId || null,
+        hasPassword: Boolean(user.password),
       },
     });
   } catch (err: unknown) {
@@ -591,7 +593,7 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response) 
       return;
     }
 
-    const user = await User.findById(req.user.userId);
+    const user = await User.findById(req.user.userId).select('+password');
     if (!user) {
       clearAuthCookie(res);
       res.status(404).json({ success: false, message: 'User profile not found.' });
@@ -606,6 +608,8 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response) 
         email: user.email,
         phone: user.phone,
         role: user.role,
+        googleId: user.googleId || null,
+        hasPassword: Boolean(user.password),
       },
     });
   } catch (err: unknown) {
@@ -627,7 +631,7 @@ router.post('/refresh', requireAuth, async (req: AuthenticatedRequest, res: Resp
       return;
     }
 
-    const user = await User.findById(req.user.userId);
+    const user = await User.findById(req.user.userId).select('+password');
     if (!user || !user.active) {
       clearAuthCookie(res);
       res.status(401).json({ success: false, message: 'User account is inactive or not found.' });
@@ -652,6 +656,8 @@ router.post('/refresh', requireAuth, async (req: AuthenticatedRequest, res: Resp
         email: user.email,
         phone: user.phone,
         role: user.role,
+        googleId: user.googleId || null,
+        hasPassword: Boolean(user.password),
       },
     });
   } catch (err: unknown) {

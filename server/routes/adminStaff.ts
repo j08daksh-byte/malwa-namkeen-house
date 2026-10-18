@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { User, type UserRole } from '../models/User.ts';
+import { Order } from '../models/Order.ts';
 import { AuditLog } from '../models/AuditLog.ts';
 import { requireSuperAdmin, type AuthenticatedRequest } from '../lib/auth.ts';
 import { sendAdminInvitationEmail, sendRoleChangedNotification } from '../lib/emailService.ts';
@@ -435,7 +436,46 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
       }
     }
 
+    // If administrator has customer order history, demote to customer instead of hard deleting
+    const hasOrders = await Order.exists({
+      $or: [{ customer: staffMember._id }, { 'customerInfo.email': staffMember.email }],
+    });
+
+    if (hasOrders) {
+      const oldRole = staffMember.role;
+      staffMember.role = 'customer';
+      await staffMember.save();
+
+      try {
+        await AuditLog.create({
+          action: 'ROLE_CHANGED',
+          actorId: req.user?.userId ? new mongoose.Types.ObjectId(req.user.userId) : undefined,
+          targetUserId: staffMember._id as mongoose.Types.ObjectId,
+          metadata: { email: staffMember.email, oldRole, newRole: 'customer', reason: 'Preserved customer order history' },
+        });
+      } catch {
+        // Non-blocking audit log
+      }
+
+      res.json({
+        success: true,
+        message: `Administrator privileges revoked for ${staffMember.email}. Account demoted to Customer to preserve associated order records.`,
+      });
+      return;
+    }
+
     await User.findByIdAndDelete(id);
+
+    try {
+      await AuditLog.create({
+        action: 'ROLE_CHANGED',
+        actorId: req.user?.userId ? new mongoose.Types.ObjectId(req.user.userId) : undefined,
+        targetUserId: staffMember._id as mongoose.Types.ObjectId,
+        metadata: { email: staffMember.email, deletedStaffRole: staffMember.role, event: 'STAFF_DELETED' },
+      });
+    } catch {
+      // Non-blocking
+    }
 
     res.json({
       success: true,

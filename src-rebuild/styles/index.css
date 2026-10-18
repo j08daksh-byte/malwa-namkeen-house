@@ -315,3 +315,10 @@ img {
     scroll-behavior:           auto   !important;
   }
 }
+
+/* ── Global keyframes ────────────────────────────────────────────────────── */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

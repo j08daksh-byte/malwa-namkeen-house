@@ -7,6 +7,8 @@ export interface CustomerProfile {
   phone?: string;
   avatar?: string;
   role?: string;
+  googleId?: string | null;
+  hasPassword?: boolean;
 }
 
 interface CustomerSession {

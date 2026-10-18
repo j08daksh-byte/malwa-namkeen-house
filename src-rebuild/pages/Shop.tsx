@@ -346,13 +346,13 @@ export default function Shop() {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
     name: 'The Malwa Shop — Authentic Artisanal Namkeens',
-    url: 'https://malwanamkeen.com/shop',
+    url: 'https://malwanamkeenhouse.com/shop',
     description: 'Shop authentic Ratlami Sev, Ujjaini chivda, khasta mathri, and festive gift boxes from MALWA NAMKEEN HOUSE.',
     breadcrumb: {
       '@type': 'BreadcrumbList',
       itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://malwanamkeen.com' },
-        { '@type': 'ListItem', position: 2, name: 'Shop', item: 'https://malwanamkeen.com/shop' },
+        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://malwanamkeenhouse.com' },
+        { '@type': 'ListItem', position: 2, name: 'Shop', item: 'https://malwanamkeenhouse.com/shop' },
       ],
     },
   };
