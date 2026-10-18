@@ -95,6 +95,49 @@ describe('Batch 2: Wishlist Navigation & Checkout Pricing Regression Suite', () 
         'Mobile drawer must include a mobile-link to /wishlist'
       );
     });
+
+    it('Wishlist view must never silently redirect signed-out or empty-wishlist users to Shop', () => {
+      const wishlistFile = fs.readFileSync(
+        path.resolve('src-rebuild/pages/Wishlist.tsx'),
+        'utf8'
+      );
+
+      // Verify no unconditional navigate('/shop') or useEffect redirect on mount
+      assert.ok(
+        !wishlistFile.match(/useEffect\(\s*\(\)\s*=>\s*\{\s*navigate\(['"]\/shop['"]\)/),
+        'Wishlist page must not redirect to /shop on mount'
+      );
+      assert.ok(
+        !wishlistFile.match(/if\s*\(!customer\)\s*navigate/),
+        'Wishlist page must not require customer authentication or redirect signed-out guests'
+      );
+
+      // Verify it renders the dedicated empty state UI
+      assert.ok(
+        wishlistFile.includes('Your wishlist is empty'),
+        'Wishlist page must display empty state in-place'
+      );
+    });
+
+    it('Wishlist state management must preserve guest data in localStorage and sync when logged in', () => {
+      const wishlistContextFile = fs.readFileSync(
+        path.resolve('src-rebuild/lib/wishlistContext.tsx'),
+        'utf8'
+      );
+
+      assert.ok(
+        wishlistContextFile.includes("STORAGE_KEY = 'malwa_wishlist_v1'"),
+        'Guest items must be stored in localStorage under malwa_wishlist_v1'
+      );
+      assert.ok(
+        wishlistContextFile.includes('/api/customer/wishlist/sync'),
+        'Customer login must sync guest items up to /api/customer/wishlist/sync'
+      );
+      assert.ok(
+        wishlistContextFile.includes('/api/customer/wishlist'),
+        'Customer login must retrieve persisted items from /api/customer/wishlist'
+      );
+    });
   });
 
   // ── 2. Checkout Total Discrepancy & Business Calculation Rules ─────────────
