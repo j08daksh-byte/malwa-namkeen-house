@@ -29,6 +29,10 @@ interface InquiryRecord {
   message: string;
   status: InquiryStatus;
   notes?: string;
+  referenceId?: string;
+  emailDeliveryStatus?: 'sent' | 'simulated' | 'failed' | 'unconfigured' | 'pending';
+  emailError?: string;
+  emailDeliveredAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -359,6 +363,9 @@ export default function AdminInquiries() {
                       {/* Sender & Category */}
                       <td style={{ padding: '14px', verticalAlign: 'top' }}>
                         <div style={{ fontWeight: 700, color: '#1A0A0F', fontSize: '13.5px' }}>{inq.name}</div>
+                        <div style={{ fontSize: '11px', color: '#6B7280', fontFamily: 'monospace', fontWeight: 600, marginTop: '1px' }}>
+                          {inq.referenceId || `MN-ENQ-${inq._id.slice(-6).toUpperCase()}`}
+                        </div>
                         <span style={{ display: 'inline-block', background: '#FAF6EF', color: '#881337', border: '1px solid #EAE3D2', padding: '1px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 700, marginTop: '3px', textTransform: 'capitalize' }}>
                           {inq.category || 'General'}
                         </span>
@@ -388,22 +395,43 @@ export default function AdminInquiries() {
 
                       {/* Status */}
                       <td style={{ padding: '14px', verticalAlign: 'top' }}>
-                        <span
-                          style={{
-                            background: sStyle.bg,
-                            color: sStyle.text,
-                            border: `1px solid ${sStyle.border}`,
-                            padding: '3px 8px',
-                            borderRadius: '999px',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.04em',
-                            display: 'inline-block',
-                          }}
-                        >
-                          {inq.status.replace(/_/g, ' ')}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span
+                            style={{
+                              background: sStyle.bg,
+                              color: sStyle.text,
+                              border: `1px solid ${sStyle.border}`,
+                              padding: '3px 8px',
+                              borderRadius: '999px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em',
+                              display: 'inline-block',
+                              textAlign: 'center',
+                            }}
+                          >
+                            {inq.status.replace(/_/g, ' ')}
+                          </span>
+                          {inq.emailDeliveryStatus && inq.emailDeliveryStatus !== 'pending' && (
+                            <span
+                              title={inq.emailError || (inq.emailDeliveryStatus === 'sent' ? 'Acknowledgement email delivered' : inq.emailDeliveryStatus === 'unconfigured' ? 'Email provider unconfigured' : 'Email simulation')}
+                              style={{
+                                background: inq.emailDeliveryStatus === 'sent' ? '#ECFDF5' : inq.emailDeliveryStatus === 'unconfigured' ? '#FFFBEB' : inq.emailDeliveryStatus === 'failed' ? '#FEF2F2' : '#F3F4F6',
+                                color: inq.emailDeliveryStatus === 'sent' ? '#065F46' : inq.emailDeliveryStatus === 'unconfigured' ? '#B45309' : inq.emailDeliveryStatus === 'failed' ? '#B91C1C' : '#374151',
+                                border: `1px solid ${inq.emailDeliveryStatus === 'sent' ? '#A7F3D0' : inq.emailDeliveryStatus === 'unconfigured' ? '#FDE68A' : inq.emailDeliveryStatus === 'failed' ? '#FECACA' : '#E5E7EB'}`,
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontSize: '10px',
+                                fontWeight: 600,
+                                textAlign: 'center',
+                                display: 'inline-block',
+                              }}
+                            >
+                              {inq.emailDeliveryStatus === 'sent' ? '✉ Sent' : inq.emailDeliveryStatus === 'unconfigured' ? '✉ Unconfigured' : inq.emailDeliveryStatus === 'failed' ? '✉ Failed' : '✉ Simulated'}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Date */}
@@ -490,6 +518,9 @@ export default function AdminInquiries() {
                   <span style={{ background: '#F0C74E', color: '#3C0815', fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', textTransform: 'capitalize' }}>
                     {selectedInquiry.category || 'General'}
                   </span>
+                  <span style={{ background: 'rgba(255,255,255,0.2)', color: '#FFF', fontSize: '10.5px', fontFamily: 'monospace', fontWeight: 700, padding: '2px 6px', borderRadius: '4px' }}>
+                    {selectedInquiry.referenceId || `MN-ENQ-${selectedInquiry._id.slice(-6).toUpperCase()}`}
+                  </span>
                 </div>
                 <div style={{ fontSize: '12px', color: 'rgba(255,248,236,0.85)', marginTop: '3px' }}>
                   Received on {new Date(selectedInquiry.createdAt).toLocaleString('en-IN')}
@@ -521,6 +552,31 @@ export default function AdminInquiries() {
                 >
                   <CheckCircle2 size={16} />
                   <span>{statusMsg.text}</span>
+                </div>
+              )}
+
+              {/* Email Delivery Diagnostic Alert for Admins */}
+              {selectedInquiry.emailDeliveryStatus && (
+                <div style={{
+                  background: selectedInquiry.emailDeliveryStatus === 'sent' ? '#ECFDF5' : selectedInquiry.emailDeliveryStatus === 'unconfigured' ? '#FFFBEB' : selectedInquiry.emailDeliveryStatus === 'failed' ? '#FEF2F2' : '#F9FAFB',
+                  border: `1px solid ${selectedInquiry.emailDeliveryStatus === 'sent' ? '#A7F3D0' : selectedInquiry.emailDeliveryStatus === 'unconfigured' ? '#FDE68A' : selectedInquiry.emailDeliveryStatus === 'failed' ? '#FECACA' : '#E5E7EB'}`,
+                  borderRadius: '8px',
+                  padding: '10px 14px',
+                  fontSize: '12.5px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}>
+                  <div>
+                    <strong>Customer Notification Status: </strong>
+                    <span style={{ textTransform: 'capitalize', fontWeight: 700 }}>{selectedInquiry.emailDeliveryStatus}</span>
+                    {selectedInquiry.emailError && (
+                      <span style={{ color: '#B91C1C', marginLeft: '6px' }}>({selectedInquiry.emailError})</span>
+                    )}
+                  </div>
+                  {selectedInquiry.emailDeliveryStatus === 'failed' || selectedInquiry.emailDeliveryStatus === 'unconfigured' ? (
+                    <span style={{ fontSize: '11px', color: '#B45309', fontWeight: 600 }}>Follow-up via WhatsApp recommended</span>
+                  ) : null}
                 </div>
               )}
 

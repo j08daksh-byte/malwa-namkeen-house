@@ -596,7 +596,7 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
               </button>
               <button
                 className="nav-action"
-                onClick={() => navigate('/shop')}
+                onClick={() => navigate('/wishlist')}
                 aria-label={`Wishlist, ${wishlistCount} items`}
                 title="Wishlist"
               >
@@ -684,6 +684,17 @@ export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => vo
           style={{ borderBottom: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', gap: '8px' }}
         >
           <UserRound size={16} /> {customer ? 'Your Account' : 'Sign In'}
+        </button>
+        <button
+          type="button"
+          className="mobile-link"
+          onClick={() => {
+            setOpen(false);
+            navigate('/wishlist');
+          }}
+          style={{ borderBottom: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', gap: '8px' }}
+        >
+          <Heart size={16} /> Wishlist {wishlistCount > 0 ? `(${wishlistCount})` : ''}
         </button>
         {mobileLinks.map((link, i) => (
           <a

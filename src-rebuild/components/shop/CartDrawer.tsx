@@ -60,7 +60,9 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
 
   const remainingForFreeShipping = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
   const freeShippingPercent = Math.min(100, Math.round((subtotal / FREE_SHIPPING_THRESHOLD) * 100));
-  const finalTotal = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
+  const standardShippingFee = settings?.deliverySettings?.standardShippingFee ?? 49;
+  const shipping = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : (subtotal > 0 ? standardShippingFee : 0);
+  const finalTotal = Math.max(0, Math.round((subtotal - discountAmount + shipping) * 100) / 100);
 
   const handleApplyCouponSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,7 +109,8 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
 
     const storeName = settings.storeName || BUSINESS.name;
     const waNumber = (settings.contact?.whatsappNumber || BUSINESS.whatsappNumber).replace(/\D/g, '');
-    const message = `Namaste ${storeName}! 🙏\nI would like to order from your Shop:\n\n🛍️ *ORDER SUMMARY:*\n${itemsList}\n📦 *Total Items:* ${totalItems}\n💰 *Subtotal:* ₹${result.subtotal || subtotal}\n${couponInfo}✨ *Final Total:* ₹${result.total || finalTotal}\n\nPlease confirm delivery availability and dispatch timeline. Thank you!`;
+    const deliveryText = shipping === 0 ? 'Complimentary (Free)' : `₹${shipping}`;
+    const message = `Namaste ${storeName}! 🙏\nI would like to order from your Shop:\n\n🛍️ *ORDER SUMMARY:*\n${itemsList}\n📦 *Total Items:* ${totalItems}\n💰 *Subtotal:* ₹${result.subtotal || subtotal}\n🚚 *Delivery:* ${deliveryText}\n${couponInfo}✨ *Final Total:* ₹${finalTotal}\n\nPlease confirm delivery availability and dispatch timeline. Thank you!`;
 
     window.open(`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`, '_blank');
   };
@@ -745,6 +748,13 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
                 <span>-₹{discountAmount}</span>
               </div>
             )}
+
+            <div className="cart-drawer__summary-row">
+              <span>Delivery</span>
+              <span style={{ color: shipping === 0 ? '#059669' : '#3C0815', fontWeight: shipping === 0 ? 700 : 500 }}>
+                {shipping === 0 ? 'Complimentary (Free)' : `₹${shipping}`}
+              </span>
+            </div>
 
             <div className="cart-drawer__summary-row" style={{ borderTop: '1px solid #EAE3D2', paddingTop: '8px' }}>
               <span style={{ fontWeight: 700, color: '#3C0815' }}>Total</span>

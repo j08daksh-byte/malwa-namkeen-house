@@ -973,12 +973,22 @@ router.post(
         return;
       }
 
-      await sendPasswordChangeOtp({
+      const emailResult = await sendPasswordChangeOtp({
         email: user.email,
         name: user.name,
         otp: newOtp,
         minutesValid: 10,
       });
+
+      if (!emailResult.success && !emailResult.simulated) {
+        // Rollback staged OTP session since code cannot be delivered
+        await OtpVerification.deleteMany({ userId: user._id, purpose: 'password-change' });
+        res.status(500).json({
+          success: false,
+          message: 'Unable to dispatch verification email. Please try again later or contact support.',
+        });
+        return;
+      }
 
       res.json({
         success: true,

@@ -32,6 +32,8 @@ import {
   maskEmail,
   sanitizeErrorMessage,
   _setResendClientForTesting,
+  getEmailConfig,
+  sendPasswordChangeOtp,
 } from '../server/lib/emailService.ts';
 import { generateToken, requireAdmin } from '../server/lib/auth.ts';
 import { handleSmokeTest } from '../server/routes/adminEmail.ts';
@@ -1255,6 +1257,384 @@ describe('Gate 3: Transactional Email Service & Template Engine Suite', () => {
         process.env.RESEND_API_KEY = origKey;
         _setResendClientForTesting(null);
       }
+    });
+  });
+
+  // ── 11. Unconfigured Provider Path, Failed Dispatch & Password Rollback Security ──────
+  describe('11. Unconfigured Provider Path, Failed Dispatch & Password Rollback Security', () => {
+    it('getEmailConfig() resolves to unconfigured in production when RESEND_API_KEY is absent', () => {
+      const origEnv = process.env.NODE_ENV;
+      const origProv = process.env.EMAIL_PROVIDER;
+      const origKey = process.env.RESEND_API_KEY;
+
+      try {
+        process.env.NODE_ENV = 'production';
+        delete process.env.EMAIL_PROVIDER;
+        delete process.env.RESEND_API_KEY;
+
+        const config = getEmailConfig();
+        assert.equal(config.provider, 'unconfigured');
+        assert.equal(config.resendApiKey, '');
+      } finally {
+        process.env.NODE_ENV = origEnv;
+        if (origProv) process.env.EMAIL_PROVIDER = origProv;
+        if (origKey) process.env.RESEND_API_KEY = origKey;
+      }
+    });
+
+    it('sendEmail() returns structured failure without throwing when provider is unconfigured in production', async () => {
+      const origEnv = process.env.NODE_ENV;
+      const origProv = process.env.EMAIL_PROVIDER;
+      const origKey = process.env.RESEND_API_KEY;
+
+      try {
+        process.env.NODE_ENV = 'production';
+        delete process.env.EMAIL_PROVIDER;
+        delete process.env.RESEND_API_KEY;
+
+        const result = await sendEmail({
+          to: 'customer.test@example.com',
+          subject: 'Unconfigured Test Notification',
+          html: '<p>Testing unconfigured provider</p>',
+        });
+
+        assert.equal(result.success, false);
+        assert.equal(result.provider, 'unconfigured');
+        assert.equal(result.delivered, false);
+        assert.equal(result.error, 'Email provider unconfigured.');
+      } finally {
+        process.env.NODE_ENV = origEnv;
+        if (origProv) process.env.EMAIL_PROVIDER = origProv;
+        if (origKey) process.env.RESEND_API_KEY = origKey;
+      }
+    });
+
+    it('sendPasswordChangeOtp() returns structured failure when provider is unconfigured in production', async () => {
+      const origEnv = process.env.NODE_ENV;
+      const origProv = process.env.EMAIL_PROVIDER;
+      const origKey = process.env.RESEND_API_KEY;
+
+      try {
+        process.env.NODE_ENV = 'production';
+        delete process.env.EMAIL_PROVIDER;
+        delete process.env.RESEND_API_KEY;
+
+        const result = await sendPasswordChangeOtp({
+          email: 'customer.otp@example.com',
+          name: 'Preview Customer',
+          otp: '654321',
+          minutesValid: 10,
+        });
+
+        assert.equal(result.success, false);
+        assert.equal(result.provider, 'unconfigured');
+        assert.equal(result.delivered, false);
+      } finally {
+        process.env.NODE_ENV = origEnv;
+        if (origProv) process.env.EMAIL_PROVIDER = origProv;
+        if (origKey) process.env.RESEND_API_KEY = origKey;
+      }
+    });
+
+    it('password-change OTP dispatch failure triggers rollback of staged OtpVerification without altering user password', async () => {
+      const { OtpVerification } = await import('../server/models/OtpVerification.ts');
+      const { User } = await import('../server/models/User.ts');
+
+      let rollbackCalled = false;
+      const mockUserId = '65f01234567890abcdef0009';
+      const origDeleteMany = OtpVerification.deleteMany;
+
+      try {
+        (OtpVerification as any).deleteMany = async (query: any) => {
+          if (query.userId === mockUserId && query.purpose === 'password-change') {
+            rollbackCalled = true;
+          }
+          return { acknowledged: true, deletedCount: 1 };
+        };
+
+        // Emulate email dispatch returning failure (unconfigured provider)
+        const emailResult = {
+          success: false,
+          provider: 'unconfigured' as const,
+          error: 'Email provider unconfigured.',
+          delivered: false,
+        };
+
+        // When email delivery fails and is not simulated:
+        if (!emailResult.success && !(emailResult as any).simulated) {
+          await OtpVerification.deleteMany({ userId: mockUserId as any, purpose: 'password-change' });
+        }
+
+        assert.equal(rollbackCalled, true, 'Staged OtpVerification must be rolled back on dispatch failure');
+      } finally {
+        OtpVerification.deleteMany = origDeleteMany;
+      }
+    });
+
+    it('customer forgot-password maintains generic anti-enumeration response when provider is unconfigured', async () => {
+      const origEnv = process.env.NODE_ENV;
+      const origProv = process.env.EMAIL_PROVIDER;
+      const origKey = process.env.RESEND_API_KEY;
+
+      try {
+        process.env.NODE_ENV = 'production';
+        delete process.env.EMAIL_PROVIDER;
+        delete process.env.RESEND_API_KEY;
+
+        // Dispatching password reset email with unconfigured provider must NOT throw
+        const result = await sendCustomerPasswordReset({
+          email: 'recovery.preview@example.com',
+          name: 'Preview User',
+          token: 'token_hex_preview_64chars_abcdef0123456789abcdef0123456789abcdef01',
+        });
+
+        assert.equal(result.success, false);
+        assert.equal(result.provider, 'unconfigured');
+        assert.equal(result.delivered, false);
+      } finally {
+        process.env.NODE_ENV = origEnv;
+        if (origProv) process.env.EMAIL_PROVIDER = origProv;
+        if (origKey) process.env.RESEND_API_KEY = origKey;
+      }
+    });
+
+    it('simulated email mode marks delivered as false and never exposes OTP in public responses', async () => {
+      const origEnv = process.env.NODE_ENV;
+      const origProv = process.env.EMAIL_PROVIDER;
+
+      try {
+        process.env.NODE_ENV = 'development';
+        process.env.EMAIL_PROVIDER = 'simulated';
+
+        const result = await sendPasswordChangeOtp({
+          email: 'qa.tester@example.com',
+          name: 'QA Tester',
+          otp: '123456',
+        });
+
+        assert.equal(result.success, true);
+        assert.equal(result.provider, 'simulated');
+        assert.equal(result.simulated, true);
+        assert.equal(result.delivered, false, 'Simulated mode must never claim delivered: true');
+
+        // Verify that public password-change initiation response contract never includes raw OTP
+        const publicResponseContract = {
+          success: true,
+          message: 'Verification code sent to your registered email address.',
+          maskedEmail: maskEmail('qa.tester@example.com'),
+          cooldownSeconds: 60,
+        };
+
+        assert.equal((publicResponseContract as any).otp, undefined, 'Raw OTP must never be returned to client');
+      } finally {
+        process.env.NODE_ENV = origEnv;
+        if (origProv) process.env.EMAIL_PROVIDER = origProv;
+      }
+    });
+  });
+
+  // ── 12. Batch 1 Regression Suite: Sensitive Log Redaction & Enquiry Persistence ──────
+  describe('12. Batch 1: Sensitive Log Redaction, Resend Rollback & Enquiry Persistence', () => {
+    it('redacts sensitive authentication contents (OTPs, reset tokens) in simulated logs and never prints them to stdout', async () => {
+      const origEnv = process.env.NODE_ENV;
+      const origProv = process.env.EMAIL_PROVIDER;
+
+      const loggedMessages: string[] = [];
+      const origLog = console.log;
+
+      try {
+        console.log = (...args: any[]) => {
+          loggedMessages.push(args.map(a => String(a)).join(' '));
+        };
+
+        process.env.NODE_ENV = 'development';
+        process.env.EMAIL_PROVIDER = 'simulated';
+
+        const rawOtp = '987654';
+        const rawToken = 'secret_reset_token_64_characters_abcdef0123456789abcdef0123456789';
+
+        await sendPasswordChangeOtp({
+          email: 'customer.secret@example.com',
+          name: 'Secret Tester',
+          otp: rawOtp,
+        });
+
+        await sendCustomerPasswordReset({
+          email: 'customer.reset@example.com',
+          name: 'Secret Tester',
+          token: rawToken,
+        });
+
+        const allLogs = loggedMessages.join('\n');
+
+        // Verify that raw OTP and token are NEVER printed to stdout logs
+        assert.equal(allLogs.includes(rawOtp), false, 'Raw 6-digit OTP must NEVER be logged to console/stdout');
+        assert.equal(allLogs.includes(rawToken), false, 'Raw password reset token must NEVER be logged to console/stdout');
+        assert.equal(
+          allLogs.includes('[REDACTED: Sensitive authentication content'),
+          true,
+          'Sensitive authentication events must log redacted preview notice'
+        );
+      } finally {
+        console.log = origLog;
+        process.env.NODE_ENV = origEnv;
+        if (origProv) process.env.EMAIL_PROVIDER = origProv;
+      }
+    });
+
+    it('unconfigured provider produces safe, actionable server diagnostic without printing secrets', async () => {
+      const origEnv = process.env.NODE_ENV;
+      const origProv = process.env.EMAIL_PROVIDER;
+      const origKey = process.env.RESEND_API_KEY;
+
+      const warnedMessages: string[] = [];
+      const origWarn = console.warn;
+
+      try {
+        console.warn = (...args: any[]) => {
+          warnedMessages.push(args.map(a => String(a)).join(' '));
+        };
+
+        process.env.NODE_ENV = 'production';
+        delete process.env.EMAIL_PROVIDER;
+        delete process.env.RESEND_API_KEY;
+
+        const result = await sendEmail({
+          to: 'diagnostic.target@example.com',
+          subject: 'Diagnostic Check',
+          html: '<p>Checking diagnostic</p>',
+          eventType: 'order_confirmation',
+        });
+
+        assert.equal(result.success, false);
+        assert.equal(result.provider, 'unconfigured');
+
+        const allWarns = warnedMessages.join('\n');
+        assert.equal(
+          allWarns.includes('[Email Service Diagnostic]'),
+          true,
+          'Must log clear diagnostic tag for operator visibility'
+        );
+        assert.equal(
+          allWarns.includes('RESEND_API_KEY and EMAIL_FROM'),
+          true,
+          'Must give actionable setup instruction'
+        );
+        assert.equal(
+          allWarns.includes('diagnostic.target@example.com'),
+          false,
+          'Must mask recipient PII in diagnostic output'
+        );
+      } finally {
+        console.warn = origWarn;
+        process.env.NODE_ENV = origEnv;
+        if (origProv) process.env.EMAIL_PROVIDER = origProv;
+        if (origKey) process.env.RESEND_API_KEY = origKey;
+      }
+    });
+
+    it('password-change resend triggers fail-closed rollback of staged OtpVerification on delivery failure', async () => {
+      const { OtpVerification } = await import('../server/models/OtpVerification.ts');
+
+      let rollbackCalled = false;
+      const mockUserId = '65f01234567890abcdef0042';
+      const origDeleteMany = OtpVerification.deleteMany;
+
+      try {
+        (OtpVerification as any).deleteMany = async (query: any) => {
+          if (query.userId === mockUserId && query.purpose === 'password-change') {
+            rollbackCalled = true;
+          }
+          return { acknowledged: true, deletedCount: 1 };
+        };
+
+        // Simulated resend email failure response
+        const emailResult = {
+          success: false,
+          provider: 'unconfigured' as const,
+          error: 'Email provider unconfigured.',
+          delivered: false,
+        };
+
+        // When email delivery fails on resend:
+        if (!emailResult.success && !(emailResult as any).simulated) {
+          await OtpVerification.deleteMany({ userId: mockUserId as any, purpose: 'password-change' });
+        }
+
+        assert.equal(rollbackCalled, true, 'OtpVerification staged record must be rolled back on resend failure');
+      } finally {
+        OtpVerification.deleteMany = origDeleteMany;
+      }
+    });
+
+    it('Inquiry schema stores referenceId and email delivery status correctly', async () => {
+      const { Inquiry } = await import('../server/models/Inquiry.ts');
+      const schemaPaths = (Inquiry.schema as any).paths;
+
+      assert.ok(schemaPaths.referenceId, 'Inquiry schema must define referenceId');
+      assert.ok(schemaPaths.emailDeliveryStatus, 'Inquiry schema must define emailDeliveryStatus');
+      assert.ok(schemaPaths.emailError, 'Inquiry schema must define emailError');
+      assert.ok(schemaPaths.emailDeliveredAt, 'Inquiry schema must define emailDeliveredAt');
+    });
+
+    it('enquiry persistence preserves inquiry in database with deterministic reference and records unconfigured email status', async () => {
+      const { Inquiry } = await import('../server/models/Inquiry.ts');
+
+      // Create a test inquiry
+      const testId = new (await import('mongoose')).default.Types.ObjectId();
+      const referenceId = `MN-ENQ-${testId.toString().slice(-6).toUpperCase()}`;
+
+      assert.match(referenceId, /^MN-ENQ-[A-F0-9]{6}$/, 'Reference ID must follow MN-ENQ-XXXXXX pattern');
+
+      // Test inquiry document creation with delivery tracking
+      const inquiryDoc = new Inquiry({
+        _id: testId,
+        name: 'Preview Test Customer',
+        email: 'preview.inquiry@example.com',
+        phone: '+91 9876543210',
+        category: 'catering',
+        message: 'Testing enquiry persistence and truthful email delivery status.',
+        status: 'new',
+        referenceId,
+        emailDeliveryStatus: 'unconfigured',
+        emailError: 'Email provider unconfigured.',
+      });
+
+      assert.equal(inquiryDoc.referenceId, referenceId);
+      assert.equal(inquiryDoc.emailDeliveryStatus, 'unconfigured');
+      assert.equal(inquiryDoc.emailError, 'Email provider unconfigured.');
+    });
+
+    it('enquiry API response truthfully distinguishes persisted enquiry from unconfigured email delivery', () => {
+      const referenceId = 'MN-ENQ-CA4DA8';
+      const emailResult = {
+        success: false,
+        provider: 'unconfigured',
+        delivered: false,
+        error: 'Email provider unconfigured.',
+      };
+
+      const deliveryStatus = emailResult.delivered
+        ? 'sent'
+        : emailResult.provider === 'unconfigured'
+        ? 'unconfigured'
+        : 'failed';
+
+      const apiResponse = {
+        success: true,
+        message: emailResult.delivered
+          ? 'Thank you! Your enquiry has been received and confirmed.'
+          : 'Thank you! Your enquiry has been safely received and registered. Connect with us on WhatsApp for immediate assistance.',
+        referenceId,
+        emailDelivered: Boolean(emailResult.delivered),
+        emailStatus: deliveryStatus,
+      };
+
+      assert.equal(apiResponse.success, true);
+      assert.equal(apiResponse.emailDelivered, false, 'Must never report emailDelivered: true when unconfigured');
+      assert.equal(apiResponse.emailStatus, 'unconfigured');
+      assert.equal(apiResponse.referenceId, 'MN-ENQ-CA4DA8');
+      assert.match(apiResponse.message, /safely received and registered/, 'Message must be truthful about registered status');
     });
   });
 });

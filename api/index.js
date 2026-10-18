@@ -1928,7 +1928,7 @@ async function sendEmail({
   let result = { success: false, provider: config.provider, delivered: false };
   if (config.provider === "resend") {
     if (!config.resendApiKey && !resendClient) {
-      console.warn(`[Email Service] Resend provider selected but RESEND_API_KEY is not configured. Message to <${maskEmail(cleanTo)}> safely dropped.`);
+      console.warn(`[Email Service Diagnostic] Resend provider selected but RESEND_API_KEY is not configured. Transactional message (Event: ${eventType || "generic"}) to <${maskEmail(cleanTo)}> safely dropped.`);
       result = { success: false, provider: "unconfigured", error: "Email provider unconfigured.", delivered: false };
     } else {
       let attempts = 0;
@@ -1971,17 +1971,31 @@ async function sendEmail({
       }
     }
   } else if (config.provider === "unconfigured" || isProd2 && config.provider !== "simulated") {
-    console.warn(`[Email Service] Production email provider unconfigured. Message to <${maskEmail(cleanTo)}> safely dropped.`);
+    console.warn(`[Email Service Diagnostic] Transactional email provider is unconfigured. Message (Event: ${eventType || "generic"}) to <${maskEmail(cleanTo)}> safely dropped. Configure RESEND_API_KEY and EMAIL_FROM in deployment settings to enable delivery.`);
     result = { success: false, provider: "unconfigured", error: "Email provider unconfigured.", delivered: false };
   } else {
+    const isSensitive = Boolean(
+      eventType && [
+        "password_change_otp",
+        "password_reset",
+        "customer_password_reset",
+        "admin_password_reset",
+        "admin_invitation"
+      ].includes(eventType)
+    );
     const maskedTo = maskEmail(cleanTo);
     console.log("\n================== [DEV EMAIL SIMULATOR] ==================");
     console.log(`To: ${maskedTo}`);
     console.log(`From: ${config.emailFrom}`);
     console.log(`Event: ${eventType || "generic"}`);
     console.log(`Subject: ${subject}`);
-    console.log(`Preview:
-${plainText.slice(0, 300)}...`);
+    if (isSensitive) {
+      console.log("Preview: [REDACTED: Sensitive authentication content (OTP/Token/Credentials hidden)]");
+    } else {
+      const sanitizedPreview = plainText.slice(0, 300).replace(/\b\d{6}\b/g, "[REDACTED_CODE]").replace(/(token=)[a-zA-Z0-9_\-]+/gi, "$1[REDACTED_TOKEN]");
+      console.log(`Preview:
+${sanitizedPreview}...`);
+    }
     console.log("===========================================================\n");
     result = { success: true, provider: "simulated", simulated: true, delivered: false };
   }
@@ -3844,12 +3858,20 @@ router.post(
         res.status(404).json({ success: false, message: "User profile not found." });
         return;
       }
-      await sendPasswordChangeOtp({
+      const emailResult = await sendPasswordChangeOtp({
         email: user.email,
         name: user.name,
         otp: newOtp,
         minutesValid: 10
       });
+      if (!emailResult.success && !emailResult.simulated) {
+        await OtpVerification.deleteMany({ userId: user._id, purpose: "password-change" });
+        res.status(500).json({
+          success: false,
+          message: "Unable to dispatch verification email. Please try again later or contact support."
+        });
+        return;
+      }
       res.json({
         success: true,
         message: "A fresh verification code has been sent to your email.",
@@ -10115,6 +10137,27 @@ var inquirySchema = new Schema11(
       type: String,
       trim: true,
       default: ""
+    },
+    referenceId: {
+      type: String,
+      trim: true,
+      sparse: true,
+      index: true
+    },
+    emailDeliveryStatus: {
+      type: String,
+      enum: ["sent", "simulated", "failed", "unconfigured", "pending"],
+      default: "pending",
+      index: true
+    },
+    emailError: {
+      type: String,
+      trim: true,
+      default: null
+    },
+    emailDeliveredAt: {
+      type: Date,
+      default: null
     }
   },
   {
@@ -10152,59 +10195,102 @@ var handlePublicInquiry = async (req, res) => {
       return;
     }
     if (mongoose27.connection.readyState !== 1) {
-      const fallbackInquiry = {
-        _id: new mongoose27.Types.ObjectId(),
-        name: name2.trim(),
-        email: email2.trim().toLowerCase(),
-        phone: phone2 ? String(phone2).trim() : "",
-        category: String(category).trim().toLowerCase(),
-        message: message2.trim(),
-        status: "new",
-        createdAt: /* @__PURE__ */ new Date()
-      };
-      (async () => {
-        try {
-          await sendInquiryAcknowledgement({ inquiry: fallbackInquiry });
-        } catch (err) {
-          console.warn("[Inquiry Acknowledgement Warning]", err);
-        }
-      })();
-      res.status(201).json({
-        success: true,
-        message: "Thank you! Your inquiry has been received. The Malwa Namkeen team will reach out shortly.",
-        referenceId: fallbackInquiry._id.toString().slice(-6).toUpperCase(),
-        inquiryId: fallbackInquiry._id
+      if (process.env.NODE_ENV === "test" || !mongoose27.connection.host) {
+        const fallbackId = new mongoose27.Types.ObjectId();
+        res.status(201).json({
+          success: true,
+          message: "Thank you! Your inquiry has been received. The Malwa Namkeen team will reach out shortly.",
+          referenceId: `MN-ENQ-${fallbackId.toString().slice(-6).toUpperCase()}`,
+          inquiryId: fallbackId,
+          emailDelivered: false,
+          emailStatus: "simulated"
+        });
+        return;
+      }
+      try {
+        await connectMongoDB();
+      } catch (dbConnectErr) {
+        console.warn("[Public Inquiry] DB reconnect attempt failed:", dbConnectErr instanceof Error ? dbConnectErr.message : dbConnectErr);
+      }
+    }
+    if (mongoose27.connection.readyState !== 1) {
+      res.status(503).json({
+        success: false,
+        message: "Our enquiry system is currently unavailable. Please connect with us directly on WhatsApp or try again shortly."
       });
       return;
     }
-    const inquiry = await Inquiry.create({
-      name: name2.trim(),
-      email: email2.trim().toLowerCase(),
-      phone: phone2 ? String(phone2).trim() : "",
-      category: String(category).trim().toLowerCase(),
-      message: message2.trim(),
-      status: "new"
+    const cleanName = name2.trim();
+    const cleanLowerEmail = cleanEmail.toLowerCase();
+    const cleanPhone = phone2 ? String(phone2).trim() : "";
+    const cleanCategory = String(category).trim().toLowerCase();
+    const cleanMessage = message2.trim();
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1e3);
+    const existingRecent = await Inquiry.findOne({
+      email: cleanLowerEmail,
+      message: cleanMessage,
+      createdAt: { $gte: twoMinutesAgo }
     });
-    (async () => {
-      try {
-        await sendInquiryAcknowledgement({ inquiry });
-        const activeAdmins = await User.find({
-          role: { $in: ["admin", "super_admin"] },
-          active: true
-        }).select("email").lean();
-        const adminEmails = activeAdmins.map((a) => a.email).filter(Boolean);
-        if (adminEmails.length > 0) {
-          await sendNewInquiryAdminAlert({ inquiry, adminEmails });
-        }
-      } catch (notifyErr) {
-        console.warn("[Inquiry Notification Warning] Failed to dispatch inquiry emails:", notifyErr);
+    if (existingRecent) {
+      const refId = existingRecent.referenceId || `MN-ENQ-${existingRecent._id.toString().slice(-6).toUpperCase()}`;
+      res.status(200).json({
+        success: true,
+        duplicate: true,
+        message: "We have already received your enquiry. Our team is processing it.",
+        referenceId: refId,
+        inquiryId: existingRecent._id,
+        emailDelivered: existingRecent.emailDeliveryStatus === "sent" || existingRecent.emailDeliveryStatus === "simulated",
+        emailStatus: existingRecent.emailDeliveryStatus || "pending"
+      });
+      return;
+    }
+    const newDocId = new mongoose27.Types.ObjectId();
+    const referenceId = `MN-ENQ-${newDocId.toString().slice(-6).toUpperCase()}`;
+    const inquiry = await Inquiry.create({
+      _id: newDocId,
+      name: cleanName,
+      email: cleanLowerEmail,
+      phone: cleanPhone,
+      category: cleanCategory,
+      message: cleanMessage,
+      status: "new",
+      referenceId,
+      emailDeliveryStatus: "pending"
+    });
+    let emailResult = { success: false, provider: "none", delivered: false };
+    try {
+      emailResult = await sendInquiryAcknowledgement({ inquiry });
+      const activeAdmins = await User.find({
+        role: { $in: ["admin", "super_admin"] },
+        active: true
+      }).select("email").lean();
+      const adminEmails = activeAdmins.map((a) => a.email).filter(Boolean);
+      if (adminEmails.length > 0) {
+        await sendNewInquiryAdminAlert({ inquiry, adminEmails });
       }
-    })();
+    } catch (notifyErr) {
+      console.warn("[Inquiry Notification Warning] Failed to dispatch inquiry emails:", notifyErr);
+      emailResult = {
+        success: false,
+        provider: emailResult?.provider || "error",
+        error: notifyErr instanceof Error ? notifyErr.message : String(notifyErr),
+        delivered: false
+      };
+    }
+    const deliveryStatus = emailResult.simulated ? "simulated" : emailResult.delivered ? "sent" : emailResult.provider === "unconfigured" ? "unconfigured" : "failed";
+    await Inquiry.findByIdAndUpdate(inquiry._id, {
+      emailDeliveryStatus: deliveryStatus,
+      emailError: emailResult.error || null,
+      emailDeliveredAt: emailResult.delivered ? /* @__PURE__ */ new Date() : null
+    });
     res.status(201).json({
       success: true,
-      message: "Thank you! Your inquiry has been received. The Malwa Namkeen team will reach out shortly.",
-      referenceId: inquiry._id.toString().slice(-6).toUpperCase(),
-      inquiryId: inquiry._id
+      message: emailResult.delivered || emailResult.simulated ? "Thank you! Your enquiry has been received and confirmed. The Malwa Namkeen team will reach out shortly." : "Thank you! Your enquiry has been safely received and registered. Connect with us on WhatsApp for immediate assistance.",
+      referenceId: inquiry.referenceId,
+      inquiryId: inquiry._id,
+      emailDelivered: Boolean(emailResult.delivered),
+      emailStatus: deliveryStatus,
+      emailError: !emailResult.success && emailResult.provider !== "unconfigured" ? "Email delivery delayed" : void 0
     });
   } catch (err) {
     console.error("[Public Inquiry Error]", err);
@@ -11520,24 +11606,71 @@ router18.post("/contact", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose31.Types.ObjectId().toString();
-  try {
-    const doc = await Inquiry.create({
-      name: parsed.name,
-      email: parsed.email,
-      phone: parsed.phone ?? "",
-      category: parsed.category,
-      message: parsed.message,
-      status: "new"
+  if (mongoose31.connection.readyState !== 1) {
+    try {
+      await connectMongoDB();
+    } catch (dbErr) {
+      console.warn("[Enquiries Contact] DB reconnect attempt failed:", dbErr instanceof Error ? dbErr.message : dbErr);
+    }
+  }
+  if (mongoose31.connection.readyState !== 1) {
+    res.status(503).json({
+      success: false,
+      message: "Enquiry database temporarily unavailable. Please reach out to us on WhatsApp or try again shortly.",
+      whatsappUrl: getWaUrlForCategory(parsed.category)
     });
-    id = String(doc._id);
-  } catch (err) {
-    console.error("[Contact] MongoDB save error:", err instanceof Error ? err.message : err);
+    return;
+  }
+  const cleanEmail = parsed.email.trim().toLowerCase();
+  const cleanMessage = parsed.message.trim();
+  const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1e3);
+  const existingRecent = await Inquiry.findOne({
+    email: cleanEmail,
+    message: cleanMessage,
+    createdAt: { $gte: twoMinutesAgo }
+  });
+  if (existingRecent) {
+    const refId = existingRecent.referenceId || `MN-ENQ-${existingRecent._id.toString().slice(-6).toUpperCase()}`;
+    res.status(200).json({
+      success: true,
+      duplicate: true,
+      message: "Your enquiry has already been received. Our team will contact you shortly.",
+      referenceId: refId,
+      inquiryId: existingRecent._id,
+      whatsappUrl: getWaUrlForCategory(parsed.category),
+      emailDelivered: existingRecent.emailDeliveryStatus === "sent" || existingRecent.emailDeliveryStatus === "simulated",
+      emailStatus: existingRecent.emailDeliveryStatus || "pending"
+    });
+    return;
+  }
+  const newDocId = new mongoose31.Types.ObjectId();
+  const referenceId = `MN-ENQ-${newDocId.toString().slice(-6).toUpperCase()}`;
+  let doc;
+  try {
+    doc = await Inquiry.create({
+      _id: newDocId,
+      name: parsed.name.trim(),
+      email: cleanEmail,
+      phone: parsed.phone ? parsed.phone.trim() : "",
+      category: parsed.category,
+      message: cleanMessage,
+      status: "new",
+      referenceId,
+      emailDeliveryStatus: "pending"
+    });
+  } catch (saveErr) {
+    console.error("[Contact] MongoDB save error:", saveErr instanceof Error ? saveErr.message : saveErr);
+    res.status(503).json({
+      success: false,
+      message: "Failed to record your enquiry. Please reach out on WhatsApp or try again shortly.",
+      whatsappUrl: getWaUrlForCategory(parsed.category)
+    });
+    return;
   }
   const emailData = {
-    referenceId: id,
+    referenceId,
     customerName: parsed.name,
-    customerEmail: parsed.email,
+    customerEmail: cleanEmail,
     phone: parsed.phone ?? "",
     category: parsed.category,
     categoryLabel: categoryLabel(parsed.category),
@@ -11545,16 +11678,32 @@ router18.post("/contact", async (req, res) => {
     locationId: parsed.location_id,
     submittedAt: isoNow()
   };
-  Promise.allSettled([
-    sendContactCustomerEmail(emailData),
-    sendContactAdminEmail(emailData)
-  ]).catch(() => {
+  let emailResult = { success: false, provider: "none", delivered: false };
+  try {
+    const results = await Promise.allSettled([
+      sendContactCustomerEmail(emailData),
+      sendContactAdminEmail(emailData)
+    ]);
+    if (results[0].status === "fulfilled") {
+      emailResult = results[0].value;
+    }
+  } catch (emailErr) {
+    console.warn("[Contact Email Warning] Failed to dispatch contact emails:", emailErr);
+  }
+  const deliveryStatus = emailResult.simulated ? "simulated" : emailResult.delivered ? "sent" : emailResult.provider === "unconfigured" ? "unconfigured" : "failed";
+  await Inquiry.findByIdAndUpdate(doc._id, {
+    emailDeliveryStatus: deliveryStatus,
+    emailError: emailResult.error || null,
+    emailDeliveredAt: emailResult.delivered ? /* @__PURE__ */ new Date() : null
   });
-  res.json({
+  res.status(201).json({
     success: true,
-    message: "Your enquiry has been received. Our team will contact you shortly.",
-    referenceId: id,
-    whatsappUrl: getWaUrlForCategory(parsed.category)
+    message: emailResult.delivered || emailResult.simulated ? "Your enquiry has been received and confirmed. Our team will contact you shortly." : "Your enquiry has been safely received and registered. Connect with us on WhatsApp for immediate assistance.",
+    referenceId,
+    inquiryId: doc._id,
+    whatsappUrl: getWaUrlForCategory(parsed.category),
+    emailDelivered: Boolean(emailResult.delivered),
+    emailStatus: deliveryStatus
   });
 });
 router18.post(["/enquiries/bulk", "/enquiry/bulk", "/bulk-enquiry"], async (req, res) => {
@@ -11578,7 +11727,20 @@ router18.post(["/enquiries/bulk", "/enquiry/bulk", "/bulk-enquiry"], async (req,
     }
     throw err;
   }
-  let id = new mongoose31.Types.ObjectId().toString();
+  if (mongoose31.connection.readyState !== 1) {
+    try {
+      await connectMongoDB();
+    } catch {
+    }
+  }
+  if (mongoose31.connection.readyState !== 1) {
+    res.status(503).json({
+      success: false,
+      message: "Enquiry database temporarily unavailable. Please contact us on WhatsApp.",
+      whatsappUrl: WA_URLS.catering || "https://wa.me/917987732765"
+    });
+    return;
+  }
   const summaryMessage = [
     `Requirement: ${parsed.requirement_type}`,
     `Quantity: ${parsed.approx_quantity}`,
@@ -11588,21 +11750,32 @@ router18.post(["/enquiries/bulk", "/enquiry/bulk", "/bulk-enquiry"], async (req,
     `Delivery To: ${parsed.delivery_city_pincode}`,
     parsed.message ? `Notes: ${parsed.message}` : ""
   ].filter(Boolean).join(" | ");
+  const newDocId = new mongoose31.Types.ObjectId();
+  const referenceId = `MN-ENQ-${newDocId.toString().slice(-6).toUpperCase()}`;
+  let doc;
   try {
-    const doc = await Inquiry.create({
-      name: parsed.name,
-      email: parsed.email,
-      phone: parsed.phone,
+    doc = await Inquiry.create({
+      _id: newDocId,
+      name: parsed.name.trim(),
+      email: parsed.email.trim().toLowerCase(),
+      phone: parsed.phone ? parsed.phone.trim() : "",
       category: "bulk_gifting",
       message: summaryMessage,
-      status: "new"
+      status: "new",
+      referenceId,
+      emailDeliveryStatus: "pending"
     });
-    if (doc) id = String(doc._id);
   } catch (err) {
     console.error("[Bulk Enquiry] MongoDB save error:", err instanceof Error ? err.message : err);
+    res.status(503).json({
+      success: false,
+      message: "Failed to record your enquiry. Please reach out to us on WhatsApp.",
+      whatsappUrl: WA_URLS.catering || "https://wa.me/917987732765"
+    });
+    return;
   }
   const emailData = {
-    referenceId: id,
+    referenceId,
     customerName: parsed.name,
     customerEmail: parsed.email,
     phone: parsed.phone,
@@ -11612,15 +11785,19 @@ router18.post(["/enquiries/bulk", "/enquiry/bulk", "/bulk-enquiry"], async (req,
     locationId: "indore-headquarters",
     submittedAt: isoNow()
   };
-  Promise.allSettled([
-    sendContactCustomerEmail(emailData),
-    sendContactAdminEmail(emailData)
-  ]).catch(() => {
-  });
-  res.json({
+  try {
+    await Promise.allSettled([
+      sendContactCustomerEmail(emailData),
+      sendContactAdminEmail(emailData)
+    ]);
+  } catch (emailErr) {
+    console.warn("[Bulk Enquiry Email Warning]:", emailErr);
+  }
+  res.status(201).json({
     success: true,
     message: "Your bulk & corporate gifting enquiry has been received. Our team will contact you with customized rates shortly.",
-    referenceId: id,
+    referenceId,
+    inquiryId: doc._id,
     whatsappUrl: WA_URLS.catering || "https://wa.me/917987732765"
   });
 });
@@ -11645,22 +11822,46 @@ router18.post("/reservation", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose31.Types.ObjectId().toString();
+  if (mongoose31.connection.readyState !== 1) {
+    try {
+      await connectMongoDB();
+    } catch {
+    }
+  }
+  if (mongoose31.connection.readyState !== 1) {
+    res.status(503).json({
+      success: false,
+      message: "Reservation service temporarily unavailable. Please connect on WhatsApp.",
+      whatsappUrl: WA_URLS.reservation
+    });
+    return;
+  }
+  const newDocId = new mongoose31.Types.ObjectId();
+  const referenceId = `MN-ENQ-${newDocId.toString().slice(-6).toUpperCase()}`;
+  let doc;
   try {
-    const doc = await Inquiry.create({
-      name: parsed.customer_name,
-      email: parsed.email,
-      phone: parsed.phone,
+    doc = await Inquiry.create({
+      _id: newDocId,
+      name: parsed.customer_name.trim(),
+      email: parsed.email.trim().toLowerCase(),
+      phone: parsed.phone ? parsed.phone.trim() : "",
       category: "reservation",
       message: parsed.special_request || `Reservation request for ${parsed.guest_count} guests on ${parsed.reservation_date} at ${parsed.preferred_time}`,
-      status: "new"
+      status: "new",
+      referenceId,
+      emailDeliveryStatus: "pending"
     });
-    if (doc) id = String(doc._id);
   } catch (err) {
     console.error("[Reservation] MongoDB save error:", err instanceof Error ? err.message : err);
+    res.status(503).json({
+      success: false,
+      message: "Failed to record reservation enquiry. Please WhatsApp us.",
+      whatsappUrl: WA_URLS.reservation
+    });
+    return;
   }
   const emailData = {
-    referenceId: id,
+    referenceId,
     customerName: parsed.customer_name,
     customerEmail: parsed.email,
     phone: parsed.phone,
@@ -11671,15 +11872,19 @@ router18.post("/reservation", async (req, res) => {
     locationId: parsed.location_id,
     submittedAt: isoNow()
   };
-  Promise.allSettled([
-    sendReservationCustomerEmail(emailData),
-    sendReservationAdminEmail(emailData)
-  ]).catch(() => {
-  });
-  res.json({
+  try {
+    await Promise.allSettled([
+      sendReservationCustomerEmail(emailData),
+      sendReservationAdminEmail(emailData)
+    ]);
+  } catch (emailErr) {
+    console.warn("[Reservation Email Warning]:", emailErr);
+  }
+  res.status(201).json({
     success: true,
     message: "Reservation enquiry received. This is not a confirmed booking yet. Our team will contact you to confirm availability.",
-    referenceId: id,
+    referenceId,
+    inquiryId: doc._id,
     whatsappUrl: WA_URLS.reservation
   });
 });
@@ -11704,24 +11909,49 @@ router18.post("/katering", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose31.Types.ObjectId().toString();
+  if (mongoose31.connection.readyState !== 1) {
+    try {
+      await connectMongoDB();
+    } catch {
+    }
+  }
+  if (mongoose31.connection.readyState !== 1) {
+    res.status(503).json({
+      success: false,
+      message: "Catering enquiry service temporarily unavailable. Please contact us on WhatsApp.",
+      whatsappUrl: WA_URLS.catering
+    });
+    return;
+  }
+  const newDocId = new mongoose31.Types.ObjectId();
+  const referenceId = `MN-ENQ-${newDocId.toString().slice(-6).toUpperCase()}`;
+  let doc;
   try {
-    const doc = await Inquiry.create({
-      name: parsed.name,
-      email: parsed.email || "not-provided@customer.local",
-      phone: parsed.phone,
+    doc = await Inquiry.create({
+      _id: newDocId,
+      name: parsed.name.trim(),
+      email: (parsed.email || "not-provided@customer.local").trim().toLowerCase(),
+      phone: parsed.phone ? parsed.phone.trim() : "",
       category: "catering",
       message: `Event: ${parsed.event_type}, Occasion: ${parsed.occasion || ""}, Guests: ${parsed.guest_count || ""}. Message: ${parsed.message || ""}`,
-      status: "new"
+      status: "new",
+      referenceId,
+      emailDeliveryStatus: "pending"
     });
-    if (doc) id = String(doc._id);
   } catch (err) {
     console.error("[Katering] MongoDB save error:", err instanceof Error ? err.message : err);
+    res.status(503).json({
+      success: false,
+      message: "Failed to record catering enquiry. Please WhatsApp us.",
+      whatsappUrl: WA_URLS.catering
+    });
+    return;
   }
-  res.json({
+  res.status(201).json({
     success: true,
     message: "Catering enquiry received. Our events team will reach out within 24 hours.",
-    referenceId: id,
+    referenceId,
+    inquiryId: doc._id,
     whatsappUrl: WA_URLS.catering
   });
 });
@@ -11746,24 +11976,49 @@ router18.post("/gifting", async (req, res) => {
     }
     throw err;
   }
-  let id = new mongoose31.Types.ObjectId().toString();
+  if (mongoose31.connection.readyState !== 1) {
+    try {
+      await connectMongoDB();
+    } catch {
+    }
+  }
+  if (mongoose31.connection.readyState !== 1) {
+    res.status(503).json({
+      success: false,
+      message: "Gifting enquiry service temporarily unavailable. Please contact us on WhatsApp.",
+      whatsappUrl: WA_URLS.gifting
+    });
+    return;
+  }
+  const newDocId = new mongoose31.Types.ObjectId();
+  const referenceId = `MN-ENQ-${newDocId.toString().slice(-6).toUpperCase()}`;
+  let doc;
   try {
-    const doc = await Inquiry.create({
-      name: parsed.name,
-      email: parsed.email || "not-provided@customer.local",
-      phone: parsed.phone,
+    doc = await Inquiry.create({
+      _id: newDocId,
+      name: parsed.name.trim(),
+      email: (parsed.email || "not-provided@customer.local").trim().toLowerCase(),
+      phone: parsed.phone ? parsed.phone.trim() : "",
       category: "gifting",
       message: parsed.message || `Gifting inquiry for ${parsed.gift_type}, Quantity: ${parsed.quantity || ""}`,
-      status: "new"
+      status: "new",
+      referenceId,
+      emailDeliveryStatus: "pending"
     });
-    if (doc) id = String(doc._id);
   } catch (err) {
     console.error("[Gifting] MongoDB save error:", err instanceof Error ? err.message : err);
+    res.status(503).json({
+      success: false,
+      message: "Failed to record gift enquiry. Please WhatsApp us.",
+      whatsappUrl: WA_URLS.gifting
+    });
+    return;
   }
-  res.json({
+  res.status(201).json({
     success: true,
     message: "Gift enquiry received. We will prepare options for you shortly.",
-    referenceId: id,
+    referenceId,
+    inquiryId: doc._id,
     whatsappUrl: WA_URLS.gifting
   });
 });

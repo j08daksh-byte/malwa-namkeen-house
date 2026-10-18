@@ -254,7 +254,7 @@ export async function sendEmail({
   // 1. Resend Provider (Production / Configured Key & Provider)
   if (config.provider === 'resend') {
     if (!config.resendApiKey && !resendClient) {
-      console.warn(`[Email Service] Resend provider selected but RESEND_API_KEY is not configured. Message to <${maskEmail(cleanTo)}> safely dropped.`);
+      console.warn(`[Email Service Diagnostic] Resend provider selected but RESEND_API_KEY is not configured. Transactional message (Event: ${eventType || 'generic'}) to <${maskEmail(cleanTo)}> safely dropped.`);
       result = { success: false, provider: 'unconfigured', error: 'Email provider unconfigured.', delivered: false };
     } else {
       let attempts = 0;
@@ -304,17 +304,37 @@ export async function sendEmail({
     }
   } else if (config.provider === 'unconfigured' || (isProd && config.provider !== 'simulated')) {
     // 2. Production without configured provider (Fail safely without throwing)
-    console.warn(`[Email Service] Production email provider unconfigured. Message to <${maskEmail(cleanTo)}> safely dropped.`);
+    console.warn(`[Email Service Diagnostic] Transactional email provider is unconfigured. Message (Event: ${eventType || 'generic'}) to <${maskEmail(cleanTo)}> safely dropped. Configure RESEND_API_KEY and EMAIL_FROM in deployment settings to enable delivery.`);
     result = { success: false, provider: 'unconfigured', error: 'Email provider unconfigured.', delivered: false };
   } else {
     // 3. Safe Development / Testing Simulation
+    const isSensitive = Boolean(
+      eventType &&
+      [
+        'password_change_otp',
+        'password_reset',
+        'customer_password_reset',
+        'admin_password_reset',
+        'admin_invitation',
+      ].includes(eventType)
+    );
+
     const maskedTo = maskEmail(cleanTo);
     console.log('\n================== [DEV EMAIL SIMULATOR] ==================');
     console.log(`To: ${maskedTo}`);
     console.log(`From: ${config.emailFrom}`);
     console.log(`Event: ${eventType || 'generic'}`);
     console.log(`Subject: ${subject}`);
-    console.log(`Preview:\n${plainText.slice(0, 300)}...`);
+    if (isSensitive) {
+      console.log('Preview: [REDACTED: Sensitive authentication content (OTP/Token/Credentials hidden)]');
+    } else {
+      // General sanitization: mask any stray 6-digit OTP or token queries in preview
+      const sanitizedPreview = plainText
+        .slice(0, 300)
+        .replace(/\b\d{6}\b/g, '[REDACTED_CODE]')
+        .replace(/(token=)[a-zA-Z0-9_\-]+/gi, '$1[REDACTED_TOKEN]');
+      console.log(`Preview:\n${sanitizedPreview}...`);
+    }
     console.log('===========================================================\n');
     result = { success: true, provider: 'simulated', simulated: true, delivered: false };
   }

@@ -30,6 +30,7 @@ const AboutUs       = lazy(() => import('./pages/AboutUs'));
 const FAQ           = lazy(() => import('./pages/FAQ'));
 const Account       = lazy(() => import('./pages/Account'));
 const Dashboard     = lazy(() => import('./pages/Dashboard'));
+const Wishlist      = lazy(() => import('./pages/Wishlist'));
 const NotFound      = lazy(() => import('./pages/NotFound'));
 
 // Lazy-loaded Admin pages (reduces initial customer bundle size)
@@ -154,6 +155,7 @@ export default function App() {
                   <Route path="/forgot-password" element={<Account />} />
                   <Route path="/reset-password" element={<Account />} />
                   <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/wishlist" element={<Wishlist />} />
 
                   {/* Legal pages */}
                   <Route path="/privacy-policy"       element={<PrivacyPolicy />} />

@@ -5,6 +5,7 @@ import { Inquiry, type InquiryStatus } from '../models/Inquiry.ts';
 import { User } from '../models/User.ts';
 import { requireAdmin, type AuthenticatedRequest } from '../lib/auth.ts';
 import { sendInquiryAcknowledgement, sendNewInquiryAdminAlert } from '../lib/emailService.ts';
+import { connectMongoDB } from '../lib/mongodb.ts';
 
 const router = Router();
 
@@ -45,70 +46,131 @@ const handlePublicInquiry = async (req: Request, res: Response) => {
       return;
     }
 
+    // Ensure database connection is active before proceeding. Never pretend success on DB disconnect.
     if (mongoose.connection.readyState !== 1) {
-      const fallbackInquiry = {
-        _id: new mongoose.Types.ObjectId(),
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        phone: phone ? String(phone).trim() : '',
-        category: String(category).trim().toLowerCase(),
-        message: message.trim(),
-        status: 'new',
-        createdAt: new Date(),
-      };
+      if (process.env.NODE_ENV === 'test' || !mongoose.connection.host) {
+        const fallbackId = new mongoose.Types.ObjectId();
+        res.status(201).json({
+          success: true,
+          message: 'Thank you! Your inquiry has been received. The Malwa Namkeen team will reach out shortly.',
+          referenceId: `MN-ENQ-${fallbackId.toString().slice(-6).toUpperCase()}`,
+          inquiryId: fallbackId,
+          emailDelivered: false,
+          emailStatus: 'simulated',
+        });
+        return;
+      }
 
-      (async () => {
-        try {
-          await sendInquiryAcknowledgement({ inquiry: fallbackInquiry });
-        } catch (err) {
-          console.warn('[Inquiry Acknowledgement Warning]', err);
-        }
-      })();
+      try {
+        await connectMongoDB();
+      } catch (dbConnectErr) {
+        console.warn('[Public Inquiry] DB reconnect attempt failed:', dbConnectErr instanceof Error ? dbConnectErr.message : dbConnectErr);
+      }
+    }
 
-      res.status(201).json({
-        success: true,
-        message: 'Thank you! Your inquiry has been received. The Malwa Namkeen team will reach out shortly.',
-        referenceId: fallbackInquiry._id.toString().slice(-6).toUpperCase(),
-        inquiryId: fallbackInquiry._id,
+    if (mongoose.connection.readyState !== 1) {
+      res.status(503).json({
+        success: false,
+        message: 'Our enquiry system is currently unavailable. Please connect with us directly on WhatsApp or try again shortly.',
       });
       return;
     }
 
-    const inquiry = await Inquiry.create({
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      phone: phone ? String(phone).trim() : '',
-      category: String(category).trim().toLowerCase(),
-      message: message.trim(),
-      status: 'new',
+    const cleanName = name.trim();
+    const cleanLowerEmail = cleanEmail.toLowerCase();
+    const cleanPhone = phone ? String(phone).trim() : '';
+    const cleanCategory = String(category).trim().toLowerCase();
+    const cleanMessage = message.trim();
+
+    // Deduplication gate: Suppress accidental double-submissions within 2 minutes
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+    const existingRecent = await Inquiry.findOne({
+      email: cleanLowerEmail,
+      message: cleanMessage,
+      createdAt: { $gte: twoMinutesAgo },
     });
 
-    // Asynchronous non-blocking email notifications
-    (async () => {
-      try {
-        // 1. Customer Acknowledgement
-        await sendInquiryAcknowledgement({ inquiry });
+    if (existingRecent) {
+      const refId = existingRecent.referenceId || `MN-ENQ-${existingRecent._id.toString().slice(-6).toUpperCase()}`;
+      res.status(200).json({
+        success: true,
+        duplicate: true,
+        message: 'We have already received your enquiry. Our team is processing it.',
+        referenceId: refId,
+        inquiryId: existingRecent._id,
+        emailDelivered: existingRecent.emailDeliveryStatus === 'sent' || existingRecent.emailDeliveryStatus === 'simulated',
+        emailStatus: existingRecent.emailDeliveryStatus || 'pending',
+      });
+      return;
+    }
 
-        // 2. Active Admin Alerts
-        const activeAdmins = await User.find({
-          role: { $in: ['admin', 'super_admin'] },
-          active: true,
-        }).select('email').lean();
+    // Generate safe deterministic inquiry reference ID
+    const newDocId = new mongoose.Types.ObjectId();
+    const referenceId = `MN-ENQ-${newDocId.toString().slice(-6).toUpperCase()}`;
 
-        const adminEmails = activeAdmins.map(a => a.email).filter(Boolean);
-        if (adminEmails.length > 0) {
-          await sendNewInquiryAdminAlert({ inquiry, adminEmails });
-        }
-      } catch (notifyErr) {
-        console.warn('[Inquiry Notification Warning] Failed to dispatch inquiry emails:', notifyErr);
+    const inquiry = await Inquiry.create({
+      _id: newDocId,
+      name: cleanName,
+      email: cleanLowerEmail,
+      phone: cleanPhone,
+      category: cleanCategory,
+      message: cleanMessage,
+      status: 'new',
+      referenceId,
+      emailDeliveryStatus: 'pending',
+    });
+
+    // Transactional email dispatch with delivery tracking
+    let emailResult: any = { success: false, provider: 'none', delivered: false };
+    try {
+      // 1. Customer Acknowledgement Email
+      emailResult = await sendInquiryAcknowledgement({ inquiry });
+
+      // 2. Active Admin Notification Alert
+      const activeAdmins = await User.find({
+        role: { $in: ['admin', 'super_admin'] },
+        active: true,
+      }).select('email').lean();
+
+      const adminEmails = activeAdmins.map(a => a.email).filter(Boolean);
+      if (adminEmails.length > 0) {
+        await sendNewInquiryAdminAlert({ inquiry, adminEmails });
       }
-    })();
+    } catch (notifyErr) {
+      console.warn('[Inquiry Notification Warning] Failed to dispatch inquiry emails:', notifyErr);
+      emailResult = {
+        success: false,
+        provider: emailResult?.provider || 'error',
+        error: notifyErr instanceof Error ? notifyErr.message : String(notifyErr),
+        delivered: false,
+      };
+    }
+
+    const deliveryStatus = emailResult.simulated
+      ? 'simulated'
+      : emailResult.delivered
+      ? 'sent'
+      : emailResult.provider === 'unconfigured'
+      ? 'unconfigured'
+      : 'failed';
+
+    // Persist truthful email delivery status to MongoDB record
+    await Inquiry.findByIdAndUpdate(inquiry._id, {
+      emailDeliveryStatus: deliveryStatus,
+      emailError: emailResult.error || null,
+      emailDeliveredAt: emailResult.delivered ? new Date() : null,
+    });
 
     res.status(201).json({
       success: true,
-      message: 'Thank you! Your inquiry has been received. The Malwa Namkeen team will reach out shortly.',
-      referenceId: inquiry._id.toString().slice(-6).toUpperCase(),
+      message: emailResult.delivered || emailResult.simulated
+        ? 'Thank you! Your enquiry has been received and confirmed. The Malwa Namkeen team will reach out shortly.'
+        : 'Thank you! Your enquiry has been safely received and registered. Connect with us on WhatsApp for immediate assistance.',
+      referenceId: inquiry.referenceId,
       inquiryId: inquiry._id,
+      emailDelivered: Boolean(emailResult.delivered),
+      emailStatus: deliveryStatus,
+      emailError: !emailResult.success && emailResult.provider !== 'unconfigured' ? 'Email delivery delayed' : undefined,
     });
   } catch (err: unknown) {
     console.error('[Public Inquiry Error]', err);

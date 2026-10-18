@@ -138,7 +138,9 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
 
   if (!isOpen) return null;
 
-  const shipping = subtotal >= 499 ? 0 : 49;
+  const freeShippingThreshold = settings?.deliverySettings?.freeShippingThreshold ?? 499;
+  const standardShippingFee = settings?.deliverySettings?.standardShippingFee ?? 49;
+  const shipping = subtotal >= freeShippingThreshold ? 0 : standardShippingFee;
   const finalTotal = Math.max(0, Math.round((subtotal - discountAmount + shipping) * 100) / 100);
 
   const handlePlaceOrder = async (e: React.FormEvent) => {

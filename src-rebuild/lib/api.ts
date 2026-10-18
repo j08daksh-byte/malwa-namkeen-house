@@ -8,6 +8,9 @@ export interface ApiSuccess {
   message: string;
   referenceId?: string;
   whatsappUrl?: string;
+  emailDelivered?: boolean;
+  emailStatus?: string;
+  duplicate?: boolean;
   fieldErrors?: never;
 }
 

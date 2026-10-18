@@ -25,6 +25,7 @@ const MESSAGE_PLACEHOLDERS: Record<string, string> = {
 };
 
 function formatReferenceId(rawId: string): string {
+  if (rawId.startsWith('MN-ENQ-')) return rawId;
   return `MN-ENQ-${rawId.slice(-6).toUpperCase()}`;
 }
 
@@ -88,7 +89,13 @@ export default function Contact() {
   const [loading,     setLoading]     = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState('');
-  const [success,     setSuccess]     = useState<{ referenceId?: string; waUrl: string } | null>(null);
+  const [success,     setSuccess]     = useState<{
+    referenceId?: string;
+    waUrl: string;
+    emailDelivered?: boolean;
+    emailStatus?: string;
+    message?: string;
+  } | null>(null);
 
   const liveRef = useRef<HTMLSpanElement>(null);
 
@@ -186,6 +193,9 @@ export default function Contact() {
         setSuccess({
           referenceId: result.referenceId,
           waUrl: result.whatsappUrl ?? CATEGORY_WA_URLS[category] ?? WA_URLS.general,
+          emailDelivered: result.emailDelivered,
+          emailStatus: result.emailStatus,
+          message: result.message,
         });
         setName(''); setEmail(''); setPhone('');
         setCategory(''); setMessage(''); setConsent(false);
@@ -538,10 +548,12 @@ export default function Contact() {
                   <path d="M13 22l6 6 12-12" stroke="#55000A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
                 <p style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '20px', fontWeight: 700, letterSpacing: '-0.015em', color: '#55000A', margin: '0 0 8px' }}>
-                  Enquiry received!
+                  Enquiry Registered!
                 </p>
                 <p style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '14px', color: '#75645C', margin: '0 0 4px', lineHeight: 1.6 }}>
-                  Your enquiry has been received. Our team will contact you shortly.
+                  {success.emailDelivered
+                    ? 'Your enquiry has been received and confirmed. Our team will contact you shortly.'
+                    : 'Your enquiry has been safely received and registered in our system. Connect with our team directly on WhatsApp for immediate assistance.'}
                 </p>
                 {success.referenceId && (
                   <p style={{ fontFamily: "var(--font-primary, 'DM Sans', sans-serif)", fontSize: '12px', color: '#A08D82', margin: '8px 0 0' }}>

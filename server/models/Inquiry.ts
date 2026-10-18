@@ -10,6 +10,10 @@ export interface IInquiry extends Document {
   message: string;
   status: InquiryStatus;
   notes?: string;
+  referenceId?: string;
+  emailDeliveryStatus?: 'sent' | 'simulated' | 'failed' | 'unconfigured' | 'pending';
+  emailError?: string;
+  emailDeliveredAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,6 +55,27 @@ const inquirySchema = new Schema<IInquiry>(
       type: String,
       trim: true,
       default: '',
+    },
+    referenceId: {
+      type: String,
+      trim: true,
+      sparse: true,
+      index: true,
+    },
+    emailDeliveryStatus: {
+      type: String,
+      enum: ['sent', 'simulated', 'failed', 'unconfigured', 'pending'],
+      default: 'pending',
+      index: true,
+    },
+    emailError: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    emailDeliveredAt: {
+      type: Date,
+      default: null,
     },
   },
   {
