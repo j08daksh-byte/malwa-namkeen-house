@@ -345,20 +345,26 @@ export default function Shop() {
   const shopStructuredData = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: 'The Malwa Shop — Authentic Artisanal Namkeens',
-    url: 'https://malwanamkeenhouse.com/shop',
-    description: 'Shop authentic Ratlami Sev, Ujjaini chivda, khasta mathri, and festive gift boxes from MALWA NAMKEEN HOUSE.',
+    name: 'The Malwa Shop — Authentic Artisanal Namkeens & Sweets',
+    url: 'https://www.malwanamkeenhouse.com/shop',
+    description: 'Shop authentic Ratlami Sev, Ujjaini chivda, khasta mathri, and festive gift boxes from MALWA NAMKEEN HOUSE. 100% pure cold-pressed groundnut oil.',
     breadcrumb: {
       '@type': 'BreadcrumbList',
       itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://malwanamkeenhouse.com' },
-        { '@type': 'ListItem', position: 2, name: 'Shop', item: 'https://malwanamkeenhouse.com/shop' },
+        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://www.malwanamkeenhouse.com' },
+        { '@type': 'ListItem', position: 2, name: 'Shop', item: 'https://www.malwanamkeenhouse.com/shop' },
       ],
     },
   };
 
   return (
     <div className="eb-shop-page-wrapper">
+      <SEOHead
+        title="Buy Authentic Malwa Namkeen & Sweets Online | Fast Delivery Across India"
+        description="Shop authentic Ratlami Sev, Ujjaini chivda, khasta mathri, and festive gift boxes from Malwa Namkeen House. Handcrafted in 100% pure cold-pressed groundnut oil with fast doorstep delivery across India."
+        canonicalPath="/shop"
+        structuredData={shopStructuredData}
+      />
       <style>{`
         .eb-shop-page-wrapper {
           background-color: #FAF6F0;

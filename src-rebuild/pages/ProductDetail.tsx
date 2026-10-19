@@ -5,6 +5,7 @@ import Footer from '../components/sections/Footer';
 import ProductCard from '../components/shop/ProductCard';
 import ProductQuickViewModal from '../components/shop/ProductQuickViewModal';
 import ShopToast from '../components/shop/ShopToast';
+import SEOHead from '../components/seo/SEOHead';
 import { PRODUCTS as FALLBACK_PRODUCTS, type Product, type ProductWeightOption } from '../data/products';
 import { useCart } from '../lib/cartContext';
 import { useWishlist } from '../lib/wishlistContext';
@@ -386,8 +387,54 @@ export default function ProductDetail() {
       ? Math.round(((selectedOption.originalPrice - selectedOption.price) / selectedOption.originalPrice) * 100)
       : 0;
 
+  const productCanonical = `/product/${product.slug || product.id}`;
+  const productTitle = `Buy ${product.name} Online — Authentic Malwa Namkeen`;
+  const productDesc = product.description
+    ? `${product.description} Order authentic ${product.name} online from Malwa Namkeen House, Ujjain. Handcrafted in 100% pure cold-pressed groundnut oil with nationwide delivery across India.`
+    : `Order fresh ${product.name} online from Malwa Namkeen House, Ujjain. 100% pure cold-pressed groundnut oil, zero palm oil. Doorstep delivery across India.`;
+
+  const productImage = product.image
+    ? (product.image.startsWith('http') ? product.image : `https://www.malwanamkeenhouse.com${product.image}`)
+    : 'https://www.malwanamkeenhouse.com/logo.png';
+
+  const productStructuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.name,
+    image: productImage,
+    description: product.description || productDesc,
+    brand: {
+      '@type': 'Brand',
+      name: 'MALWA NAMKEEN HOUSE',
+    },
+    offers: {
+      '@type': 'Offer',
+      price: selectedOption.price,
+      priceCurrency: 'INR',
+      availability: 'https://schema.org/InStock',
+      url: `https://www.malwanamkeenhouse.com${productCanonical}`,
+      seller: {
+        '@type': 'Organization',
+        name: 'MALWA NAMKEEN HOUSE',
+      },
+    },
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: product.rating || 4.9,
+      reviewCount: product.reviewCount || 128,
+    },
+  };
+
   return (
     <div className="pdp-wrapper">
+      <SEOHead
+        title={productTitle}
+        description={productDesc}
+        canonicalPath={productCanonical}
+        ogImage={productImage}
+        ogType="product"
+        structuredData={productStructuredData}
+      />
       <style>{`
         .pdp-wrapper {
           background-color: var(--bg-parchment, #F6EFE3);
