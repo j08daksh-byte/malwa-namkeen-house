@@ -472,7 +472,7 @@ router.post('/', requireAuth, orderCreationLimiter, async (req: AuthenticatedReq
       const primaryImage =
         (Array.isArray(product.images) && product.images[0]) ||
         product.image ||
-        '/hero-banner-1.png';
+        '/products/ratlami-sev.jpg';
 
       const variantLabel = variant.label || `${variant.value || ''} ${variant.unit || ''}`.trim() || 'Standard';
 

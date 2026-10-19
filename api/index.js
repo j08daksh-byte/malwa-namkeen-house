@@ -371,43 +371,50 @@ var SHOP_CATEGORIES = [
     id: "all",
     label: "All Delicacies",
     shortLabel: "All",
-    description: "Explore our complete heritage collection of small-batch savouries, sweets, and curated gift boxes."
+    description: "Explore our complete heritage collection of small-batch savouries, sweets, and curated gift boxes.",
+    image: "/products/ratlami-sev.jpg"
   },
   {
     id: "sev-namkeen",
     label: "Signature Sev & Namkeens",
     shortLabel: "Sev & Namkeen",
-    description: "Clove-infused, crisp, thick & fine sevs extruded by hand and fried in pure cold-pressed groundnut oil."
+    description: "Clove-infused, crisp, thick & fine sevs extruded by hand and fried in pure cold-pressed groundnut oil.",
+    image: "/products/ratlami-sev.jpg"
   },
   {
     id: "mixtures-chivda",
     label: "Heritage Mixtures & Chivdas",
     shortLabel: "Mixtures",
-    description: "Time-honoured Malwa blends balancing sweet, tangy, and fiery spices with nuts, boondi, and lentils."
+    description: "Time-honoured Malwa blends balancing sweet, tangy, and fiery spices with nuts, boondi, and lentils.",
+    image: "/products/khatta-meetha.jpg"
   },
   {
     id: "khasta-mathri",
     label: "Crisp Khasta & Mathris",
     shortLabel: "Mathri & Snacks",
-    description: "Slow-fried flaky crackers and carom-seed delicacies crafted for afternoon chai rituals."
+    description: "Slow-fried flaky crackers and carom-seed delicacies crafted for afternoon chai rituals.",
+    image: "/products/methi-mathri.jpg"
   },
   {
     id: "mithai-sweets",
     label: "Royal Mithai & Sweets",
     shortLabel: "Sweets & Laddoos",
-    description: "Artisanal sweets slow-cooked in 100% pure desi cow ghee with saffron, cardamom, and dry fruits."
+    description: "Artisanal sweets slow-cooked in 100% pure desi cow ghee with saffron, cardamom, and dry fruits.",
+    image: "/products/besan-ladoo.jpg"
   },
   {
     id: "gift-hampers",
     label: "Luxury Gifting & Hampers",
     shortLabel: "Gift Hampers",
-    description: "Handcrafted heritage gift boxes designed for weddings, festive occasions, and corporate gifting."
+    description: "Handcrafted heritage gift boxes designed for weddings, festive occasions, and corporate gifting.",
+    image: "/products/gift-hamper.jpg"
   },
   {
     id: "falahari-fasting",
     label: "Falahari & Fasting Specials",
     shortLabel: "Falahari & Fasting",
-    description: "Pure sendha namak fasting delicacies, crispy potato laccha, and roasted peanut blends."
+    description: "Pure sendha namak fasting delicacies, crispy potato laccha, and roasted peanut blends.",
+    image: "/products/falahari-chivda.jpg"
   }
 ];
 var PRODUCTS = [
@@ -425,8 +432,8 @@ var PRODUCTS = [
     ingredients: ["Gram Flour (Besan)", "Whole Cloves (Laung)", "Black Pepper", "Carom Seeds (Ajwain)", "Asafoetida (Hing)", "Cold-Pressed Groundnut Oil", "Rock Salt"],
     spiceLevel: "Clove Hot",
     shelfLife: "4 Months",
-    image: "/hero-banner-1.png",
-    images: ["/hero-banner-1.png"],
+    image: "/products/ratlami-sev.jpg",
+    images: ["/products/ratlami-sev.jpg"],
     badge: "Bestseller",
     featured: true,
     isBestSeller: true,
@@ -454,8 +461,8 @@ var PRODUCTS = [
     ingredients: ["Besan", "Carom Seeds", "Turmeric", "Cumin", "Cold-Pressed Groundnut Oil", "Himalayan Pink Salt"],
     spiceLevel: "Mild",
     shelfLife: "4 Months",
-    image: "/mishtichaat/hero-food.jpg",
-    images: ["/mishtichaat/hero-food.jpg"],
+    image: "/products/ujjaini-sev.jpg",
+    images: ["/products/ujjaini-sev.jpg"],
     badge: "Heritage Classic",
     featured: false,
     isBestSeller: false,
@@ -483,8 +490,8 @@ var PRODUCTS = [
     ingredients: ["Gram Flour", "Premium Zanzibari Cloves", "Black Pepper", "Red Chilli", "Groundnut Oil", "Rock Salt"],
     spiceLevel: "Clove Hot",
     shelfLife: "4 Months",
-    image: "/hero-banner-2.png",
-    images: ["/hero-banner-2.png"],
+    image: "/products/laung-sev.jpg",
+    images: ["/products/laung-sev.jpg"],
     badge: "Spicy Favorite",
     featured: false,
     isBestSeller: false,
@@ -513,8 +520,8 @@ var PRODUCTS = [
     ingredients: ["Crisp Sev", "Sago Wafers (Sabudana)", "Roasted Peanuts", "Fried Boondi", "Golden Raisins", "Dry Mango Powder", "Raw Sugar", "Cold-Pressed Groundnut Oil"],
     spiceLevel: "Sweet & Tangy",
     shelfLife: "4 Months",
-    image: "/mishtichaat/hero-food.jpg",
-    images: ["/mishtichaat/hero-food.jpg"],
+    image: "/products/khatta-meetha.jpg",
+    images: ["/products/khatta-meetha.jpg"],
     badge: "Bestseller",
     featured: true,
     isBestSeller: true,
@@ -542,8 +549,8 @@ var PRODUCTS = [
     ingredients: ["Whole Brown Lentils (Masoor)", "Jumbo Cashews", "Melon Seeds (Magaz)", "Fine Gram Flour Sev", "Black Pepper", "Cloves", "Groundnut Oil", "Rock Salt"],
     spiceLevel: "Medium",
     shelfLife: "3 Months",
-    image: "/mishtichaat/hero-food.jpg",
-    images: ["/mishtichaat/hero-food.jpg"],
+    image: "/products/kaju-dalmoth.jpg",
+    images: ["/products/kaju-dalmoth.jpg"],
     badge: "Chef\u2019s Selection",
     featured: false,
     isBestSeller: false,
@@ -571,8 +578,8 @@ var PRODUCTS = [
     ingredients: ["Gram Flour", "Pure Compounded Hing", "Roasted Cumin", "Ginger Powder", "Groundnut Oil", "Pink Salt"],
     spiceLevel: "Medium",
     shelfLife: "4 Months",
-    image: "/hero-banner-2.png",
-    images: ["/hero-banner-2.png"],
+    image: "/products/hing-sev.jpg",
+    images: ["/products/hing-sev.jpg"],
     badge: "Digestive Blend",
     featured: false,
     isBestSeller: false,
@@ -601,8 +608,8 @@ var PRODUCTS = [
     ingredients: ["Stone Ground Wheat Flour", "Kasuri Methi", "Carom Seeds", "Coarse Black Pepper", "Pure Ghee Moin", "Groundnut Oil", "Rock Salt"],
     spiceLevel: "Mild",
     shelfLife: "3 Months",
-    image: "/mishtichaat/kachori.jpg",
-    images: ["/mishtichaat/kachori.jpg"],
+    image: "/products/methi-mathri.jpg",
+    images: ["/products/methi-mathri.jpg"],
     badge: "Bestseller",
     featured: true,
     isBestSeller: true,
@@ -630,8 +637,8 @@ var PRODUCTS = [
     ingredients: ["Flattened Black Chickpeas", "Roasted Cumin", "Dry Mango Powder", "Mint Leaf Powder", "Black Salt", "Cold-Pressed Groundnut Oil"],
     spiceLevel: "Zesty",
     shelfLife: "4 Months",
-    image: "/mishtichaat/kachori.jpg",
-    images: ["/mishtichaat/kachori.jpg"],
+    image: "/products/chana-zor-garam.jpg",
+    images: ["/products/chana-zor-garam.jpg"],
     badge: "Tangy Crunch",
     featured: false,
     isBestSeller: false,
@@ -660,8 +667,8 @@ var PRODUCTS = [
     ingredients: ["Coarse Gram Flour (Danedar Besan)", "100% Pure Desi Cow Ghee", "Unrefined Boora Sugar", "Green Cardamom", "Pistachio Slivers", "Saffron"],
     spiceLevel: "Mild",
     shelfLife: "45 Days",
-    image: "/mishtichaat/hero-sweets.jpg",
-    images: ["/mishtichaat/hero-sweets.jpg"],
+    image: "/products/besan-ladoo.jpg",
+    images: ["/products/besan-ladoo.jpg"],
     badge: "Bestseller",
     featured: true,
     isBestSeller: true,
@@ -688,8 +695,8 @@ var PRODUCTS = [
     ingredients: ["Refined Flour", "Pure Desi Ghee", "Kashmiri Kesar (Saffron)", "Cardamom", "Rose Water", "Sugar Syrup"],
     spiceLevel: "Mild",
     shelfLife: "15 Days",
-    image: "/mishtichaat/jalebi.jpg",
-    images: ["/mishtichaat/jalebi.jpg"],
+    image: "/products/saffron-jalebi.jpg",
+    images: ["/products/saffron-jalebi.jpg"],
     badge: "Pure Desi Ghee",
     featured: false,
     isBestSeller: false,
@@ -717,8 +724,8 @@ var PRODUCTS = [
     ingredients: ["Assorted Namkeens", "Pure Ghee Besan Ladoos", "Artisanal Brass Spoon", "Luxury Velvet Packaging"],
     spiceLevel: "Medium",
     shelfLife: "60 Days",
-    image: "/hero-banner-1.png",
-    images: ["/hero-banner-1.png"],
+    image: "/products/gift-hamper.jpg",
+    images: ["/products/gift-hamper.jpg"],
     badge: "Luxury Gift Edition",
     featured: false,
     isBestSeller: false,
@@ -746,8 +753,8 @@ var PRODUCTS = [
     ingredients: ["Fine Sev", "Crispy Papdi", "Khasta Cracker", "Sarafa Special Chaat Masala Jar"],
     spiceLevel: "Zesty",
     shelfLife: "3 Months",
-    image: "/mishtichaat/kachori.jpg",
-    images: ["/mishtichaat/kachori.jpg"],
+    image: "/products/chaat-kit.jpg",
+    images: ["/products/chaat-kit.jpg"],
     badge: "Party Hit",
     featured: false,
     isBestSeller: false,
@@ -775,8 +782,8 @@ var PRODUCTS = [
     ingredients: ["Crisp Potato Laccha", "Roasted Peanuts", "Sendha Namak (Rock Salt)", "Green Chillies", "Curry Leaves", "Cold-Pressed Peanut Oil"],
     spiceLevel: "Medium",
     shelfLife: "3 Months",
-    image: "/mishtichaat/Image-1.png",
-    images: ["/mishtichaat/Image-1.png"],
+    image: "/products/falahari-chivda.jpg",
+    images: ["/products/falahari-chivda.jpg"],
     badge: "Fast Friendly",
     featured: false,
     isBestSeller: false,
@@ -804,8 +811,8 @@ var PRODUCTS = [
     ingredients: ["A2 Milk Khoya", "Besan", "Pure Cow Ghee", "Pistachios", "Almonds", "Cardamom", "Kashmiri Kesar"],
     spiceLevel: "Mild",
     shelfLife: "25 Days",
-    image: "/mishtichaat/hero-sweets.jpg",
-    images: ["/mishtichaat/hero-sweets.jpg"],
+    image: "/products/besan-ladoo.jpg",
+    images: ["/products/besan-ladoo.jpg"],
     badge: "Festive Limited",
     featured: false,
     isBestSeller: false,
@@ -1315,9 +1322,13 @@ async function syncDatabaseCatalog() {
           name: catData.label,
           slug: catData.id,
           description: catData.description,
+          image: catData.image || "",
           active: true,
           sortOrder: i
         });
+      } else if (!cat.image || cat.image.includes("/hero-banner-") || cat.image.includes("/mishtichaat/")) {
+        cat.image = catData.image || "";
+        await cat.save();
       }
       categoryDocMap.set(catData.id, cat._id);
     }
@@ -1364,6 +1375,12 @@ async function syncDatabaseCatalog() {
         };
         await Product.create(productPayload);
         seededCount++;
+      } else {
+        const hasLegacyImages = !existing.images || existing.images.length === 0 || existing.images.some((img) => !img || img.includes("/hero-banner-") || img.includes("/mishtichaat/"));
+        if (hasLegacyImages) {
+          existing.images = Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image];
+          await existing.save();
+        }
       }
     }
     const totalProducts = await Product.countDocuments();
@@ -4227,7 +4244,13 @@ import { Router as Router3 } from "express";
 import mongoose11 from "mongoose";
 var router3 = Router3();
 function formatPublicProduct(p) {
-  const primaryImage = Array.isArray(p.images) && p.images[0] || p.image || "/hero-banner-1.png";
+  const rawImage = Array.isArray(p.images) && p.images[0] || p.image || "";
+  const isInvalidImage = !rawImage || rawImage.includes("/hero-banner-") || rawImage.includes("/mishtichaat/");
+  let primaryImage = rawImage;
+  if (isInvalidImage) {
+    const matched = PRODUCTS.find((fp) => fp.slug === p.slug || fp.id === p.slug || fp.id === String(p._id));
+    primaryImage = matched?.image || "/products/ratlami-sev.jpg";
+  }
   const activeVariants = Array.isArray(p.variants) ? p.variants.filter((v) => v.active !== false) : [];
   const options = activeVariants.length > 0 ? activeVariants.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((v) => ({
     id: String(v._id || v.sku || v.label),
@@ -4272,7 +4295,7 @@ function formatPublicProduct(p) {
     category: p.category?.slug || (typeof p.category === "string" ? p.category : "sev-namkeen"),
     categoryId: p.category?._id ? String(p.category._id) : String(p.category || ""),
     categoryLabel: p.category?.name || "Heritage Namkeens",
-    images: Array.isArray(p.images) && p.images.length > 0 ? p.images : [primaryImage],
+    images: Array.isArray(p.images) && p.images.length > 0 && !p.images.some((img) => !img || img.includes("/hero-banner-") || img.includes("/mishtichaat/")) ? p.images : [primaryImage],
     image: primaryImage,
     price: basePrice,
     originalPrice: baseOrigPrice,
@@ -4312,6 +4335,10 @@ router3.get("/categories", async (_req, res) => {
           const count = countMap[String(c._id)] ?? 0;
           categoryCounts[c.slug] = count;
           categoryCounts[String(c._id)] = count;
+          const fallbackCat = SHOP_CATEGORIES.find((fc) => fc.id === c.slug);
+          const rawCatImg = c.image || "";
+          const isInvalidCatImg = !rawCatImg || rawCatImg.includes("/hero-banner-") || rawCatImg.includes("/mishtichaat/");
+          const catImage = (!isInvalidCatImg ? rawCatImg : fallbackCat?.image) || "/products/ratlami-sev.jpg";
           return {
             id: c.slug,
             _id: String(c._id),
@@ -4319,8 +4346,8 @@ router3.get("/categories", async (_req, res) => {
             name: c.name,
             label: c.name,
             shortLabel: c.name.replace(/(Signature|Heritage|Royal|Crisp)\s+/i, ""),
-            description: c.description || "",
-            image: c.image || "",
+            description: c.description || fallbackCat?.description || "",
+            image: catImage,
             productCount: count
           };
         });
@@ -4355,7 +4382,7 @@ router3.get("/categories", async (_req, res) => {
       label: c.label,
       shortLabel: c.shortLabel,
       description: c.description,
-      image: "",
+      image: c.image || "/products/ratlami-sev.jpg",
       productCount: staticCounts[c.id] ?? 0
     }))
   });
@@ -4869,7 +4896,7 @@ router4.post("/revalidate", cartRevalidateLimiter, async (req, res) => {
           `Price for "${product.name} (${variant.label})" was updated from \u20B9${submittedPrice} to current price \u20B9${livePrice}.`
         );
       }
-      const primaryImage = Array.isArray(product.images) && product.images[0] || product.image || "/hero-banner-1.png";
+      const primaryImage = Array.isArray(product.images) && product.images[0] || product.image || "/products/ratlami-sev.jpg";
       validatedItems.push({
         productId: String(product._id),
         slug: product.slug || "",
@@ -7246,7 +7273,7 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
         return;
       }
       const unitPrice = typeof variant.salePrice === "number" && variant.salePrice > 0 ? variant.salePrice : variant.price;
-      const primaryImage = Array.isArray(product.images) && product.images[0] || product.image || "/hero-banner-1.png";
+      const primaryImage = Array.isArray(product.images) && product.images[0] || product.image || "/products/ratlami-sev.jpg";
       const variantLabel = variant.label || `${variant.value || ""} ${variant.unit || ""}`.trim() || "Standard";
       orderItems.push({
         productId: product._id,

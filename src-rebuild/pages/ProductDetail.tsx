@@ -13,6 +13,7 @@ import { useCustomerSession } from '../components/layout/CustomerSessionContext'
 import { useStoreSettings } from '../lib/storeSettingsContext';
 import { BUSINESS } from '../lib/business';
 import { optimizeCloudinary } from '../lib/cloudinary';
+import { resolveProductImages, DEFAULT_FALLBACK_IMAGE } from '../lib/productImage';
 import {
   ChevronRight,
   Star,
@@ -250,11 +251,7 @@ export default function ProductDetail() {
 
   // Image list
   const imageList = useMemo<string[]>(() => {
-    if (!product) return [];
-    if (Array.isArray(product.images) && product.images.length > 0) {
-      return product.images;
-    }
-    return [product.image || '/hero-banner-1.png'];
+    return resolveProductImages(product);
   }, [product]);
 
   const activeImage = imageList[selectedImageIdx] || imageList[0];
@@ -1252,8 +1249,8 @@ export default function ProductDetail() {
                 loading="eager"
                 onError={e => {
                   const el = e.currentTarget;
-                  if (!el.src.includes('/hero-banner-1.png')) {
-                    el.src = '/hero-banner-1.png';
+                  if (!el.src.includes(DEFAULT_FALLBACK_IMAGE)) {
+                    el.src = DEFAULT_FALLBACK_IMAGE;
                   }
                 }}
               />
@@ -1295,8 +1292,8 @@ export default function ProductDetail() {
                       className="pdp-thumb-img"
                       onError={e => {
                         const el = e.currentTarget;
-                        if (!el.src.includes('/hero-banner-1.png')) {
-                          el.src = '/hero-banner-1.png';
+                        if (!el.src.includes(DEFAULT_FALLBACK_IMAGE)) {
+                          el.src = DEFAULT_FALLBACK_IMAGE;
                         }
                       }}
                     />

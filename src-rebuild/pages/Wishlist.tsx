@@ -8,6 +8,7 @@ import { useWishlist } from '../lib/wishlistContext';
 import { useCart } from '../lib/cartContext';
 import { type Product, type ProductWeightOption } from '../data/products';
 import { isProductAvailable } from '../components/shop/ProductCard';
+import { resolveProductImage, DEFAULT_FALLBACK_IMAGE } from '../lib/productImage';
 
 export default function Wishlist() {
   const navigate = useNavigate();
@@ -202,10 +203,7 @@ export default function Wishlist() {
                   { weight: 'Standard', price: (product as any).price || 120 };
                 const currentPrice = currentOption.price;
                 const inStock = isProductAvailable(product);
-                const image =
-                  (Array.isArray((product as any).images) && (product as any).images[0]) ||
-                  product.image ||
-                  '/hero-banner-1.png';
+                const image = resolveProductImage(product);
 
                 return (
                   <div
@@ -235,6 +233,12 @@ export default function Wishlist() {
                       <img
                         src={image}
                         alt={product.name}
+                        onError={e => {
+                          const el = e.currentTarget;
+                          if (!el.src.includes(DEFAULT_FALLBACK_IMAGE)) {
+                            el.src = DEFAULT_FALLBACK_IMAGE;
+                          }
+                        }}
                         style={{
                           width: '100%',
                           height: '100%',

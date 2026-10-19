@@ -80,7 +80,7 @@ export async function syncDatabaseCatalog(): Promise<void> {
     const validCategories = SHOP_CATEGORIES.filter(c => c.id !== 'all');
     const categoryDocMap = new Map<string, mongoose.Types.ObjectId>();
 
-    // 1. Ensure the default categories exist
+    // 1. Ensure the default categories exist and have authentic imagery
     for (let i = 0; i < validCategories.length; i++) {
       const catData = validCategories[i];
       let cat = await Category.findOne({ slug: catData.id });
@@ -89,14 +89,18 @@ export async function syncDatabaseCatalog(): Promise<void> {
           name: catData.label,
           slug: catData.id,
           description: catData.description,
+          image: catData.image || '',
           active: true,
           sortOrder: i,
         });
+      } else if (!cat.image || cat.image.includes('/hero-banner-') || cat.image.includes('/mishtichaat/')) {
+        cat.image = catData.image || '';
+        await cat.save();
       }
       categoryDocMap.set(catData.id, cat._id as mongoose.Types.ObjectId);
     }
 
-    // 2. Seed initial Products if missing (never overwrite admin changes or delete admin products)
+    // 2. Seed or heal initial Products (synchronizing authentic images while preserving stock/variants)
     let seededCount = 0;
     for (let idx = 0; idx < PRODUCTS.length; idx++) {
       const p = PRODUCTS[idx];
@@ -143,6 +147,16 @@ export async function syncDatabaseCatalog(): Promise<void> {
 
         await Product.create(productPayload);
         seededCount++;
+      } else {
+        // Heal legacy banner images or placeholder links
+        const hasLegacyImages =
+          !existing.images ||
+          existing.images.length === 0 ||
+          existing.images.some((img: string) => !img || img.includes('/hero-banner-') || img.includes('/mishtichaat/'));
+        if (hasLegacyImages) {
+          existing.images = Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image];
+          await existing.save();
+        }
       }
     }
 

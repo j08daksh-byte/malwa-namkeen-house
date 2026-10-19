@@ -6,6 +6,7 @@ import { useCart } from '../../lib/cartContext';
 import { BUSINESS } from '../../lib/business';
 import { useStoreSettings } from '../../lib/storeSettingsContext';
 import { optimizeCloudinary } from '../../lib/cloudinary';
+import { resolveProductImage, DEFAULT_FALLBACK_IMAGE } from '../../lib/productImage';
 import { useCustomerSession } from '../layout/CustomerSessionContext';
 
 interface ProductQuickViewModalProps {
@@ -470,9 +471,15 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
           title={`View full page for ${product.name}`}
         >
           <img
-            src={optimizeCloudinary(product.image, { width: 800, quality: 'auto', format: 'auto' })}
+            src={optimizeCloudinary(resolveProductImage(product), { width: 800, quality: 'auto', format: 'auto' })}
             alt={product.name}
             className="qv-img"
+            onError={e => {
+              const el = e.currentTarget;
+              if (!el.src.includes(DEFAULT_FALLBACK_IMAGE)) {
+                el.src = DEFAULT_FALLBACK_IMAGE;
+              }
+            }}
           />
           {Boolean(product.badge?.trim()) && <span className="qv-media-badge">{product.badge}</span>}
           <div

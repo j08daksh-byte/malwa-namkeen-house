@@ -5,6 +5,7 @@ import { useCart } from '../../lib/cartContext';
 import { BUSINESS } from '../../lib/business';
 import { useStoreSettings } from '../../lib/storeSettingsContext';
 import { useCustomerSession } from '../layout/CustomerSessionContext';
+import { resolveProductImage, DEFAULT_FALLBACK_IMAGE } from '../../lib/productImage';
 
 interface CartDrawerProps {
   onOpenCheckout?: () => void;
@@ -674,7 +675,16 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
             {cart.map(item => (
               <div key={`${item.product.id}-${item.selectedOption.weight}`} className="cart-item" role="listitem">
                 <div className="cart-item__thumb">
-                  <img src={item.product.image} alt={item.product.name} />
+                  <img
+                    src={resolveProductImage(item.product)}
+                    alt={item.product.name}
+                    onError={e => {
+                      const el = e.currentTarget;
+                      if (!el.src.includes(DEFAULT_FALLBACK_IMAGE)) {
+                        el.src = DEFAULT_FALLBACK_IMAGE;
+                      }
+                    }}
+                  />
                 </div>
                 <div className="cart-item__info">
                   <h4 className="cart-item__name">{item.product.name}</h4>

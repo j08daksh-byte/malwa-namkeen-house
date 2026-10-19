@@ -11,10 +11,14 @@ const router = Router();
  * Helper to map MongoDB Product document to public storefront Product shape
  */
 function formatPublicProduct(p: any) {
-  const primaryImage =
-    (Array.isArray(p.images) && p.images[0]) ||
-    p.image ||
-    '/hero-banner-1.png';
+  const rawImage = (Array.isArray(p.images) && p.images[0]) || p.image || '';
+  const isInvalidImage = !rawImage || rawImage.includes('/hero-banner-') || rawImage.includes('/mishtichaat/');
+
+  let primaryImage = rawImage;
+  if (isInvalidImage) {
+    const matched = FALLBACK_PRODUCTS.find(fp => fp.slug === p.slug || fp.id === p.slug || fp.id === String(p._id));
+    primaryImage = matched?.image || '/products/ratlami-sev.jpg';
+  }
 
   // Dynamic packaging options from MongoDB variants
   const activeVariants = Array.isArray(p.variants)
@@ -72,7 +76,7 @@ function formatPublicProduct(p: any) {
     category: p.category?.slug || (typeof p.category === 'string' ? p.category : 'sev-namkeen'),
     categoryId: p.category?._id ? String(p.category._id) : String(p.category || ''),
     categoryLabel: p.category?.name || 'Heritage Namkeens',
-    images: Array.isArray(p.images) && p.images.length > 0 ? p.images : [primaryImage],
+    images: Array.isArray(p.images) && p.images.length > 0 && !p.images.some((img: string) => !img || img.includes('/hero-banner-') || img.includes('/mishtichaat/')) ? p.images : [primaryImage],
     image: primaryImage,
     price: basePrice,
     originalPrice: baseOrigPrice,
@@ -126,6 +130,11 @@ router.get('/categories', async (_req: Request, res: Response) => {
           const count = countMap[String(c._id)] ?? 0;
           categoryCounts[c.slug] = count;
           categoryCounts[String(c._id)] = count;
+          const fallbackCat = FALLBACK_CATEGORIES.find(fc => fc.id === c.slug);
+          const rawCatImg = c.image || '';
+          const isInvalidCatImg = !rawCatImg || rawCatImg.includes('/hero-banner-') || rawCatImg.includes('/mishtichaat/');
+          const catImage = (!isInvalidCatImg ? rawCatImg : fallbackCat?.image) || '/products/ratlami-sev.jpg';
+
           return {
             id: c.slug,
             _id: String(c._id),
@@ -133,8 +142,8 @@ router.get('/categories', async (_req: Request, res: Response) => {
             name: c.name,
             label: c.name,
             shortLabel: c.name.replace(/(Signature|Heritage|Royal|Crisp)\s+/i, ''),
-            description: c.description || '',
-            image: c.image || '',
+            description: c.description || fallbackCat?.description || '',
+            image: catImage,
             productCount: count,
           };
         });
@@ -174,7 +183,7 @@ router.get('/categories', async (_req: Request, res: Response) => {
       label: c.label,
       shortLabel: c.shortLabel,
       description: c.description,
-      image: '',
+      image: c.image || '/products/ratlami-sev.jpg',
       productCount: staticCounts[c.id] ?? 0,
     })),
   });

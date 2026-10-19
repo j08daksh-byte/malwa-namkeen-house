@@ -4,6 +4,7 @@ import { type Product, type ProductWeightOption } from '../../data/products';
 import { useCart } from '../../lib/cartContext';
 import { useWishlist } from '../../lib/wishlistContext';
 import { optimizeCloudinary } from '../../lib/cloudinary';
+import { resolveProductImage, DEFAULT_FALLBACK_IMAGE } from '../../lib/productImage';
 
 /**
  * Determines whether a specific product variant is currently in stock and purchasable.
@@ -664,15 +665,15 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
         title={`View details for ${product.name}`}
       >
         <img
-          src={optimizeCloudinary(product.image, { width: 520, quality: 'auto', format: 'auto' })}
+          src={optimizeCloudinary(resolveProductImage(product), { width: 520, quality: 'auto', format: 'auto' })}
           alt={product.name}
           className={`eb-product-card__img ${isSoldOut ? 'eb-product-card__img--soldout' : ''}`}
           loading="lazy"
           decoding="async"
           onError={e => {
             const el = e.currentTarget;
-            if (!el.src.includes('/hero-banner-1.png')) {
-              el.src = '/hero-banner-1.png';
+            if (!el.src.includes(DEFAULT_FALLBACK_IMAGE)) {
+              el.src = DEFAULT_FALLBACK_IMAGE;
             }
           }}
         />

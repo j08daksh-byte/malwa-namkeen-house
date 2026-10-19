@@ -183,7 +183,7 @@ export default function Shop() {
               label: 'All Delicacies',
               shortLabel: 'All',
               description: 'Explore our complete heritage collection of small-batch savouries, sweets, and curated gift boxes.',
-              image: '/mishtichaat/hero-food.jpg',
+              image: '/products/ratlami-sev.jpg',
             };
 
             setCategories([allCategoryOption, ...loadedCats]);

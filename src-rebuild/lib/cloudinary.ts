@@ -14,7 +14,7 @@ export interface CloudinaryOptions {
 
 export function optimizeCloudinary(url?: string, options: CloudinaryOptions = {}): string {
   if (!url || typeof url !== 'string') {
-    return '/hero-banner-1.png';
+    return '/products/ratlami-sev.jpg';
   }
 
   // Only apply transformations to Cloudinary media assets

@@ -10,13 +10,13 @@ interface CategoryShortcutRowProps {
 
 // Representative images matching Malwa's actual culinary catalog
 const CATEGORY_IMAGES: Record<string, string> = {
-  all: '/hero-banner-1.png',
-  'sev-namkeen': '/hero-banner-1.png',
-  'mixtures-chivda': '/mishtichaat/hero-food.jpg',
-  'khasta-mathri': '/mishtichaat/kachori.jpg',
-  'mithai-sweets': '/mishtichaat/hero-sweets.jpg',
-  'gift-hampers': '/hero-banner-1.png',
-  'falahari-fasting': '/mishtichaat/hero-food.jpg',
+  all: '/products/ratlami-sev.jpg',
+  'sev-namkeen': '/products/ratlami-sev.jpg',
+  'mixtures-chivda': '/products/khatta-meetha.jpg',
+  'khasta-mathri': '/products/methi-mathri.jpg',
+  'mithai-sweets': '/products/besan-ladoo.jpg',
+  'gift-hampers': '/products/gift-hamper.jpg',
+  'falahari-fasting': '/products/falahari-chivda.jpg',
 };
 
 // Clean, punchy uppercase display labels matching the Eat Better style
@@ -312,7 +312,9 @@ export default function CategoryShortcutRow({
         {categories.map(cat => {
           const isActive = selectedCategory === cat.id;
           const displayTitle = CATEGORY_DISPLAY_TITLES[cat.id] || cat.shortLabel?.toUpperCase() || cat.label?.toUpperCase();
-          const imageUrl = (cat as any).image || CATEGORY_IMAGES[cat.id] || '/mishtichaat/hero-food.jpg';
+          const rawImg = (cat as any).image;
+          const isValidImg = rawImg && typeof rawImg === 'string' && !rawImg.includes('/mishtichaat/') && !rawImg.includes('/hero-banner-');
+          const imageUrl = (isValidImg ? rawImg : CATEGORY_IMAGES[cat.id]) || '/products/ratlami-sev.jpg';
           const count = categoryCounts[cat.id];
 
           return (
@@ -332,8 +334,9 @@ export default function CategoryShortcutRow({
                   loading="eager"
                   onError={e => {
                     const el = e.currentTarget as HTMLImageElement;
-                    if (!el.src.includes('/mishtichaat/hero-food.jpg')) {
-                      el.src = '/mishtichaat/hero-food.jpg';
+                    const fallback = CATEGORY_IMAGES[cat.id] || '/products/ratlami-sev.jpg';
+                    if (!el.src.includes(fallback)) {
+                      el.src = fallback;
                     }
                   }}
                 />

@@ -172,7 +172,7 @@ router.post('/revalidate', cartRevalidateLimiter, async (req: Request, res: Resp
       const primaryImage =
         (Array.isArray(product.images) && product.images[0]) ||
         product.image ||
-        '/hero-banner-1.png';
+        '/products/ratlami-sev.jpg';
 
       validatedItems.push({
         productId: String(product._id),
