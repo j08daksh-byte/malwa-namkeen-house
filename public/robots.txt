@@ -2,6 +2,8 @@ User-agent: *
 Allow: /
 Allow: /shop
 Allow: /product/
+Allow: /account
+Allow: /wishlist
 Allow: /about-us
 Allow: /faq
 Allow: /contact
@@ -11,12 +13,9 @@ Allow: /cancellation-policy
 Allow: /refund-policy
 Allow: /shipping-policy
 
-# Protected / Private Routes
+# Protected Internal Routes
 Disallow: /admin/
-Disallow: /dashboard
-Disallow: /account
-Disallow: /login
+Disallow: /dashboard/
 Disallow: /api/
 
-Sitemap: https://malwanamkeenhouse.com/sitemap.xml
-
+Sitemap: https://www.malwanamkeenhouse.com/sitemap.xml

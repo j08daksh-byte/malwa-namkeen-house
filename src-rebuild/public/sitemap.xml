@@ -2,159 +2,174 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <!-- Core Store Pages -->
   <url>
-    <loc>https://malwanamkeenhouse.com/</loc>
+    <loc>https://www.malwanamkeenhouse.com/</loc>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://malwanamkeenhouse.com/shop</loc>
+    <loc>https://www.malwanamkeenhouse.com/shop</loc>
     <changefreq>daily</changefreq>
     <priority>0.95</priority>
   </url>
   <url>
-    <loc>https://malwanamkeenhouse.com/about-us</loc>
+    <loc>https://www.malwanamkeenhouse.com/account</loc>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.80</priority>
   </url>
   <url>
-    <loc>https://malwanamkeenhouse.com/faq</loc>
+    <loc>https://www.malwanamkeenhouse.com/wishlist</loc>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.80</priority>
   </url>
   <url>
-    <loc>https://malwanamkeenhouse.com/contact</loc>
+    <loc>https://www.malwanamkeenhouse.com/about-us</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/faq</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/contact</loc>
     <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.70</priority>
   </url>
 
   <!-- Categories -->
   <url>
-    <loc>https://malwanamkeenhouse.com/shop?category=sev-namkeen</loc>
+    <loc>https://www.malwanamkeenhouse.com/shop?category=sev-namkeen</loc>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://malwanamkeenhouse.com/shop?category=mixtures-chivda</loc>
+    <loc>https://www.malwanamkeenhouse.com/shop?category=mixtures-chivda</loc>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://malwanamkeenhouse.com/shop?category=khasta-mathri</loc>
+    <loc>https://www.malwanamkeenhouse.com/shop?category=khasta-mathri</loc>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://malwanamkeenhouse.com/shop?category=mithai-sweets</loc>
+    <loc>https://www.malwanamkeenhouse.com/shop?category=mithai-sweets</loc>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://malwanamkeenhouse.com/shop?category=gift-hampers</loc>
+    <loc>https://www.malwanamkeenhouse.com/shop?category=gift-hampers</loc>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://malwanamkeenhouse.com/shop?category=falahari-fasting</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-
-  <!-- All Flagship Products -->
-  <url>
-    <loc>https://malwanamkeenhouse.com/product/ratlami-sev-special</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://malwanamkeenhouse.com/product/ujjaini-sev-classic</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://malwanamkeenhouse.com/product/laung-sev-teekha</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://malwanamkeenhouse.com/product/indori-khatta-meetha</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://malwanamkeenhouse.com/product/royal-kaju-dalmoth</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>https://malwanamkeenhouse.com/product/heeng-jeera-sev</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>https://malwanamkeenhouse.com/product/flaky-methi-mathri</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>https://malwanamkeenhouse.com/product/chana-zor-garam-spiced</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>https://malwanamkeenhouse.com/product/shahi-besan-ladoo</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>https://malwanamkeenhouse.com/product/saffron-rabdi-jalebi-pack</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>https://malwanamkeenhouse.com/product/royal-malwa-hamper</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>https://malwanamkeenhouse.com/product/chaat-lover-box</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>https://malwanamkeenhouse.com/product/falahari-potato-mixture</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.85</priority>
-  </url>
-  <url>
-    <loc>https://malwanamkeenhouse.com/product/festive-mithai-box-trio</loc>
+    <loc>https://www.malwanamkeenhouse.com/shop?category=falahari-fasting</loc>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
 
-  <!-- Policies -->
+  <!-- Flagship Snack Products -->
   <url>
-    <loc>https://malwanamkeenhouse.com/privacy-policy</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
+    <loc>https://www.malwanamkeenhouse.com/product/ratlami-sev</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
   </url>
   <url>
-    <loc>https://malwanamkeenhouse.com/terms-and-conditions</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
+    <loc>https://www.malwanamkeenhouse.com/product/ratlami-sev-special</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
   </url>
   <url>
-    <loc>https://malwanamkeenhouse.com/cancellation-policy</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
+    <loc>https://www.malwanamkeenhouse.com/product/ujjaini-sev-classic</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
   </url>
   <url>
-    <loc>https://malwanamkeenhouse.com/refund-policy</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
+    <loc>https://www.malwanamkeenhouse.com/product/laung-sev-teekha</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
   </url>
   <url>
-    <loc>https://malwanamkeenhouse.com/shipping-policy</loc>
+    <loc>https://www.malwanamkeenhouse.com/product/indori-khatta-meetha</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
+  </url>
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/product/royal-kaju-dalmoth</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/product/heeng-jeera-sev</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/product/flaky-methi-mathri</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/product/chana-zor-garam-spiced</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/product/shahi-besan-ladoo</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/product/saffron-rabdi-jalebi-pack</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/product/royal-malwa-hamper</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/product/chaat-lover-box</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/product/falahari-potato-mixture</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/product/festive-mithai-box-trio</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- Legal & Policies -->
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/privacy-policy</loc>
     <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
+    <priority>0.50</priority>
+  </url>
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/terms-and-conditions</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.50</priority>
+  </url>
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/cancellation-policy</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.50</priority>
+  </url>
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/refund-policy</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.50</priority>
+  </url>
+  <url>
+    <loc>https://www.malwanamkeenhouse.com/shipping-policy</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.50</priority>
   </url>
 </urlset>

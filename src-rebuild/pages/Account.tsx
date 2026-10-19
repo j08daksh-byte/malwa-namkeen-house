@@ -433,7 +433,11 @@ export default function Account() {
 
   return (
     <>
-      <SEOHead title="Customer Account" noIndex={true} />
+      <SEOHead
+        title="Customer Sign In & Account"
+        description="Sign in to your Malwa Namkeen House account or register to manage your orders, delivery addresses, and track authentic Ratlami Sev dispatches."
+        canonicalPath="/account"
+      />
       <Navbar />
       <main className="account-page">
         <style>{`

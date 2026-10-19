@@ -100,6 +100,8 @@ User-agent: *
 Allow: /
 Allow: /shop
 Allow: /product/
+Allow: /account
+Allow: /wishlist
 Allow: /about-us
 Allow: /faq
 Allow: /contact
@@ -112,11 +114,7 @@ Allow: /shipping-policy
 # Protect internal/authenticated/admin routes
 Disallow: /admin/
 Disallow: /admin/*
-Disallow: /dashboard
-Disallow: /dashboard/*
-Disallow: /account
-Disallow: /account/*
-Disallow: /login
+Disallow: /dashboard/
 Disallow: /api/
 Disallow: /api/*
 
