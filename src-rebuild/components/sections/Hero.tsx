@@ -54,7 +54,7 @@ function getCachedBanners(): BannerSlide[] | null {
 export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void }) {
   const navigate = useNavigate();
   const cached = getCachedBanners();
-  const [slides, setSlides] = useState<BannerSlide[]>(cached || []);
+  const [slides, setSlides] = useState<BannerSlide[]>(cached && cached.length > 0 ? cached : DEFAULT_BANNER_SLIDES);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const touchStartXRef = useRef<number | null>(null);
@@ -166,6 +166,8 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
           overflow: hidden;
           background: #FAF6F0;
           user-select: none;
+          aspect-ratio: 1024 / 385;
+          min-height: 200px;
         }
 
         .hero-carousel-track {
@@ -326,7 +328,8 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
           .hero-carousel-section {
             width: 100%;
             height: auto;
-            min-height: 0;
+            aspect-ratio: 1024 / 385;
+            min-height: 140px;
           }
           .hero-carousel-track {
             width: 100%;
@@ -390,8 +393,11 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
                   <img
                     src={slide.image}
                     alt={slide.alt}
+                    width={1024}
+                    height={385}
                     className="hero-slide-img"
                     loading={index === 0 ? 'eager' : 'lazy'}
+                    fetchPriority={index === 0 ? 'high' : 'auto'}
                     decoding="async"
                   />
                 </picture>
@@ -399,8 +405,11 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
                 <img
                   src={slide.image}
                   alt={slide.alt}
+                  width={1024}
+                  height={385}
                   className="hero-slide-img"
                   loading={index === 0 ? 'eager' : 'lazy'}
+                  fetchPriority={index === 0 ? 'high' : 'auto'}
                   decoding="async"
                 />
               )}
