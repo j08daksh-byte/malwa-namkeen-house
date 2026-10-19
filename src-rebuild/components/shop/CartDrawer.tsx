@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AlertCircle, ArrowRight } from 'lucide-react';
 import { useCart } from '../../lib/cartContext';
 import { BUSINESS } from '../../lib/business';
 import { useStoreSettings } from '../../lib/storeSettingsContext';
@@ -37,11 +38,13 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
   const [inputCoupon, setInputCoupon] = useState('');
   const [isRevalidating, setIsRevalidating] = useState(false);
   const [revalidateNotes, setRevalidateNotes] = useState<string[]>([]);
+  const [waAuthNotice, setWaAuthNotice] = useState(false);
 
   useEffect(() => {
     if (isCartOpen) {
       document.body.style.overflow = 'hidden';
       setRevalidateNotes([]);
+      setWaAuthNotice(false);
     } else {
       document.body.style.overflow = '';
     }
@@ -97,6 +100,11 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
   const handleWhatsAppCheckout = async () => {
     if (cart.length === 0) return;
 
+    if (!customer) {
+      setWaAuthNotice(true);
+      return;
+    }
+
     setIsRevalidating(true);
     const result = await revalidateCart();
     setIsRevalidating(false);
@@ -114,7 +122,8 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
     const storeName = settings.storeName || BUSINESS.name;
     const waNumber = (settings.contact?.whatsappNumber || BUSINESS.whatsappNumber).replace(/\D/g, '');
     const deliveryText = shipping === 0 ? 'Complimentary (Free)' : `₹${shipping}`;
-    const message = `Namaste ${storeName}! 🙏\nI would like to order from your Shop:\n\n🛍️ *ORDER SUMMARY:*\n${itemsList}\n📦 *Total Items:* ${totalItems}\n💰 *Subtotal:* ₹${result.subtotal || subtotal}\n🚚 *Delivery:* ${deliveryText}\n${couponInfo}✨ *Final Total:* ₹${finalTotal}\n\nPlease confirm delivery availability and dispatch timeline. Thank you!`;
+    const customerInfo = `👤 *Customer:* ${customer.name}\n📧 *Email:* ${customer.email}${customer.phone ? `\n📱 *Phone:* ${customer.phone}` : ''}\n\n`;
+    const message = `Namaste ${storeName}! 🙏\nI would like to order from your Shop:\n\n${customerInfo}🛍️ *ORDER SUMMARY:*\n${itemsList}\n📦 *Total Items:* ${totalItems}\n💰 *Subtotal:* ₹${result.subtotal || subtotal}\n🚚 *Delivery:* ${deliveryText}\n${couponInfo}✨ *Final Total:* ₹${finalTotal}\n\nPlease confirm delivery availability and dispatch timeline. Thank you!`;
 
     window.open(`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`, '_blank');
   };
@@ -512,6 +521,16 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
           transition: background 0.18s, transform 0.18s;
         }
 
+        .cart-drawer__wa-auth-notice {
+          background: #FEF2F2;
+          border: 1px solid #FECACA;
+          border-radius: 12px;
+          padding: 12px 14px;
+          margin: 6px 0 10px;
+          text-align: left;
+          animation: drawerBackdrop 0.2s ease;
+        }
+
         .cart-drawer__btn-wa {
           width: 100%;
           height: 40px;
@@ -785,6 +804,33 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
               </p>
             )}
 
+            {waAuthNotice && !customer && (
+              <div className="cart-drawer__wa-auth-notice" role="alert">
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                  <AlertCircle size={16} style={{ color: '#991B1B', flexShrink: 0, marginTop: '2px' }} />
+                  <div style={{ flex: 1 }}>
+                    <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '12.5px', color: '#991B1B' }}>
+                      Sign In Required for WhatsApp Orders
+                    </p>
+                    <p style={{ margin: '0 0 10px', fontSize: '11.5px', color: '#7F1D1D', lineHeight: 1.4 }}>
+                      You must have an account to place orders via WhatsApp so we can verify your details and track your delivery.
+                    </p>
+                    <button
+                      type="button"
+                      className="cart-drawer__btn-primary"
+                      style={{ height: '36px', fontSize: '11.5px', padding: '0 12px', margin: 0 }}
+                      onClick={() => {
+                        closeCart();
+                        navigate('/account', { state: { returnTo: 'cart' } });
+                      }}
+                    >
+                      Sign In / Create Account <ArrowRight size={13} style={{ marginLeft: '4px' }} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <button
               type="button"
               className="cart-drawer__btn-wa"
@@ -794,7 +840,7 @@ export default function CartDrawer({ onOpenCheckout }: CartDrawerProps) {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.694.062-1.127-.08-.271-.089-.624-.22-1.077-.42-1.912-.846-3.149-2.775-3.245-2.903-.095-.129-.773-1.029-.773-1.962 0-.933.489-1.393.663-1.583.174-.19.38-.238.507-.238.127 0 .254.001.365.006.118.005.277-.045.433.332.162.392.553 1.348.601 1.446.048.098.08.213.016.342-.064.129-.096.208-.19.319-.096.111-.202.247-.289.332-.097.094-.198.196-.085.39.113.194.502.828 1.077 1.341.74.66 1.364.865 1.558.961.194.096.308.08.423-.051.114-.131.488-.568.618-.762.13-.195.26-.162.437-.097.178.064 1.128.532 1.322.629.194.097.324.145.372.228.047.081.047.472-.097.877z" />
               </svg>
-              Quick Order via WhatsApp
+              {customer ? 'Quick Order via WhatsApp' : 'Order via WhatsApp (Sign In)'}
             </button>
           </div>
         )}

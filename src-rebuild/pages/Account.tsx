@@ -58,12 +58,16 @@ export default function Account() {
   const location = useLocation();
   const { login, register, loginWithGoogle } = useCustomerSession();
   const destination = (location.state as any)?.from || '/dashboard';
+  const [signupEmail, setSignupEmail] = useState('');
 
-  const switchMode = (next: Mode) => {
+  const switchMode = (next: Mode, emailPreset?: string) => {
     setMode(next);
     setMessage(null);
     setShowPassword(false);
     setShowConfirmPassword(false);
+    if (emailPreset !== undefined) {
+      setSignupEmail(emailPreset);
+    }
   };
 
   // ── Handle token from URL if loaded directly ─────────────────────────────────
@@ -268,12 +272,13 @@ export default function Account() {
       if (res.ok && data.success) {
         setMessage({
           type: 'success',
-          text: 'If an account exists for this email, password reset instructions have been sent. Please check your inbox.',
+          text: data.message || `Password reset instructions have been sent to ${email}. Please check your inbox.`,
         });
       } else {
+        setSignupEmail(email);
         setMessage({
           type: 'error',
-          text: data.message || 'Unable to process password reset request. Please try again.',
+          text: data.message || 'No account found with this email address. Please create an account to get started.',
         });
       }
     } catch {
@@ -751,19 +756,38 @@ export default function Account() {
             text-decoration: underline;
           }
 
+          .account-back-mobile {
+            display: none;
+          }
           @media (max-width: 900px) {
             .account-page {
               grid-template-columns: 1fr;
+              min-height: calc(100dvh - 68px);
             }
             .account-visual {
-              min-height: 240px;
-              padding: 28px;
+              display: none !important;
             }
-            .account-visual:before {
-              inset: 14px;
+            .account-form-area {
+              padding: 24px 20px 48px;
             }
-            .account-visual__title {
-              font-size: 34px;
+            .account-form {
+              max-width: 440px;
+            }
+            .account-back-mobile {
+              display: inline-flex;
+              align-items: center;
+              gap: 6px;
+              color: #881337;
+              text-decoration: none;
+              font-size: 12px;
+              font-weight: 700;
+              letter-spacing: 0.05em;
+              text-transform: uppercase;
+              margin-bottom: 16px;
+            }
+            .account-back-mobile:hover {
+              color: #55000A;
+              text-decoration: underline;
             }
           }
         `}</style>
@@ -787,6 +811,9 @@ export default function Account() {
         {/* Right Authentication Form Area */}
         <section className="account-form-area">
           <div className="account-form">
+            <Link className="account-back-mobile" to="/">
+              <ArrowLeft size={14} /> Back to Store
+            </Link>
             <div className="account-brand">MALWA NAMKEEN HOUSE</div>
 
             {/* ── FORGOT PASSWORD MODE ── */}
@@ -825,7 +852,35 @@ export default function Account() {
                       ) : (
                         <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
                       )}
-                      <span>{message.text}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+                        <span>{message.text}</span>
+                        {message.type === 'error' && (message.text.toLowerCase().includes('create an account') || message.text.toLowerCase().includes('no account found')) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              switchMode('signup', forgotEmail.trim().toLowerCase());
+                            }}
+                            style={{
+                              alignSelf: 'flex-start',
+                              marginTop: '4px',
+                              background: '#55000A',
+                              color: '#FFF8EC',
+                              border: 'none',
+                              borderRadius: '6px',
+                              padding: '6px 12px',
+                              fontSize: '12px',
+                              fontFamily: 'inherit',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                            }}
+                          >
+                            Create an Account Now <ArrowRight size={13} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -991,7 +1046,16 @@ export default function Account() {
                       <label htmlFor="account-email">Email address</label>
                       <div className="account-input">
                         <Mail className="account-input__icon" size={17} />
-                        <input id="account-email" name="email" type="email" autoComplete="email" placeholder="you@example.com" required />
+                        <input
+                          id="account-email"
+                          name="email"
+                          type="email"
+                          autoComplete="email"
+                          placeholder="you@example.com"
+                          defaultValue={signupEmail}
+                          key={signupEmail || 'account-email'}
+                          required
+                        />
                       </div>
                     </div>
 

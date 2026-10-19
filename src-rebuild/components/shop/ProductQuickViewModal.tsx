@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AlertCircle, ArrowRight } from 'lucide-react';
 import { type Product, type ProductWeightOption } from '../../data/products';
 import { useCart } from '../../lib/cartContext';
 import { BUSINESS } from '../../lib/business';
 import { useStoreSettings } from '../../lib/storeSettingsContext';
 import { optimizeCloudinary } from '../../lib/cloudinary';
+import { useCustomerSession } from '../layout/CustomerSessionContext';
 
 interface ProductQuickViewModalProps {
   product: Product | null;
@@ -13,17 +15,20 @@ interface ProductQuickViewModalProps {
 
 export default function ProductQuickViewModal({ product, onClose }: ProductQuickViewModalProps) {
   const navigate = useNavigate();
+  const { customer } = useCustomerSession();
   const { settings } = useStoreSettings();
   const { addToCart, openCart } = useCart();
   const [selectedOption, setSelectedOption] = useState<ProductWeightOption | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [isAdded, setIsAdded] = useState(false);
+  const [waAuthNotice, setWaAuthNotice] = useState(false);
 
   useEffect(() => {
     if (product) {
       setSelectedOption(product.options?.[0] || { weight: 'Standard', price: 150 });
       setQuantity(1);
       setIsAdded(false);
+      setWaAuthNotice(false);
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -50,10 +55,15 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
   };
 
   const handleBuyNowWhatsApp = () => {
+    if (!customer) {
+      setWaAuthNotice(true);
+      return;
+    }
     const storeName = settings.storeName || BUSINESS.name;
     const waNumber = (settings.contact?.whatsappNumber || BUSINESS.whatsappNumber).replace(/\D/g, '');
+    const customerInfo = `👤 *Customer:* ${customer.name}\n📧 *Email:* ${customer.email}${customer.phone ? `\n📱 *Phone:* ${customer.phone}` : ''}\n\n`;
     const text = encodeURIComponent(
-      `Namaste ${storeName}! 🙏\nI would like to order:\n*${product.name} (${selectedOption.weight})* × ${quantity} (₹${selectedOption.price * quantity})\n\nPlease share delivery details.`
+      `Namaste ${storeName}! 🙏\nI would like to order:\n\n${customerInfo}*${product.name} (${selectedOption.weight})* × ${quantity} (₹${selectedOption.price * quantity})\n\nPlease share delivery details.`
     );
     window.open(`https://wa.me/${waNumber}?text=${text}`, '_blank');
   };
@@ -614,14 +624,60 @@ export default function ProductQuickViewModal({ product, onClose }: ProductQuick
               type="button"
               className="qv-wa-btn"
               onClick={handleBuyNowWhatsApp}
-              title="Order on WhatsApp"
-              aria-label="Order on WhatsApp"
+              title={customer ? 'Order on WhatsApp' : 'Sign in to order on WhatsApp'}
+              aria-label={customer ? 'Order on WhatsApp' : 'Sign in to order on WhatsApp'}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.694.062-1.127-.08-.271-.089-.624-.22-1.077-.42-1.912-.846-3.149-2.775-3.245-2.903-.095-.129-.773-1.029-.773-1.962 0-.933.489-1.393.663-1.583.174-.19.38-.238.507-.238.127 0 .254.001.365.006.118.005.277-.045.433.332.162.392.553 1.348.601 1.446.048.098.08.213.016.342-.064.129-.096.208-.19.319-.096.111-.202.247-.289.332-.097.094-.198.196-.085.39.113.194.502.828 1.077 1.341.74.66 1.364.865 1.558.961.194.096.308.08.423-.051.114-.131.488-.568.618-.762.13-.195.26-.162.437-.097.178.064 1.128.532 1.322.629.194.097.324.145.372.228.047.081.047.472-.097.877z" />
               </svg>
             </button>
           </div>
+
+          {waAuthNotice && !customer && (
+            <div style={{
+              background: '#FEF2F2',
+              border: '1px solid #FECACA',
+              borderRadius: '12px',
+              padding: '12px 14px',
+              margin: '14px 0 6px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px',
+              textAlign: 'left',
+            }}>
+              <AlertCircle size={16} style={{ color: '#991B1B', flexShrink: 0, marginTop: '2px' }} />
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '12.5px', color: '#991B1B' }}>
+                  Please Sign In to Order via WhatsApp
+                </p>
+                <p style={{ margin: '0 0 10px', fontSize: '11.5px', color: '#7F1D1D', lineHeight: 1.4 }}>
+                  You must have an account to place orders. Please log in or create an account to proceed.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    navigate('/account', { state: { returnTo: 'shop' } });
+                  }}
+                  style={{
+                    background: '#55000A',
+                    color: '#FFF8EC',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '7px 14px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  Sign In / Create Account <ArrowRight size={13} />
+                </button>
+              </div>
+            </div>
+          )}
 
           <div style={{ marginTop: '20px', textAlign: 'center' }}>
             <button

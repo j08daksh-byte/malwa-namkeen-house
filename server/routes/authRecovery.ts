@@ -22,8 +22,8 @@ const forgotPasswordLimiter = rateLimit({
   validate: { default: false },
   store: new MongoRateLimitStore('auth:forgot-pwd', 15 * 60 * 1000),
   message: {
-    success: true, // Maintain generic response even if rate limited
-    message: 'If an account exists for this email, password reset instructions have been dispatched.',
+    success: false,
+    message: 'Too many password reset requests. Please try again after 15 minutes.',
   },
 });
 
@@ -44,19 +44,17 @@ const tokenSubmissionLimiter = rateLimit({
 /**
  * POST /api/auth/forgot-password
  * General & Customer password reset trigger.
- * Always returns a generic response to prevent user enumeration.
+ * Verifies if user exists; informs customer if account does not exist or sends reset email.
  */
 router.post('/forgot-password', forgotPasswordLimiter, async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
 
-    const genericSuccess = {
-      success: true,
-      message: 'If an account exists for this email address, password reset instructions have been dispatched.',
-    };
-
     if (!email || typeof email !== 'string') {
-      res.json(genericSuccess);
+      res.status(400).json({
+        success: false,
+        message: 'A valid email address is required.',
+      });
       return;
     }
 
@@ -69,7 +67,11 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req: Request, res:
     });
 
     if (!user) {
-      res.json(genericSuccess);
+      res.status(404).json({
+        success: false,
+        exists: false,
+        message: 'No account found with this email address. Please create an account to get started.',
+      });
       return;
     }
 
@@ -97,12 +99,16 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req: Request, res:
       });
     }
 
-    res.json(genericSuccess);
-  } catch (err: unknown) {
-    console.error('[Customer Forgot Password Error]', err);
     res.json({
       success: true,
-      message: 'If an account exists for this email address, password reset instructions have been dispatched.',
+      exists: true,
+      message: 'Password reset instructions have been sent to your email. Please check your inbox.',
+    });
+  } catch (err: unknown) {
+    console.error('[Customer Forgot Password Error]', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to process password reset request at this time. Please try again.',
     });
   }
 });
@@ -110,19 +116,17 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req: Request, res:
 /**
  * POST /api/auth/admin/forgot-password
  * Triggers password reset email for super_admin or admin accounts.
- * Always returns a generic response to prevent user enumeration.
+ * Verifies administrator account exists before dispatching.
  */
 router.post('/admin/forgot-password', forgotPasswordLimiter, async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
 
-    const genericSuccess = {
-      success: true,
-      message: 'If an administrative account exists for this email, password reset instructions have been dispatched.',
-    };
-
     if (!email || typeof email !== 'string') {
-      res.json(genericSuccess);
+      res.status(400).json({
+        success: false,
+        message: 'A valid email address is required.',
+      });
       return;
     }
 
@@ -136,8 +140,11 @@ router.post('/admin/forgot-password', forgotPasswordLimiter, async (req: Request
     });
 
     if (!user) {
-      // Return same generic response without revealing email non-existence
-      res.json(genericSuccess);
+      res.status(404).json({
+        success: false,
+        exists: false,
+        message: 'No administrative account found with this email address.',
+      });
       return;
     }
 
@@ -157,12 +164,16 @@ router.post('/admin/forgot-password', forgotPasswordLimiter, async (req: Request
       token: rawToken,
     });
 
-    res.json(genericSuccess);
-  } catch (err: unknown) {
-    console.error('[Admin Forgot Password Error]', err);
     res.json({
       success: true,
-      message: 'If an administrative account exists for this email, password reset instructions have been dispatched.',
+      exists: true,
+      message: 'Password reset instructions have been sent to your email. Please check your inbox.',
+    });
+  } catch (err: unknown) {
+    console.error('[Admin Forgot Password Error]', err);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to process password reset request at this time. Please try again.',
     });
   }
 });

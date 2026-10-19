@@ -3926,9 +3926,8 @@ var forgotPasswordLimiter = rateLimit2({
   validate: { default: false },
   store: new MongoRateLimitStore("auth:forgot-pwd", 15 * 60 * 1e3),
   message: {
-    success: true,
-    // Maintain generic response even if rate limited
-    message: "If an account exists for this email, password reset instructions have been dispatched."
+    success: false,
+    message: "Too many password reset requests. Please try again after 15 minutes."
   }
 });
 var tokenSubmissionLimiter = rateLimit2({
@@ -3946,12 +3945,11 @@ var tokenSubmissionLimiter = rateLimit2({
 router2.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
   try {
     const { email: email2 } = req.body;
-    const genericSuccess = {
-      success: true,
-      message: "If an account exists for this email address, password reset instructions have been dispatched."
-    };
     if (!email2 || typeof email2 !== "string") {
-      res.json(genericSuccess);
+      res.status(400).json({
+        success: false,
+        message: "A valid email address is required."
+      });
       return;
     }
     const cleanEmail = email2.trim().toLowerCase();
@@ -3960,7 +3958,11 @@ router2.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
       active: true
     });
     if (!user) {
-      res.json(genericSuccess);
+      res.status(404).json({
+        success: false,
+        exists: false,
+        message: "No account found with this email address. Please create an account to get started."
+      });
       return;
     }
     const rawToken = crypto2.randomBytes(32).toString("hex");
@@ -3982,24 +3984,27 @@ router2.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
         token: rawToken
       });
     }
-    res.json(genericSuccess);
-  } catch (err) {
-    console.error("[Customer Forgot Password Error]", err);
     res.json({
       success: true,
-      message: "If an account exists for this email address, password reset instructions have been dispatched."
+      exists: true,
+      message: "Password reset instructions have been sent to your email. Please check your inbox."
+    });
+  } catch (err) {
+    console.error("[Customer Forgot Password Error]", err);
+    res.status(500).json({
+      success: false,
+      message: "Unable to process password reset request at this time. Please try again."
     });
   }
 });
 router2.post("/admin/forgot-password", forgotPasswordLimiter, async (req, res) => {
   try {
     const { email: email2 } = req.body;
-    const genericSuccess = {
-      success: true,
-      message: "If an administrative account exists for this email, password reset instructions have been dispatched."
-    };
     if (!email2 || typeof email2 !== "string") {
-      res.json(genericSuccess);
+      res.status(400).json({
+        success: false,
+        message: "A valid email address is required."
+      });
       return;
     }
     const cleanEmail = email2.trim().toLowerCase();
@@ -4009,7 +4014,11 @@ router2.post("/admin/forgot-password", forgotPasswordLimiter, async (req, res) =
       active: true
     });
     if (!user) {
-      res.json(genericSuccess);
+      res.status(404).json({
+        success: false,
+        exists: false,
+        message: "No administrative account found with this email address."
+      });
       return;
     }
     const rawToken = crypto2.randomBytes(32).toString("hex");
@@ -4023,12 +4032,16 @@ router2.post("/admin/forgot-password", forgotPasswordLimiter, async (req, res) =
       name: user.name,
       token: rawToken
     });
-    res.json(genericSuccess);
-  } catch (err) {
-    console.error("[Admin Forgot Password Error]", err);
     res.json({
       success: true,
-      message: "If an administrative account exists for this email, password reset instructions have been dispatched."
+      exists: true,
+      message: "Password reset instructions have been sent to your email. Please check your inbox."
+    });
+  } catch (err) {
+    console.error("[Admin Forgot Password Error]", err);
+    res.status(500).json({
+      success: false,
+      message: "Unable to process password reset request at this time. Please try again."
     });
   }
 });

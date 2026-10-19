@@ -17,6 +17,7 @@ export default function AdminLogin() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSubmitted, setForgotSubmitted] = useState(false);
+  const [forgotError, setForgotError] = useState('');
 
   // If already logged in with valid admin session → redirect to dashboard
   useEffect(() => {
@@ -173,15 +174,21 @@ export default function AdminLogin() {
     e.preventDefault();
     if (!forgotEmail.trim()) return;
     setForgotLoading(true);
+    setForgotError('');
     try {
-      await fetch('/api/auth/admin/forgot-password', {
+      const res = await fetch('/api/auth/admin/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: forgotEmail.trim() }),
       });
-      setForgotSubmitted(true);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setForgotSubmitted(true);
+      } else {
+        setForgotError(data.message || 'No administrative account found with this email address.');
+      }
     } catch {
-      setForgotSubmitted(true); // Maintain generic response on network error
+      setForgotError('Network error. Unable to reach recovery server.');
     } finally {
       setForgotLoading(false);
     }
@@ -294,10 +301,16 @@ export default function AdminLogin() {
               Enter your registered staff email address to receive password recovery instructions.
             </p>
 
+            {forgotError && (
+              <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '16px' }}>
+                {forgotError}
+              </div>
+            )}
+
             {forgotSubmitted ? (
               <div>
                 <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#065F46', padding: '14px', borderRadius: '10px', fontSize: '13px', marginBottom: '20px' }}>
-                  If an administrative account exists for <strong>{forgotEmail}</strong>, password reset instructions have been dispatched.
+                  Password reset instructions have been sent to <strong>{forgotEmail}</strong>. Please check your inbox.
                 </div>
                 <button
                   type="button"

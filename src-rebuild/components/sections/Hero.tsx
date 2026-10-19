@@ -324,92 +324,35 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
 
         @media (max-width: 640px) {
           .hero-carousel-section {
-            min-height: 380px;
-            height: clamp(380px, 86vw, 440px);
+            width: 100%;
+            height: auto;
+            min-height: 0;
           }
           .hero-carousel-track {
-            height: 100%;
+            width: 100%;
+            height: auto;
           }
           .hero-slide {
-            height: 100%;
+            width: 100%;
+            height: auto;
+          }
+          .hero-slide--active {
+            position: relative;
+            height: auto;
           }
           .hero-slide-img {
-            position: absolute;
-            inset: 0;
+            position: relative;
             width: 100%;
-            height: 100%;
-            object-fit: cover;
-            object-position: right center;
-          }
-          .hero-mobile-overlay {
+            height: auto;
             display: block;
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(180deg, rgba(35, 3, 10, 0.15) 0%, rgba(35, 3, 10, 0.60) 42%, rgba(35, 3, 10, 0.95) 100%);
-            pointer-events: none;
-            z-index: 2;
+            object-fit: contain;
           }
+          .hero-mobile-overlay,
           .hero-mobile-content {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            justify-content: flex-end;
-            position: absolute;
-            inset: 0;
-            padding: 20px 20px 42px;
-            gap: 8px;
-            z-index: 3;
-            pointer-events: none;
+            display: none !important;
           }
-          .hero-mobile-badge {
-            display: inline-block;
-            font-family: var(--font-primary, 'DM Sans', sans-serif);
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 0.16em;
-            text-transform: uppercase;
-            color: #F0DFA0;
-            background: rgba(200, 154, 61, 0.22);
-            border: 1px solid rgba(200, 154, 61, 0.45);
-            padding: 3px 10px;
-            border-radius: 999px;
-          }
-          .hero-mobile-title {
-            font-family: var(--font-primary, 'DM Sans', sans-serif);
-            font-size: clamp(20px, 5.8vw, 26px);
-            font-weight: 700;
-            color: #FFF8EC;
-            margin: 0;
-            line-height: 1.15;
-            letter-spacing: -0.02em;
-          }
-          .hero-mobile-sub {
-            font-family: var(--font-primary, 'DM Sans', sans-serif);
-            font-size: 12.5px;
-            color: rgba(255, 248, 236, 0.85);
-            margin: 0;
-            line-height: 1.4;
-          }
-          .hero-mobile-cta {
-            pointer-events: auto;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            height: 44px;
-            min-height: 44px;
-            padding: 0 20px;
-            background: #D4AA45;
-            color: #3C0815;
-            border: none;
-            border-radius: 999px;
-            font-family: var(--font-primary, 'DM Sans', sans-serif);
-            font-size: 11.5px;
-            font-weight: 800;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            cursor: pointer;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-            margin-top: 4px;
+          .hero-carousel-dots {
+            bottom: 8px;
           }
         }
       `}</style>
@@ -441,33 +384,26 @@ export default function Hero({ onReserve: _onReserve }: { onReserve?: () => void
               tabIndex={isActive ? 0 : -1}
               aria-label={slide.alt}
             >
-              <img
-                src={slide.image}
-                alt={slide.alt}
-                className="hero-slide-img"
-                loading={index === 0 ? 'eager' : 'lazy'}
-                decoding="async"
-              />
-              <div className="hero-mobile-overlay" aria-hidden="true" />
-              <div className="hero-mobile-content">
-                {slide.badge && <span className="hero-mobile-badge">{slide.badge}</span>}
-                <h2 className="hero-mobile-title">{slide.title || slide.alt}</h2>
-                {slide.subtitle && <p className="hero-mobile-sub">{slide.subtitle}</p>}
-                <button
-                  type="button"
-                  className="hero-mobile-cta"
-                  onClick={e => {
-                    e.stopPropagation();
-                    navigate(slide.link);
-                  }}
-                  aria-label={`${slide.ctaText || 'Shop Now'} — ${slide.title || slide.alt}`}
-                >
-                  <span>{slide.ctaText || 'SHOP NOW'}</span>
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                    <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
-              </div>
+              {slide.mobileImage ? (
+                <picture>
+                  <source media="(max-width: 640px)" srcSet={slide.mobileImage} />
+                  <img
+                    src={slide.image}
+                    alt={slide.alt}
+                    className="hero-slide-img"
+                    loading={index === 0 ? 'eager' : 'lazy'}
+                    decoding="async"
+                  />
+                </picture>
+              ) : (
+                <img
+                  src={slide.image}
+                  alt={slide.alt}
+                  className="hero-slide-img"
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                  decoding="async"
+                />
+              )}
             </div>
           );
         })}
