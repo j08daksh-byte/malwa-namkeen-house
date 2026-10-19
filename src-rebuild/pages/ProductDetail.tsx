@@ -8,6 +8,8 @@ import ShopToast from '../components/shop/ShopToast';
 import { PRODUCTS as FALLBACK_PRODUCTS, type Product, type ProductWeightOption } from '../data/products';
 import { useCart } from '../lib/cartContext';
 import { useWishlist } from '../lib/wishlistContext';
+import { useCustomerSession } from '../components/layout/CustomerSessionContext';
+import { useStoreSettings } from '../lib/storeSettingsContext';
 import { BUSINESS } from '../lib/business';
 import { optimizeCloudinary } from '../lib/cloudinary';
 import {
@@ -29,6 +31,7 @@ import {
   X,
   Maximize2,
   Package,
+  MessageCircle,
 } from 'lucide-react';
 
 // Helper to reliably find product in fallback catalog by any slug or name permutation
@@ -84,6 +87,8 @@ export default function ProductDetail() {
 
   const { addToCart, openCart, toastMessage, dismissToast } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
+  const { customer } = useCustomerSession();
+  const { settings } = useStoreSettings();
 
   const initialStaticProduct = useMemo(() => findStaticProduct(slug), [slug]);
 
@@ -98,6 +103,7 @@ export default function ProductDetail() {
   const [isAdding, setIsAdding] = useState<boolean>(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+  const [waAuthNotice, setWaAuthNotice] = useState<boolean>(false);
 
   // Related products state
   const [relatedProducts, setRelatedProducts] = useState<Product[]>(() =>
@@ -265,6 +271,22 @@ export default function ProductDetail() {
       setIsAdding(false);
       openCart();
     }, 350);
+  };
+
+  // Handle WhatsApp Direct Order
+  const handleWhatsAppBuyNow = () => {
+    if (!product || !selectedOption || !isAvailable) return;
+    if (!customer) {
+      setWaAuthNotice(true);
+      return;
+    }
+    const storeName = settings.storeName || BUSINESS.name;
+    const waNumber = (settings.contact?.whatsappNumber || BUSINESS.whatsappNumber).replace(/\D/g, '');
+    const customerInfo = `👤 *Customer:* ${customer.name}\n📧 *Email:* ${customer.email}${customer.phone ? `\n📱 *Phone:* ${customer.phone}` : ''}\n\n`;
+    const text = encodeURIComponent(
+      `Namaste ${storeName}! 🙏\nI would like to order:\n\n${customerInfo}*${product.name} (${selectedOption.weight})* × ${quantity} (₹${selectedOption.price * quantity})\n\nPlease share delivery details.`
+    );
+    window.open(`https://wa.me/${waNumber}?text=${text}`, '_blank');
   };
 
   // Handle Social Share
@@ -825,6 +847,53 @@ export default function ProductDetail() {
           box-shadow: none;
         }
 
+        .pdp-btn-wa {
+          height: 48px;
+          padding: 0 20px;
+          background: #15803D;
+          color: #FFFFFF;
+          border: none;
+          border-radius: 999px;
+          font-family: Inter, sans-serif;
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          box-shadow: 0 4px 14px rgba(21, 128, 61, 0.28);
+          transition: background 0.18s, transform 0.18s;
+          white-space: nowrap;
+        }
+
+        .pdp-btn-wa:hover {
+          background: #166534;
+          transform: translateY(-1px);
+        }
+
+        .pdp-btn-wa:disabled {
+          background: #86EFAC;
+          cursor: not-allowed;
+          transform: none;
+          box-shadow: none;
+        }
+
+        .pdp-wa-auth-box {
+          background: #FEF3C7;
+          border: 1px solid #F59E0B;
+          border-radius: 12px;
+          padding: 12px 16px;
+          margin-bottom: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
         .pdp-action-icon-btn {
           width: 48px;
           height: 48px;
@@ -1345,6 +1414,19 @@ export default function ProductDetail() {
                   : `Add to Cart • ₹${selectedOption.price * quantity}`}
               </button>
 
+              {/* Order via WhatsApp */}
+              <button
+                type="button"
+                className="pdp-btn-wa"
+                onClick={handleWhatsAppBuyNow}
+                disabled={!isAvailable}
+                title={customer ? 'Order on WhatsApp' : 'Sign in to order on WhatsApp'}
+                aria-label={customer ? 'Order on WhatsApp' : 'Sign in to order on WhatsApp'}
+              >
+                <MessageCircle size={16} />
+                <span>Order via WhatsApp</span>
+              </button>
+
               {/* Wishlist Button */}
               <button
                 type="button"
@@ -1366,6 +1448,50 @@ export default function ProductDetail() {
                 <Share2 size={18} />
               </button>
             </div>
+
+            {waAuthNotice && !customer && (
+              <div className="pdp-wa-auth-box">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AlertCircle size={18} color="#B45309" style={{ flexShrink: 0 }} />
+                  <span style={{ fontSize: '13px', color: '#92400E', fontWeight: 600 }}>
+                    Sign In Required: Please sign in or create an account to order via WhatsApp.
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/account?redirect=${encodeURIComponent(`/product/${product.slug || slug}`)}`)}
+                    style={{
+                      background: '#B45309',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '999px',
+                      padding: '6px 14px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Sign In to Order
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWaAuthNotice(false)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#92400E',
+                      fontSize: '16px',
+                      cursor: 'pointer',
+                      padding: '4px',
+                    }}
+                    aria-label="Dismiss notice"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
 
             {shareFeedback && (
               <div style={{ background: '#ECFDF5', color: '#065F46', fontSize: '12px', padding: '8px 12px', borderRadius: '6px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>

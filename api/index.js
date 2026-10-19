@@ -12640,8 +12640,8 @@ var router21 = Router21();
 router21.get("/sitemap.xml", async (req, res) => {
   try {
     const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
-    const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost:3000";
-    const baseUrl = `${protocol}://${host}`;
+    const host = req.headers["x-forwarded-host"] || req.get("host") || "malwanamkeenhouse.com";
+    const baseUrl = process.env.APP_URL || `${protocol}://${host}`;
     const staticRoutes = [
       { loc: "/", changefreq: "daily", priority: "1.0" },
       { loc: "/shop", changefreq: "daily", priority: "0.9" },
@@ -12654,14 +12654,21 @@ router21.get("/sitemap.xml", async (req, res) => {
       { loc: "/refund-policy", changefreq: "monthly", priority: "0.5" },
       { loc: "/shipping-policy", changefreq: "monthly", priority: "0.5" }
     ];
-    const activeProducts = await Product.find({ isAvailable: { $ne: false } }).select("slug updatedAt").lean().catch(() => []);
+    const activeProducts = await Product.find({ active: { $ne: false } }).select("slug updatedAt").lean().catch(() => []);
     const productRoutes = activeProducts.map((p) => ({
       loc: `/product/${p.slug}`,
       lastmod: p.updatedAt ? new Date(p.updatedAt).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
       changefreq: "weekly",
       priority: "0.85"
     }));
-    const allUrls = [...staticRoutes, ...productRoutes];
+    const activeCategories = await Category.find({ active: { $ne: false } }).select("slug updatedAt").lean().catch(() => []);
+    const categoryRoutes = activeCategories.map((c) => ({
+      loc: `/shop?category=${encodeURIComponent(c.slug)}`,
+      lastmod: c.updatedAt ? new Date(c.updatedAt).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
+      changefreq: "weekly",
+      priority: "0.80"
+    }));
+    const allUrls = [...staticRoutes, ...categoryRoutes, ...productRoutes];
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${allUrls.map(
@@ -12683,8 +12690,8 @@ ${allUrls.map(
 });
 router21.get("/robots.txt", (req, res) => {
   const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
-  const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost:3000";
-  const baseUrl = `${protocol}://${host}`;
+  const host = req.headers["x-forwarded-host"] || req.get("host") || "malwanamkeenhouse.com";
+  const baseUrl = process.env.APP_URL || `${protocol}://${host}`;
   const content = `# Robots.txt for Malwa Namkeen House
 User-agent: *
 Allow: /
@@ -12697,6 +12704,7 @@ Allow: /privacy-policy
 Allow: /terms-and-conditions
 Allow: /cancellation-policy
 Allow: /refund-policy
+Allow: /shipping-policy
 
 # Protect internal/authenticated/admin routes
 Disallow: /admin/

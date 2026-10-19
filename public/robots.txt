@@ -9,6 +9,7 @@ Allow: /privacy-policy
 Allow: /terms-and-conditions
 Allow: /cancellation-policy
 Allow: /refund-policy
+Allow: /shipping-policy
 
 # Protected / Private Routes
 Disallow: /admin/
@@ -17,4 +18,5 @@ Disallow: /account
 Disallow: /login
 Disallow: /api/
 
-Sitemap: https://malwanamkeen.com/sitemap.xml
+Sitemap: https://malwanamkeenhouse.com/sitemap.xml
+

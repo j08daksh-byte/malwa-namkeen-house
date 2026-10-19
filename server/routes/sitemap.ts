@@ -12,8 +12,8 @@ const router = Router();
 router.get('/sitemap.xml', async (req: Request, res: Response) => {
   try {
     const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
-    const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost:3000';
-    const baseUrl = `${protocol}://${host}`;
+    const host = req.headers['x-forwarded-host'] || req.get('host') || 'malwanamkeenhouse.com';
+    const baseUrl = process.env.APP_URL || `${protocol}://${host}`;
 
     interface SitemapRoute {
       loc: string;
@@ -36,7 +36,7 @@ router.get('/sitemap.xml', async (req: Request, res: Response) => {
     ];
 
     // Fetch active products from MongoDB
-    const activeProducts = await Product.find({ isAvailable: { $ne: false } })
+    const activeProducts = await Product.find({ active: { $ne: false } })
       .select('slug updatedAt')
       .lean()
       .catch(() => []);
@@ -48,7 +48,20 @@ router.get('/sitemap.xml', async (req: Request, res: Response) => {
       priority: '0.85',
     }));
 
-    const allUrls = [...staticRoutes, ...productRoutes];
+    // Fetch active categories from MongoDB
+    const activeCategories = await Category.find({ active: { $ne: false } })
+      .select('slug updatedAt')
+      .lean()
+      .catch(() => []);
+
+    const categoryRoutes = activeCategories.map(c => ({
+      loc: `/shop?category=${encodeURIComponent(c.slug)}`,
+      lastmod: c.updatedAt ? new Date(c.updatedAt).toISOString() : new Date().toISOString(),
+      changefreq: 'weekly',
+      priority: '0.80',
+    }));
+
+    const allUrls = [...staticRoutes, ...categoryRoutes, ...productRoutes];
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -79,8 +92,8 @@ ${allUrls
  */
 router.get('/robots.txt', (req: Request, res: Response) => {
   const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
-  const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost:3000';
-  const baseUrl = `${protocol}://${host}`;
+  const host = req.headers['x-forwarded-host'] || req.get('host') || 'malwanamkeenhouse.com';
+  const baseUrl = process.env.APP_URL || `${protocol}://${host}`;
 
   const content = `# Robots.txt for Malwa Namkeen House
 User-agent: *
@@ -94,6 +107,7 @@ Allow: /privacy-policy
 Allow: /terms-and-conditions
 Allow: /cancellation-policy
 Allow: /refund-policy
+Allow: /shipping-policy
 
 # Protect internal/authenticated/admin routes
 Disallow: /admin/
