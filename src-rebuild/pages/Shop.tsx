@@ -11,6 +11,7 @@ import ProductQuickViewModal from '../components/shop/ProductQuickViewModal';
 import ShopToast from '../components/shop/ShopToast';
 import SEOHead from '../components/seo/SEOHead';
 import { PRODUCTS as FALLBACK_PRODUCTS, SHOP_CATEGORIES as FALLBACK_CATEGORIES, type Product, type ShopCategory } from '../data/products';
+import { resolveProductImage, resolveProductImages } from '../lib/productImage';
 
 const PAGE_SIZE = 24; // Clean 3x3 grid on desktop (8 rows)
 
@@ -170,13 +171,18 @@ export default function Shop() {
             }
 
             const apiCats = data.categories.filter((c: any) => (c.slug || c.id) !== 'all');
-            const loadedCats: ShopCategory[] = apiCats.map((c: any) => ({
-              id: c.slug || c.id,
-              label: c.name || c.label,
-              shortLabel: c.shortLabel || c.name,
-              description: c.description || 'Artisanal authentic recipe extruded and prepared in pure groundnut oil.',
-              image: c.image || '',
-            }));
+            const loadedCats: ShopCategory[] = apiCats.map((c: any) => {
+              const fallbackCat = FALLBACK_CATEGORIES.find(sc => sc.id === (c.slug || c.id));
+              const rawCatImg = c.image;
+              const isValidCatImg = rawCatImg && typeof rawCatImg === 'string' && !rawCatImg.includes('/hero-banner-') && !rawCatImg.includes('/mishtichaat/');
+              return {
+                id: c.slug || c.id,
+                label: c.name || c.label,
+                shortLabel: c.shortLabel || c.name,
+                description: c.description || fallbackCat?.description || 'Artisanal authentic recipe extruded and prepared in pure groundnut oil.',
+                image: (isValidCatImg ? rawCatImg : fallbackCat?.image) || '/products/ratlami-sev.jpg',
+              };
+            });
 
             const allCategoryOption: ShopCategory = {
               id: 'all',
@@ -251,12 +257,18 @@ export default function Shop() {
             setHasMore(Boolean(data.page < data.totalPages));
             setPage(pageToFetch);
 
+            const sanitizedProducts = data.products.map((p: Product) => ({
+              ...p,
+              image: resolveProductImage(p),
+              images: resolveProductImages(p),
+            }));
+
             if (isReset) {
-              setProducts(data.products);
+              setProducts(sanitizedProducts);
             } else {
               setProducts(prev => {
                 const existingIds = new Set(prev.map(p => p.id || (p as any)._id || p.slug));
-                const newItems = data.products.filter(
+                const newItems = sanitizedProducts.filter(
                   (p: Product) => !existingIds.has(p.id || (p as any)._id || p.slug)
                 );
                 return [...prev, ...newItems];
