@@ -86,6 +86,15 @@ export default function SEOHead({
     } else if (scriptEl) {
       scriptEl.remove();
     }
+
+    // 5. Google Analytics 4 page view tracking for SPA transitions
+    if (typeof window !== 'undefined' && typeof (window as any).gtag === 'function') {
+      (window as any).gtag('event', 'page_view', {
+        page_title: fullTitle,
+        page_path: canonicalPath || window.location.pathname,
+        page_location: window.location.href,
+      });
+    }
   }, [title, description, canonicalPath, ogImage, ogType, noIndex, structuredData]);
 
   return null;
