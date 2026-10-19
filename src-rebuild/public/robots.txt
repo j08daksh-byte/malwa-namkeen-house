@@ -9,6 +9,7 @@ Allow: /privacy-policy
 Allow: /terms-and-conditions
 Allow: /cancellation-policy
 Allow: /refund-policy
+Allow: /shipping-policy
 
 # Protected / Private Routes
 Disallow: /admin/

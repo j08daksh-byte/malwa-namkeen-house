@@ -32,6 +32,7 @@ router.get('/sitemap.xml', async (req: Request, res: Response) => {
       { loc: '/terms-and-conditions', changefreq: 'monthly', priority: '0.5' },
       { loc: '/cancellation-policy', changefreq: 'monthly', priority: '0.5' },
       { loc: '/refund-policy', changefreq: 'monthly', priority: '0.5' },
+      { loc: '/shipping-policy', changefreq: 'monthly', priority: '0.5' },
     ];
 
     // Fetch active products from MongoDB

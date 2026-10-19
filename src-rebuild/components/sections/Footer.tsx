@@ -5,6 +5,7 @@ import { NAV_LINKS } from '../../data/nav-links';
 
 const LEGAL_LINKS = [
   { label: 'Frequently Asked Questions', href: '/faq' },
+  { label: 'Shipping & Delivery Policy', href: '/shipping-policy' },
   { label: 'Privacy Policy',      href: '/privacy-policy'       },
   { label: 'Terms & Conditions',  href: '/terms-and-conditions' },
   { label: 'Cancellation Policy', href: '/cancellation-policy'  },

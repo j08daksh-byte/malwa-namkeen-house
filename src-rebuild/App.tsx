@@ -56,6 +56,7 @@ const PrivacyPolicy      = lazy(() => import('./pages/legal/PrivacyPolicy'));
 const TermsConditions    = lazy(() => import('./pages/legal/TermsConditions'));
 const CancellationPolicy = lazy(() => import('./pages/legal/CancellationPolicy'));
 const RefundPolicy       = lazy(() => import('./pages/legal/RefundPolicy'));
+const ShippingPolicy     = lazy(() => import('./pages/legal/ShippingPolicy'));
 
 function PageLoader() {
   return (
@@ -173,6 +174,8 @@ export default function App() {
                   <Route path="/terms-and-conditions" element={<TermsConditions />} />
                   <Route path="/cancellation-policy"  element={<CancellationPolicy />} />
                   <Route path="/refund-policy"        element={<RefundPolicy />} />
+                  <Route path="/shipping-policy"      element={<ShippingPolicy />} />
+                  <Route path="/shipping-and-delivery" element={<Navigate to="/shipping-policy" replace />} />
 
                   {/* Admin — login (public) */}
                   <Route path="/admin/login" element={<AdminLogin />} />

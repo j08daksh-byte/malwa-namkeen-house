@@ -12624,7 +12624,8 @@ router21.get("/sitemap.xml", async (req, res) => {
       { loc: "/privacy-policy", changefreq: "monthly", priority: "0.5" },
       { loc: "/terms-and-conditions", changefreq: "monthly", priority: "0.5" },
       { loc: "/cancellation-policy", changefreq: "monthly", priority: "0.5" },
-      { loc: "/refund-policy", changefreq: "monthly", priority: "0.5" }
+      { loc: "/refund-policy", changefreq: "monthly", priority: "0.5" },
+      { loc: "/shipping-policy", changefreq: "monthly", priority: "0.5" }
     ];
     const activeProducts = await Product.find({ isAvailable: { $ne: false } }).select("slug updatedAt").lean().catch(() => []);
     const productRoutes = activeProducts.map((p) => ({
