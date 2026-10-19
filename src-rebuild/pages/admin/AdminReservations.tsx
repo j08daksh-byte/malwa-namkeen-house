@@ -107,41 +107,66 @@ export default function AdminReservations() {
       {/* Table */}
       {loading ? <Spinner /> : rows.length === 0 ? <Empty message="No bulk or gifting enquiries found." /> : (
         <>
-          <Table>
-            <thead>
-              <tr>
-                <Th>Customer</Th>
-                <Th>Requirement / Date</Th>
-                <Th>Quantity / Units</Th>
-                <Th>Status</Th>
-                <Th>Submitted</Th>
-                <Th>{''}</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(r => (
-                <tr key={r.id} style={{ cursor: 'pointer' }} onClick={() => openDetail(r)}>
-                  <Td>
-                    <div style={{ fontWeight: 600 }}>{r.customer_name || r.name}</div>
-                    <div style={{ fontSize: '12px', color: '#6B7280' }}>{r.email}</div>
-                    <div style={{ fontSize: '12px', color: '#6B7280' }}>{r.phone}</div>
-                  </Td>
-                  <Td>
-                    <div style={{ fontWeight: 500, color: '#1A0A0F' }}>{r.reservation_date ? fmtDate(r.reservation_date) : 'Flexible'}</div>
-                    <div style={{ color: '#6B7280', fontSize: '12px' }}>{r.preferred_time || 'General'}</div>
-                  </Td>
-                  <Td>
-                    <span style={{ fontWeight: 600, color: '#800020' }}>{r.guest_count || 1} units</span>
-                  </Td>
-                  <Td><StatusBadge status={r.status} type="reservation" /></Td>
-                  <Td style={{ fontSize: '12px', color: '#9CA3AF', whiteSpace: 'nowrap' }}>{fmtDate(r.created_at)}</Td>
-                  <Td>
-                    <Btn variant="ghost" size="sm" onClick={() => openDetail(r)}>View</Btn>
-                  </Td>
+          <div className="adm-table-desktop">
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Customer</Th>
+                  <Th>Requirement / Date</Th>
+                  <Th>Quantity / Units</Th>
+                  <Th>Status</Th>
+                  <Th>Submitted</Th>
+                  <Th>{''}</Th>
                 </tr>
-              ))}
-            </tbody>
-          </Table>
+              </thead>
+              <tbody>
+                {rows.map(r => (
+                  <tr key={r.id} style={{ cursor: 'pointer' }} onClick={() => openDetail(r)}>
+                    <Td>
+                      <div style={{ fontWeight: 600 }}>{r.customer_name || r.name}</div>
+                      <div style={{ fontSize: '12px', color: '#6B7280' }}>{r.email}</div>
+                      <div style={{ fontSize: '12px', color: '#6B7280' }}>{r.phone}</div>
+                    </Td>
+                    <Td>
+                      <div style={{ fontWeight: 500, color: '#1A0A0F' }}>{r.reservation_date ? fmtDate(r.reservation_date) : 'Flexible'}</div>
+                      <div style={{ color: '#6B7280', fontSize: '12px' }}>{r.preferred_time || 'General'}</div>
+                    </Td>
+                    <Td>
+                      <span style={{ fontWeight: 600, color: '#800020' }}>{r.guest_count || 1} units</span>
+                    </Td>
+                    <Td><StatusBadge status={r.status} type="reservation" /></Td>
+                    <Td style={{ fontSize: '12px', color: '#9CA3AF', whiteSpace: 'nowrap' }}>{fmtDate(r.created_at)}</Td>
+                    <Td>
+                      <Btn variant="ghost" size="sm" onClick={() => openDetail(r)}>View</Btn>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+
+          {/* Mobile cards view */}
+          <div className="adm-cards-mobile">
+            {rows.map(r => (
+              <div key={r.id} style={{ background: '#fff', border: '1px solid #EAE5D9', borderRadius: '10px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontWeight: 700, fontSize: '14px', color: '#1A0A0F' }}>{r.customer_name || r.name}</div>
+                  <StatusBadge status={r.status} type="reservation" />
+                </div>
+                <div style={{ fontSize: '12px', color: '#6B7280' }}>
+                  {r.email} • {r.phone}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FAF9F6', padding: '6px 10px', borderRadius: '6px', fontSize: '12px' }}>
+                  <span>Qty: <strong style={{ color: '#800020' }}>{r.guest_count || 1} units</strong></span>
+                  <span>Date: {r.reservation_date ? fmtDate(r.reservation_date) : 'Flexible'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '4px' }}>
+                  <Btn variant="secondary" size="sm" onClick={() => openDetail(r)}>Manage</Btn>
+                </div>
+              </div>
+            ))}
+          </div>
+
           <Pagination page={page} pages={pages} total={total} onChange={setPage} />
         </>
       )}

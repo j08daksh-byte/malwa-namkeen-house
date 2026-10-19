@@ -429,7 +429,7 @@ export default function AdminOrders() {
       />
 
       {/* Metrics Bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+      <div className="adm-stat-grid">
         <Card>
           <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#6B7280', letterSpacing: '0.08em' }}>Total Orders</div>
           <div style={{ fontSize: '28px', fontWeight: 800, color: '#3C0815', marginTop: '6px' }}>{stats.totalOrders}</div>
@@ -455,9 +455,9 @@ export default function AdminOrders() {
       {/* Main Filter & Table Card */}
       <Card>
         {/* Filters Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '12px', flexWrap: 'wrap' }}>
+        <div className="adm-filter-bar">
           {/* Search */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#F8F6F2', border: '1px solid #EAE3D2', padding: '8px 14px', borderRadius: '8px', flex: '1', minWidth: '240px', maxWidth: '380px' }}>
+          <div className="adm-filter-search">
             <Search size={16} color="#9CA3AF" />
             <input
               placeholder="Search by Order #, Customer, Phone, City..."
@@ -472,7 +472,7 @@ export default function AdminOrders() {
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div className="adm-filter-selects">
             {/* Order Status */}
             <select
               value={orderStatusFilter}
@@ -540,8 +540,9 @@ export default function AdminOrders() {
             </p>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+          <>
+            <div className="adm-table-desktop">
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: '1.5px solid #EAE5D9', color: '#6B7280', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                   <th style={{ padding: '12px 14px' }}>Order</th>
@@ -690,7 +691,136 @@ export default function AdminOrders() {
               </tbody>
             </table>
           </div>
-        )}
+
+          {/* Responsive Mobile Order Cards (rendered on <= 768px screens) */}
+          <div className="adm-cards-mobile">
+            {orders.map(order => {
+              const oStatus = getOrderStatusStyle(order.orderStatus);
+              const pStatus = getPaymentStatusStyle(order.paymentStatus);
+              const dateStr = new Date(order.createdAt).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+
+              return (
+                <div
+                  key={order._id}
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #EAE5D9',
+                    borderRadius: '10px',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  {/* Top: Order # & Date & Total */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontWeight: 800, color: '#3C0815', fontSize: '14px' }}>
+                        #{order.orderNumber}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '2px' }}>
+                        {dateStr}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 800, color: '#059669', fontSize: '15px' }}>
+                        ₹{order.total.toLocaleString('en-IN')}
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: '#6B7280', textTransform: 'uppercase', fontWeight: 600 }}>
+                        {order.paymentMethod}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Customer & Location */}
+                  <div style={{ background: '#FAF9F6', padding: '8px 12px', borderRadius: '6px', border: '1px solid #F3F4F6', fontSize: '12.5px' }}>
+                    <div style={{ fontWeight: 700, color: '#1A0A0F' }}>{order.customerInfo.name}</div>
+                    <div style={{ fontSize: '11.5px', color: '#6B7280', marginTop: '1px' }}>
+                      {order.customerInfo.phone} • {order.shippingAddress.city}, {order.shippingAddress.state}
+                    </div>
+                  </div>
+
+                  {/* Items summary */}
+                  <div style={{ fontSize: '12px', color: '#4B5563', lineHeight: 1.4 }}>
+                    {order.items.slice(0, 2).map((item, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span><strong style={{ color: '#3C0815' }}>{item.quantity}x</strong> {item.productName} ({item.variantLabel})</span>
+                        <span style={{ fontWeight: 600 }}>₹{item.itemTotal || item.price * item.quantity}</span>
+                      </div>
+                    ))}
+                    {order.items.length > 2 && (
+                      <div style={{ fontSize: '11px', color: '#D4AA45', fontWeight: 700, marginTop: '2px' }}>
+                        +{order.items.length - 2} more item(s) in order
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Status badges & Action */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', paddingTop: '4px', borderTop: '1px solid #F3F4F6' }}>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          background: oStatus.bg,
+                          color: oStatus.text,
+                          border: `1px solid ${oStatus.border}`,
+                          padding: '2px 8px',
+                          borderRadius: '999px',
+                          fontSize: '10.5px',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {order.orderStatus}
+                      </span>
+                      <span
+                        style={{
+                          background: pStatus.bg,
+                          color: pStatus.text,
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          fontSize: '10.5px',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {order.paymentStatus}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => openOrderDetails(order)}
+                      style={{
+                        background: '#3C0815',
+                        color: '#FFF9EF',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '7px 14px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                      }}
+                    >
+                      <Eye size={13} />
+                      <span>Manage Order</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
       </Card>
 
       {/* Order Details & Workflow Management Modal */}

@@ -422,7 +422,7 @@ export default function AdminSettings() {
         {/* Tab 1: General & Brand */}
         {activeTab === 'general' && (
           <div style={{ display: 'grid', gap: '18px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '16px' }}>
               <div>
                 <label style={labelStyle}>Store Name *</label>
                 <input
@@ -454,7 +454,7 @@ export default function AdminSettings() {
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '16px' }}>
               <div>
                 <label style={labelStyle}>GSTIN Number</label>
                 <input
@@ -527,7 +527,7 @@ export default function AdminSettings() {
         {/* Tab 2: Contact & Address */}
         {activeTab === 'contact' && (
           <div style={{ display: 'grid', gap: '18px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '16px' }}>
               <div>
                 <label style={labelStyle}>Support Phone Number</label>
                 <input
@@ -558,7 +558,7 @@ export default function AdminSettings() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '16px' }}>
               <div>
                 <label style={labelStyle}>Address Line 1</label>
                 <input
@@ -577,7 +577,7 @@ export default function AdminSettings() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '16px' }}>
               <div>
                 <label style={labelStyle}>City</label>
                 <input
@@ -609,7 +609,7 @@ export default function AdminSettings() {
         {/* Tab 3: Delivery & Fulfillment */}
         {activeTab === 'delivery' && (
           <div style={{ display: 'grid', gap: '18px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '16px' }}>
               <div>
                 <label style={labelStyle}>Free Shipping Threshold (₹)</label>
                 <input
@@ -739,7 +739,7 @@ export default function AdminSettings() {
 
         {/* Tab 5: Social & Web Links */}
         {activeTab === 'social' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '16px' }}>
             <div>
               <label style={labelStyle}>Instagram Profile URL</label>
               <input

@@ -545,77 +545,55 @@ export default function AdminBanners() {
           {banners.map((banner, index) => (
             <Card
               key={banner._id}
+              className="banner-admin-card"
               style={{
-                padding: '18px 20px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '20px',
-                flexWrap: 'wrap',
                 borderLeft: banner.active ? '4px solid #16A34A' : '4px solid #9CA3AF',
                 transition: 'transform 0.15s ease, box-shadow 0.15s ease',
               }}
             >
               {/* Order index and move controls */}
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '4px',
-                  flexShrink: 0,
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => handleMoveOrder(index, 'up')}
-                  disabled={index === 0}
-                  style={{
-                    background: '#FAF6EE',
-                    border: '1px solid #E2D9C8',
-                    borderRadius: '4px',
-                    padding: '3px 6px',
-                    color: index === 0 ? '#C4BAA9' : '#55000A',
-                    cursor: index === 0 ? 'not-allowed' : 'pointer',
-                  }}
-                  title="Move Up"
-                >
-                  <ArrowUp size={14} />
-                </button>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: '#8A7A70' }}>
-                  #{index + 1}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleMoveOrder(index, 'down')}
-                  disabled={index === banners.length - 1}
-                  style={{
-                    background: '#FAF6EE',
-                    border: '1px solid #E2D9C8',
-                    borderRadius: '4px',
-                    padding: '3px 6px',
-                    color: index === banners.length - 1 ? '#C4BAA9' : '#55000A',
-                    cursor: index === banners.length - 1 ? 'not-allowed' : 'pointer',
-                  }}
-                  title="Move Down"
-                >
-                  <ArrowDown size={14} />
-                </button>
+              <div className="banner-admin-top">
+                <div className="banner-admin-order">
+                  <button
+                    type="button"
+                    onClick={() => handleMoveOrder(index, 'up')}
+                    disabled={index === 0}
+                    style={{
+                      background: '#FAF6EE',
+                      border: '1px solid #E2D9C8',
+                      borderRadius: '4px',
+                      padding: '3px 6px',
+                      color: index === 0 ? '#C4BAA9' : '#55000A',
+                      cursor: index === 0 ? 'not-allowed' : 'pointer',
+                    }}
+                    title="Move Up"
+                  >
+                    <ArrowUp size={14} />
+                  </button>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#8A7A70' }}>
+                    #{index + 1}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleMoveOrder(index, 'down')}
+                    disabled={index === banners.length - 1}
+                    style={{
+                      background: '#FAF6EE',
+                      border: '1px solid #E2D9C8',
+                      borderRadius: '4px',
+                      padding: '3px 6px',
+                      color: index === banners.length - 1 ? '#C4BAA9' : '#55000A',
+                      cursor: index === banners.length - 1 ? 'not-allowed' : 'pointer',
+                    }}
+                    title="Move Down"
+                  >
+                    <ArrowDown size={14} />
+                  </button>
+                </div>
               </div>
 
               {/* Banner Visual Thumbnail (Locked to 1024:385 ratio) */}
-              <div
-                style={{
-                  width: '240px',
-                  aspectRatio: '1024 / 385',
-                  borderRadius: '8px',
-                  overflow: 'hidden',
-                  background: '#FAF6F0',
-                  border: '1px solid #E2DACB',
-                  flexShrink: 0,
-                  position: 'relative',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                }}
-              >
+              <div className="banner-admin-thumb">
                 <img
                   src={banner.image}
                   alt={banner.alt || banner.title}
@@ -629,7 +607,7 @@ export default function AdminBanners() {
               </div>
 
               {/* Banner Info */}
-              <div style={{ flex: 1, minWidth: '220px' }}>
+              <div className="banner-admin-info">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   <h4
                     style={{
@@ -712,7 +690,7 @@ export default function AdminBanners() {
               </div>
 
               {/* Action Buttons */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              <div className="banner-admin-actions">
                 {/* Adjust Crop Shortcut */}
                 <button
                   type="button"

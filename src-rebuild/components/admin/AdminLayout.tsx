@@ -144,6 +144,10 @@ export default function AdminLayout({ admin, children }: Props) {
           display: flex;
           flex-direction: column;
           min-width: 0;
+          width: calc(100% - 256px);
+          max-width: 100%;
+          overflow-x: hidden;
+          box-sizing: border-box;
         }
         .adm-topbar {
           background: #FFFFFF;
@@ -153,11 +157,13 @@ export default function AdminLayout({ admin, children }: Props) {
           align-items: center;
           justify-content: space-between;
           padding: 0 32px;
-          gap: 16px;
+          gap: 12px;
           position: sticky;
           top: 0;
           z-index: 50;
           box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+          box-sizing: border-box;
+          width: 100%;
         }
         .adm-content {
           flex: 1;
@@ -166,6 +172,7 @@ export default function AdminLayout({ admin, children }: Props) {
           width: 100%;
           margin-inline: auto;
           box-sizing: border-box;
+          overflow-x: hidden;
         }
         .adm-hamburger {
           display: none;
@@ -175,7 +182,130 @@ export default function AdminLayout({ admin, children }: Props) {
           padding: 6px;
           border-radius: 6px;
           color: #3C0815;
+          flex-shrink: 0;
         }
+        .adm-card {
+          background: #fff;
+          border-radius: 14px;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+          padding: 20px 24px;
+          box-sizing: border-box;
+          max-width: 100%;
+          min-width: 0;
+        }
+        .adm-stat-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 14px;
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .adm-quick-actions {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 12px;
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .adm-split-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+          gap: 20px;
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .adm-section-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 14px;
+          gap: 8px;
+          flex-wrap: wrap;
+          width: 100%;
+        }
+        .adm-filter-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 20px;
+          gap: 12px;
+          flex-wrap: wrap;
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .adm-filter-search {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: #F8F6F2;
+          border: 1px solid #EAE3D2;
+          padding: 8px 14px;
+          border-radius: 8px;
+          flex: 1;
+          min-width: 240px;
+          max-width: 380px;
+          box-sizing: border-box;
+        }
+        .adm-filter-selects {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+        .adm-table-desktop {
+          display: block;
+          width: 100%;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        .adm-cards-mobile {
+          display: none;
+          width: 100%;
+        }
+
+        /* Banner Card Styles */
+        .banner-admin-card {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          flex-wrap: wrap;
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .banner-admin-top {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+        .banner-admin-order {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+          flex-shrink: 0;
+        }
+        .banner-admin-thumb {
+          width: 240px;
+          aspect-ratio: 1024 / 385;
+          border-radius: 8px;
+          overflow: hidden;
+          background: #FAF6F0;
+          border: 1px solid #E2DACB;
+          flex-shrink: 0;
+          position: relative;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .banner-admin-info {
+          flex: 1;
+          min-width: 220px;
+        }
+        .banner-admin-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-shrink: 0;
+        }
+
         @media (max-width: 900px) {
           .adm-sidebar {
             transform: translateX(-100%);
@@ -185,6 +315,7 @@ export default function AdminLayout({ admin, children }: Props) {
           }
           .adm-main {
             margin-left: 0;
+            width: 100%;
           }
           .adm-hamburger {
             display: flex;
@@ -192,21 +323,150 @@ export default function AdminLayout({ admin, children }: Props) {
             justify-content: center;
           }
           .adm-topbar {
-            padding: 0 14px;
+            padding: 0 12px;
+            height: 58px;
           }
           .adm-content {
-            padding: 16px 12px;
+            padding: 14px 10px;
           }
           .adm-overlay {
             display: block !important;
           }
+          .adm-split-grid {
+            grid-template-columns: 1fr !important;
+            gap: 14px !important;
+          }
         }
+
+        @media (max-width: 768px) {
+          .adm-card {
+            padding: 14px 12px !important;
+            border-radius: 10px !important;
+          }
+          .adm-stat-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+          }
+          .adm-quick-actions {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+          }
+          .adm-quick-actions > a {
+            padding: 10px 10px !important;
+            font-size: 12px !important;
+          }
+          .adm-quick-actions > a span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          .adm-table-desktop {
+            display: none !important;
+          }
+          .adm-cards-mobile {
+            display: grid !important;
+            gap: 12px !important;
+          }
+          .adm-filter-bar {
+            gap: 10px !important;
+          }
+          .adm-filter-search {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 100% !important;
+          }
+          .adm-filter-selects {
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            width: 100% !important;
+            gap: 8px !important;
+          }
+          .adm-filter-selects select {
+            width: 100% !important;
+            min-width: 0 !important;
+            font-size: 12px !important;
+          }
+
+          /* Banner mobile restructuring */
+          .banner-admin-card {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+          }
+          .banner-admin-top {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            width: 100% !important;
+          }
+          .banner-admin-order {
+            flex-direction: row !important;
+            gap: 8px !important;
+          }
+          .banner-admin-thumb {
+            width: 100% !important;
+            max-width: 100% !important;
+            aspect-ratio: 1024 / 385 !important;
+          }
+          .banner-admin-info {
+            min-width: 0 !important;
+            width: 100% !important;
+          }
+          .banner-admin-actions {
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            width: 100% !important;
+            gap: 8px !important;
+          }
+          .banner-admin-actions button {
+            width: 100% !important;
+            justify-content: center !important;
+            padding: 9px 8px !important;
+            box-sizing: border-box !important;
+          }
+        }
+
         @media (max-width: 480px) {
           .adm-topbar-role {
             display: none !important;
           }
           .adm-topbar-title {
-            font-size: 16px !important;
+            font-size: 15px !important;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          .adm-page-header {
+            margin-bottom: 16px !important;
+            gap: 10px !important;
+          }
+          .adm-page-header h1 {
+            font-size: 18px !important;
+          }
+          .adm-page-header p {
+            font-size: 12px !important;
+          }
+          .adm-page-header-action {
+            width: 100% !important;
+            justify-content: flex-start !important;
+          }
+          .adm-page-header-action button,
+          .adm-page-header-action a,
+          .adm-page-header-action select {
+            flex: 1 1 auto;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .adm-stat-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .adm-quick-actions {
+            grid-template-columns: 1fr !important;
+          }
+          .adm-filter-selects {
+            grid-template-columns: 1fr !important;
           }
         }
       `}</style>

@@ -118,36 +118,63 @@ export default function AdminEnquiries() {
 
       {loading ? <Spinner /> : rows.length === 0 ? <Empty message="No enquiries found." /> : (
         <>
-          <Table>
-            <thead>
-              <tr>
-                <Th>Customer</Th>
-                <Th>Category</Th>
-                <Th>Message</Th>
-                <Th>Status</Th>
-                <Th>Submitted</Th>
-                <Th>{''}</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(e => (
-                <tr key={e.id} style={{ cursor: 'pointer' }} onClick={() => openDetail(e)}>
-                  <Td>
-                    <div style={{ fontWeight: 600 }}>{e.customer_name || e.name}</div>
-                    <div style={{ fontSize: '12px', color: '#6B7280' }}>{e.email}</div>
-                    {e.phone && <div style={{ fontSize: '12px', color: '#6B7280' }}>{e.phone}</div>}
-                  </Td>
-                  <Td>{CATEGORIES[e.category] ?? e.category}</Td>
-                  <Td style={{ maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.message}</Td>
-                  <Td><StatusBadge status={e.status} /></Td>
-                  <Td style={{ fontSize: '12px', color: '#9CA3AF', whiteSpace: 'nowrap' }}>{fmtDate(e.created_at)}</Td>
-                  <Td>
-                    <Btn variant="ghost" size="sm" onClick={() => openDetail(e)}>View</Btn>
-                  </Td>
+          <div className="adm-table-desktop">
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Customer</Th>
+                  <Th>Category</Th>
+                  <Th>Message</Th>
+                  <Th>Status</Th>
+                  <Th>Submitted</Th>
+                  <Th>{''}</Th>
                 </tr>
-              ))}
-            </tbody>
-          </Table>
+              </thead>
+              <tbody>
+                {rows.map(e => (
+                  <tr key={e.id} style={{ cursor: 'pointer' }} onClick={() => openDetail(e)}>
+                    <Td>
+                      <div style={{ fontWeight: 600 }}>{e.customer_name || e.name}</div>
+                      <div style={{ fontSize: '12px', color: '#6B7280' }}>{e.email}</div>
+                      {e.phone && <div style={{ fontSize: '12px', color: '#6B7280' }}>{e.phone}</div>}
+                    </Td>
+                    <Td>{CATEGORIES[e.category] ?? e.category}</Td>
+                    <Td style={{ maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.message}</Td>
+                    <Td><StatusBadge status={e.status} /></Td>
+                    <Td style={{ fontSize: '12px', color: '#9CA3AF', whiteSpace: 'nowrap' }}>{fmtDate(e.created_at)}</Td>
+                    <Td>
+                      <Btn variant="ghost" size="sm" onClick={() => openDetail(e)}>View</Btn>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+
+          {/* Mobile cards view */}
+          <div className="adm-cards-mobile">
+            {rows.map(e => (
+              <div key={e.id} style={{ background: '#fff', border: '1px solid #EAE5D9', borderRadius: '10px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontWeight: 700, fontSize: '14px', color: '#1A0A0F' }}>{e.customer_name || e.name}</div>
+                  <StatusBadge status={e.status} />
+                </div>
+                <div style={{ fontSize: '12px', color: '#6B7280' }}>
+                  {e.email} {e.phone ? `• ${e.phone}` : ''}
+                </div>
+                <div style={{ fontSize: '11px', color: '#881337', fontWeight: 600, background: '#FAF6EF', padding: '2px 8px', borderRadius: '4px', width: 'fit-content' }}>
+                  {CATEGORIES[e.category] ?? e.category}
+                </div>
+                <div style={{ fontSize: '12.5px', color: '#374151', lineHeight: 1.45 }}>
+                  {e.message}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '4px', borderTop: '1px solid #F3F4F6' }}>
+                  <span style={{ fontSize: '11.5px', color: '#9CA3AF' }}>{fmtDate(e.created_at)}</span>
+                  <Btn variant="secondary" size="sm" onClick={() => openDetail(e)}>View & Reply</Btn>
+                </div>
+              </div>
+            ))}
+          </div>
           <Pagination page={page} pages={pages} total={total} onChange={setPage} />
         </>
       )}

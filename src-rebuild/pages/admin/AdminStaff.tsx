@@ -368,7 +368,7 @@ export default function AdminStaff() {
       )}
 
       {/* Quick Metrics */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+      <div className="adm-stat-grid" style={{ marginBottom: '20px' }}>
         <Card>
           <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', marginBottom: '6px' }}>
             Total Administrators
@@ -502,8 +502,9 @@ export default function AdminStaff() {
             </p>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13.5px' }}>
+          <>
+            <div className="adm-table-desktop">
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13.5px' }}>
               <thead>
                 <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
                   <th style={{ padding: '12px 18px', color: '#4B5563', fontWeight: 600 }}>Administrator</th>
@@ -629,7 +630,123 @@ export default function AdminStaff() {
               </tbody>
             </table>
           </div>
-        )}
+
+          {/* Responsive Mobile Staff Cards (rendered on <= 768px screens) */}
+          <div className="adm-cards-mobile" style={{ padding: '12px' }}>
+            {filteredStaff.map(member => {
+              const isCurrent = member._id === currentAdminId;
+              const isLastSuperAdmin = member.role === 'super_admin' && superAdminCount <= 1;
+
+              return (
+                <div
+                  key={member._id}
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #EAE5D9',
+                    borderRadius: '10px',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#111827', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>{member.name}</span>
+                        {isCurrent && (
+                          <span style={{ fontSize: '10.5px', background: '#FEF3C7', color: '#92400E', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                            You
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '2px' }}>
+                        {member.email}
+                      </div>
+                    </div>
+
+                    <span
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: '999px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        background: member.role === 'super_admin' ? '#FEF3C7' : '#EFF6FF',
+                        color: member.role === 'super_admin' ? '#92400E' : '#1D4ED8',
+                      }}
+                    >
+                      {member.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FAF9F6', padding: '8px 12px', borderRadius: '6px', fontSize: '12px' }}>
+                    <div>
+                      <span style={{ color: '#6B7280' }}>Status: </span>
+                      <strong style={{ color: member.active ? '#047857' : '#DC2626' }}>
+                        {member.isPendingInvitation ? 'Pending Invite' : member.active ? 'Active' : 'Deactivated'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#6B7280' }}>Last Login: </span>
+                      <span>
+                        {member.lastLoginAt ? new Date(member.lastLoginAt).toLocaleDateString('en-IN') : 'Never'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Actions Row */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', paddingTop: '2px' }}>
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(member)}
+                      style={{
+                        padding: '6px 12px',
+                        background: '#FAF6EE',
+                        border: '1px solid #D4C9B8',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        color: '#3C0815',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      <Edit2 size={12} />
+                      <span>Edit</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => openDeleteModal(member)}
+                      disabled={isCurrent || isLastSuperAdmin}
+                      style={{
+                        padding: '6px 10px',
+                        background: isCurrent || isLastSuperAdmin ? '#F9FAFB' : '#FEF2F2',
+                        border: '1px solid',
+                        borderColor: isCurrent || isLastSuperAdmin ? '#E5E7EB' : '#FCA5A5',
+                        borderRadius: '6px',
+                        cursor: isCurrent || isLastSuperAdmin ? 'not-allowed' : 'pointer',
+                        color: isCurrent || isLastSuperAdmin ? '#9CA3AF' : '#DC2626',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '12px',
+                        opacity: isCurrent || isLastSuperAdmin ? 0.6 : 1,
+                      }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
       </Card>
 
       {/* Invite & Promote Modal */}

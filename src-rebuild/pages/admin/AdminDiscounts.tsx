@@ -361,7 +361,7 @@ export default function AdminDiscounts() {
       />
 
       {/* Metrics Bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+      <div className="adm-stat-grid">
         <Card>
           <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#6B7280', letterSpacing: '0.08em' }}>Total Coupons</div>
           <div style={{ fontSize: '28px', fontWeight: 800, color: '#3C0815', marginTop: '6px' }}>{stats.totalCoupons}</div>
@@ -384,9 +384,9 @@ export default function AdminDiscounts() {
       {/* Main Filter & Table Card */}
       <Card>
         {/* Filters Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '12px', flexWrap: 'wrap' }}>
+        <div className="adm-filter-bar">
           {/* Search */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#F8F6F2', border: '1px solid #EAE3D2', padding: '8px 14px', borderRadius: '8px', flex: '1', minWidth: '240px', maxWidth: '380px' }}>
+          <div className="adm-filter-search">
             <Search size={16} color="#9CA3AF" />
             <input
               placeholder="Search coupon code..."
@@ -401,7 +401,7 @@ export default function AdminDiscounts() {
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div className="adm-filter-selects">
             {/* Status Filter */}
             <select
               value={statusFilter}
@@ -450,8 +450,9 @@ export default function AdminDiscounts() {
             </p>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+          <>
+            <div className="adm-table-desktop">
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: '1.5px solid #EAE5D9', color: '#6B7280', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                   <th style={{ padding: '12px 14px' }}>Coupon Code</th>
@@ -579,7 +580,120 @@ export default function AdminDiscounts() {
               </tbody>
             </table>
           </div>
-        )}
+
+          {/* Responsive Mobile Discount Cards (rendered on <= 768px screens) */}
+          <div className="adm-cards-mobile">
+            {discounts.map(d => {
+              const isExpired = d.endDate && new Date(d.endDate) < new Date();
+
+              return (
+                <div
+                  key={d._id}
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #EAE5D9',
+                    borderRadius: '10px',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  {/* Top: Code & Active Toggle */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#FAF6EF', border: '1px dashed #D4AA45', padding: '4px 10px', borderRadius: '6px', fontWeight: 800, color: '#3C0815', letterSpacing: '0.05em', fontFamily: 'monospace', fontSize: '13px' }}>
+                      <Tag size={13} color="#D4AA45" />
+                      <span>{d.code}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleActive(d._id, d.active)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        background: d.active ? '#D1FAE5' : '#F3F4F6',
+                        color: d.active ? '#065F46' : '#6B7280',
+                        border: 'none',
+                        padding: '4px 9px',
+                        borderRadius: '999px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {d.active ? <Eye size={12} /> : <EyeOff size={12} />}
+                      <span>{d.active ? 'Active' : 'Inactive'}</span>
+                    </button>
+                  </div>
+
+                  {/* Benefit & Details */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FAF9F6', padding: '8px 12px', borderRadius: '6px', border: '1px solid #F3F4F6' }}>
+                    <div>
+                      <div style={{ fontWeight: 800, color: '#059669', fontSize: '15px' }}>
+                        {d.type === 'percentage' ? `${d.value}% OFF` : `₹${d.value} OFF`}
+                      </div>
+                      {d.maximumDiscount && d.type === 'percentage' && (
+                        <div style={{ fontSize: '11px', color: '#6B7280' }}>Up to ₹{d.maximumDiscount}</div>
+                      )}
+                    </div>
+                    <div style={{ textAlign: 'right', fontSize: '12px', color: '#4B5563' }}>
+                      <div>Min: <strong>₹{d.minimumOrder}</strong></div>
+                      <div style={{ fontSize: '11px', color: '#9CA3AF' }}>{d.usedCount || 0} uses</div>
+                    </div>
+                  </div>
+
+                  {/* Validity & Actions Row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', paddingTop: '2px' }}>
+                    <div style={{ fontSize: '11px', color: isExpired ? '#DC2626' : '#6B7280' }}>
+                      {isExpired ? (
+                        <span style={{ fontWeight: 700, color: '#DC2626' }}>Expired</span>
+                      ) : d.endDate ? (
+                        <span>Valid till {new Date(d.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                      ) : (
+                        <span>No expiration</span>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(d)}
+                        style={{
+                          background: '#FAF6EE',
+                          border: '1px solid #D4C9B8',
+                          borderRadius: '6px',
+                          padding: '6px 10px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: '#3C0815',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <Edit2 size={12} />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteConfirmId(d._id)}
+                        style={{ background: '#FFF1F2', border: '1px solid #FEE2E2', borderRadius: '6px', padding: '6px 8px', color: '#DC2626', cursor: 'pointer' }}
+                        title="Delete coupon"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
       </Card>
 
       {/* Delete Confirmation Modal */}

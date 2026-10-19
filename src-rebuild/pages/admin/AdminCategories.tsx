@@ -337,7 +337,7 @@ export default function AdminCategories() {
       />
 
       {/* Metrics Bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+      <div className="adm-stat-grid">
         <Card>
           <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#6B7280', letterSpacing: '0.08em' }}>Total Categories</div>
           <div style={{ fontSize: '28px', fontWeight: 800, color: '#3C0815', marginTop: '6px' }}>{categories.length}</div>
@@ -364,9 +364,9 @@ export default function AdminCategories() {
       {/* Filters & Content Area */}
       <Card>
         {/* Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '12px', flexWrap: 'wrap' }}>
+        <div className="adm-filter-bar">
           {/* Search */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#F8F6F2', border: '1px solid #EAE3D2', padding: '8px 14px', borderRadius: '8px', flex: '1', minWidth: '240px', maxWidth: '380px' }}>
+          <div className="adm-filter-search">
             <Search size={16} color="#9CA3AF" />
             <input
               placeholder="Search category name, slug or description..."
@@ -381,7 +381,7 @@ export default function AdminCategories() {
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div className="adm-filter-selects">
             {/* Status Filter */}
             <select
               value={statusFilter}
@@ -435,7 +435,7 @@ export default function AdminCategories() {
             </button>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: '14px' }}>
             {categories.map(cat => (
               <div
                 key={cat._id}

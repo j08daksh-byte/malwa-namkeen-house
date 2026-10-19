@@ -281,7 +281,7 @@ export default function AdminCustomers() {
       />
 
       {/* Metrics Bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+      <div className="adm-stat-grid">
         <Card>
           <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#6B7280', letterSpacing: '0.08em' }}>Total Customers</div>
           <div style={{ fontSize: '28px', fontWeight: 800, color: '#3C0815', marginTop: '6px' }}>{stats.totalCustomers}</div>
@@ -304,9 +304,9 @@ export default function AdminCustomers() {
       {/* Filter & Table Card */}
       <Card>
         {/* Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '12px', flexWrap: 'wrap' }}>
+        <div className="adm-filter-bar">
           {/* Search */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#F8F6F2', border: '1px solid #EAE3D2', padding: '8px 14px', borderRadius: '8px', flex: '1', minWidth: '240px', maxWidth: '380px' }}>
+          <div className="adm-filter-search">
             <Search size={16} color="#9CA3AF" />
             <input
               placeholder="Search customer name, email or phone..."
@@ -321,7 +321,7 @@ export default function AdminCustomers() {
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div className="adm-filter-selects">
             {/* Status Filter */}
             <select
               value={statusFilter}
@@ -372,8 +372,9 @@ export default function AdminCustomers() {
             </p>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+          <>
+            <div className="adm-table-desktop">
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: '1.5px solid #EAE5D9', color: '#6B7280', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                   <th style={{ padding: '12px 14px' }}>Customer</th>
@@ -500,7 +501,103 @@ export default function AdminCustomers() {
               </tbody>
             </table>
           </div>
-        )}
+
+          {/* Responsive Mobile Customers Cards (rendered on <= 768px screens) */}
+          <div className="adm-cards-mobile">
+            {customers.map(cust => {
+              const joinDate = new Date(cust.createdAt).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              });
+
+              return (
+                <div
+                  key={cust._id}
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #EAE5D9',
+                    borderRadius: '10px',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: '#3C0815', color: '#F0C74E', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: '13px', flexShrink: 0 }}>
+                        {cust.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, color: '#1A0A0F', fontSize: '13.5px' }}>{cust.name}</div>
+                        <div style={{ fontSize: '11px', color: '#6B7280' }}>{cust.email}</div>
+                      </div>
+                    </div>
+
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        background: cust.active ? '#D1FAE5' : '#FEE2E2',
+                        color: cust.active ? '#065F46' : '#991B1B',
+                        padding: '3px 8px',
+                        borderRadius: '999px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {cust.active ? 'Active' : 'Suspended'}
+                    </span>
+                  </div>
+
+                  {/* Stats strip */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FAF9F6', padding: '8px 12px', borderRadius: '6px', border: '1px solid #F3F4F6', fontSize: '12px' }}>
+                    <div>
+                      <span style={{ color: '#6B7280' }}>Orders: </span>
+                      <strong style={{ color: '#3C0815' }}>{cust.orderCount}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#6B7280' }}>Spent: </span>
+                      <strong style={{ color: '#059669' }}>₹{cust.totalSpent.toLocaleString('en-IN')}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#6B7280' }}>Joined: </span>
+                      <strong>{joinDate}</strong>
+                    </div>
+                  </div>
+
+                  {/* Actions row */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '2px' }}>
+                    <button
+                      type="button"
+                      onClick={() => openCustomerDetails(cust)}
+                      style={{
+                        background: '#FAF6EE',
+                        border: '1px solid #D4C9B8',
+                        borderRadius: '6px',
+                        padding: '7px 14px',
+                        color: '#3C0815',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                      }}
+                    >
+                      <Eye size={13} />
+                      <span>View Profile & History</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
       </Card>
 
       {/* Customer Profile & Orders History Modal */}

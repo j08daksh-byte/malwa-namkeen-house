@@ -668,7 +668,7 @@ export default function AdminProducts() {
       />
 
       {/* Metric Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+      <div className="adm-stat-grid">
         <Card>
           <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#6B7280', letterSpacing: '0.08em' }}>Total Products</div>
           <div style={{ fontSize: '28px', fontWeight: 800, color: '#3C0815', marginTop: '6px' }}>{products.length}</div>
@@ -692,9 +692,9 @@ export default function AdminProducts() {
 
       {/* Filter & Table Card */}
       <Card>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '12px', flexWrap: 'wrap' }}>
+        <div className="adm-filter-bar">
           {/* Search */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#F8F6F2', border: '1px solid #EAE3D2', padding: '8px 14px', borderRadius: '8px', flex: '1', minWidth: '240px', maxWidth: '380px' }}>
+          <div className="adm-filter-search">
             <Search size={16} color="#9CA3AF" />
             <input
               placeholder="Search product name, hindi, SKU..."
@@ -709,7 +709,7 @@ export default function AdminProducts() {
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div className="adm-filter-selects">
             {/* Category Filter */}
             <select
               value={selectedCategory}
@@ -780,8 +780,9 @@ export default function AdminProducts() {
             </button>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+          <>
+            <div className="adm-table-desktop">
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: '1.5px solid #EAE5D9', color: '#6B7280', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                   <th style={{ padding: '12px 14px' }}>Delicacy</th>
@@ -974,7 +975,145 @@ export default function AdminProducts() {
               </tbody>
             </table>
           </div>
-        )}
+
+          {/* Responsive Mobile Product Cards (rendered on <= 768px screens) */}
+          <div className="adm-cards-mobile">
+            {products.map(p => {
+              const minPrice = p.variants && p.variants.length > 0 ? Math.min(...p.variants.map(v => Number(v.price) || 0)) : 0;
+              const maxPrice = p.variants && p.variants.length > 0 ? Math.max(...p.variants.map(v => Number(v.price) || 0)) : 0;
+              const primaryImg = p.images?.[0];
+              const totalStock = p.variants ? p.variants.reduce((acc, v) => acc + (Number(v.stock) || 0), 0) : 0;
+
+              return (
+                <div
+                  key={p._id}
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #EAE5D9',
+                    borderRadius: '10px',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                    <div style={{ width: '56px', height: '56px', borderRadius: '8px', background: '#F8F6F2', border: '1px solid #EAE3D2', overflow: 'hidden', flexShrink: 0, display: 'grid', placeItems: 'center' }}>
+                      {primaryImg ? (
+                        <img src={primaryImg} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <Package size={22} color="#881337" />
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 800, color: '#2D0813', fontSize: '14px' }}>{p.name}</span>
+                        {p.featured && <Star size={13} fill="#F0C74E" color="#F0C74E" />}
+                      </div>
+                      {p.hindiName && <div style={{ fontSize: '12px', color: '#8C756B' }}>{p.hindiName}</div>}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                        <span style={{ background: '#FAF6EF', color: '#881337', padding: '1px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700 }}>
+                          {getCategoryName(p.category)}
+                        </span>
+                        <span style={{ background: '#FFF1F2', color: '#9F1239', padding: '1px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700 }}>
+                          {p.spiceLevel || 'Medium'}
+                        </span>
+                        {p.isBestSeller && (
+                          <span style={{ background: '#FEF3C7', color: '#92400E', padding: '1px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 800 }}>
+                            ★ Top 4
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Price & Stock Stats Bar */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FAF9F6', padding: '8px 12px', borderRadius: '6px', border: '1px solid #F3F4F6' }}>
+                    <div>
+                      <div style={{ fontSize: '10.5px', color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>Price</div>
+                      <div style={{ fontWeight: 800, color: '#3C0815', fontSize: '14px' }}>
+                        {minPrice === maxPrice ? `₹${minPrice}` : `₹${minPrice} – ₹${maxPrice}`}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '10.5px', color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>Inventory</div>
+                      <div style={{ fontSize: '12.5px', fontWeight: 700, color: totalStock > 10 ? '#059669' : totalStock > 0 ? '#D97706' : '#DC2626' }}>
+                        {totalStock > 0 ? `${totalStock} in stock (${p.variants?.length || 1} var)` : 'Out of Stock'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions Row */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', paddingTop: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleActive(p._id, p.active)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        background: p.active ? '#D1FAE5' : '#F3F4F6',
+                        color: p.active ? '#065F46' : '#6B7280',
+                        border: 'none',
+                        padding: '6px 12px',
+                        borderRadius: '999px',
+                        fontSize: '11.5px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {p.active ? <Eye size={13} /> : <EyeOff size={13} />}
+                      <span>{p.active ? 'Active' : 'Inactive'}</span>
+                    </button>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(p)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          background: '#FAF6EE',
+                          border: '1px solid #D4C9B8',
+                          borderRadius: '6px',
+                          padding: '7px 12px',
+                          fontSize: '12.5px',
+                          fontWeight: 600,
+                          color: '#3C0815',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Edit2 size={13} />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteConfirmId(p._id)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          background: '#FFF1F2',
+                          border: '1px solid #FEE2E2',
+                          borderRadius: '6px',
+                          padding: '7px 10px',
+                          color: '#DC2626',
+                          cursor: 'pointer',
+                        }}
+                        title="Delete product"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
       </Card>
 
       {/* Delete Confirmation Modal */}

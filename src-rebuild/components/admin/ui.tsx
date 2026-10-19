@@ -32,9 +32,9 @@ export function StatusBadge({ status, type = 'enquiry' }: { status: string; type
 
 // ── Card ──────────────────────────────────────────────────────────────────────
 
-export function Card({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+export function Card({ children, style, className = '' }: { children: ReactNode; style?: CSSProperties; className?: string }) {
   return (
-    <div style={{ background: '#fff', borderRadius: '14px', boxShadow: '0 1px 4px rgba(0,0,0,0.07)', padding: '20px 24px', ...style }}>
+    <div className={`adm-card ${className}`.trim()} style={{ ...style }}>
       {children}
     </div>
   );

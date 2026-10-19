@@ -212,7 +212,7 @@ export default function AdminDashboard() {
       ) : data ? (
         <>
           {/* Top Key Metrics Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px' }}>
+          <div className="adm-stat-grid">
             {/* Revenue */}
             <Card>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -287,7 +287,7 @@ export default function AdminDashboard() {
           </div>
 
           {/* Quick Action Shortcuts */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+          <div className="adm-quick-actions">
             <Link
               to="/admin/products"
               style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#FFFFFF', border: '1px solid #EAE3D2', borderRadius: '10px', padding: '12px 16px', textDecoration: 'none', color: '#3C0815', fontWeight: 700, fontSize: '13px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
@@ -331,7 +331,7 @@ export default function AdminDashboard() {
 
           {/* Order Status Breakdown Bar */}
           <Card>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+            <div className="adm-section-header">
               <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', color: '#881337', letterSpacing: '0.06em' }}>
                 Order Lifecycle Distribution
               </div>
@@ -340,7 +340,7 @@ export default function AdminDashboard() {
               </Link>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '10px' }}>
               {Object.entries(data.statusBreakdown).map(([st, count]) => {
                 const badge = getStatusBadge(st);
                 return (
@@ -358,10 +358,10 @@ export default function AdminDashboard() {
           </Card>
 
           {/* Two Columns: Recent Orders & Low Stock Alerts */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px' }}>
+          <div className="adm-split-grid">
             {/* Column 1: Recent Orders */}
             <Card>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div className="adm-section-header">
                 <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', color: '#881337', letterSpacing: '0.06em' }}>
                   Recent Orders
                 </div>
@@ -447,10 +447,10 @@ export default function AdminDashboard() {
           </div>
 
           {/* Bottom Row: Recent Customers & Recent Inquiries */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '20px' }}>
+          <div className="adm-split-grid">
             {/* Recent Customers */}
             <Card>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div className="adm-section-header">
                 <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', color: '#881337', letterSpacing: '0.06em' }}>
                   Recent Registered Patrons
                 </div>
@@ -482,7 +482,7 @@ export default function AdminDashboard() {
 
             {/* Recent Inquiries */}
             <Card>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div className="adm-section-header">
                 <div style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', color: '#881337', letterSpacing: '0.06em' }}>
                   Recent Inquiries & Bulk Leads
                 </div>

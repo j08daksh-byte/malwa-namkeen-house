@@ -239,7 +239,7 @@ export default function AdminInquiries() {
       />
 
       {/* Metrics Bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+      <div className="adm-stat-grid">
         <Card>
           <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#6B7280', letterSpacing: '0.08em' }}>Total Inquiries</div>
           <div style={{ fontSize: '28px', fontWeight: 800, color: '#3C0815', marginTop: '6px' }}>{stats.totalInquiries}</div>
@@ -265,9 +265,9 @@ export default function AdminInquiries() {
       {/* Filter & Table Card */}
       <Card>
         {/* Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '12px', flexWrap: 'wrap' }}>
+        <div className="adm-filter-bar">
           {/* Search */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#F8F6F2', border: '1px solid #EAE3D2', padding: '8px 14px', borderRadius: '8px', flex: '1', minWidth: '240px', maxWidth: '380px' }}>
+          <div className="adm-filter-search">
             <Search size={16} color="#9CA3AF" />
             <input
               placeholder="Search name, email, phone or message..."
@@ -282,7 +282,7 @@ export default function AdminInquiries() {
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div className="adm-filter-selects">
             {/* Status Filter */}
             <select
               value={statusFilter}
@@ -336,8 +336,9 @@ export default function AdminInquiries() {
             </p>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+          <>
+            <div className="adm-table-desktop">
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: '1.5px solid #EAE5D9', color: '#6B7280', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                   <th style={{ padding: '12px 14px' }}>Sender & Type</th>
@@ -477,7 +478,110 @@ export default function AdminInquiries() {
               </tbody>
             </table>
           </div>
-        )}
+
+          {/* Responsive Mobile Inquiries Cards (rendered on <= 768px screens) */}
+          <div className="adm-cards-mobile">
+            {inquiries.map(inq => {
+              const sStyle = getStatusBadgeStyle(inq.status);
+              const dateStr = new Date(inq.createdAt).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+
+              return (
+                <div
+                  key={inq._id}
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #EAE5D9',
+                    borderRadius: '10px',
+                    padding: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontWeight: 800, color: '#1A0A0F', fontSize: '14px' }}>{inq.name}</div>
+                      <div style={{ fontSize: '11px', color: '#6B7280', fontFamily: 'monospace' }}>
+                        {inq.referenceId || `MN-ENQ-${inq._id.slice(-6).toUpperCase()}`}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <span style={{ background: '#FAF6EF', color: '#881337', border: '1px solid #EAE3D2', padding: '2px 7px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700, textTransform: 'capitalize' }}>
+                        {inq.category || 'General'}
+                      </span>
+                      <span
+                        style={{
+                          background: sStyle.bg,
+                          color: sStyle.text,
+                          border: `1px solid ${sStyle.border}`,
+                          padding: '2px 7px',
+                          borderRadius: '999px',
+                          fontSize: '10.5px',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {inq.status.replace('_', ' ')}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Contact Strip */}
+                  <div style={{ fontSize: '12px', color: '#4B5563', background: '#FAF9F6', padding: '6px 10px', borderRadius: '6px' }}>
+                    <div>{inq.email} {inq.phone ? `• ${inq.phone}` : ''}</div>
+                  </div>
+
+                  {/* Message preview */}
+                  <div style={{ fontSize: '12.5px', color: '#374151', lineHeight: 1.45 }}>
+                    {inq.message}
+                  </div>
+
+                  {/* Date and Action */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '4px', borderTop: '1px solid #F3F4F6' }}>
+                    <span style={{ fontSize: '11px', color: '#9CA3AF' }}>{dateStr}</span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => openInquiryDetails(inq)}
+                        style={{
+                          background: '#FAF6EE',
+                          border: '1px solid #D4C9B8',
+                          borderRadius: '6px',
+                          padding: '6px 12px',
+                          color: '#3C0815',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <Eye size={12} />
+                        <span>Respond</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteConfirmId(inq._id)}
+                        style={{ background: '#FFF1F2', border: '1px solid #FEE2E2', borderRadius: '6px', padding: '6px 8px', color: '#DC2626', cursor: 'pointer' }}
+                        title="Delete inquiry"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
       </Card>
 
       {/* Delete Confirmation Modal */}
