@@ -258,10 +258,10 @@ export default function LegacyStory() {
             </h2>
 
             <p className="ls-body" style={{ marginTop: '20px' }}>
-              Born in the heart of Malwa and inspired by its rich culinary heritage, Malwa Namkeen House brings authentic small-batch namkeens, peppery Ratlami sev, handcrafted mathris, and pure sweets directly to your home.
+              Born in Ujjain, Madhya Pradesh, and inspired by Malwa&apos;s rich royal culinary heritage, Malwa Namkeen House is your trusted local namkeen destination — bringing authentic small-batch Ratlami sev, Ujjaini sev, crunchy mixtures, handcrafted mathris, and pure sweets directly to your home.
             </p>
             <p className="ls-body-muted">
-              Every recipe carries the care of traditional hand-extrusion, cold-pressed groundnut oil, slow-roasted spices, and generations of culinary mastery.
+              Every recipe prepared right here in Ujjain carries the care of traditional hand-extrusion, 100% pure cold-pressed groundnut oil, slow-roasted spices, and generations of culinary mastery.
             </p>
 
             <div className="ls-tags">

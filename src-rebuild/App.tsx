@@ -74,20 +74,38 @@ function PublicSite() {
     '@context': 'https://schema.org',
     '@graph': [
       {
-        '@type': 'Organization',
-        '@id': 'https://malwanamkeenhouse.com/#organization',
+        '@type': ['LocalBusiness', 'Store'],
+        '@id': 'https://www.malwanamkeenhouse.com/#store',
         name: 'MALWA NAMKEEN HOUSE',
-        url: 'https://malwanamkeenhouse.com',
-        logo: 'https://malwanamkeenhouse.com/logo.png',
-        description: 'THE NAMKEEN & SNACKS HUB — Authentic Ratlami Sev, artisanal namkeens, and festive gifting.',
-        telephone: '+91 7987732765',
+        alternateName: 'Malwa Namkeen House Ujjain',
+        url: 'https://www.malwanamkeenhouse.com',
+        logo: 'https://www.malwanamkeenhouse.com/logo.png',
+        image: 'https://www.malwanamkeenhouse.com/hero-banner-1.png',
+        description: 'Best authentic namkeen & sweets shop in Ujjain, Madhya Pradesh. Handcrafted Ratlami Sev, Ujjaini Sev, mixture, and festive gifting in pure groundnut oil.',
+        telephone: '+91 79877 32765',
+        priceRange: '₹₹',
+        currenciesAccepted: 'INR',
+        paymentAccepted: 'Cash, UPI, Credit Card, Debit Card',
+        address: {
+          '@type': 'PostalAddress',
+          streetAddress: 'Main Market',
+          addressLocality: 'Ujjain',
+          addressRegion: 'Madhya Pradesh',
+          postalCode: '456001',
+          addressCountry: 'IN',
+        },
+        geo: {
+          '@type': 'GeoCoordinates',
+          latitude: 23.1765,
+          longitude: 75.7885,
+        },
         sameAs: [
           'https://www.instagram.com/malwanamkeenhouse',
           'https://www.facebook.com/malwanamkeenhouse',
         ],
         contactPoint: {
           '@type': 'ContactPoint',
-          telephone: '+91 7987732765',
+          telephone: '+91 79877 32765',
           contactType: 'customer service',
           areaServed: 'IN',
           availableLanguage: ['en', 'hi'],
@@ -95,13 +113,13 @@ function PublicSite() {
       },
       {
         '@type': 'WebSite',
-        '@id': 'https://malwanamkeenhouse.com/#website',
-        url: 'https://malwanamkeenhouse.com',
-        name: 'MALWA NAMKEEN HOUSE',
-        publisher: { '@id': 'https://malwanamkeenhouse.com/#organization' },
+        '@id': 'https://www.malwanamkeenhouse.com/#website',
+        url: 'https://www.malwanamkeenhouse.com',
+        name: 'MALWA NAMKEEN HOUSE — Best Namkeen Shop in Ujjain',
+        publisher: { '@id': 'https://www.malwanamkeenhouse.com/#store' },
         potentialAction: {
           '@type': 'SearchAction',
-          target: 'https://malwanamkeenhouse.com/shop?search={search_term_string}',
+          target: 'https://www.malwanamkeenhouse.com/shop?search={search_term_string}',
           'query-input': 'required name=search_term_string',
         },
       },
@@ -111,8 +129,8 @@ function PublicSite() {
   return (
     <ErrorBoundary>
       <SEOHead
-        title="THE NAMKEEN & SNACKS HUB"
-        description="Authentic Malwa namkeens, small-batch Ratlami Sev, Ujjaini chivda, and festive gifting crafted with traditional spices and 100% pure cold-pressed groundnut oil."
+        title="Best Namkeen & Sweets Shop in Ujjain | Authentic Ratlami Sev"
+        description="Authentic namkeen shop in Ujjain, Madhya Pradesh. Handcrafted Ratlami Sev, Ujjaini Sev, festive sweets, and namkeens fried in 100% pure cold-pressed groundnut oil."
         canonicalPath="/"
         structuredData={homeStructuredData}
       />
