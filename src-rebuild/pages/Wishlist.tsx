@@ -9,6 +9,7 @@ import { useCart } from '../lib/cartContext';
 import { type Product, type ProductWeightOption } from '../data/products';
 import { isProductAvailable } from '../components/shop/ProductCard';
 import { resolveProductImage, DEFAULT_FALLBACK_IMAGE } from '../lib/productImage';
+import { WishlistGridSkeleton } from '../components/skeletons';
 
 export default function Wishlist() {
   const navigate = useNavigate();
@@ -101,20 +102,7 @@ export default function Wishlist() {
 
           {/* Loading or Content */}
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '64px 0', color: '#75645C' }}>
-              <div
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  border: '3px solid #3C0815',
-                  borderTopColor: 'transparent',
-                  borderRadius: '50%',
-                  margin: '0 auto 16px',
-                  animation: 'spin 0.8s linear infinite',
-                }}
-              />
-              Loading saved items…
-            </div>
+            <WishlistGridSkeleton count={4} />
           ) : wishlist.length === 0 ? (
             /* Empty State */
             <div

@@ -31,6 +31,7 @@ import Navbar from '../components/layout/Navbar';
 import Footer from '../components/sections/Footer';
 import SEOHead from '../components/seo/SEOHead';
 import { useCustomerSession } from '../components/layout/CustomerSessionContext';
+import { DashboardSkeleton } from '../components/skeletons';
 
 function loadRazorpayScript(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -643,13 +644,7 @@ export default function Dashboard() {
   };
 
   if (sessionLoading || !customer) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#F6EFE3' }}>
-        <p style={{ fontFamily: 'Inter, sans-serif', color: '#55000A', fontWeight: 600 }}>
-          Opening your Malwa Account…
-        </p>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   const navItems = [

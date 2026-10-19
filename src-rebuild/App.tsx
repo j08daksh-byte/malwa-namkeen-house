@@ -33,6 +33,19 @@ const Dashboard     = lazy(() => import('./pages/Dashboard'));
 const Wishlist      = lazy(() => import('./pages/Wishlist'));
 const NotFound      = lazy(() => import('./pages/NotFound'));
 
+// Premium Malwa Shimmer Skeletons for instant route transitions
+import {
+  ShopSkeleton,
+  ProductDetailSkeleton,
+  ContactSkeleton,
+  AboutSkeleton,
+  FAQSkeleton,
+  AccountSkeleton,
+  DashboardSkeleton,
+  WishlistSkeleton,
+  LegalSkeleton,
+} from './components/skeletons';
+
 // Lazy-loaded Admin pages (reduces initial customer bundle size)
 const AdminLogin        = lazy(() => import('./pages/admin/AdminLogin'));
 const ProtectedRoute    = lazy(() => import('./pages/admin/ProtectedRoute'));
@@ -188,24 +201,24 @@ export default function App() {
                 <Routes>
                   {/* Public website */}
                   <Route path="/" element={<PublicSite />} />
-                  <Route path="/shop" element={<Shop />} />
-                  <Route path="/product/:slug" element={<ProductDetail />} />
-                  <Route path="/contact" element={<ContactPage />} />
-                  <Route path="/about-us" element={<AboutUs />} />
-                  <Route path="/faq" element={<FAQ />} />
-                  <Route path="/account" element={<Account />} />
-                  <Route path="/login" element={<Account />} />
-                  <Route path="/forgot-password" element={<Account />} />
-                  <Route path="/reset-password" element={<Account />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/wishlist" element={<Wishlist />} />
+                  <Route path="/shop" element={<Suspense fallback={<ShopSkeleton />}><Shop /></Suspense>} />
+                  <Route path="/product/:slug" element={<Suspense fallback={<ProductDetailSkeleton />}><ProductDetail /></Suspense>} />
+                  <Route path="/contact" element={<Suspense fallback={<ContactSkeleton />}><ContactPage /></Suspense>} />
+                  <Route path="/about-us" element={<Suspense fallback={<AboutSkeleton />}><AboutUs /></Suspense>} />
+                  <Route path="/faq" element={<Suspense fallback={<FAQSkeleton />}><FAQ /></Suspense>} />
+                  <Route path="/account" element={<Suspense fallback={<AccountSkeleton />}><Account /></Suspense>} />
+                  <Route path="/login" element={<Suspense fallback={<AccountSkeleton />}><Account /></Suspense>} />
+                  <Route path="/forgot-password" element={<Suspense fallback={<AccountSkeleton />}><Account /></Suspense>} />
+                  <Route path="/reset-password" element={<Suspense fallback={<AccountSkeleton />}><Account /></Suspense>} />
+                  <Route path="/dashboard" element={<Suspense fallback={<DashboardSkeleton />}><Dashboard /></Suspense>} />
+                  <Route path="/wishlist" element={<Suspense fallback={<WishlistSkeleton />}><Wishlist /></Suspense>} />
 
                   {/* Legal pages */}
-                  <Route path="/privacy-policy"       element={<PrivacyPolicy />} />
-                  <Route path="/terms-and-conditions" element={<TermsConditions />} />
-                  <Route path="/cancellation-policy"  element={<CancellationPolicy />} />
-                  <Route path="/refund-policy"        element={<RefundPolicy />} />
-                  <Route path="/shipping-policy"      element={<ShippingPolicy />} />
+                  <Route path="/privacy-policy"       element={<Suspense fallback={<LegalSkeleton />}><PrivacyPolicy /></Suspense>} />
+                  <Route path="/terms-and-conditions" element={<Suspense fallback={<LegalSkeleton />}><TermsConditions /></Suspense>} />
+                  <Route path="/cancellation-policy"  element={<Suspense fallback={<LegalSkeleton />}><CancellationPolicy /></Suspense>} />
+                  <Route path="/refund-policy"        element={<Suspense fallback={<LegalSkeleton />}><RefundPolicy /></Suspense>} />
+                  <Route path="/shipping-policy"      element={<Suspense fallback={<LegalSkeleton />}><ShippingPolicy /></Suspense>} />
                   <Route path="/shipping-and-delivery" element={<Navigate to="/shipping-policy" replace />} />
 
                   {/* Admin — login (public) */}

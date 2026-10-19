@@ -14,6 +14,7 @@ import { useStoreSettings } from '../lib/storeSettingsContext';
 import { BUSINESS } from '../lib/business';
 import { optimizeCloudinary } from '../lib/cloudinary';
 import { resolveProductImages, DEFAULT_FALLBACK_IMAGE } from '../lib/productImage';
+import { ProductDetailSkeleton } from '../components/skeletons';
 import {
   ChevronRight,
   Star,
@@ -316,23 +317,7 @@ export default function ProductDetail() {
 
   // ── Render Loading Skeleton ────────────────────────────────────────────────
   if (loading) {
-    return (
-      <div className="pdp-wrapper">
-        <Navbar />
-        <main className="pdp-container pdp-loading-skeleton">
-          <div className="pdp-skeleton-gallery" />
-          <div className="pdp-skeleton-details">
-            <div className="pdp-sk-line" style={{ width: '40%', height: '14px' }} />
-            <div className="pdp-sk-line" style={{ width: '80%', height: '36px', marginTop: '12px' }} />
-            <div className="pdp-sk-line" style={{ width: '50%', height: '24px', marginTop: '8px' }} />
-            <div className="pdp-sk-line" style={{ width: '100%', height: '80px', marginTop: '20px' }} />
-            <div className="pdp-sk-line" style={{ width: '60%', height: '48px', marginTop: '24px' }} />
-            <div className="pdp-sk-line" style={{ width: '100%', height: '54px', marginTop: '24px', borderRadius: '999px' }} />
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
+    return <ProductDetailSkeleton />;
   }
 
   // ── Render 404 / Nonexistent Product ───────────────────────────────────────
