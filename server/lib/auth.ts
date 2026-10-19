@@ -98,25 +98,34 @@ export function setAuthCookie(res: Response, token: string): void {
 }
 
 /**
- * Clear auth cookie on response.
+ * Clear auth cookie on response across all potential browser, proxy, and sameSite variations.
  */
 export function clearAuthCookie(res: Response): void {
   const isProd = process.env.NODE_ENV === 'production';
+
+  // Standard Express clearCookie calls
   res.clearCookie(AUTH_COOKIE_NAME, {
     httpOnly: true,
     secure: isProd,
     sameSite: 'lax',
     path: '/',
   });
-  // Explicitly write an expired cookie to guarantee stubborn mobile engines purge it
-  res.cookie(AUTH_COOKIE_NAME, '', {
+  res.clearCookie(AUTH_COOKIE_NAME, {
     httpOnly: true,
-    secure: isProd,
+    secure: false,
     sameSite: 'lax',
     path: '/',
-    expires: new Date(0),
-    maxAge: 0,
   });
+  res.clearCookie(AUTH_COOKIE_NAME, {
+    path: '/',
+  });
+
+  // Explicitly write expired Set-Cookie headers to guarantee mobile engines & proxies purge it
+  res.setHeader('Set-Cookie', [
+    `${AUTH_COOKIE_NAME}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; HttpOnly; SameSite=Lax${isProd ? '; Secure' : ''}`,
+    `${AUTH_COOKIE_NAME}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; HttpOnly; SameSite=Lax`,
+    `${AUTH_COOKIE_NAME}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; HttpOnly`,
+  ]);
 }
 
 /**

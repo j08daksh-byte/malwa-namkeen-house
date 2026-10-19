@@ -42,8 +42,16 @@ export function CustomerSessionProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
     const token = localStorage.getItem(TOKEN_KEY);
 
+    // If no token in local storage, user is signed out — do NOT query server with lingering cookies
+    if (!token) {
+      setCustomer(null);
+      localStorage.removeItem(KEY);
+      setLoading(false);
+      return;
+    }
+
     fetch('/api/auth/me', {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: { Authorization: `Bearer ${token}` },
       credentials: 'include',
     })
       .then(res => (res.ok ? res.json() : null))
@@ -57,7 +65,7 @@ export function CustomerSessionProvider({ children }: { children: ReactNode }) {
             try {
               const refreshRes = await fetch('/api/auth/refresh', {
                 method: 'POST',
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                headers: { Authorization: `Bearer ${token}` },
                 credentials: 'include',
               });
               if (refreshRes.ok) {
@@ -110,6 +118,17 @@ export function CustomerSessionProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    // Immediately clear state and local persistence
+    setCustomer(null);
+    localStorage.removeItem(KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem('malwa_admin_token');
+    try {
+      sessionStorage.clear();
+      // Purge any accessible cookies client-side
+      document.cookie = 'malwa_auth_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; Max-Age=0;';
+    } catch {}
+
     try {
       await fetch('/api/auth/logout', {
         method: 'POST',
@@ -119,14 +138,6 @@ export function CustomerSessionProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignore network errors during logout
     }
-
-    setCustomer(null);
-    localStorage.removeItem(KEY);
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem('malwa_admin_token');
-    try {
-      sessionStorage.clear();
-    } catch {}
   }, []);
 
   const updateProfile = useCallback((profile: CustomerProfile) => {

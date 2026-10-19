@@ -25,8 +25,15 @@ export default function ProtectedRoute({ children, requireSuperAdmin }: Props) {
     async function check() {
       try {
         const token = localStorage.getItem('malwa_admin_token');
+        if (!token) {
+          if (!cancelled) {
+            setState({ status: 'denied' });
+          }
+          return;
+        }
+
         const res = await fetch('/api/auth/admin/verify', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: { Authorization: `Bearer ${token}` },
           credentials: 'include',
         });
 

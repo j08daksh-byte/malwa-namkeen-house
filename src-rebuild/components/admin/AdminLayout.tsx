@@ -80,6 +80,7 @@ export default function AdminLayout({ admin, children }: Props) {
     localStorage.removeItem('malwa-customer-session');
     try {
       sessionStorage.clear();
+      document.cookie = 'malwa_auth_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; Max-Age=0;';
     } catch {}
     try {
       await fetch('/api/auth/logout', {

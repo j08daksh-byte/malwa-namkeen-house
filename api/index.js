@@ -888,14 +888,20 @@ function clearAuthCookie(res) {
     sameSite: "lax",
     path: "/"
   });
-  res.cookie(AUTH_COOKIE_NAME, "", {
+  res.clearCookie(AUTH_COOKIE_NAME, {
     httpOnly: true,
-    secure: isProd2,
+    secure: false,
     sameSite: "lax",
-    path: "/",
-    expires: /* @__PURE__ */ new Date(0),
-    maxAge: 0
+    path: "/"
   });
+  res.clearCookie(AUTH_COOKIE_NAME, {
+    path: "/"
+  });
+  res.setHeader("Set-Cookie", [
+    `${AUTH_COOKIE_NAME}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; HttpOnly; SameSite=Lax${isProd2 ? "; Secure" : ""}`,
+    `${AUTH_COOKIE_NAME}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; HttpOnly; SameSite=Lax`,
+    `${AUTH_COOKIE_NAME}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; HttpOnly`
+  ]);
 }
 async function requireAuth(req, res, next) {
   const token = extractToken(req);

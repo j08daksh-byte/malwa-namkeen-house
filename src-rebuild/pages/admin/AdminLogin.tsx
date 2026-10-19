@@ -64,11 +64,12 @@ export default function AdminLogin() {
           const el = googleBtnRef.current;
           const containerWidth = el?.clientWidth || 0;
           if (containerWidth > 0) {
-            return Math.min(328, Math.max(200, Math.floor(containerWidth - 4)));
+            return Math.min(320, Math.max(200, Math.floor(containerWidth - 4)));
           }
           if (typeof window !== 'undefined') {
             const screenW = window.innerWidth;
-            if (screenW <= 360) return 240;
+            if (screenW <= 340) return 220;
+            if (screenW <= 380) return 260;
             if (screenW <= 420) return 280;
           }
           return 300;
@@ -256,13 +257,31 @@ export default function AdminLogin() {
           box-sizing: border-box;
           margin-bottom: 16px;
         }
+        .admin-google-btn-wrapper > div {
+          max-width: 100% !important;
+          display: flex !important;
+          justify-content: center !important;
+        }
         .admin-google-btn-wrapper iframe {
           max-width: 100% !important;
         }
+        @media (max-width: 768px) {
+          .admin-login-card input {
+            font-size: 16px !important;
+          }
+        }
         @media (max-width: 480px) {
+          .admin-login-wrapper {
+            padding: 16px 12px;
+          }
           .admin-login-card {
-            padding: 22px 18px;
+            padding: 20px 16px;
             border-radius: 16px;
+          }
+        }
+        @media (max-width: 360px) {
+          .admin-login-card {
+            padding: 16px 12px;
           }
         }
       `}</style>
@@ -359,10 +378,13 @@ export default function AdminLogin() {
           <div style={{
             background: '#fff',
             borderRadius: '16px',
-            maxWidth: '420px',
+            maxWidth: 'min(92vw, 420px)',
             width: '100%',
-            padding: '28px',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            padding: 'clamp(18px, 4vw, 28px)',
             boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+            boxSizing: 'border-box',
           }}>
             <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#1A0A0F', margin: '0 0 8px' }}>
               Reset Administrator Password

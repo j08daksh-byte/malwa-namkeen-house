@@ -64,14 +64,15 @@ export default function Account() {
     const el = googleButtonContainerRef.current;
     const containerWidth = el?.clientWidth || 0;
     if (containerWidth > 0) {
-      return Math.min(380, Math.max(200, Math.floor(containerWidth - 8)));
+      return Math.min(360, Math.max(200, Math.floor(containerWidth - 4)));
     }
     if (typeof window !== 'undefined') {
       const screenW = window.innerWidth;
-      if (screenW <= 360) return 240;
-      if (screenW <= 420) return 280;
+      if (screenW <= 340) return 220;
+      if (screenW <= 380) return 260;
+      if (screenW <= 440) return 280;
     }
-    return 320;
+    return 300;
   }, []);
 
   const switchMode = (next: Mode, emailPreset?: string) => {
@@ -546,8 +547,10 @@ export default function Account() {
           }
           .account-field__label-row {
             display: flex;
-            align-items: center;
+            align-items: baseline;
             justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
             margin-bottom: 6px;
           }
           .account-field label,
@@ -587,6 +590,11 @@ export default function Account() {
             overflow: hidden;
             min-height: 44px;
             box-sizing: border-box;
+          }
+          .google-button-wrapper > div {
+            max-width: 100% !important;
+            display: flex !important;
+            justify-content: center !important;
           }
           .google-button-wrapper iframe {
             max-width: 100% !important;
@@ -654,14 +662,18 @@ export default function Account() {
           .terms {
             display: flex;
             align-items: flex-start;
-            gap: 8px;
+            gap: 10px;
             font-size: 12px;
             color: #6B7280;
             cursor: pointer;
-            line-height: 1.4;
+            line-height: 1.45;
+            user-select: none;
           }
           .terms input {
-            margin-top: 2px;
+            margin-top: 3px;
+            flex-shrink: 0;
+            width: 16px;
+            height: 16px;
             accent-color: #55000A;
           }
           .terms a {
@@ -696,6 +708,8 @@ export default function Account() {
             font-size: 13px;
             line-height: 1.45;
             margin-top: 16px;
+            word-break: break-word;
+            overflow-wrap: break-word;
           }
           .account-message--error {
             background: #FEE2E2;
@@ -804,6 +818,7 @@ export default function Account() {
             align-items: center;
             justify-content: space-between;
             gap: 10px;
+            flex-wrap: wrap;
           }
           .whatsapp-help-box a {
             display: inline-flex;
@@ -875,9 +890,14 @@ export default function Account() {
               padding: 36px 24px;
             }
           }
+          @media (max-width: 768px) {
+            .account-input input {
+              font-size: 16px;
+            }
+          }
           @media (max-width: 480px) {
             .account-form-area {
-              padding: 18px 16px 40px;
+              padding: 18px 14px 40px;
             }
             .account-heading {
               font-size: 26px;
@@ -885,6 +905,26 @@ export default function Account() {
             .account-subtitle {
               font-size: 13px;
               margin-bottom: 18px;
+            }
+            .account-submit {
+              font-size: 13.5px;
+            }
+            .social-button {
+              font-size: 13px;
+            }
+          }
+          @media (max-width: 360px) {
+            .account-form-area {
+              padding: 14px 10px 32px;
+            }
+            .account-heading {
+              font-size: 22px;
+            }
+            .whatsapp-help-box {
+              padding: 10px;
+            }
+            .whatsapp-help-box a {
+              font-size: 11.5px;
             }
           }
         `}</style>
