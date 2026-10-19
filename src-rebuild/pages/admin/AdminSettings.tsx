@@ -287,6 +287,16 @@ export default function AdminSettings() {
 
       setStatusMsg({ type: 'success', text: 'Store settings saved successfully.' });
       setHasUnsavedChanges(false);
+
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        try {
+          const bc = new BroadcastChannel('mnh_store_settings_sync');
+          bc.postMessage({ type: 'SETTINGS_UPDATED', timestamp: Date.now() });
+          bc.close();
+        } catch {
+          // Fallback gracefully
+        }
+      }
     } catch (err: unknown) {
       setStatusMsg({ type: 'error', text: err instanceof Error ? err.message : 'Error saving settings.' });
     } finally {

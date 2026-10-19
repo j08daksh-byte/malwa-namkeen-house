@@ -1,46 +1,61 @@
 import LegalLayout from './LegalLayout';
+import { useStoreSettings } from '../../lib/storeSettingsContext';
 
 export default function PrivacyPolicy() {
+  const { settings } = useStoreSettings();
+  const storeName = settings.storeName || 'MALWA NAMKEEN HOUSE';
+  const email = settings.contact?.email || 'malwanamkeenhouse@gmail.com';
+  const address = settings.contact?.address?.full || 'No. 87/4-B, Sulikunte Village, Sarjapur Main Road, Dommasandra Post, Bengaluru – 562125, Karnataka, India';
+  const customPolicy = settings.policies?.privacyPolicy?.trim();
+
   return (
-    <LegalLayout title="Privacy Policy" lastUpdated="June 2026">
+    <LegalLayout title="Privacy Policy" lastUpdated="October 2026">
+      {customPolicy && (
+        <div style={{ background: '#FFF3E0', padding: '16px 20px', borderRadius: '8px', borderLeft: '4px solid #D97706', marginBottom: '24px' }}>
+          <strong>Notice from Store Administration:</strong>
+          <p style={{ margin: '6px 0 0', whiteSpace: 'pre-line' }}>{customPolicy}</p>
+        </div>
+      )}
+
       <h2>1. Information We Collect</h2>
-      <p>When you submit an enquiry, reservation request, or catering/gifting form on our website, we collect the personal information you voluntarily provide, including your name, email address, phone number, and message content. We do not collect payment card details through this website.</p>
+      <p>When you browse our catalog, submit an enquiry, create a patron account, or place an order on our website, we collect necessary personal information including your name, email address, phone number, and delivery address. Payment credentials (card numbers, UPI IDs, net banking details) are handled directly by PCI-DSS compliant payment gateways and are never stored on our servers.</p>
 
       <h2>2. How We Use Your Information</h2>
       <p>We use the information you provide to:</p>
       <ul>
-        <li>Respond to your enquiries and reservation requests.</li>
-        <li>Communicate reservation confirmations and follow-ups via email or WhatsApp.</li>
-        <li>Improve our service based on internal review of submissions.</li>
+        <li>Process, dispatch, and deliver your orders accurately.</li>
+        <li>Transmit order confirmation, tracking updates, and invoices via email or SMS/WhatsApp.</li>
+        <li>Respond to your customer support enquiries and bulk booking requests.</li>
+        <li>Improve our store catalog, security, and services.</li>
       </ul>
-      <p>We do not sell or rent your personal information to third parties.</p>
+      <p>We strictly do not sell, rent, or trade your personal information to third parties.</p>
 
-      <h2>3. Data Storage</h2>
-      <p>Your submitted information is stored securely in our cloud database. Access to your data is restricted to authorised Malwa Namkeen House staff. We implement administrative and technical security measures to safeguard your personal data.</p>
+      <h2>3. Data Storage & Security</h2>
+      <p>Your account and order details are stored securely in our encrypted cloud database. Access to your personal data is restricted to authorised {storeName} administrative staff. We implement TLS encryption, hashed authentication, and regular vulnerability audits to safeguard your data.</p>
 
       <h2>4. Data Retention</h2>
-      <p>We retain reservation and enquiry records for as long as necessary for business and legal purposes. You may request deletion of your data at any time by contacting us at the address below, and we will respond within a reasonable timeframe.</p>
+      <p>We retain transaction and order records in compliance with applicable Indian commercial, tax (GST), and accounting regulations. You may request review or deletion of your account at any time by contacting us at the address below.</p>
 
-      <h2>5. Cookies</h2>
-      <p>This website does not intentionally use third-party tracking or advertising cookies. If you notice unexpected cookies, please contact us so we can investigate.</p>
+      <h2>5. Cookies & Local Session</h2>
+      <p>Our website uses local storage and essential session tokens solely for authentication, keeping your cart active, and preserving your preferences. We do not use third-party invasive tracking or advertising cookies.</p>
 
-      <h2>6. Third-Party Services</h2>
-      <p>Our website uses the following third-party services:</p>
+      <h2>6. Third-Party Infrastructure Services</h2>
+      <p>Our e-commerce infrastructure operates in conjunction with trusted service providers:</p>
       <ul>
-        <li><strong>MongoDB Atlas</strong> — cloud database hosting.</li>
-        <li><strong>Resend</strong> — transactional email delivery.</li>
-        <li><strong>Cloudinary</strong> — media and image asset delivery.</li>
+        <li><strong>MongoDB Atlas</strong> — secure cloud database hosting.</li>
+        <li><strong>Resend</strong> — transactional email notifications.</li>
+        <li><strong>Cloudinary</strong> — media and product image delivery.</li>
       </ul>
-      <p>These services operate under their own privacy policies and data processing agreements.</p>
+      <p>These services operate under strict data protection and confidentiality agreements.</p>
 
       <h2>7. Your Rights</h2>
-      <p>You have the right to request access to, correction of, or deletion of the personal data we hold about you. To exercise these rights, please contact us at <a href="mailto:malwanamkeenhouse@gmail.com">malwanamkeenhouse@gmail.com</a>.</p>
+      <p>You have the right to request access to, correction of, or deletion of the personal data we hold about you. To exercise these rights, please contact us at <a href={`mailto:${email}`}>{email}</a>.</p>
 
       <h2>8. Changes to This Policy</h2>
-      <p>We may update this Privacy Policy from time to time. The "Last Updated" date at the top of this page reflects the most recent revision. Continued use of our website after any changes constitutes acceptance of the revised policy.</p>
+      <p>We may update this Privacy Policy periodically. The "Last Updated" date reflects the most recent revision. Continued use of our website after any changes constitutes acceptance of the revised policy.</p>
 
       <h2>9. Contact</h2>
-      <p>MALWA NAMKEEN HOUSE, Indore, Madhya Pradesh, India.<br />Email: <a href="mailto:malwanamkeenhouse@gmail.com">malwanamkeenhouse@gmail.com</a></p>
+      <p>{storeName}, {address}<br />Email: <a href={`mailto:${email}`}>{email}</a></p>
     </LegalLayout>
   );
 }

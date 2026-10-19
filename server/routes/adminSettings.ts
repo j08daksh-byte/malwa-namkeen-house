@@ -70,7 +70,7 @@ const handlePublicSettings = async (_req: Request, res: Response) => {
     if (!settings) {
       settings = await getOrCreateSingletonSettings();
     }
-    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.json({
       success: true,
       settings,

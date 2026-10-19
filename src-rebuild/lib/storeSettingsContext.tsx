@@ -172,6 +172,28 @@ export function StoreSettingsProvider({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     fetchSettings();
+
+    const handleFocus = () => {
+      fetchSettings();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      try {
+        bc = new BroadcastChannel('mnh_store_settings_sync');
+        bc.onmessage = () => {
+          fetchSettings();
+        };
+      } catch {
+        // Fallback gracefully
+      }
+    }
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      if (bc) bc.close();
+    };
   }, [fetchSettings]);
 
   return (

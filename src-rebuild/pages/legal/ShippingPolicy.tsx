@@ -1,11 +1,29 @@
 import LegalLayout from './LegalLayout';
+import { useStoreSettings } from '../../lib/storeSettingsContext';
 
 export default function ShippingPolicy() {
+  const { settings } = useStoreSettings();
+  const freeThreshold = settings.deliverySettings?.freeShippingThreshold ?? 499;
+  const standardFee = settings.deliverySettings?.standardShippingFee ?? 49;
+  const storeName = settings.storeName || 'MALWA NAMKEEN HOUSE';
+  const email = settings.contact?.email || 'malwanamkeenhouse@gmail.com';
+  const phone = settings.contact?.phone || '+91 7987732765';
+  const whatsapp = (settings.contact?.whatsappNumber || phone).replace(/\D/g, '');
+  const address = settings.contact?.address?.full || 'No. 87/4-B, Sulikunte Village, Sarjapur Main Road, Dommasandra Post, Bengaluru – 562125, Karnataka, India';
+  const customPolicy = settings.policies?.shippingPolicy?.trim();
+
   return (
     <LegalLayout title="Shipping & Delivery Policy" lastUpdated="October 2026">
+      {customPolicy && (
+        <div style={{ background: '#FFF3E0', padding: '16px 20px', borderRadius: '8px', borderLeft: '4px solid #D97706', marginBottom: '24px' }}>
+          <strong>Notice from Store Administration:</strong>
+          <p style={{ margin: '6px 0 0', whiteSpace: 'pre-line' }}>{customPolicy}</p>
+        </div>
+      )}
+
       <h2>1. Nationwide Shipping Coverage</h2>
       <p>
-        MALWA NAMKEEN HOUSE ships fresh, artisanal namkeens, sweets, and gifting hampers across India to all major serviceable pincodes in partnership with premium national courier partners.
+        {storeName} ships fresh, artisanal namkeens, sweets, and gifting hampers across India to all major serviceable pincodes in partnership with premium national courier partners.
       </p>
 
       <h2>2. Order Processing & Dispatch Timelines</h2>
@@ -14,7 +32,7 @@ export default function ShippingPolicy() {
       </p>
 
       <h2>3. Delivery Timelines</h2>
-      <p>Estimated transit times from our Bengaluru dispatch facility are as follows:</p>
+      <p>Estimated transit times from our dispatch facility are as follows:</p>
       <ul>
         <li><strong>Bengaluru & South India Metros:</strong> 2 to 3 business days.</li>
         <li><strong>Rest of India Metros (Delhi NCR, Mumbai, Pune, Kolkata, Hyderabad):</strong> 3 to 5 business days.</li>
@@ -29,8 +47,8 @@ export default function ShippingPolicy() {
         We believe in transparent pricing with no hidden charges at checkout:
       </p>
       <ul>
-        <li><strong>Free Standard Delivery:</strong> All orders with a subtotal of <strong>₹499 or more</strong> qualify for free nationwide delivery.</li>
-        <li><strong>Standard Shipping Fee:</strong> Orders below ₹499 incur a flat nominal delivery fee of <strong>₹49</strong> across India.</li>
+        <li><strong>Free Standard Delivery:</strong> All orders with a subtotal of <strong>₹{freeThreshold} or more</strong> qualify for free nationwide delivery.</li>
+        <li><strong>Standard Shipping Fee:</strong> Orders below ₹{freeThreshold} incur a flat nominal delivery fee of <strong>₹{standardFee}</strong> across India.</li>
       </ul>
 
       <h2>5. Shipment Tracking</h2>
@@ -51,9 +69,9 @@ export default function ShippingPolicy() {
       <h2>7. Delivery Queries & Support</h2>
       <p>For any queries regarding your order status, dispatch, or address changes, please reach out to us:</p>
       <ul>
-        <li>Email: <a href="mailto:malwanamkeenhouse@gmail.com">malwanamkeenhouse@gmail.com</a></li>
-        <li>WhatsApp Support: <a href="https://wa.me/917987732765" target="_blank" rel="noreferrer">+91 7987732765</a></li>
-        <li>Dispatch Facility: No. 87/4-B, Sulikunte Village, Sarjapur Main Road, Dommasandra Post, Bengaluru – 562125, Karnataka, India</li>
+        <li>Email: <a href={`mailto:${email}`}>{email}</a></li>
+        <li>WhatsApp Support: <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer">{phone}</a></li>
+        <li>Dispatch Facility: {address}</li>
       </ul>
     </LegalLayout>
   );
