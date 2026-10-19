@@ -82,12 +82,12 @@ const DEFAULT_SETTINGS: StoreSettingsData = {
     whatsappNumber: '917987732765',
     address: {
       line1: 'Malwa Namkeen House',
-      line2: 'Main Market',
+      line2: 'Maksi Rd, Freeganj',
       city: 'Ujjain',
       state: 'Madhya Pradesh',
-      postalCode: '456001',
+      postalCode: '456010',
       country: 'India',
-      full: 'Malwa Namkeen House, Main Market, Ujjain – 456001, Madhya Pradesh, India',
+      full: 'Malwa Namkeen House, Maksi Rd, Freeganj, Ujjain – 456010, Madhya Pradesh, India',
     },
   },
   businessHours: [

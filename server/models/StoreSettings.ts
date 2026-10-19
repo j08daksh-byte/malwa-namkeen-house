@@ -90,12 +90,12 @@ const storeSettingsSchema = new Schema<IStoreSettings>(
       whatsappNumber: { type: String, default: '917987732765', trim: true },
       address: {
         line1: { type: String, default: 'Malwa Namkeen House', trim: true },
-        line2: { type: String, default: 'Main Market', trim: true },
+        line2: { type: String, default: 'Maksi Rd, Freeganj', trim: true },
         city: { type: String, default: 'Ujjain', trim: true },
         state: { type: String, default: 'Madhya Pradesh', trim: true },
-        postalCode: { type: String, default: '456001', trim: true },
+        postalCode: { type: String, default: '456010', trim: true },
         country: { type: String, default: 'India', trim: true },
-        full: { type: String, default: 'Malwa Namkeen House, Main Market, Ujjain – 456001, Madhya Pradesh, India', trim: true },
+        full: { type: String, default: 'Malwa Namkeen House, Maksi Rd, Freeganj, Ujjain – 456010, Madhya Pradesh, India', trim: true },
       },
     },
     businessHours: {

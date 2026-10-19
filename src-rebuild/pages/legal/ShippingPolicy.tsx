@@ -9,7 +9,7 @@ export default function ShippingPolicy() {
   const email = settings.contact?.email || 'malwanamkeenhouse@gmail.com';
   const phone = settings.contact?.phone || '+91 7987732765';
   const whatsapp = (settings.contact?.whatsappNumber || phone).replace(/\D/g, '');
-  const address = settings.contact?.address?.full || 'Malwa Namkeen House, Main Market, Ujjain – 456001, Madhya Pradesh, India';
+  const address = settings.contact?.address?.full || 'Malwa Namkeen House, Maksi Rd, Freeganj, Ujjain – 456010, Madhya Pradesh, India';
   const customPolicy = settings.policies?.shippingPolicy?.trim();
 
   return (

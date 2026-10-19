@@ -1436,12 +1436,12 @@ var BUSINESS = {
   whatsappNumber: "917987732765",
   address: {
     line1: "Malwa Namkeen House",
-    line2: "Main Market",
+    line2: "Maksi Rd, Freeganj",
     city: "Ujjain",
     state: "Madhya Pradesh",
-    postalCode: "456001",
+    postalCode: "456010",
     country: "India",
-    full: "Malwa Namkeen House, Main Market, Ujjain \u2013 456001, Madhya Pradesh, India"
+    full: "Malwa Namkeen House, Maksi Rd, Freeganj, Ujjain \u2013 456010, Madhya Pradesh, India"
   },
   gstNumber: "29AQWPP5638F2ZO",
   fssaiNumber: "11225302002687",
@@ -6628,12 +6628,12 @@ var storeSettingsSchema = new Schema9(
       whatsappNumber: { type: String, default: "917987732765", trim: true },
       address: {
         line1: { type: String, default: "Malwa Namkeen House", trim: true },
-        line2: { type: String, default: "Main Market", trim: true },
+        line2: { type: String, default: "Maksi Rd, Freeganj", trim: true },
         city: { type: String, default: "Ujjain", trim: true },
         state: { type: String, default: "Madhya Pradesh", trim: true },
-        postalCode: { type: String, default: "456001", trim: true },
+        postalCode: { type: String, default: "456010", trim: true },
         country: { type: String, default: "India", trim: true },
-        full: { type: String, default: "Malwa Namkeen House, Main Market, Ujjain \u2013 456001, Madhya Pradesh, India", trim: true }
+        full: { type: String, default: "Malwa Namkeen House, Maksi Rd, Freeganj, Ujjain \u2013 456010, Madhya Pradesh, India", trim: true }
       }
     },
     businessHours: {

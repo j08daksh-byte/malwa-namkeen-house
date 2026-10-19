@@ -88,16 +88,16 @@ function PublicSite() {
         paymentAccepted: 'Cash, UPI, Credit Card, Debit Card',
         address: {
           '@type': 'PostalAddress',
-          streetAddress: 'Main Market',
+          streetAddress: 'Maksi Rd, Freeganj',
           addressLocality: 'Ujjain',
           addressRegion: 'Madhya Pradesh',
-          postalCode: '456001',
+          postalCode: '456010',
           addressCountry: 'IN',
         },
         geo: {
           '@type': 'GeoCoordinates',
-          latitude: 23.1765,
-          longitude: 75.7885,
+          latitude: 23.1828,
+          longitude: 75.7925,
         },
         sameAs: [
           'https://www.instagram.com/malwanamkeenhouse',
