@@ -65,10 +65,12 @@ export default function SignatureDelicacies() {
 
           const loaded: BestSellerProduct[] = data.products.slice(0, 4).map((p: any, idx: number) => {
             const fallback = FALLBACK_BEST_SELLERS[idx] || FALLBACK_BEST_SELLERS[0];
-            const primaryImg =
+            const rawImg =
               (Array.isArray(p.images) && p.images[0]) ||
               p.image ||
               fallback.image;
+            const isInvalidImg = !rawImg || rawImg.includes('/hero-banner-') || rawImg.includes('/mishtichaat/');
+            const primaryImg = isInvalidImg ? fallback.image : rawImg;
 
             const minPrice =
               Array.isArray(p.options) && p.options.length > 0

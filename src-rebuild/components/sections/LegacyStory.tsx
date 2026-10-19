@@ -140,7 +140,7 @@ export default function LegacyStory() {
           width: 100%;
           aspect-ratio: 0.85 / 1;
           object-fit: cover;
-          object-position: center 60%;
+          object-position: center center;
           display: block;
         }
         #story .ls-postcard-inset {
@@ -294,15 +294,16 @@ export default function LegacyStory() {
             <div className="ls-postcard">
               <div className="ls-postcard-border">
                 <img
-                  src="/hero-banner-1.png"
+                  src="/products/ratlami-sev.jpg"
                   alt="Heritage Malwa Namkeen craftsmanship"
                   className="ls-postcard-img"
                   loading="lazy"
                   decoding="async"
                   onError={e => {
                     const el = e.currentTarget as HTMLImageElement;
-                    el.style.background = '#E9DED0';
-                    el.style.minHeight = '280px';
+                    if (!el.src.includes('/products/ratlami-sev.jpg')) {
+                      el.src = '/products/ratlami-sev.jpg';
+                    }
                   }}
                 />
                 <div className="ls-postcard-inset" aria-hidden="true" />
