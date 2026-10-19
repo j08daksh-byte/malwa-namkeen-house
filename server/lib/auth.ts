@@ -108,6 +108,15 @@ export function clearAuthCookie(res: Response): void {
     sameSite: 'lax',
     path: '/',
   });
+  // Explicitly write an expired cookie to guarantee stubborn mobile engines purge it
+  res.cookie(AUTH_COOKIE_NAME, '', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+    path: '/',
+    expires: new Date(0),
+    maxAge: 0,
+  });
 }
 
 /**

@@ -134,6 +134,14 @@ export default function Dashboard() {
   const [notice, setNotice] = useState<string>('');
   const [errorNotice, setErrorNotice] = useState<string>('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    await signOut();
+    navigate('/', { replace: true });
+  };
 
   // 2-Step Password Change with Email OTP
   const [passwordStep, setPasswordStep] = useState<1 | 2>(1);
@@ -772,14 +780,47 @@ export default function Dashboard() {
             margin-bottom: 6px;
           }
 
+          .customer-header-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 8px;
+          }
+
+          .customer-quick-logout {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(200, 154, 61, 0.35);
+            background: #FFFDF9;
+            color: #8C786E;
+            font-family: var(--font-primary, 'DM Sans', sans-serif);
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+            margin-top: 4px;
+          }
+
+          .customer-quick-logout:hover {
+            color: #DC2626;
+            border-color: #FECACA;
+            background: #FEF2F2;
+          }
+
           .customer-title {
-            margin: 0 0 10px;
+            margin: 0;
             color: #55000A;
             font-family: var(--font-primary, 'DM Sans', sans-serif);
-            font-size: clamp(30px, 3.8vw, 44px);
+            font-size: clamp(26px, 3.8vw, 44px);
             font-weight: 700;
             letter-spacing: -0.025em;
-            line-height: 1.05;
+            line-height: 1.1;
           }
 
           .customer-lede {
@@ -1246,12 +1287,10 @@ export default function Dashboard() {
             </nav>
             <button
               className="customer-logout"
-              onClick={() => {
-                signOut();
-                navigate('/');
-              }}
+              onClick={handleLogout}
+              disabled={loggingOut}
             >
-              <LogOut size={15} /> Sign out
+              <LogOut size={15} /> {loggingOut ? 'Signing out…' : 'Sign out'}
             </button>
           </aside>
 
@@ -1273,8 +1312,21 @@ export default function Dashboard() {
             {/* Overview / Dashboard */}
             {section === 'dashboard' && (
               <>
-                <p className="customer-eyebrow">Personal Concierge</p>
-                <h1 className="customer-title">Welcome back, {customer.name}</h1>
+                <div className="customer-header-row">
+                  <div>
+                    <p className="customer-eyebrow">Personal Concierge</p>
+                    <h1 className="customer-title">Welcome back, {customer.name}</h1>
+                  </div>
+                  <button
+                    type="button"
+                    className="customer-quick-logout"
+                    onClick={handleLogout}
+                    disabled={loggingOut}
+                    title="Sign out of your account"
+                  >
+                    <LogOut size={14} /> {loggingOut ? 'Signing out…' : 'Sign out'}
+                  </button>
+                </div>
                 <p className="customer-lede">
                   Manage your Malwa savouries orders, saved delivery addresses, and personal profile from one central home.
                 </p>

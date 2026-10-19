@@ -60,6 +60,20 @@ export default function AdminLogin() {
         }
         if (!clientId || !isMounted) return;
 
+        const getButtonWidth = () => {
+          const el = googleBtnRef.current;
+          const containerWidth = el?.clientWidth || 0;
+          if (containerWidth > 0) {
+            return Math.min(328, Math.max(200, Math.floor(containerWidth - 4)));
+          }
+          if (typeof window !== 'undefined') {
+            const screenW = window.innerWidth;
+            if (screenW <= 360) return 240;
+            if (screenW <= 420) return 280;
+          }
+          return 300;
+        };
+
         const initGsi = () => {
           if ((window as any).google?.accounts?.id && googleBtnRef.current) {
             try {
@@ -68,6 +82,7 @@ export default function AdminLogin() {
                 callback: handleGoogleResponse,
                 auto_select: false,
               });
+              const btnWidth = getButtonWidth();
               googleBtnRef.current.innerHTML = '';
               (window as any).google.accounts.id.renderButton(googleBtnRef.current, {
                 type: 'standard',
@@ -76,7 +91,7 @@ export default function AdminLogin() {
                 text: 'continue_with',
                 shape: 'rectangular',
                 logo_alignment: 'left',
-                width: 328,
+                width: btnWidth,
               });
             } catch (err) {
               console.warn('[Admin Google GSI]', err);
@@ -95,6 +110,12 @@ export default function AdminLogin() {
           script.onload = () => { if (isMounted) initGsi(); };
           document.body.appendChild(script);
         }
+
+        const handleResize = () => {
+          if (isMounted) initGsi();
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
       } catch (err) {
         console.warn('[Admin Google Config]', err);
       }
@@ -195,21 +216,70 @@ export default function AdminLogin() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1A0A0F 0%, #2D0F1A 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div className="admin-login-wrapper">
+      <style>{`
+        .admin-login-wrapper {
+          min-height: 100vh;
+          min-height: 100dvh;
+          background: linear-gradient(135deg, #1A0A0F 0%, #2D0F1A 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px 16px;
+          font-family: Inter, system-ui, sans-serif;
+          box-sizing: border-box;
+          overflow-x: hidden;
+          width: 100%;
+        }
+        .admin-login-container {
+          width: 100%;
+          max-width: 400px;
+          box-sizing: border-box;
+        }
+        .admin-login-card {
+          background: #fff;
+          border-radius: 18px;
+          padding: 32px 28px;
+          box-shadow: 0 24px 60px rgba(0,0,0,0.30);
+          box-sizing: border-box;
+          width: 100%;
+          overflow: hidden;
+        }
+        .admin-google-btn-wrapper {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          width: 100%;
+          max-width: 100%;
+          overflow: hidden;
+          min-height: 44px;
+          box-sizing: border-box;
+          margin-bottom: 16px;
+        }
+        .admin-google-btn-wrapper iframe {
+          max-width: 100% !important;
+        }
+        @media (max-width: 480px) {
+          .admin-login-card {
+            padding: 22px 18px;
+            border-radius: 16px;
+          }
+        }
+      `}</style>
       <SEOHead title="Admin Portal Sign In" noIndex={true} />
-      <div style={{ width: '100%', maxWidth: '400px' }}>
+      <div className="admin-login-container">
         {/* Logo area */}
-        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <img
             src="/logo-gold.png"
             alt="MALWA NAMKEEN HOUSE"
-            style={{ height: '64px', width: 'auto', marginBottom: '16px' }}
+            style={{ height: '56px', width: 'auto', marginBottom: '14px' }}
           />
           <div style={{ color: 'rgba(255,248,236,0.60)', fontSize: '12px', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Admin Portal</div>
         </div>
 
-        <div style={{ background: '#fff', borderRadius: '18px', padding: '36px', boxShadow: '0 24px 60px rgba(0,0,0,0.30)' }}>
-          <h1 style={{ margin: '0 0 20px', fontSize: '20px', fontWeight: 700, color: '#1A0A0F', textAlign: 'center' }}>Sign In</h1>
+        <div className="admin-login-card">
+          <h1 style={{ margin: '0 0 18px', fontSize: '20px', fontWeight: 700, color: '#1A0A0F', textAlign: 'center' }}>Sign In</h1>
 
           {error && (
             <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '10px 14px', borderRadius: '8px', fontSize: '13.5px', marginBottom: '16px' }}>
@@ -218,8 +288,8 @@ export default function AdminLogin() {
           )}
 
           {/* Google Sign In */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
-            <div ref={googleBtnRef} style={{ minHeight: '40px' }} />
+          <div className="admin-google-btn-wrapper">
+            <div ref={googleBtnRef} style={{ minHeight: '40px', width: '100%', display: 'flex', justifyContent: 'center' }} />
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', margin: '16px 0', color: '#9CA3AF', fontSize: '12px' }}>

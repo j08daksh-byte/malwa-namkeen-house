@@ -68,13 +68,29 @@ export default function AdminLayout({ admin, children }: Props) {
   async function handleLogout() {
     if (loggingOut) return;
     setLoggingOut(true);
+    if (typeof window !== 'undefined' && (window as any).google?.accounts?.id?.disableAutoSelect) {
+      try {
+        (window as any).google.accounts.id.disableAutoSelect();
+      } catch (e) {
+        console.warn('[Admin GSI disableAutoSelect]', e);
+      }
+    }
+    localStorage.removeItem('malwa_admin_token');
+    localStorage.removeItem('malwa_auth_token');
+    localStorage.removeItem('malwa-customer-session');
     try {
-      localStorage.removeItem('malwa_admin_token');
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+      sessionStorage.clear();
+    } catch {}
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        keepalive: true,
+      });
     } catch {
       // Ignore errors during logout
     } finally {
-      navigate('/admin');
+      navigate('/admin/login', { replace: true });
     }
   }
 

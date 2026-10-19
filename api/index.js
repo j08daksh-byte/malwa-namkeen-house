@@ -888,6 +888,14 @@ function clearAuthCookie(res) {
     sameSite: "lax",
     path: "/"
   });
+  res.cookie(AUTH_COOKIE_NAME, "", {
+    httpOnly: true,
+    secure: isProd2,
+    sameSite: "lax",
+    path: "/",
+    expires: /* @__PURE__ */ new Date(0),
+    maxAge: 0
+  });
 }
 async function requireAuth(req, res, next) {
   const token = extractToken(req);

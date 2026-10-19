@@ -69,16 +69,22 @@ export function CustomerSessionProvider({ children }: { children: ReactNode }) {
             } catch {
               // Ignore network failures on background refresh
             }
-          } else if (!token) {
-            // No valid session on server and no token in localStorage
+          } else {
+            // No valid session on server -> purge local credentials immediately
             setCustomer(null);
             localStorage.removeItem(KEY);
+            localStorage.removeItem(TOKEN_KEY);
           }
           setLoading(false);
         }
       })
       .catch(() => {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setCustomer(null);
+          localStorage.removeItem(KEY);
+          localStorage.removeItem(TOKEN_KEY);
+          setLoading(false);
+        }
       });
 
     return () => {
@@ -95,14 +101,32 @@ export function CustomerSessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    // Disable Google Identity Services (FedCM) auto-reauthentication loop
+    if (typeof window !== 'undefined' && (window as any).google?.accounts?.id?.disableAutoSelect) {
+      try {
+        (window as any).google.accounts.id.disableAutoSelect();
+      } catch (err) {
+        console.warn('[GSI disableAutoSelect]', err);
+      }
+    }
+
     try {
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        keepalive: true,
+      });
     } catch {
       // Ignore network errors during logout
     }
+
     setCustomer(null);
     localStorage.removeItem(KEY);
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem('malwa_admin_token');
+    try {
+      sessionStorage.clear();
+    } catch {}
   }, []);
 
   const updateProfile = useCallback((profile: CustomerProfile) => {

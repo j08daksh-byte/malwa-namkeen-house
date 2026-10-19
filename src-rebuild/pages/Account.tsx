@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, type FormEvent } from 'react';
+import React, { useState, useEffect, useRef, useCallback, type FormEvent } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Eye,
@@ -59,6 +59,20 @@ export default function Account() {
   const { login, register, loginWithGoogle } = useCustomerSession();
   const destination = (location.state as any)?.from || '/dashboard';
   const [signupEmail, setSignupEmail] = useState('');
+
+  const getResponsiveButtonWidth = useCallback((): number => {
+    const el = googleButtonContainerRef.current;
+    const containerWidth = el?.clientWidth || 0;
+    if (containerWidth > 0) {
+      return Math.min(380, Math.max(200, Math.floor(containerWidth - 8)));
+    }
+    if (typeof window !== 'undefined') {
+      const screenW = window.innerWidth;
+      if (screenW <= 360) return 240;
+      if (screenW <= 420) return 280;
+    }
+    return 320;
+  }, []);
 
   const switchMode = (next: Mode, emailPreset?: string) => {
     setMode(next);
@@ -167,6 +181,7 @@ export default function Account() {
             cancel_on_tap_outside: true,
           });
 
+          const btnWidth = getResponsiveButtonWidth();
           googleButtonContainerRef.current.innerHTML = '';
           (window as any).google.accounts.id.renderButton(
             googleButtonContainerRef.current,
@@ -177,7 +192,7 @@ export default function Account() {
               text: 'continue_with',
               shape: 'rectangular',
               logo_alignment: 'left',
-              width: 380,
+              width: btnWidth,
             }
           );
           setIsGsiRendered(true);
@@ -190,8 +205,16 @@ export default function Account() {
 
     loadGoogleConfig();
 
+    const handleResize = () => {
+      if (isMounted && googleClientId) {
+        initGsi(googleClientId);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('resize', handleResize);
     };
   }, [mode]);
 
@@ -218,6 +241,7 @@ export default function Account() {
   const handleGoogleButtonClick = () => {
     if (googleClientId && (window as any).google?.accounts?.id && googleButtonContainerRef.current) {
       try {
+        const btnWidth = getResponsiveButtonWidth();
         (window as any).google.accounts.id.renderButton(
           googleButtonContainerRef.current,
           {
@@ -227,7 +251,7 @@ export default function Account() {
             text: 'continue_with',
             shape: 'rectangular',
             logo_alignment: 'left',
-            width: 380,
+            width: btnWidth,
           }
         );
         setIsGsiRendered(true);
@@ -520,7 +544,14 @@ export default function Account() {
             display: grid;
             gap: 14px;
           }
-          .account-field label {
+          .account-field__label-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+          }
+          .account-field label,
+          .account-field__label-row label {
             display: block;
             font-size: 12px;
             font-weight: 700;
@@ -528,6 +559,37 @@ export default function Account() {
             margin-bottom: 6px;
             text-transform: uppercase;
             letter-spacing: 0.04em;
+          }
+          .account-field__label-row label {
+            margin-bottom: 0 !important;
+          }
+          .forgot-password-link {
+            background: none;
+            border: none;
+            color: #881337;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 0;
+            transition: color 0.2s;
+            white-space: nowrap;
+          }
+          .forgot-password-link:hover {
+            color: #55000A;
+            text-decoration: underline;
+          }
+          .google-button-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            min-height: 44px;
+            box-sizing: border-box;
+          }
+          .google-button-wrapper iframe {
+            max-width: 100% !important;
           }
           .account-input {
             position: relative;
@@ -763,15 +825,27 @@ export default function Account() {
             .account-page {
               grid-template-columns: 1fr;
               min-height: calc(100dvh - 68px);
+              overflow-x: hidden;
+              width: 100%;
+              box-sizing: border-box;
             }
             .account-visual {
               display: none !important;
             }
+            .account-brand {
+              display: none !important;
+            }
             .account-form-area {
               padding: 24px 20px 48px;
+              overflow-x: hidden;
+              width: 100%;
+              box-sizing: border-box;
             }
             .account-form {
               max-width: 440px;
+              overflow-x: hidden;
+              width: 100%;
+              box-sizing: border-box;
             }
             .account-back-mobile {
               display: inline-flex;
@@ -788,6 +862,29 @@ export default function Account() {
             .account-back-mobile:hover {
               color: #55000A;
               text-decoration: underline;
+            }
+          }
+          @media (min-width: 901px) and (max-width: 1100px) {
+            .account-visual {
+              padding: 32px;
+            }
+            .account-visual__title {
+              font-size: 38px;
+            }
+            .account-form-area {
+              padding: 36px 24px;
+            }
+          }
+          @media (max-width: 480px) {
+            .account-form-area {
+              padding: 18px 16px 40px;
+            }
+            .account-heading {
+              font-size: 26px;
+            }
+            .account-subtitle {
+              font-size: 13px;
+              margin-bottom: 18px;
             }
           }
         `}</style>
@@ -1060,7 +1157,18 @@ export default function Account() {
                     </div>
 
                     <div className="account-field">
-                      <label htmlFor="account-password">Password</label>
+                      <div className="account-field__label-row">
+                        <label htmlFor="account-password">Password</label>
+                        {mode === 'signin' && (
+                          <button
+                            type="button"
+                            className="forgot-password-link"
+                            onClick={() => switchMode('forgot')}
+                          >
+                            Forgot Password?
+                          </button>
+                        )}
+                      </div>
                       <div className="account-input">
                         <LockKeyhole className="account-input__icon" size={17} />
                         <input
@@ -1115,14 +1223,6 @@ export default function Account() {
                     )}
                   </div>
 
-                  {mode === 'signin' && (
-                    <div className="account-options">
-                      <button type="button" onClick={() => switchMode('forgot')}>
-                        Forgot Password?
-                      </button>
-                    </div>
-                  )}
-
                   {message && (
                     <div className={`account-message account-message--${message.type}`} role="status">
                       {message.type === 'success' ? (
@@ -1152,11 +1252,9 @@ export default function Account() {
                   {/* Container for Google's Official GSI button */}
                   <div
                     ref={googleButtonContainerRef}
+                    className="google-button-wrapper"
                     style={{
                       display: isGsiRendered && googleClientId ? 'flex' : 'none',
-                      justifyContent: 'center',
-                      width: '100%',
-                      minHeight: '44px',
                     }}
                   />
 
