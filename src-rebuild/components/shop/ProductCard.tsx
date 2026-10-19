@@ -137,6 +137,13 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
   const isSoldOut = !isProductInStock;
 
   const [isAdding, setIsAdding] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  const prefetchProduct = () => {
+    if (product?.slug) {
+      import('../../pages/ProductDetail').catch(() => {});
+    }
+  };
 
   // Check if currently selected weight is in the cart
   const cartItem = cart.find(
@@ -170,6 +177,8 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
     <article className="eb-product-card" aria-label={product.name}>
       <style>{`
         .eb-product-card {
+          content-visibility: auto;
+          contain-intrinsic-size: auto 440px;
           background: #FFFFFF;
           border: 1.5px solid rgba(200, 154, 61, 0.22);
           border-radius: 18px;
@@ -197,13 +206,38 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           cursor: pointer;
         }
 
+        .eb-product-card__img-shimmer {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(
+            90deg,
+            #EFE9DE 0%,
+            #FBF8F2 35%,
+            #EFE9DE 70%
+          );
+          background-size: 200% 100%;
+          animation: ebCardImgShimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+          z-index: 1;
+          pointer-events: none;
+        }
+
+        @keyframes ebCardImgShimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+
         .eb-product-card__img {
           width: 100%;
           height: 100%;
           object-fit: cover;
           object-position: right center;
           display: block;
-          transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+          opacity: 0;
+          transition: opacity 0.32s ease, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .eb-product-card__img--loaded {
+          opacity: 1;
         }
 
         .eb-product-card:hover .eb-product-card__img {
@@ -662,15 +696,20 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
       <div
         className="eb-product-card__media"
         onClick={() => navigate(productUrl)}
+        onMouseEnter={prefetchProduct}
+        onTouchStart={prefetchProduct}
         title={`View details for ${product.name}`}
       >
+        {!imageLoaded && <div className="eb-product-card__img-shimmer" aria-hidden="true" />}
         <img
           src={optimizeCloudinary(resolveProductImage(product), { width: 520, quality: 'auto', format: 'auto' })}
           alt={product.name}
-          className={`eb-product-card__img ${isSoldOut ? 'eb-product-card__img--soldout' : ''}`}
+          className={`eb-product-card__img ${imageLoaded ? 'eb-product-card__img--loaded' : ''} ${isSoldOut ? 'eb-product-card__img--soldout' : ''}`}
           loading="lazy"
           decoding="async"
+          onLoad={() => setImageLoaded(true)}
           onError={e => {
+            setImageLoaded(true);
             const el = e.currentTarget;
             if (!el.src.includes(DEFAULT_FALLBACK_IMAGE)) {
               el.src = DEFAULT_FALLBACK_IMAGE;

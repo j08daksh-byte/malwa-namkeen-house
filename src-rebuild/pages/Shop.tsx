@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { ChevronLeft, ChevronRight, ArrowUp, Layers, Sparkles } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/sections/Footer';
 import ReservationModal from '../components/sections/ReservationModal';
@@ -10,10 +11,11 @@ import ProductCard from '../components/shop/ProductCard';
 import ProductQuickViewModal from '../components/shop/ProductQuickViewModal';
 import ShopToast from '../components/shop/ShopToast';
 import SEOHead from '../components/seo/SEOHead';
+import { ProductCardSkeleton, SkeletonStyles } from '../components/skeletons';
 import { PRODUCTS as FALLBACK_PRODUCTS, SHOP_CATEGORIES as FALLBACK_CATEGORIES, type Product, type ShopCategory } from '../data/products';
 import { resolveProductImage, resolveProductImages } from '../lib/productImage';
 
-const PAGE_SIZE = 24; // Clean 3x3 grid on desktop (8 rows)
+const PAGE_SIZE = 12; // Focused 3x4 grid on desktop, 2x6 on mobile/tablet
 
 export default function Shop() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -89,11 +91,16 @@ export default function Shop() {
   // Initialized with immediate static data for instant render
   const [products, setProducts] = useState<Product[]>(() => filterStaticCatalog(1).products);
   const [categories, setCategories] = useState<ShopCategory[]>(FALLBACK_CATEGORIES);
+  const [dynamicCategoryCounts, setDynamicCategoryCounts] = useState<Record<string, number>>({});
   const [initialLoading, setInitialLoading] = useState<boolean>(false);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [hasMore, setHasMore] = useState<boolean>(() => filterStaticCatalog(1).hasMore);
   const [page, setPage] = useState<number>(1);
   const [totalCount, setTotalCount] = useState<number>(() => filterStaticCatalog(1).total);
+  const [viewMode, setViewMode] = useState<'pages' | 'stream'>(() => {
+    return searchParams.get('mode') === 'stream' ? 'stream' : 'pages';
+  });
+  const [showScrollTop, setShowScrollTop] = useState<boolean>(false);
 
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [reservationOpen, setReservationOpen] = useState<boolean>(false);
@@ -101,8 +108,43 @@ export default function Shop() {
   // References for tracking and aborting concurrent fetch requests
   const abortControllerRef = useRef<AbortController | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const gridTopRef = useRef<HTMLDivElement>(null);
   const isMountedRef = useRef<boolean>(true);
   const hasLoadedFromApiRef = useRef<boolean>(false);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages || newPage === page) return;
+    setPage(newPage);
+    fetchProductsBatch(newPage, true);
+    gridTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleViewModeChange = (mode: 'pages' | 'stream') => {
+    setViewMode(mode);
+    const nextParams = new URLSearchParams(searchParams);
+    if (mode === 'stream') nextParams.set('mode', 'stream');
+    else nextParams.delete('mode');
+    setSearchParams(nextParams, { replace: true });
+
+    if (mode === 'pages') {
+      fetchProductsBatch(page, true);
+    }
+  };
+
+  const scrollToTop = () => {
+    gridTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) ||
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 420);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Synchronous URL Parameter Updater
   const updateFilters = useCallback(
@@ -143,8 +185,6 @@ export default function Shop() {
   const handleSearchChange = (q: string) => updateFilters({ q });
   const handleSpiceChange = (spice: string) => updateFilters({ spice });
   const handleSortChange = (sort: string) => updateFilters({ sort });
-
-  const [dynamicCategoryCounts, setDynamicCategoryCounts] = useState<Record<string, number>>({});
 
   // Scroll to top once on initial mount
   useEffect(() => {
@@ -310,8 +350,9 @@ export default function Shop() {
     fetchProductsBatch(1, true);
   }, [selectedCategory, searchQuery, selectedSpice, sortBy, fetchProductsBatch]);
 
-  // Infinite Scroll Trigger (Sentinel Intersection Observer)
+  // Infinite Scroll Trigger (Sentinel Intersection Observer) - active only in Continuous Stream mode
   useEffect(() => {
+    if (viewMode !== 'stream') return;
     const sentinel = sentinelRef.current;
     if (!sentinel || typeof IntersectionObserver === 'undefined') return;
 
@@ -334,7 +375,7 @@ export default function Shop() {
     return () => {
       observer.disconnect();
     };
-  }, [hasMore, initialLoading, loadingMore, page, fetchProductsBatch]);
+  }, [viewMode, hasMore, initialLoading, loadingMore, page, fetchProductsBatch]);
 
   // Accurate category counts for shortcut cards and filter drawer (from live MongoDB)
   const categoryCounts = useMemo(() => {
@@ -594,6 +635,248 @@ export default function Shop() {
             gap: 16px;
           }
         }
+
+        /* ── Smart View Mode & Performance Toolbar ──────────── */
+        .eb-shop-toolbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 14px;
+          margin: 18px 0 24px;
+          padding: 12px 18px;
+          background: #FFFFFF;
+          border: 1px solid rgba(200, 154, 61, 0.22);
+          border-radius: 14px;
+          box-shadow: 0 2px 10px rgba(85, 0, 10, 0.03);
+        }
+
+        .eb-shop-toolbar-status {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .eb-shop-toolbar-count {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 13.5px;
+          color: #5A433B;
+        }
+
+        .eb-shop-toolbar-count strong {
+          color: #55000A;
+          font-weight: 700;
+        }
+
+        .eb-shop-progress-bar-wrap {
+          width: 140px;
+          height: 5px;
+          background: rgba(200, 154, 61, 0.18);
+          border-radius: 999px;
+          overflow: hidden;
+        }
+
+        .eb-shop-progress-bar-fill {
+          height: 100%;
+          background: linear-gradient(90deg, #C89A3D 0%, #E6BF68 100%);
+          border-radius: 999px;
+          transition: width 0.35s ease;
+        }
+
+        .eb-shop-mode-selector {
+          display: inline-flex;
+          align-items: center;
+          background: #F7F3EB;
+          padding: 3px;
+          border-radius: 10px;
+          border: 1px solid rgba(200, 154, 61, 0.20);
+        }
+
+        .eb-shop-mode-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 13px;
+          border-radius: 7px;
+          border: none;
+          background: transparent;
+          color: #6E5850;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 11.5px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.18s ease;
+        }
+
+        .eb-shop-mode-btn:hover {
+          color: #55000A;
+        }
+
+        .eb-shop-mode-btn--active {
+          background: #55000A;
+          color: #FFF8EC !important;
+          box-shadow: 0 2px 8px rgba(85, 0, 10, 0.22);
+        }
+
+        /* ── Windowed Pagination ────────────────────────────── */
+        .eb-shop-pagination {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          margin: 44px auto 16px;
+          flex-wrap: wrap;
+        }
+
+        .eb-shop-page-nav-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          height: 40px;
+          padding: 0 18px;
+          border-radius: 999px;
+          background: #FFFFFF;
+          border: 1.5px solid rgba(200, 154, 61, 0.3);
+          color: #55000A;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 12.5px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: 0 2px 8px rgba(85, 0, 10, 0.04);
+        }
+
+        .eb-shop-page-nav-btn:hover:not(:disabled) {
+          background: #55000A;
+          color: #FFF8EC;
+          border-color: #55000A;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 14px rgba(85, 0, 10, 0.18);
+        }
+
+        .eb-shop-page-nav-btn:disabled {
+          opacity: 0.45;
+          cursor: not-allowed;
+          border-color: rgba(200, 154, 61, 0.15);
+          color: #9C8C84;
+        }
+
+        .eb-shop-page-numbers {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .eb-shop-page-num {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          border: 1.5px solid rgba(200, 154, 61, 0.25);
+          background: #FFFFFF;
+          color: #55000A;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 13px;
+          font-weight: 700;
+          display: grid;
+          place-items: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: 0 2px 8px rgba(85, 0, 10, 0.04);
+        }
+
+        .eb-shop-page-num:hover:not(.eb-shop-page-num--active) {
+          border-color: #C89A3D;
+          background: #FAF6F0;
+          transform: scale(1.05);
+        }
+
+        .eb-shop-page-num--active {
+          background: #55000A !important;
+          color: #FFF8EC !important;
+          border-color: #55000A !important;
+          box-shadow: 0 4px 14px rgba(85, 0, 10, 0.26) !important;
+        }
+
+        /* ── Continuous Stream Load More Button ─────────────── */
+        .eb-shop-load-more-wrap {
+          text-align: center;
+          margin: 36px auto 16px;
+        }
+
+        .eb-shop-load-more-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          height: 46px;
+          padding: 0 32px;
+          border-radius: 999px;
+          background: #55000A;
+          color: #FFF8EC;
+          border: 1.5px solid #55000A;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          cursor: pointer;
+          box-shadow: 0 4px 18px rgba(85, 0, 10, 0.20);
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .eb-shop-load-more-btn:hover:not(:disabled) {
+          background: #6B000D;
+          border-color: #6B000D;
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(85, 0, 10, 0.30);
+        }
+
+        .eb-shop-load-more-btn:disabled {
+          opacity: 0.6;
+          cursor: wait;
+        }
+
+        /* ── Floating Back to Top & Tracker Capsule ─────────── */
+        .eb-shop-scroll-top-btn {
+          position: fixed;
+          bottom: 24px;
+          right: 24px;
+          z-index: 40;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 18px;
+          background: rgba(85, 0, 10, 0.94);
+          color: #FFF8EC;
+          border: 1px solid rgba(200, 154, 61, 0.5);
+          border-radius: 999px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          box-shadow: 0 8px 24px rgba(85, 0, 10, 0.30), 0 2px 6px rgba(0, 0, 0, 0.15);
+          backdrop-filter: blur(8px);
+          cursor: pointer;
+          transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+          animation: ebFadeInUp 0.25s ease-out;
+        }
+
+        .eb-shop-scroll-top-btn:hover {
+          background: #6B000D;
+          transform: translateY(-2px);
+          box-shadow: 0 12px 30px rgba(85, 0, 10, 0.38);
+          border-color: #D4AA45;
+        }
+
+        @keyframes ebFadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(12px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
       `}</style>
 
       <SEOHead
@@ -637,19 +920,65 @@ export default function Shop() {
             onResetAll={handleResetFilters}
           />
 
+          {/* Scroll Anchor */}
+          <div ref={gridTopRef} style={{ scrollMarginTop: '100px' }} />
+
+          {/* 4.5. Smart View Mode & Performance Toolbar */}
+          <div className="eb-shop-toolbar">
+            <div className="eb-shop-toolbar-status">
+              <span className="eb-shop-toolbar-count">
+                {viewMode === 'pages' ? (
+                  <>
+                    Showing <strong>{totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)}</strong> of <strong>{totalCount}</strong> Delicacies
+                  </>
+                ) : (
+                  <>
+                    Showing <strong>{products.length}</strong> of <strong>{totalCount}</strong> Delicacies
+                  </>
+                )}
+              </span>
+              {viewMode === 'stream' && totalCount > 0 && (
+                <div className="eb-shop-progress-bar-wrap" title={`${Math.min(100, Math.round((products.length / totalCount) * 100))}% loaded`}>
+                  <div
+                    className="eb-shop-progress-bar-fill"
+                    style={{ width: `${Math.min(100, Math.round((products.length / totalCount) * 100))}%` }}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="eb-shop-mode-selector" role="radiogroup" aria-label="Catalog browsing mode">
+              <button
+                type="button"
+                className={`eb-shop-mode-btn ${viewMode === 'pages' ? 'eb-shop-mode-btn--active' : ''}`}
+                onClick={() => handleViewModeChange('pages')}
+                title="Windowed Pagination: loads 12 items at a time and dis-loads previous to maximize speed & reduce database load"
+                aria-checked={viewMode === 'pages'}
+                role="radio"
+              >
+                <Layers size={14} />
+                <span>Pages (Lean)</span>
+              </button>
+              <button
+                type="button"
+                className={`eb-shop-mode-btn ${viewMode === 'stream' ? 'eb-shop-mode-btn--active' : ''}`}
+                onClick={() => handleViewModeChange('stream')}
+                title="Continuous Stream: scrolls smoothly with automatic off-screen DOM virtualization"
+                aria-checked={viewMode === 'stream'}
+                role="radio"
+              >
+                <Sparkles size={14} />
+                <span>Continuous Stream</span>
+              </button>
+            </div>
+          </div>
+
           {/* 5. Product Grid */}
           {initialLoading ? (
             <div className="eb-product-grid" role="status" aria-label="Loading delicacies">
-              {[1, 2, 3, 4, 5, 6].map(n => (
-                <div key={n} className="eb-skeleton-card">
-                  <div className="eb-skeleton-media" />
-                  <div className="eb-skeleton-content">
-                    <div className="eb-skeleton-line" style={{ width: '35%' }} />
-                    <div className="eb-skeleton-line" style={{ width: '85%', height: '20px' }} />
-                    <div className="eb-skeleton-line" style={{ width: '60%' }} />
-                    <div className="eb-skeleton-line" style={{ width: '100%', height: '40px', marginTop: '12px', borderRadius: '10px' }} />
-                  </div>
-                </div>
+              <SkeletonStyles />
+              {Array.from({ length: 6 }).map((_, n) => (
+                <ProductCardSkeleton key={`skeleton-${n}`} />
               ))}
             </div>
           ) : products.length === 0 ? (
@@ -687,30 +1016,86 @@ export default function Shop() {
 
                 {/* Incremental Loading Skeletons */}
                 {loadingMore &&
-                  [1, 2, 3].map(n => (
-                    <div key={`more-skeleton-${n}`} className="eb-skeleton-card">
-                      <div className="eb-skeleton-media" />
-                      <div className="eb-skeleton-content">
-                        <div className="eb-skeleton-line" style={{ width: '35%' }} />
-                        <div className="eb-skeleton-line" style={{ width: '85%', height: '20px' }} />
-                        <div className="eb-skeleton-line" style={{ width: '60%' }} />
-                        <div className="eb-skeleton-line" style={{ width: '100%', height: '40px', marginTop: '12px', borderRadius: '10px' }} />
-                      </div>
-                    </div>
+                  Array.from({ length: 3 }).map((_, n) => (
+                    <ProductCardSkeleton key={`more-skeleton-${n}`} />
                   ))}
               </div>
 
-              {/* Scroll Sentinel for triggering subsequent batches */}
-              {hasMore && (
-                <div
-                  ref={sentinelRef}
-                  style={{ height: '30px', margin: '20px 0', opacity: 0 }}
-                  aria-hidden="true"
-                />
+              {/* Windowed Pagination Bar (active in Pages mode) */}
+              {viewMode === 'pages' && totalPages > 1 && (
+                <nav className="eb-shop-pagination" aria-label="Delicacies pagination">
+                  <button
+                    type="button"
+                    className="eb-shop-page-nav-btn"
+                    disabled={page <= 1}
+                    onClick={() => handlePageChange(page - 1)}
+                    aria-label="Previous Page"
+                  >
+                    <ChevronLeft size={16} />
+                    <span>Previous</span>
+                  </button>
+
+                  <div className="eb-shop-page-numbers">
+                    {Array.from({ length: totalPages }).map((_, idx) => {
+                      const pageNum = idx + 1;
+                      const isActive = pageNum === page;
+                      return (
+                        <button
+                          key={pageNum}
+                          type="button"
+                          className={`eb-shop-page-num ${isActive ? 'eb-shop-page-num--active' : ''}`}
+                          onClick={() => handlePageChange(pageNum)}
+                          aria-current={isActive ? 'page' : undefined}
+                          aria-label={`Page ${pageNum}`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="eb-shop-page-nav-btn"
+                    disabled={page >= totalPages}
+                    onClick={() => handlePageChange(page + 1)}
+                    aria-label="Next Page"
+                  >
+                    <span>Next</span>
+                    <ChevronRight size={16} />
+                  </button>
+                </nav>
+              )}
+
+              {/* Continuous Stream Load More Button & Sentinel */}
+              {viewMode === 'stream' && (
+                <>
+                  {hasMore && (
+                    <div className="eb-shop-load-more-wrap">
+                      <button
+                        type="button"
+                        className="eb-shop-load-more-btn"
+                        disabled={loadingMore}
+                        onClick={() => fetchProductsBatch(page + 1, false)}
+                      >
+                        {loadingMore ? 'Loading Next Delicacies…' : `Load Next ${Math.min(PAGE_SIZE, Math.max(1, totalCount - products.length))} Delicacies`}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Scroll Sentinel for triggering subsequent batches */}
+                  {hasMore && (
+                    <div
+                      ref={sentinelRef}
+                      style={{ height: '30px', margin: '20px 0', opacity: 0 }}
+                      aria-hidden="true"
+                    />
+                  )}
+                </>
               )}
 
               {/* End of catalog indicator */}
-              {!hasMore && products.length > 0 && (
+              {((viewMode === 'stream' && !hasMore) || (viewMode === 'pages' && page === totalPages)) && products.length > 0 && (
                 <div className="eb-shop-end-indicator" role="status">
                   <div className="eb-shop-end-line-wrap">
                     <div className="eb-shop-end-line" />
@@ -724,6 +1109,19 @@ export default function Shop() {
                 </div>
               )}
             </>
+          )}
+
+          {/* Floating Back to Top & Tracker Capsule */}
+          {showScrollTop && (
+            <button
+              type="button"
+              onClick={scrollToTop}
+              className="eb-shop-scroll-top-btn"
+              aria-label="Back to top of collection"
+            >
+              <ArrowUp size={16} />
+              <span>Viewing {products.length} of {totalCount} • Top</span>
+            </button>
           )}
         </div>
       </main>
