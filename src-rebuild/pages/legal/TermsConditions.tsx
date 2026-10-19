@@ -5,8 +5,8 @@ export default function TermsConditions() {
   const { settings } = useStoreSettings();
   const storeName = settings.storeName || 'MALWA NAMKEEN HOUSE';
   const email = settings.contact?.email || 'malwanamkeenhouse@gmail.com';
-  const city = settings.contact?.address?.city || 'Bengaluru';
-  const state = settings.contact?.address?.state || 'Karnataka';
+  const city = settings.contact?.address?.city || 'Ujjain';
+  const state = settings.contact?.address?.state || 'Madhya Pradesh';
   const customPolicy = settings.policies?.termsConditions?.trim();
 
   return (

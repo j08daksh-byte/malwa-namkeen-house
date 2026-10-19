@@ -1450,7 +1450,7 @@ var BUSINESS = {
     { days: "Friday", open: "9:00 AM", close: "11:00 PM" },
     { days: "Saturday \u2013 Sunday", open: "8:30 AM", close: "11:00 PM" }
   ],
-  defaultLocationId: "bengaluru-sarjapur"
+  defaultLocationId: "ujjain-main-market"
 };
 var GOOGLE_MAPS_URL = process.env.GOOGLE_MAPS_URL ?? "#";
 var ENQUIRY_CATEGORIES = [
@@ -1461,7 +1461,7 @@ var ENQUIRY_CATEGORIES = [
   { value: "birthday_parties_events", label: "Birthday Parties & Events" }
 ];
 var VALID_CATEGORIES = ENQUIRY_CATEGORIES.map((c) => c.value);
-var VALID_LOCATION_IDS = ["bengaluru-sarjapur"];
+var VALID_LOCATION_IDS = ["ujjain-main-market", "bengaluru-sarjapur"];
 
 // server/routes/auth.ts
 import crypto from "crypto";
@@ -6627,13 +6627,13 @@ var storeSettingsSchema = new Schema9(
       email: { type: String, default: "malwanamkeenhouse@gmail.com", lowercase: true, trim: true },
       whatsappNumber: { type: String, default: "917987732765", trim: true },
       address: {
-        line1: { type: String, default: "No. 87/4-B, Sulikunte Village", trim: true },
-        line2: { type: String, default: "Sarjapur Main Road, Dommasandra Post", trim: true },
-        city: { type: String, default: "Bengaluru", trim: true },
-        state: { type: String, default: "Karnataka", trim: true },
-        postalCode: { type: String, default: "562125", trim: true },
+        line1: { type: String, default: "Malwa Namkeen House", trim: true },
+        line2: { type: String, default: "Main Market", trim: true },
+        city: { type: String, default: "Ujjain", trim: true },
+        state: { type: String, default: "Madhya Pradesh", trim: true },
+        postalCode: { type: String, default: "456001", trim: true },
         country: { type: String, default: "India", trim: true },
-        full: { type: String, default: "No. 87/4-B, Sulikunte Village, Sarjapur Main Road, Dommasandra Post, Bengaluru \u2013 562125, Karnataka, India", trim: true }
+        full: { type: String, default: "Malwa Namkeen House, Main Market, Ujjain \u2013 456001, Madhya Pradesh, India", trim: true }
       }
     },
     businessHours: {
@@ -11701,7 +11701,7 @@ var phoneOptional = z.string().max(20).transform((s) => s.trim().replace(/[^\d\s
 var message = z.string({ error: "Message is required." }).min(10, "Please provide at least 10 characters so we can understand your enquiry.").max(2e3, "Message is too long (max 2000 characters).").transform((s) => s.trim());
 var messageOptional = z.string().max(2e3).transform((s) => s.trim()).optional().or(z.literal(""));
 var consent = z.boolean({ error: "Please accept the terms to proceed." }).refine((v) => v === true, { message: "Please accept the terms to proceed." });
-var locationId = z.string().optional().transform((v) => v ?? "bengaluru-sarjapur").refine((v) => VALID_LOCATION_IDS.includes(v), { message: "Invalid location." });
+var locationId = z.string().optional().transform((v) => v ?? "ujjain-main-market").refine((v) => VALID_LOCATION_IDS.includes(v), { message: "Invalid location." });
 var honeypot = z.string().optional().refine((v) => !v || v.trim() === "", { message: "Submission rejected." });
 var contactSchema = z.object({
   name,

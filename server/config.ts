@@ -25,7 +25,7 @@ export const BUSINESS = {
     { days: 'Friday',            open: '9:00 AM', close: '11:00 PM' },
     { days: 'Saturday – Sunday', open: '8:30 AM', close: '11:00 PM' },
   ],
-  defaultLocationId: 'bengaluru-sarjapur',
+  defaultLocationId: 'ujjain-main-market',
 } as const;
 
 /** Google Maps URL — set via env var; falls back to '#' until client provides the live link. */
@@ -47,7 +47,7 @@ export const VALID_CATEGORIES: string[] = ENQUIRY_CATEGORIES.map(c => c.value);
 
 // ── Location IDs ────────────────────────────────────────────────────────────
 
-export const VALID_LOCATION_IDS: string[] = ['bengaluru-sarjapur'];
+export const VALID_LOCATION_IDS: string[] = ['ujjain-main-market', 'bengaluru-sarjapur'];
 
 // ── Reservation statuses (server-assigned, never trusted from client) ───────
 

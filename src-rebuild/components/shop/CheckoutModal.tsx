@@ -70,7 +70,7 @@ export default function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     phone: customer?.phone || '',
     addressLine1: '',
     addressLine2: '',
-    city: 'Indore',
+    city: 'Ujjain',
     state: 'Madhya Pradesh',
     pincode: '',
     landmark: '',

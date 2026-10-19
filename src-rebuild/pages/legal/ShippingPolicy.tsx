@@ -9,7 +9,7 @@ export default function ShippingPolicy() {
   const email = settings.contact?.email || 'malwanamkeenhouse@gmail.com';
   const phone = settings.contact?.phone || '+91 7987732765';
   const whatsapp = (settings.contact?.whatsappNumber || phone).replace(/\D/g, '');
-  const address = settings.contact?.address?.full || 'No. 87/4-B, Sulikunte Village, Sarjapur Main Road, Dommasandra Post, Bengaluru – 562125, Karnataka, India';
+  const address = settings.contact?.address?.full || 'Malwa Namkeen House, Main Market, Ujjain – 456001, Madhya Pradesh, India';
   const customPolicy = settings.policies?.shippingPolicy?.trim();
 
   return (
@@ -32,10 +32,10 @@ export default function ShippingPolicy() {
       </p>
 
       <h2>3. Delivery Timelines</h2>
-      <p>Estimated transit times from our dispatch facility are as follows:</p>
+      <p>Estimated transit times from our dispatch facility in Ujjain are as follows:</p>
       <ul>
-        <li><strong>Bengaluru & South India Metros:</strong> 2 to 3 business days.</li>
-        <li><strong>Rest of India Metros (Delhi NCR, Mumbai, Pune, Kolkata, Hyderabad):</strong> 3 to 5 business days.</li>
+        <li><strong>Madhya Pradesh & Central India:</strong> 1 to 2 business days.</li>
+        <li><strong>Metros (Delhi NCR, Mumbai, Pune, Kolkata, Bengaluru, Hyderabad):</strong> 3 to 5 business days.</li>
         <li><strong>Tier-2, Tier-3 Cities & Regional Towns:</strong> 4 to 7 business days.</li>
       </ul>
       <p>

@@ -5,7 +5,7 @@ export default function PrivacyPolicy() {
   const { settings } = useStoreSettings();
   const storeName = settings.storeName || 'MALWA NAMKEEN HOUSE';
   const email = settings.contact?.email || 'malwanamkeenhouse@gmail.com';
-  const address = settings.contact?.address?.full || 'No. 87/4-B, Sulikunte Village, Sarjapur Main Road, Dommasandra Post, Bengaluru – 562125, Karnataka, India';
+  const address = settings.contact?.address?.full || 'Malwa Namkeen House, Main Market, Ujjain – 456001, Madhya Pradesh, India';
   const customPolicy = settings.policies?.privacyPolicy?.trim();
 
   return (

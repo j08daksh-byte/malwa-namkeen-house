@@ -68,7 +68,7 @@ const consent = z
 const locationId = z
   .string()
   .optional()
-  .transform(v => v ?? 'bengaluru-sarjapur')
+  .transform(v => v ?? 'ujjain-main-market')
   .refine(v => VALID_LOCATION_IDS.includes(v), { message: 'Invalid location.' });
 
 const honeypot = z

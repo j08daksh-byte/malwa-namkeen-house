@@ -1549,7 +1549,7 @@ export async function sendReservationConfirmationEmail(d: ReservationConfirmatio
       ['Time',           d.preferredTime],
       ['Guests',         String(d.guestCount)],
       ['Special Request', d.specialRequest || '—'],
-      ['Location',       'Sarjapur Road, Bengaluru'],
+      ['Location',       'Main Market, Ujjain'],
     ])}
     <p style="margin:20px 0 0;font-size:14px;line-height:1.65;color:#5E4940;">
       We look forward to welcoming you. If you need to cancel or make changes,
@@ -1557,7 +1557,7 @@ export async function sendReservationConfirmationEmail(d: ReservationConfirmatio
       at least 2 hours in advance.
     </p>`;
 
-  const text = `Your Table is Confirmed — ${BUSINESS.name}\n\nDear ${d.customerName}, your reservation at ${BUSINESS.name} has been confirmed (Ref: #${d.referenceId}).\n\nDate: ${d.reservationDate}\nTime: ${d.preferredTime}\nGuests: ${d.guestCount}\nSpecial Request: ${d.specialRequest || '—'}\nLocation: Sarjapur Road, Bengaluru\n\nWe look forward to welcoming you.\n\n${BUSINESS.name}`;
+  const text = `Your Table is Confirmed — ${BUSINESS.name}\n\nDear ${d.customerName}, your reservation at ${BUSINESS.name} has been confirmed (Ref: #${d.referenceId}).\n\nDate: ${d.reservationDate}\nTime: ${d.preferredTime}\nGuests: ${d.guestCount}\nSpecial Request: ${d.specialRequest || '—'}\nLocation: Main Market, Ujjain\n\nWe look forward to welcoming you.\n\n${BUSINESS.name}`;
 
   return sendEmail({
     eventType: 'inquiry_acknowledgement',

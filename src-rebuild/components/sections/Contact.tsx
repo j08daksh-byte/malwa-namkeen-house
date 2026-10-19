@@ -186,7 +186,7 @@ export default function Contact() {
       const result = await submitContact({
         name, email, phone, category, message,
         consent_accepted: consent,
-        location_id: 'bengaluru-sarjapur',
+        location_id: 'ujjain-main-market',
       });
 
       if (result.success) {
