@@ -123,6 +123,19 @@ function PublicSite() {
           'query-input': 'required name=search_term_string',
         },
       },
+      {
+        '@type': 'ItemList',
+        '@id': 'https://www.malwanamkeenhouse.com/#navigation',
+        name: 'Main Site Navigation',
+        itemListElement: [
+          { '@type': 'SiteNavigationElement', position: 1, name: 'Shop All Namkeens', url: 'https://www.malwanamkeenhouse.com/shop' },
+          { '@type': 'SiteNavigationElement', position: 2, name: 'My Account', url: 'https://www.malwanamkeenhouse.com/account' },
+          { '@type': 'SiteNavigationElement', position: 3, name: 'Contact & Store', url: 'https://www.malwanamkeenhouse.com/contact' },
+          { '@type': 'SiteNavigationElement', position: 4, name: 'Heritage & Legacy', url: 'https://www.malwanamkeenhouse.com/about-us' },
+          { '@type': 'SiteNavigationElement', position: 5, name: 'Shipping & Delivery', url: 'https://www.malwanamkeenhouse.com/shipping-policy' },
+          { '@type': 'SiteNavigationElement', position: 6, name: 'Terms & Conditions', url: 'https://www.malwanamkeenhouse.com/terms-and-conditions' },
+        ],
+      },
     ],
   };
 
