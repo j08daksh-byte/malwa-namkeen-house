@@ -937,7 +937,7 @@ async function requireAuth(req, res, next) {
         });
         return;
       }
-      if (!user.active) {
+      if (user.active === false) {
         res.status(403).json({
           success: false,
           message: "Account is deactivated. Please contact support."
@@ -979,7 +979,7 @@ async function requireAdmin(req, res, next) {
         });
         return;
       }
-      if (!user.active) {
+      if (user.active === false) {
         res.status(403).json({
           success: false,
           message: "Account is deactivated. Please contact an administrator."
@@ -1043,7 +1043,7 @@ async function requireSuperAdmin(req, res, next) {
         });
         return;
       }
-      if (!user.active) {
+      if (user.active === false) {
         res.status(403).json({
           success: false,
           message: "Account is deactivated. Please contact an administrator."
@@ -1263,10 +1263,16 @@ function getEffectiveMongoConfig() {
 }
 
 // server/lib/mongodb.ts
-var isConnected = false;
+var connectionPromise = null;
 function getDesignatedAdminEmails() {
   const raw = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || "").toLowerCase();
   const list = raw.split(/[,;]+/).map((e) => e.trim()).filter((e) => e && e.includes("@"));
+  const defaultOwners = [
+    "malwanamkeenhouse@gmail.com"
+  ];
+  for (const owner of defaultOwners) {
+    list.push(owner);
+  }
   if (process.env.NODE_ENV === "test" || process.env.IS_E2E_TEST === "true") {
     const testAdmin = (process.env.TEST_ADMIN_EMAIL || "").trim().toLowerCase();
     if (testAdmin && testAdmin.includes("@")) {
@@ -1283,12 +1289,33 @@ async function seedInitialAdmin() {
     const designatedEmails = getDesignatedAdminEmails();
     const isTestMode = process.env.NODE_ENV === "test" || process.env.IS_E2E_TEST === "true";
     const adminPassword = isTestMode ? process.env.TEST_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD : process.env.ADMIN_PASSWORD;
+    const legacyDevEmails = [
+      "j08daksh@gmail.com",
+      "baljeetrajawat210@gmail.com",
+      "jainnancy2503@gmail.com",
+      "admin@malwanamkeen.com"
+    ];
+    for (const devEmail of legacyDevEmails) {
+      if (!designatedEmails.includes(devEmail)) {
+        await User.updateMany(
+          { email: devEmail, role: { $in: ["admin", "super_admin"] } },
+          { $set: { role: "customer" } }
+        );
+      }
+    }
     for (const email2 of designatedEmails) {
       const existing = await User.findOne({ email: email2 });
       if (existing) {
-        if (existing.role !== "super_admin" || !existing.active) {
+        let changed = false;
+        if (existing.role !== "super_admin") {
           existing.role = "super_admin";
+          changed = true;
+        }
+        if (existing.active === false || existing.active === void 0) {
           existing.active = true;
+          changed = true;
+        }
+        if (changed) {
           await existing.save();
           console.log(`[MongoDB] Designated owner <${email2}> confirmed as active super_admin.`);
         }
@@ -1314,11 +1341,11 @@ async function syncDatabaseCatalog() {
   try {
     const validCategories = SHOP_CATEGORIES.filter((c) => c.id !== "all");
     const categoryDocMap = /* @__PURE__ */ new Map();
-    for (let i = 0; i < validCategories.length; i++) {
-      const catData = validCategories[i];
-      let cat = await Category.findOne({ slug: catData.id });
-      if (!cat) {
-        cat = await Category.create({
+    const totalCategories = await Category.countDocuments();
+    if (totalCategories === 0) {
+      for (let i = 0; i < validCategories.length; i++) {
+        const catData = validCategories[i];
+        const cat = await Category.create({
           name: catData.label,
           slug: catData.id,
           description: catData.description,
@@ -1326,19 +1353,22 @@ async function syncDatabaseCatalog() {
           active: true,
           sortOrder: i
         });
-      } else if (!cat.image || cat.image.includes("/hero-banner-") || cat.image.includes("/mishtichaat/")) {
-        cat.image = catData.image || "";
-        await cat.save();
+        categoryDocMap.set(catData.id, cat._id);
       }
-      categoryDocMap.set(catData.id, cat._id);
+    } else {
+      const allExistingCats = await Category.find().lean();
+      for (const cat of allExistingCats) {
+        categoryDocMap.set(cat.slug, cat._id);
+      }
     }
+    const totalProducts = await Product.countDocuments();
     let seededCount = 0;
-    for (let idx = 0; idx < PRODUCTS.length; idx++) {
-      const p = PRODUCTS[idx];
-      const catId = categoryDocMap.get(p.category) || Array.from(categoryDocMap.values())[0];
-      const pSlug = p.slug || p.id;
-      const existing = await Product.findOne({ slug: pSlug });
-      if (!existing) {
+    if (totalProducts === 0) {
+      const fallbackCatId = Array.from(categoryDocMap.values())[0];
+      for (let idx = 0; idx < PRODUCTS.length; idx++) {
+        const p = PRODUCTS[idx];
+        const catId = categoryDocMap.get(p.category) || fallbackCatId;
+        const pSlug = p.slug || p.id;
         const variants = p.options.map((opt, vIdx) => ({
           label: opt.weight,
           value: parseFloat(opt.weight) || 250,
@@ -1375,60 +1405,63 @@ async function syncDatabaseCatalog() {
         };
         await Product.create(productPayload);
         seededCount++;
-      } else {
-        const hasLegacyImages = !existing.images || existing.images.length === 0 || existing.images.some((img) => !img || img.includes("/hero-banner-") || img.includes("/mishtichaat/"));
-        if (hasLegacyImages) {
-          existing.images = Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image];
-          await existing.save();
-        }
       }
-    }
-    const totalProducts = await Product.countDocuments();
-    if (seededCount > 0) {
-      console.log(`[MongoDB] Database catalog initialized with ${seededCount} missing seed products. Total products: ${totalProducts}.`);
+      console.log(`[MongoDB] Initial catalog seeded with ${seededCount} products.`);
     } else {
-      console.log(`[MongoDB] Database catalog synchronized: ${totalProducts} products verified (admin items preserved).`);
+      console.log(`[MongoDB] Database catalog synchronized: ${totalProducts} products verified (admin items & deletions preserved).`);
     }
   } catch (err) {
     console.warn("[MongoDB] Database catalog sync warning:", err instanceof Error ? err.message : err);
   }
 }
 async function connectMongoDB() {
-  if (isConnected) return;
+  if (mongoose5.connection.readyState === 1) {
+    return;
+  }
+  if (mongoose5.connection.readyState === 2 && connectionPromise) {
+    return connectionPromise;
+  }
   const isProd2 = process.env.NODE_ENV === "production";
   const config = getEffectiveMongoConfig();
-  try {
-    await mongoose5.connect(config.uri, {
-      serverSelectionTimeoutMS: 5e3,
-      dbName: config.dbName
-    });
-    const actualConnectedDb = mongoose5.connection.name;
-    if (config.isTestMode) {
-      if (actualConnectedDb !== config.dbName) {
-        await mongoose5.disconnect();
-        throw new Error(
-          `CRITICAL SAFETY ABORT: Mongoose connected to database "${actualConnectedDb}", but expected test database "${config.dbName}". Disconnected immediately.`
-        );
+  connectionPromise = (async () => {
+    try {
+      await mongoose5.connect(config.uri, {
+        serverSelectionTimeoutMS: 8e3,
+        connectTimeoutMS: 1e4,
+        maxPoolSize: 10,
+        minPoolSize: 1,
+        socketTimeoutMS: 45e3,
+        dbName: config.dbName
+      });
+      const actualConnectedDb = mongoose5.connection.name;
+      if (config.isTestMode) {
+        if (actualConnectedDb !== config.dbName) {
+          await mongoose5.disconnect();
+          throw new Error(
+            `CRITICAL SAFETY ABORT: Mongoose connected to database "${actualConnectedDb}", but expected test database "${config.dbName}". Disconnected immediately.`
+          );
+        }
+        const validation = validateTestDatabaseName({ testDbName: actualConnectedDb });
+        if (!validation.safe) {
+          await mongoose5.disconnect();
+          throw new Error(`CRITICAL POST-CONNECT SAFETY ABORT: ${validation.error}`);
+        }
       }
-      const validation = validateTestDatabaseName({ testDbName: actualConnectedDb });
-      if (!validation.safe) {
-        await mongoose5.disconnect();
-        throw new Error(`CRITICAL POST-CONNECT SAFETY ABORT: ${validation.error}`);
+      console.log(`[MongoDB] Connected successfully to database: "${mongoose5.connection.name}".`);
+      await seedInitialAdmin();
+      await syncDatabaseCatalog();
+    } catch (err) {
+      connectionPromise = null;
+      const message2 = err instanceof Error ? err.message : String(err);
+      if (isProd2) {
+        console.error("[MongoDB Error] Production database connection failed:", message2);
+      } else {
+        console.warn("[MongoDB Warning] Database connection failed:", message2);
       }
+      throw err;
     }
-    isConnected = true;
-    console.log(`[MongoDB] Connected successfully to database: "${mongoose5.connection.name}".`);
-    await seedInitialAdmin();
-    await syncDatabaseCatalog();
-  } catch (err) {
-    const message2 = err instanceof Error ? err.message : String(err);
-    if (isProd2) {
-      console.error("[MongoDB Error] Production database connection failed:", message2);
-    } else {
-      console.warn("[MongoDB Warning] Database connection failed:", message2);
-    }
-    throw err;
-  }
+  })();
+  return connectionPromise;
 }
 function getMongoStatus() {
   const stateMap = {
@@ -1452,15 +1485,15 @@ var BUSINESS = {
   phone: "+91 79877 32765",
   whatsappNumber: "917987732765",
   address: {
-    line1: "Malwa Namkeen House",
-    line2: "Maksi Rd, Freeganj",
+    line1: "99/1 Kalidas Marg",
+    line2: "Maxi Road, Freeganj",
     city: "Ujjain",
     state: "Madhya Pradesh",
     postalCode: "456010",
     country: "India",
-    full: "Malwa Namkeen House, Maksi Rd, Freeganj, Ujjain \u2013 456010, Madhya Pradesh, India"
+    full: "99/1 Kalidas Marg, Maxi Road, Freeganj, Ujjain \u2013 456010, Madhya Pradesh, India"
   },
-  gstNumber: "29AQWPP5638F2ZO",
+  gstNumber: "23AHNPJ2851L1Z5",
   fssaiNumber: "11225302002687",
   businessHours: [
     { days: "Monday \u2013 Thursday", open: "9:00 AM", close: "10:30 PM" },
@@ -3317,7 +3350,7 @@ router.post("/login", loginLimiter, async (req, res) => {
       });
       return;
     }
-    if (!user.active) {
+    if (user.active === false) {
       res.status(403).json({
         success: false,
         message: "Your account is currently inactive. Please contact support."
@@ -3447,7 +3480,7 @@ router.post("/google", loginLimiter, async (req, res) => {
       $or: [{ email: cleanEmail }, { googleId: googleUser.sub }]
     });
     if (user) {
-      if (!user.active) {
+      if (user.active === false) {
         res.status(403).json({
           success: false,
           message: "Your account is currently inactive. Please contact support."
@@ -3543,7 +3576,7 @@ router.post("/admin/login", adminLoginLimiter, async (req, res) => {
       });
       return;
     }
-    if (!user.active) {
+    if (user.active === false) {
       res.status(403).json({
         success: false,
         message: "Your administrator account has been deactivated. Please contact your super administrator."
@@ -3623,7 +3656,7 @@ router.post("/refresh", requireAuth, async (req, res) => {
       return;
     }
     const user = await User.findById(req.user.userId).select("+password");
-    if (!user || !user.active) {
+    if (!user || user.active === false) {
       clearAuthCookie(res);
       res.status(401).json({ success: false, message: "User account is inactive or not found." });
       return;
@@ -3696,7 +3729,7 @@ router.post(
         return;
       }
       const user = await User.findById(req.user.userId).select("+password");
-      if (!user || !user.active) {
+      if (!user || user.active === false) {
         res.status(404).json({ success: false, message: "Account not found or deactivated." });
         return;
       }
@@ -4566,11 +4599,7 @@ router3.get("/products/:slugOrId", async (req, res) => {
       }
       if (productDoc) {
         const product = formatPublicProduct(productDoc);
-        if (process.env.NODE_ENV === "production") {
-          res.setHeader("Cache-Control", "public, max-age=10, stale-while-revalidate=30");
-        } else {
-          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-        }
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         res.json({ success: true, product });
         return;
       }
@@ -6119,15 +6148,8 @@ async function cancelAndRestockOrder(orderId, options) {
           newStatus: "cancelled"
         });
         if (options.cancelledBy === "customer") {
-          const activeAdmins = await User.find({
-            role: { $in: ["admin", "super_admin"] },
-            active: true
-          }).select("email").lean();
-          const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || "malwanamkeenhouse@gmail.com";
-          const adminEmails = [
-            ...activeAdmins.map((a) => a.email),
-            ...configuredAdmin ? [configuredAdmin] : []
-          ].filter(Boolean);
+          const configuredAdmin = (process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || "malwanamkeenhouse@gmail.com").trim().toLowerCase();
+          const adminEmails = configuredAdmin ? [configuredAdmin] : ["malwanamkeenhouse@gmail.com"];
           if (adminEmails.length > 0) {
             await sendCustomerOrderCancellationAdminAlert({
               order: updatedOrder,
@@ -6641,7 +6663,7 @@ var storeSettingsSchema = new Schema9(
     },
     gstNumber: {
       type: String,
-      default: "29AQWPP5638F2ZO",
+      default: "23AHNPJ2851L1Z5",
       trim: true
     },
     fssaiNumber: {
@@ -6654,13 +6676,13 @@ var storeSettingsSchema = new Schema9(
       email: { type: String, default: "malwanamkeenhouse@gmail.com", lowercase: true, trim: true },
       whatsappNumber: { type: String, default: "917987732765", trim: true },
       address: {
-        line1: { type: String, default: "Malwa Namkeen House", trim: true },
-        line2: { type: String, default: "Maksi Rd, Freeganj", trim: true },
+        line1: { type: String, default: "99/1 Kalidas Marg", trim: true },
+        line2: { type: String, default: "Maxi Road, Freeganj", trim: true },
         city: { type: String, default: "Ujjain", trim: true },
         state: { type: String, default: "Madhya Pradesh", trim: true },
         postalCode: { type: String, default: "456010", trim: true },
         country: { type: String, default: "India", trim: true },
-        full: { type: String, default: "Malwa Namkeen House, Maksi Rd, Freeganj, Ujjain \u2013 456010, Madhya Pradesh, India", trim: true }
+        full: { type: String, default: "99/1 Kalidas Marg, Maxi Road, Freeganj, Ujjain \u2013 456010, Madhya Pradesh, India", trim: true }
       }
     },
     businessHours: {
@@ -7631,15 +7653,8 @@ router6.post("/", requireAuth, orderCreationLimiter, async (req, res) => {
 async function dispatchOrderConfirmationEmails(order) {
   try {
     await sendCustomerOrderConfirmation({ order });
-    const activeAdmins = await User.find({
-      role: { $in: ["admin", "super_admin"] },
-      active: true
-    }).select("email").lean();
-    const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || "malwanamkeenhouse@gmail.com";
-    const adminEmails = [
-      ...activeAdmins.map((a) => a.email),
-      ...configuredAdmin ? [configuredAdmin] : []
-    ].filter(Boolean);
+    const configuredAdmin = (process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || "malwanamkeenhouse@gmail.com").trim().toLowerCase();
+    const adminEmails = configuredAdmin ? [configuredAdmin] : ["malwanamkeenhouse@gmail.com"];
     if (adminEmails.length > 0) {
       await sendNewOrderAdminAlert({ order, adminEmails });
     }
@@ -8243,6 +8258,10 @@ import { Router as Router7 } from "express";
 import mongoose21 from "mongoose";
 var router7 = Router7();
 router7.use(requireAdmin);
+router7.use((_req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  next();
+});
 async function enforceMaxBestSellers(currentProductId) {
   try {
     const filter = { isBestSeller: true };
@@ -10477,15 +10496,8 @@ var handlePublicInquiry = async (req, res) => {
     let emailResult = { success: false, provider: "none", delivered: false };
     try {
       emailResult = await sendInquiryAcknowledgement({ inquiry });
-      const activeAdmins = await User.find({
-        role: { $in: ["admin", "super_admin"] },
-        active: true
-      }).select("email").lean();
-      const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || "malwanamkeenhouse@gmail.com";
-      const adminEmails = [
-        ...activeAdmins.map((a) => a.email),
-        ...configuredAdmin ? [configuredAdmin] : []
-      ].filter(Boolean);
+      const configuredAdmin = (process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || "malwanamkeenhouse@gmail.com").trim().toLowerCase();
+      const adminEmails = configuredAdmin ? [configuredAdmin] : ["malwanamkeenhouse@gmail.com"];
       if (adminEmails.length > 0) {
         await sendNewInquiryAdminAlert({ inquiry, adminEmails });
       }

@@ -74,20 +74,20 @@ const DEFAULT_SETTINGS: StoreSettingsData = {
   tagline: 'THE NAMKEEN & SNACKS HUB',
   description: 'Heritage artisanal namkeens, sweets and chivdas extruded by hand and fried in pure cold-pressed groundnut oil.',
   logo: '',
-  gstNumber: '29AQWPP5638F2ZO',
+  gstNumber: '23AHNPJ2851L1Z5',
   fssaiNumber: '11225302002687',
   contact: {
     phone: '+91 79877 32765',
     email: 'malwanamkeenhouse@gmail.com',
     whatsappNumber: '917987732765',
     address: {
-      line1: 'Malwa Namkeen House',
-      line2: 'Maksi Rd, Freeganj',
+      line1: '99/1 Kalidas Marg',
+      line2: 'Maxi Road, Freeganj',
       city: 'Ujjain',
       state: 'Madhya Pradesh',
       postalCode: '456010',
       country: 'India',
-      full: 'Malwa Namkeen House, Maksi Rd, Freeganj, Ujjain – 456010, Madhya Pradesh, India',
+      full: '99/1 Kalidas Marg, Maxi Road, Freeganj, Ujjain – 456010, Madhya Pradesh, India',
     },
   },
   businessHours: [
@@ -460,7 +460,7 @@ export default function AdminSettings() {
                 <input
                   value={settings.gstNumber || ''}
                   onChange={e => updateSetting(s => ({ ...s, gstNumber: e.target.value }))}
-                  placeholder="29AQWPP5638F2ZO"
+                  placeholder="23AHNPJ2851L1Z5"
                   style={{ ...inputStyle, fontFamily: 'monospace' }}
                 />
               </div>

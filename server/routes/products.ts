@@ -444,11 +444,7 @@ router.get('/products/:slugOrId', async (req: Request, res: Response) => {
 
       if (productDoc) {
         const product = formatPublicProduct(productDoc);
-        if (process.env.NODE_ENV === 'production') {
-          res.setHeader('Cache-Control', 'public, max-age=10, stale-while-revalidate=30');
-        } else {
-          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        }
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.json({ success: true, product });
         return;
       }

@@ -128,7 +128,9 @@ export default function ProductDetail() {
     }
 
     try {
-      const res = await fetch(`/api/products/${encodeURIComponent(slug)}`);
+      const res = await fetch(`/api/products/${encodeURIComponent(slug)}`, {
+        cache: 'no-store',
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.product) {
@@ -144,7 +146,7 @@ export default function ProductDetail() {
           // Fetch related products from category
           if (prod.category || (prod as any).categoryId) {
             const catId = (prod as any).categoryId || prod.category;
-            fetch(`/api/products?category=${encodeURIComponent(catId)}&limit=5`)
+            fetch(`/api/products?category=${encodeURIComponent(catId)}&limit=5`, { cache: 'no-store' })
               .then(r => (r.ok ? r.json() : null))
               .then(relData => {
                 if (relData?.success && Array.isArray(relData.products)) {
@@ -161,7 +163,16 @@ export default function ProductDetail() {
         }
       }
 
-      // If API returned 404 or empty, but static item exists
+      // If API explicitly responded with 404, product is deleted or doesn't exist.
+      // Do not revive deleted products from static fallback!
+      if (res.status === 404) {
+        setProduct(null);
+        setApiError('This delicacy is no longer available in our collection.');
+        setLoading(false);
+        return;
+      }
+
+      // If server error or offline, fallback to static item if available
       if (staticProd) {
         setProduct(staticProd);
         setSelectedOption(staticProd.options?.[0] || { weight: 'Standard', price: 150 });

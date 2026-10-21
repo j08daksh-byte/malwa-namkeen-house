@@ -11,6 +11,12 @@ const router = Router();
 // Protect all product management endpoints with requireAdmin
 router.use(requireAdmin);
 
+// Disable caching across all admin product operations so mutations immediately reflect
+router.use((_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  next();
+});
+
 /**
  * Helper to ensure at most 4 products are marked as Best Seller.
  * When a new product is added/marked as Best Seller, the oldest one is automatically demoted.

@@ -166,7 +166,7 @@ export async function requireAuth(
         });
         return;
       }
-      if (!user.active) {
+      if (user.active === false) {
         res.status(403).json({
           success: false,
           message: 'Account is deactivated. Please contact support.',
@@ -222,7 +222,7 @@ export async function requireAdmin(
         });
         return;
       }
-      if (!user.active) {
+      if (user.active === false) {
         res.status(403).json({
           success: false,
           message: 'Account is deactivated. Please contact an administrator.',
@@ -299,7 +299,7 @@ export async function requireSuperAdmin(
         });
         return;
       }
-      if (!user.active) {
+      if (user.active === false) {
         res.status(403).json({
           success: false,
           message: 'Account is deactivated. Please contact an administrator.',

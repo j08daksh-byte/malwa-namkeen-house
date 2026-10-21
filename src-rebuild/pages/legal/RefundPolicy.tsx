@@ -7,7 +7,7 @@ export default function RefundPolicy() {
   const email = settings.contact?.email || 'malwanamkeenhouse@gmail.com';
   const phone = settings.contact?.phone || '+91 7987732765';
   const whatsapp = (settings.contact?.whatsappNumber || phone).replace(/\D/g, '');
-  const address = settings.contact?.address?.full || 'Malwa Namkeen House, Maksi Rd, Freeganj, Ujjain – 456010, Madhya Pradesh, India';
+  const address = settings.contact?.address?.full || '99/1 Kalidas Marg, Maxi Road, Freeganj, Ujjain – 456010, Madhya Pradesh, India';
   const customPolicy = settings.policies?.refundPolicy?.trim();
 
   return (

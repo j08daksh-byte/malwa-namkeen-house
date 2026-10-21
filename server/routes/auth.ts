@@ -225,7 +225,7 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       return;
     }
 
-    if (!user.active) {
+    if (user.active === false) {
       res.status(403).json({
         success: false,
         message: 'Your account is currently inactive. Please contact support.',
@@ -413,7 +413,7 @@ router.post('/google', loginLimiter, async (req: Request, res: Response) => {
     });
 
     if (user) {
-      if (!user.active) {
+      if (user.active === false) {
         res.status(403).json({
           success: false,
           message: 'Your account is currently inactive. Please contact support.',
@@ -530,7 +530,7 @@ router.post('/admin/login', adminLoginLimiter, async (req: Request, res: Respons
       return;
     }
 
-    if (!user.active) {
+    if (user.active === false) {
       res.status(403).json({
         success: false,
         message: 'Your administrator account has been deactivated. Please contact your super administrator.',
@@ -632,7 +632,7 @@ router.post('/refresh', requireAuth, async (req: AuthenticatedRequest, res: Resp
     }
 
     const user = await User.findById(req.user.userId).select('+password');
-    if (!user || !user.active) {
+    if (!user || user.active === false) {
       clearAuthCookie(res);
       res.status(401).json({ success: false, message: 'User account is inactive or not found.' });
       return;
@@ -726,7 +726,7 @@ router.post(
       }
 
       const user = await User.findById(req.user.userId).select('+password');
-      if (!user || !user.active) {
+      if (!user || user.active === false) {
         res.status(404).json({ success: false, message: 'Account not found or deactivated.' });
         return;
       }

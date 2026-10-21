@@ -15,10 +15,15 @@ import { ProductCardSkeleton, SkeletonStyles } from '../components/skeletons';
 import { PRODUCTS as FALLBACK_PRODUCTS, SHOP_CATEGORIES as FALLBACK_CATEGORIES, type Product, type ShopCategory } from '../data/products';
 import { resolveProductImage, resolveProductImages } from '../lib/productImage';
 
-const PAGE_SIZE = 12; // Focused 3x4 grid on desktop, 2x6 on mobile/tablet
+const PAGE_SIZE = 12; // Focused 3x4 grid for windowed pagination
+const STREAM_PAGE_SIZE = 24; // Generous batch for continuous stream so entire catalog loads seamlessly
 
 export default function Shop() {
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const [viewMode, setViewMode] = useState<'pages' | 'stream'>(() => {
+    return searchParams.get('mode') === 'pages' ? 'pages' : 'stream';
+  });
 
   // SearchParams are Single Source of Truth to avoid state-sync re-render loops & race conditions
   const selectedCategory = searchParams.get('category') || 'all';
@@ -74,10 +79,11 @@ export default function Shop() {
         list.sort((a, b) => b.name.localeCompare(a.name));
       }
 
+      const currentLimit = viewMode === 'stream' ? STREAM_PAGE_SIZE : PAGE_SIZE;
       const total = list.length;
-      const start = (pageNumber - 1) * PAGE_SIZE;
-      const paginated = list.slice(start, start + PAGE_SIZE);
-      const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
+      const start = (pageNumber - 1) * currentLimit;
+      const paginated = list.slice(start, start + currentLimit);
+      const totalPages = Math.ceil(total / currentLimit) || 1;
 
       return {
         products: paginated,
@@ -85,7 +91,7 @@ export default function Shop() {
         hasMore: pageNumber < totalPages,
       };
     },
-    [selectedCategory, selectedSpice, searchQuery, sortBy]
+    [selectedCategory, selectedSpice, searchQuery, sortBy, viewMode]
   );
 
   // Initialized with immediate static data for instant render
@@ -97,10 +103,15 @@ export default function Shop() {
   const [hasMore, setHasMore] = useState<boolean>(() => filterStaticCatalog(1).hasMore);
   const [page, setPage] = useState<number>(1);
   const [totalCount, setTotalCount] = useState<number>(() => filterStaticCatalog(1).total);
-  const [viewMode, setViewMode] = useState<'pages' | 'stream'>(() => {
-    return searchParams.get('mode') === 'stream' ? 'stream' : 'pages';
-  });
   const [showScrollTop, setShowScrollTop] = useState<boolean>(false);
+
+  // Keep viewMode synchronized if URL mode param changes via navigation
+  useEffect(() => {
+    const urlMode = searchParams.get('mode') === 'pages' ? 'pages' : 'stream';
+    if (urlMode !== viewMode) {
+      setViewMode(urlMode);
+    }
+  }, [searchParams, viewMode]);
 
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [reservationOpen, setReservationOpen] = useState<boolean>(false);
@@ -112,7 +123,8 @@ export default function Shop() {
   const isMountedRef = useRef<boolean>(true);
   const hasLoadedFromApiRef = useRef<boolean>(false);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const currentBatchLimit = viewMode === 'stream' ? STREAM_PAGE_SIZE : PAGE_SIZE;
+  const totalPages = Math.max(1, Math.ceil(totalCount / currentBatchLimit));
 
   const handlePageChange = (newPage: number) => {
     if (newPage < 1 || newPage > totalPages || newPage === page) return;
@@ -124,18 +136,21 @@ export default function Shop() {
   const handleViewModeChange = (mode: 'pages' | 'stream') => {
     setViewMode(mode);
     const nextParams = new URLSearchParams(searchParams);
-    if (mode === 'stream') nextParams.set('mode', 'stream');
+    if (mode === 'pages') nextParams.set('mode', 'pages');
     else nextParams.delete('mode');
     setSearchParams(nextParams, { replace: true });
 
-    if (mode === 'pages') {
-      fetchProductsBatch(page, true);
-    }
+    // Always reset to page 1 and fetch fresh batch for the selected mode
+    setPage(1);
+    fetchProductsBatch(1, true, mode);
   };
 
   const scrollToTop = () => {
-    gridTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) ||
+    if (gridTopRef.current) {
+      gridTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   useEffect(() => {
@@ -244,13 +259,16 @@ export default function Shop() {
 
   // Core product fetching function
   const fetchProductsBatch = useCallback(
-    async (pageToFetch: number, isReset: boolean) => {
+    async (pageToFetch: number, isReset: boolean, explicitMode?: 'pages' | 'stream') => {
       isMountedRef.current = true;
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
       const controller = new AbortController();
       abortControllerRef.current = controller;
+
+      const currentMode = explicitMode || viewMode;
+      const currentBatchLimit = currentMode === 'stream' ? STREAM_PAGE_SIZE : PAGE_SIZE;
 
       const staticResult = filterStaticCatalog(pageToFetch);
       if (isReset) {
@@ -270,7 +288,7 @@ export default function Shop() {
       try {
         const queryParams = new URLSearchParams({
           page: String(pageToFetch),
-          limit: String(PAGE_SIZE),
+          limit: String(currentBatchLimit),
           category: selectedCategory,
           search: searchQuery,
           spice: selectedSpice,
@@ -283,6 +301,7 @@ export default function Shop() {
 
         const fetchPromise = fetch(`/api/products?${queryParams.toString()}`, {
           signal: controller.signal,
+          cache: 'no-store',
         });
 
         const res = await Promise.race([fetchPromise, timeoutPromise]);
@@ -340,7 +359,7 @@ export default function Shop() {
         }
       }
     },
-    [selectedCategory, searchQuery, selectedSpice, sortBy, filterStaticCatalog]
+    [selectedCategory, searchQuery, selectedSpice, sortBy, viewMode, filterStaticCatalog]
   );
 
   // Re-fetch whenever search/filter criteria change
@@ -1078,7 +1097,7 @@ export default function Shop() {
                         disabled={loadingMore}
                         onClick={() => fetchProductsBatch(page + 1, false)}
                       >
-                        {loadingMore ? 'Loading Next Delicacies…' : `Load Next ${Math.min(PAGE_SIZE, Math.max(1, totalCount - products.length))} Delicacies`}
+                        {loadingMore ? 'Loading Next Delicacies…' : `Load Next ${Math.min(STREAM_PAGE_SIZE, Math.max(1, totalCount - products.length))} Delicacies`}
                       </button>
                     </div>
                   )}

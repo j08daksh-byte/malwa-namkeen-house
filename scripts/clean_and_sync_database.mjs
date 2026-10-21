@@ -3,9 +3,6 @@ dotenv.config({ path: '.env.local' });
 import mongoose from 'mongoose';
 
 const PRESERVED_STAFF_EMAILS = [
-  'j08daksh@gmail.com',
-  'jainnancy2503@gmail.com',
-  'baljeetrajawat210@gmail.com',
   'malwanamkeenhouse@gmail.com',
 ];
 

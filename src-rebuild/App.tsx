@@ -101,7 +101,7 @@ function PublicSite() {
         paymentAccepted: 'Cash, UPI, Credit Card, Debit Card',
         address: {
           '@type': 'PostalAddress',
-          streetAddress: 'Maksi Rd, Freeganj',
+          streetAddress: '99/1 Kalidas Marg, Maxi Road, Freeganj',
           addressLocality: 'Ujjain',
           addressRegion: 'Madhya Pradesh',
           postalCode: '456010',

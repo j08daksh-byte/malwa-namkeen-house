@@ -76,7 +76,7 @@ const storeSettingsSchema = new Schema<IStoreSettings>(
     },
     gstNumber: {
       type: String,
-      default: '29AQWPP5638F2ZO',
+      default: '23AHNPJ2851L1Z5',
       trim: true,
     },
     fssaiNumber: {
@@ -89,13 +89,13 @@ const storeSettingsSchema = new Schema<IStoreSettings>(
       email: { type: String, default: 'malwanamkeenhouse@gmail.com', lowercase: true, trim: true },
       whatsappNumber: { type: String, default: '917987732765', trim: true },
       address: {
-        line1: { type: String, default: 'Malwa Namkeen House', trim: true },
-        line2: { type: String, default: 'Maksi Rd, Freeganj', trim: true },
+        line1: { type: String, default: '99/1 Kalidas Marg', trim: true },
+        line2: { type: String, default: 'Maxi Road, Freeganj', trim: true },
         city: { type: String, default: 'Ujjain', trim: true },
         state: { type: String, default: 'Madhya Pradesh', trim: true },
         postalCode: { type: String, default: '456010', trim: true },
         country: { type: String, default: 'India', trim: true },
-        full: { type: String, default: 'Malwa Namkeen House, Maksi Rd, Freeganj, Ujjain – 456010, Madhya Pradesh, India', trim: true },
+        full: { type: String, default: '99/1 Kalidas Marg, Maxi Road, Freeganj, Ujjain – 456010, Madhya Pradesh, India', trim: true },
       },
     },
     businessHours: {

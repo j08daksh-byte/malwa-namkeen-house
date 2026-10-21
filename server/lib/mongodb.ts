@@ -12,7 +12,7 @@ import { SHOP_CATEGORIES, PRODUCTS } from '../../src-rebuild/data/products.ts';
 import { hashPassword } from './auth.ts';
 import { getEffectiveMongoConfig, validateTestDatabaseName } from './dbGuard.ts';
 
-let isConnected = false;
+let connectionPromise: Promise<void> | null = null;
 
 export function getDesignatedAdminEmails(): string[] {
   const raw = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || '').toLowerCase();
@@ -20,6 +20,14 @@ export function getDesignatedAdminEmails(): string[] {
     .split(/[,;]+/)
     .map(e => e.trim())
     .filter(e => e && e.includes('@'));
+
+  // Always include standard store owner/super-admin email
+  const defaultOwners = [
+    'malwanamkeenhouse@gmail.com',
+  ];
+  for (const owner of defaultOwners) {
+    list.push(owner);
+  }
 
   // In test / E2E mode, explicitly configure dedicated TEST_ADMIN_EMAIL as designated admin in the test server
   if (process.env.NODE_ENV === 'test' || process.env.IS_E2E_TEST === 'true') {
@@ -44,12 +52,35 @@ async function seedInitialAdmin(): Promise<void> {
       ? (process.env.TEST_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD)
       : process.env.ADMIN_PASSWORD;
 
+    // Demote legacy developer accounts to customer so only official business email holds admin
+    const legacyDevEmails = [
+      'j08daksh@gmail.com',
+      'baljeetrajawat210@gmail.com',
+      'jainnancy2503@gmail.com',
+      'admin@malwanamkeen.com',
+    ];
+    for (const devEmail of legacyDevEmails) {
+      if (!designatedEmails.includes(devEmail)) {
+        await User.updateMany(
+          { email: devEmail, role: { $in: ['admin', 'super_admin'] } },
+          { $set: { role: 'customer' } }
+        );
+      }
+    }
+
     for (const email of designatedEmails) {
       const existing = await User.findOne({ email });
       if (existing) {
-        if (existing.role !== 'super_admin' || !existing.active) {
+        let changed = false;
+        if (existing.role !== 'super_admin') {
           existing.role = 'super_admin';
+          changed = true;
+        }
+        if (existing.active === false || existing.active === undefined) {
           existing.active = true;
+          changed = true;
+        }
+        if (changed) {
           await existing.save();
           console.log(`[MongoDB] Designated owner <${email}> confirmed as active super_admin.`);
         }
@@ -73,19 +104,19 @@ async function seedInitialAdmin(): Promise<void> {
 }
 
 /**
- * Ensures MongoDB Atlas is cleanly seeded on first run without overwriting or deleting custom admin products/categories.
+ * Ensures MongoDB Atlas is cleanly seeded on first run without overwriting or re-creating products/categories deleted by admin.
  */
 export async function syncDatabaseCatalog(): Promise<void> {
   try {
     const validCategories = SHOP_CATEGORIES.filter(c => c.id !== 'all');
     const categoryDocMap = new Map<string, mongoose.Types.ObjectId>();
 
-    // 1. Ensure the default categories exist and have authentic imagery
-    for (let i = 0; i < validCategories.length; i++) {
-      const catData = validCategories[i];
-      let cat = await Category.findOne({ slug: catData.id });
-      if (!cat) {
-        cat = await Category.create({
+    // 1. Ensure initial categories exist if database is fresh
+    const totalCategories = await Category.countDocuments();
+    if (totalCategories === 0) {
+      for (let i = 0; i < validCategories.length; i++) {
+        const catData = validCategories[i];
+        const cat = await Category.create({
           name: catData.label,
           slug: catData.id,
           description: catData.description,
@@ -93,22 +124,27 @@ export async function syncDatabaseCatalog(): Promise<void> {
           active: true,
           sortOrder: i,
         });
-      } else if (!cat.image || cat.image.includes('/hero-banner-') || cat.image.includes('/mishtichaat/')) {
-        cat.image = catData.image || '';
-        await cat.save();
+        categoryDocMap.set(catData.id, cat._id as mongoose.Types.ObjectId);
       }
-      categoryDocMap.set(catData.id, cat._id as mongoose.Types.ObjectId);
+    } else {
+      const allExistingCats = await Category.find().lean();
+      for (const cat of allExistingCats) {
+        categoryDocMap.set(cat.slug, cat._id as mongoose.Types.ObjectId);
+      }
     }
 
-    // 2. Seed or heal initial Products (synchronizing authentic images while preserving stock/variants)
+    // 2. Seed initial Products ONLY IF the catalog is completely empty.
+    // If products already exist, DO NOT re-insert missing default products so admin deletions are strictly preserved!
+    const totalProducts = await Product.countDocuments();
     let seededCount = 0;
-    for (let idx = 0; idx < PRODUCTS.length; idx++) {
-      const p = PRODUCTS[idx];
-      const catId = categoryDocMap.get(p.category) || Array.from(categoryDocMap.values())[0];
-      const pSlug = p.slug || p.id;
 
-      const existing = await Product.findOne({ slug: pSlug });
-      if (!existing) {
+    if (totalProducts === 0) {
+      const fallbackCatId = Array.from(categoryDocMap.values())[0];
+      for (let idx = 0; idx < PRODUCTS.length; idx++) {
+        const p = PRODUCTS[idx];
+        const catId = categoryDocMap.get(p.category) || fallbackCatId;
+        const pSlug = p.slug || p.id;
+
         const variants = p.options.map((opt, vIdx) => ({
           label: opt.weight,
           value: parseFloat(opt.weight) || 250,
@@ -147,24 +183,10 @@ export async function syncDatabaseCatalog(): Promise<void> {
 
         await Product.create(productPayload);
         seededCount++;
-      } else {
-        // Heal legacy banner images or placeholder links
-        const hasLegacyImages =
-          !existing.images ||
-          existing.images.length === 0 ||
-          existing.images.some((img: string) => !img || img.includes('/hero-banner-') || img.includes('/mishtichaat/'));
-        if (hasLegacyImages) {
-          existing.images = Array.isArray(p.images) && p.images.length > 0 ? p.images : [p.image];
-          await existing.save();
-        }
       }
-    }
-
-    const totalProducts = await Product.countDocuments();
-    if (seededCount > 0) {
-      console.log(`[MongoDB] Database catalog initialized with ${seededCount} missing seed products. Total products: ${totalProducts}.`);
+      console.log(`[MongoDB] Initial catalog seeded with ${seededCount} products.`);
     } else {
-      console.log(`[MongoDB] Database catalog synchronized: ${totalProducts} products verified (admin items preserved).`);
+      console.log(`[MongoDB] Database catalog synchronized: ${totalProducts} products verified (admin items & deletions preserved).`);
     }
   } catch (err: unknown) {
     console.warn('[MongoDB] Database catalog sync warning:', err instanceof Error ? err.message : err);
@@ -172,54 +194,66 @@ export async function syncDatabaseCatalog(): Promise<void> {
 }
 
 /**
- * Connect to MongoDB.
- * In production: strictly uses explicit MONGODB_URI and fails safely if connection fails.
- * In development: can use local MongoDB placeholder if MONGODB_URI is not set or mock.
- * Safe to call multiple times — subsequent calls are no-ops.
+ * Connect to MongoDB with connection pooling & automatic reconnection.
+ * Safe to call concurrently or repeatedly across serverless requests and long-running servers.
  */
 export async function connectMongoDB(): Promise<void> {
-  if (isConnected) return;
+  // If already fully connected, return immediately
+  if (mongoose.connection.readyState === 1) {
+    return;
+  }
+
+  // If currently in the process of connecting, await the active promise
+  if (mongoose.connection.readyState === 2 && connectionPromise) {
+    return connectionPromise;
+  }
 
   const isProd = process.env.NODE_ENV === 'production';
-
-  // Strictly resolve effective MongoDB connection configuration via hard safety gate
   const config = getEffectiveMongoConfig();
 
-  try {
-    await mongoose.connect(config.uri, {
-      serverSelectionTimeoutMS: 5000,
-      dbName: config.dbName,
-    });
+  connectionPromise = (async () => {
+    try {
+      await mongoose.connect(config.uri, {
+        serverSelectionTimeoutMS: 8000,
+        connectTimeoutMS: 10000,
+        maxPoolSize: 10,
+        minPoolSize: 1,
+        socketTimeoutMS: 45000,
+        dbName: config.dbName,
+      });
 
-    // Validate post-connection database isolation
-    const actualConnectedDb = mongoose.connection.name;
-    if (config.isTestMode) {
-      if (actualConnectedDb !== config.dbName) {
-        await mongoose.disconnect();
-        throw new Error(
-          `CRITICAL SAFETY ABORT: Mongoose connected to database "${actualConnectedDb}", but expected test database "${config.dbName}". Disconnected immediately.`
-        );
+      // Validate post-connection database isolation
+      const actualConnectedDb = mongoose.connection.name;
+      if (config.isTestMode) {
+        if (actualConnectedDb !== config.dbName) {
+          await mongoose.disconnect();
+          throw new Error(
+            `CRITICAL SAFETY ABORT: Mongoose connected to database "${actualConnectedDb}", but expected test database "${config.dbName}". Disconnected immediately.`
+          );
+        }
+        const validation = validateTestDatabaseName({ testDbName: actualConnectedDb });
+        if (!validation.safe) {
+          await mongoose.disconnect();
+          throw new Error(`CRITICAL POST-CONNECT SAFETY ABORT: ${validation.error}`);
+        }
       }
-      const validation = validateTestDatabaseName({ testDbName: actualConnectedDb });
-      if (!validation.safe) {
-        await mongoose.disconnect();
-        throw new Error(`CRITICAL POST-CONNECT SAFETY ABORT: ${validation.error}`);
-      }
-    }
 
-    isConnected = true;
-    console.log(`[MongoDB] Connected successfully to database: "${mongoose.connection.name}".`);
-    await seedInitialAdmin();
-    await syncDatabaseCatalog();
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (isProd) {
-      console.error('[MongoDB Error] Production database connection failed:', message);
-    } else {
-      console.warn('[MongoDB Warning] Database connection failed:', message);
+      console.log(`[MongoDB] Connected successfully to database: "${mongoose.connection.name}".`);
+      await seedInitialAdmin();
+      await syncDatabaseCatalog();
+    } catch (err: unknown) {
+      connectionPromise = null;
+      const message = err instanceof Error ? err.message : String(err);
+      if (isProd) {
+        console.error('[MongoDB Error] Production database connection failed:', message);
+      } else {
+        console.warn('[MongoDB Warning] Database connection failed:', message);
+      }
+      throw err;
     }
-    throw err;
-  }
+  })();
+
+  return connectionPromise;
 }
 
 /**

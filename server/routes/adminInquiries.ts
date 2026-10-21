@@ -142,17 +142,9 @@ const handlePublicInquiry = async (req: Request, res: Response) => {
       // 1. Customer Acknowledgement Email
       emailResult = await sendInquiryAcknowledgement({ inquiry });
 
-      // 2. Active Admin Notification Alert
-      const activeAdmins = await User.find({
-        role: { $in: ['admin', 'super_admin'] },
-        active: true,
-      }).select('email').lean();
-
-      const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || 'malwanamkeenhouse@gmail.com';
-      const adminEmails = [
-        ...activeAdmins.map(a => a.email),
-        ...(configuredAdmin ? [configuredAdmin] : []),
-      ].filter(Boolean);
+      // 2. Active Admin Notification Alert - Send strictly to official business email only
+      const configuredAdmin = (process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || 'malwanamkeenhouse@gmail.com').trim().toLowerCase();
+      const adminEmails = configuredAdmin ? [configuredAdmin] : ['malwanamkeenhouse@gmail.com'];
       if (adminEmails.length > 0) {
         await sendNewInquiryAdminAlert({ inquiry, adminEmails });
       }

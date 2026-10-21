@@ -184,7 +184,7 @@ describe('Google OAuth & Authentication Hardening Suite', () => {
     });
 
     it('designates super_admin only if email matches configured ADMIN_EMAIL', async () => {
-      const designatedEmail = (process.env.ADMIN_EMAIL || 'j08daksh@gmail.com').toLowerCase().trim();
+      const designatedEmail = (process.env.ADMIN_EMAIL || 'malwanamkeenhouse@gmail.com').toLowerCase().trim();
       const ownerSub = `google_owner_sub_${Date.now()}`;
 
       __setGoogleTokenVerifierForTesting(async () => ({

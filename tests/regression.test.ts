@@ -51,12 +51,12 @@ describe('Malwa Namkeen House — Core Business & Validation Regression Suite', 
   describe('1. Brand & Business Configuration', () => {
     it('should maintain immutable business constants', () => {
       assert.equal(BUSINESS.name, 'MALWA NAMKEEN HOUSE');
-      assert.equal(BUSINESS.phone, '+91 7987732765');
+      assert.equal(BUSINESS.phone, '+91 79877 32765');
       assert.equal(BUSINESS.whatsappNumber, '917987732765');
-      assert.equal(BUSINESS.gstNumber, '29AQWPP5638F2ZO');
+      assert.equal(BUSINESS.gstNumber, '23AHNPJ2851L1Z5');
       assert.equal(BUSINESS.fssaiNumber, '11225302002687');
-      assert.equal(BUSINESS.address.city, 'Bengaluru');
-      assert.equal(BUSINESS.address.postalCode, '562125');
+      assert.equal(BUSINESS.address.city, 'Ujjain');
+      assert.equal(BUSINESS.address.postalCode, '456010');
     });
   });
 

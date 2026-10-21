@@ -892,16 +892,9 @@ export async function dispatchOrderConfirmationEmails(order: any) {
   try {
     await sendCustomerOrderConfirmation({ order });
 
-    const activeAdmins = await User.find({
-      role: { $in: ['admin', 'super_admin'] },
-      active: true,
-    }).select('email').lean();
-
-    const configuredAdmin = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || 'malwanamkeenhouse@gmail.com';
-    const adminEmails = [
-      ...activeAdmins.map(a => a.email),
-      ...(configuredAdmin ? [configuredAdmin] : []),
-    ].filter(Boolean);
+    // Website mail only routes to official business notification email (no other personal/developer email)
+    const configuredAdmin = (process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || 'malwanamkeenhouse@gmail.com').trim().toLowerCase();
+    const adminEmails = configuredAdmin ? [configuredAdmin] : ['malwanamkeenhouse@gmail.com'];
 
     if (adminEmails.length > 0) {
       await sendNewOrderAdminAlert({ order, adminEmails });

@@ -165,6 +165,7 @@ export default function AdminProducts() {
       const res = await fetch('/api/admin/categories', {
         headers: getAuthHeader(),
         credentials: 'include',
+        cache: 'no-store',
       });
       if (res.ok) {
         const data = await res.json();
@@ -192,6 +193,7 @@ export default function AdminProducts() {
       const res = await fetch(`/api/admin/products?${params.toString()}`, {
         headers: getAuthHeader(),
         credentials: 'include',
+        cache: 'no-store',
       });
 
       if (!res.ok) {
@@ -458,13 +460,16 @@ export default function AdminProducts() {
         headers: getAuthHeader(),
         credentials: 'include',
       });
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
         setProducts(prev =>
           prev.map(p => (p._id === id ? { ...p, active: !currentStatus } : p))
         );
+      } else {
+        alert(data.message || 'Failed to toggle product status. Please verify administrator permissions.');
       }
-    } catch {
-      // Ignore
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Network error while updating product status.');
     }
   };
 
@@ -475,11 +480,14 @@ export default function AdminProducts() {
         headers: getAuthHeader(),
         credentials: 'include',
       });
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
         fetchProducts();
+      } else {
+        alert(data.message || 'Failed to update Best Seller status. Please verify administrator permissions.');
       }
-    } catch {
-      // Ignore
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Network error while updating Best Seller.');
     }
   };
 
@@ -490,9 +498,12 @@ export default function AdminProducts() {
         headers: getAuthHeader(),
         credentials: 'include',
       });
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
         setProducts(prev => prev.filter(p => p._id !== id));
         setDeleteConfirmId(null);
+      } else {
+        alert(data.message || 'Failed to delete product. Please verify administrator permissions.');
       }
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to delete product.');

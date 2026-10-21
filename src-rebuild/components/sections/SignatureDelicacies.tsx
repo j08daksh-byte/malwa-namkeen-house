@@ -88,12 +88,9 @@ export default function SignatureDelicacies() {
             };
           });
 
-          // Pad up to 4 if fewer returned
-          while (loaded.length < 4) {
-            loaded.push(FALLBACK_BEST_SELLERS[loaded.length]);
+          if (loaded.length > 0) {
+            setProducts(loaded.slice(0, 4));
           }
-
-          setProducts(loaded.slice(0, 4));
         }
       } catch (err) {
         console.warn('Could not load best sellers, using fallback:', err);
