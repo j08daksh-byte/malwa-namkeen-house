@@ -1,0 +1,64 @@
+/**
+ * Centralized business configuration for Malwa Namkeen House.
+ * All brand constants live here — never scatter them across components or routes.
+ */
+
+export const BUSINESS = {
+  name:        'MALWA NAMKEEN HOUSE',
+  tagline:     'THE NAMKEEN & SNACKS HUB',
+  email:       'malwanamkeenhouse@gmail.com',
+  phone:       '+91 79877 32765',
+  whatsappNumber: '917987732765',
+  address: {
+    line1:      '99/1 Kalidas Marg',
+    line2:      'Maxi Road, Freeganj',
+    city:       'Ujjain',
+    state:      'Madhya Pradesh',
+    postalCode: '456010',
+    country:    'India',
+    full:       '99/1 Kalidas Marg, Maxi Road, Freeganj, Ujjain – 456010, Madhya Pradesh, India',
+  },
+  gstNumber:   '23AHNPJ2851L1Z5',
+  fssaiNumber: '11225302002687',
+  businessHours: [
+    { days: 'Monday – Thursday', open: '9:00 AM', close: '10:30 PM' },
+    { days: 'Friday',            open: '9:00 AM', close: '11:00 PM' },
+    { days: 'Saturday – Sunday', open: '8:30 AM', close: '11:00 PM' },
+  ],
+  defaultLocationId: 'ujjain-main-market',
+} as const;
+
+/** Google Maps URL — set via env var; falls back to '#' until client provides the live link. */
+export const GOOGLE_MAPS_URL = process.env.GOOGLE_MAPS_URL ?? '#';
+
+// ── Enquiry categories ──────────────────────────────────────────────────────
+
+export const ENQUIRY_CATEGORIES = [
+  { value: 'general_enquiry',          label: 'General Enquiries'         },
+  { value: 'catering',                 label: 'Catering'                   },
+  { value: 'bulk_orders',              label: 'Bulk Orders'                },
+  { value: 'corporate_gifting',        label: 'Corporate Gifting'          },
+  { value: 'birthday_parties_events',  label: 'Birthday Parties & Events'  },
+] as const;
+
+export type EnquiryCategory = typeof ENQUIRY_CATEGORIES[number]['value'];
+
+export const VALID_CATEGORIES: string[] = ENQUIRY_CATEGORIES.map(c => c.value);
+
+// ── Location IDs ────────────────────────────────────────────────────────────
+
+export const VALID_LOCATION_IDS: string[] = ['ujjain-main-market', 'bengaluru-sarjapur'];
+
+// ── Reservation statuses (server-assigned, never trusted from client) ───────
+
+export const RESERVATION_STATUSES = [
+  'new', 'contacted', 'confirmed', 'declined',
+  'cancelled', 'completed', 'no_show',
+] as const;
+
+export type ReservationStatus = typeof RESERVATION_STATUSES[number];
+
+// ── Contact statuses ────────────────────────────────────────────────────────
+
+export const CONTACT_STATUSES = ['new', 'in_progress', 'resolved', 'closed', 'spam'] as const;
+export type ContactStatus = typeof CONTACT_STATUSES[number];

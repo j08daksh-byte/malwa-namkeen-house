@@ -1,0 +1,180 @@
+import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
+import cookieParser from 'cookie-parser';
+import mongoose from 'mongoose';
+import { connectMongoDB, getMongoStatus } from './lib/mongodb.ts';
+import { BUSINESS } from './config.ts';
+
+// Routes
+import authRoutes from './routes/auth.ts';
+import authRecoveryRoutes from './routes/authRecovery.ts';
+import publicCatalogRoutes from './routes/products.ts';
+import cartWishlistRoutes from './routes/cartWishlist.ts';
+import customerAccountRoutes from './routes/customerAccount.ts';
+import customerOrdersRoutes from './routes/customerOrders.ts';
+import adminProductRoutes from './routes/adminProducts.ts';
+import adminCategoryRoutes from './routes/adminCategories.ts';
+import adminOrderRoutes from './routes/adminOrders.ts';
+import adminCustomerRoutes from './routes/adminCustomers.ts';
+import adminDiscountRoutes from './routes/adminDiscounts.ts';
+import adminInquiryRoutes from './routes/adminInquiries.ts';
+import adminStaffRoutes from './routes/adminStaff.ts';
+import adminSettingsRoutes, { publicSettingsRouter } from './routes/adminSettings.ts';
+import adminEmailRoutes from './routes/adminEmail.ts';
+import adminDashboardRoutes from './routes/adminDashboard.ts';
+import uploadRoutes from './routes/uploads.ts';
+import enquiryRoutes from './routes/enquiries.ts';
+import adminBannerRoutes from './routes/adminBanners.ts';
+import publicBannerRoutes from './routes/banners.ts';
+import sitemapRoutes from './routes/sitemap.ts';
+import conciergeRoutes from './routes/concierge.ts';
+import shippingWebhooksRoutes from './routes/shippingWebhooks.ts';
+import { apiNotFoundHandler, apiErrorHandler } from './lib/errorHandler.ts';
+
+const app = express();
+app.set('trust proxy', 1);
+const isProd = process.env.NODE_ENV === 'production';
+
+// Strict CORS configuration
+const allowedOrigins = (() => {
+  const configured = process.env.ALLOWED_ORIGINS ?? '';
+  const base = configured
+    ? configured.split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean)
+    : [];
+  if (!isProd) {
+    base.push('http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://localhost:3000');
+  } else {
+    base.push(
+      'https://malwanamkeenhouse.com',
+      'https://www.malwanamkeenhouse.com',
+      'https://malwa-namkeen.vercel.app'
+    );
+    if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+      base.push(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.trim().replace(/\/+$/, '')}`);
+    }
+    if (process.env.VERCEL_URL) {
+      base.push(`https://${process.env.VERCEL_URL.trim().replace(/\/+$/, '')}`);
+    }
+  }
+  const appUrl = process.env.APP_URL;
+  if (appUrl) base.push(appUrl.trim().replace(/\/+$/, ''));
+  return Array.from(new Set(base));
+})();
+
+// CORS middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origin = req.headers.origin;
+  const normalizedOrigin = origin ? origin.replace(/\/+$/, '') : null;
+  if (!normalizedOrigin || allowedOrigins.includes(normalizedOrigin)) {
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Idempotency-Key, x-idempotency-key');
+  res.setHeader('Vary', 'Origin');
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
+
+app.use(cookieParser());
+app.use(express.json({
+  limit: '10mb',
+  verify: (req: any, _res: Response, buf: Buffer) => {
+    req.rawBody = buf;
+  },
+}));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Ensure MongoDB is connected on each incoming serverless request
+app.use(async (_req: Request, _res: Response, next: NextFunction) => {
+  try {
+    await connectMongoDB();
+  } catch (err) {
+    console.warn('[Vercel API] MongoDB connection attempt:', err instanceof Error ? err.message : err);
+  }
+  next();
+});
+
+// Sitemaps & robots.txt
+app.use('/', sitemapRoutes);
+
+// Health check
+app.get(['/health', '/api/health'], async (_req: Request, res: Response) => {
+  const mongo = getMongoStatus();
+  let dbHealthy = false;
+
+  if (mongo.connected && mongoose.connection.db) {
+    try {
+      await Promise.race([
+        mongoose.connection.db.command({ ping: 1 }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+      ]);
+      dbHealthy = true;
+    } catch {
+      dbHealthy = false;
+    }
+  }
+
+  res.status(dbHealthy ? 200 : 503).json({
+    status: dbHealthy ? 'ok' : 'error',
+    time: new Date().toISOString(),
+    service: BUSINESS.name,
+    mongodb: dbHealthy ? 'connected' : mongo.state,
+    database: mongoose.connection.name || null,
+  });
+});
+
+// Mount all API routes with and without '/api' prefix for robust Vercel serverless routing
+const routeConfigs = [
+  { path: '/auth', router: authRoutes },
+  { path: '/auth', router: authRecoveryRoutes },
+  { path: '/cart', router: cartWishlistRoutes },
+  { path: '/customer', router: cartWishlistRoutes },
+  { path: '/customer', router: customerAccountRoutes },
+  { path: '/orders', router: customerOrdersRoutes },
+  { path: '/settings', router: publicSettingsRouter },
+  { path: '/inquiries', router: adminInquiryRoutes },
+  { path: '/contact', router: adminInquiryRoutes },
+  { path: '/discounts', router: adminDiscountRoutes },
+  { path: '/admin/dashboard', router: adminDashboardRoutes },
+  { path: '/admin/staff', router: adminStaffRoutes },
+  { path: '/admin/settings', router: adminSettingsRoutes },
+  { path: '/admin/email', router: adminEmailRoutes },
+  { path: '/admin/inquiries', router: adminInquiryRoutes },
+  { path: '/admin/discounts', router: adminDiscountRoutes },
+  { path: '/admin/customers', router: adminCustomerRoutes },
+  { path: '/admin/orders', router: adminOrderRoutes },
+  { path: '/admin/categories', router: adminCategoryRoutes },
+  { path: '/admin/products', router: adminProductRoutes },
+  { path: '/admin/banners', router: adminBannerRoutes },
+  { path: '/banners', router: publicBannerRoutes },
+  { path: '/admin/uploads', router: uploadRoutes },
+  { path: '/shipping', router: shippingWebhooksRoutes },
+  { path: '/concierge', router: conciergeRoutes },
+  { path: '/', router: publicCatalogRoutes },
+  { path: '/', router: enquiryRoutes },
+];
+
+for (const config of routeConfigs) {
+  if (config.path === '/') {
+    app.use('/', config.router);
+    app.use('/api', config.router);
+  } else {
+    app.use(config.path, config.router);
+    app.use(`/api${config.path}`, config.router);
+  }
+}
+
+// JSON 404 catch-all for unmatched API paths
+app.use('/api', apiNotFoundHandler);
+app.use(apiNotFoundHandler);
+
+// Global Error Handler
+app.use(apiErrorHandler);
+
+export default app;

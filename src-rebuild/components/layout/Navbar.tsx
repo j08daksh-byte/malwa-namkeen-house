@@ -1,0 +1,786 @@
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode, type CSSProperties } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Search, UserRound, ShoppingBag, Heart, ShieldCheck, X } from 'lucide-react';
+import { NAV_LINKS, MOBILE_LINKS } from '../../data/nav-links';
+import { PRODUCTS } from '../../data/products';
+import { useCart } from './CartContext';
+import { useWishlist } from '../../lib/wishlistContext';
+import { useCustomerSession } from './CustomerSessionContext';
+
+function scrollTo(href: string) {
+  if (href === '/' || href === '#hero' || href === '/#hero') {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  const cleanId = href.replace(/^(\/)?#/, '');
+  const el = document.getElementById(cleanId);
+  if (el) {
+    const navbarHeight = 68;
+    const topPos = el.getBoundingClientRect().top + window.scrollY - navbarHeight;
+    window.scrollTo({ top: Math.max(0, topPos), behavior: 'smooth' });
+  }
+}
+
+
+function HamburgerIcon({ open }: { open: boolean }) {
+  const bar: CSSProperties = {
+    display: 'block',
+    width: '22px',
+    height: '2px',
+    backgroundColor: '#FFF9EF',
+    borderRadius: '2px',
+    transition: 'transform .24s ease, opacity .24s ease',
+    transformOrigin: 'center',
+  };
+  return (
+    <div style={{ width: '22px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+      <span style={{ ...bar, transform: open ? 'translateY(7px) rotate(45deg)' : 'none' }} />
+      <span style={{ ...bar, opacity: open ? 0 : 1 }} />
+      <span style={{ ...bar, transform: open ? 'translateY(-7px) rotate(-45deg)' : 'none' }} />
+    </div>
+  );
+}
+
+function NavLink({ href, children }: { href: string; children: ReactNode }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const isHashLink = href.includes('#');
+  const targetHash = isHashLink ? `#${href.split('#')[1]}` : '';
+  const isActive = isHashLink
+    ? location.pathname === '/' && location.hash === targetHash
+    : location.pathname === href;
+
+  return (
+    <a
+      href={href}
+      className={`nav-link${isActive ? ' nav-link--active' : ''}`}
+      onClick={e => {
+        e.preventDefault();
+        if (href === '/') {
+          if (location.pathname === '/') {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          } else {
+            navigate('/');
+          }
+        } else if (isHashLink) {
+          if (location.pathname === '/') {
+            scrollTo(href);
+            window.history.pushState(null, '', href);
+          } else {
+            navigate(href);
+          }
+        } else {
+          navigate(href);
+        }
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
+export default function Navbar({ onReserve: _onReserve }: { onReserve?: () => void }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { customer } = useCustomerSession();
+  const { totalItems, addItem, openCart } = useCart();
+  const { wishlistCount } = useWishlist();
+
+  const openCustomerAccount = () => navigate(customer ? '/dashboard' : '/account');
+
+  const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const searchInput = useRef<HTMLInputElement>(null);
+
+  const navbarLinks = NAV_LINKS;
+  const mobileLinks = MOBILE_LINKS;
+
+  const [liveProducts, setLiveProducts] = useState<any[]>([]);
+
+  useEffect(() => {
+    const term = query.trim();
+    if (!term) {
+      setLiveProducts([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/products?search=${encodeURIComponent(term)}&limit=6`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.products)) {
+            setLiveProducts(data.products);
+          }
+        }
+      } catch {
+        // Ignore fallback
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const results = useMemo(() => {
+    if (liveProducts.length > 0) {
+      return liveProducts.map(p => ({
+        id: p.id || p._id,
+        slug: p.slug || p.id,
+        name: p.name,
+        description: p.tagline || p.description || p.categoryLabel,
+        price: p.options?.[0]?.price ?? 120,
+        category: p.categoryLabel || 'Namkeens',
+        keywords: [p.name, p.hindiName || ''],
+      }));
+    }
+    const term = query.trim().toLowerCase();
+    return term
+      ? PRODUCTS.filter(p => [p.name, p.description, p.categoryLabel, p.hindiName || '', ...p.ingredients].join(' ').toLowerCase().includes(term)).slice(0, 6).map(p => ({
+          id: p.id,
+          slug: p.slug || p.id,
+          name: p.name,
+          description: p.tagline || p.description || p.categoryLabel,
+          price: p.options?.[0]?.price ?? 120,
+          category: p.categoryLabel || 'Namkeens',
+          keywords: [p.name, p.hindiName || ''],
+        }))
+      : [];
+  }, [liveProducts, query]);
+
+  const closeMenu = useCallback(() => setOpen(false), []);
+  const closePanels = useCallback(() => {
+    setSearchOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const fn = () => setScrolled(window.scrollY > 40);
+    window.addEventListener('scroll', fn, { passive: true });
+    return () => window.removeEventListener('scroll', fn);
+  }, []);
+
+  useEffect(() => {
+    if (location.pathname !== '/' || !location.hash) return;
+    const timer = window.setTimeout(() => scrollTo(location.hash), 0);
+    return () => window.clearTimeout(timer);
+  }, [location.hash, location.pathname]);
+
+  useEffect(() => {
+    const fn = () => {
+      if (window.innerWidth >= 900) setOpen(false);
+    };
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    const timer = window.setTimeout(() => searchInput.current?.focus(), 80);
+    return () => window.clearTimeout(timer);
+  }, [searchOpen]);
+
+  useEffect(() => {
+    if (!open && !searchOpen) return;
+    const fn = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeMenu();
+        closePanels();
+      }
+    };
+    document.addEventListener('keydown', fn);
+    return () => document.removeEventListener('keydown', fn);
+  }, [open, searchOpen, closeMenu, closePanels]);
+
+  useEffect(() => {
+    document.body.style.overflow = open || searchOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open, searchOpen]);
+
+  useEffect(() => {
+    if (!open) return;
+    const fn = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[data-nav]')) closeMenu();
+    };
+    document.addEventListener('click', fn);
+    return () => document.removeEventListener('click', fn);
+  }, [open, closeMenu]);
+
+  const go = (href: string) => {
+    closeMenu();
+    const isHashLink = href.includes('#');
+    if (href === '/') {
+      if (location.pathname === '/') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        navigate('/');
+      }
+    } else if (isHashLink) {
+      if (location.pathname === '/') {
+        scrollTo(href);
+        window.history.pushState(null, '', href);
+      } else {
+        navigate(href);
+      }
+    } else {
+      navigate(href);
+    }
+  };
+
+  const showSearch = () => {
+    closeMenu();
+    setSearchOpen(true);
+  };
+
+  const showCart = () => {
+    closeMenu();
+    setSearchOpen(false);
+    openCart();
+  };
+
+  const addFromSearch = (product: any) => {
+    setSearchOpen(false);
+    if (product.slug) {
+      navigate(`/product/${product.slug}`);
+    } else {
+      addItem(product);
+      openCart();
+    }
+  };
+
+  return (
+    <>
+      <style>{`
+        .nav-desktop-links {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex: 1;
+          justify-content: center;
+        }
+        .nav-actions {
+          display: flex;
+          align-items: center;
+          gap: 2px;
+          flex-shrink: 0;
+        }
+        .nav-hamburger,
+        .nav-drawer {
+          display: none !important;
+        }
+        .nav-link {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 14px;
+          font-weight: 500;
+          letter-spacing: .01em;
+          white-space: nowrap;
+          color: rgba(255, 249, 239, .8);
+          text-decoration: none;
+          padding: 6px 16px;
+          border-radius: 3px;
+          transition: color .15s, background-color .15s;
+        }
+        .nav-link:hover,
+        .nav-link--active {
+          color: #D4AA45;
+          background-color: rgba(212, 170, 69, .12);
+        }
+        .nav-action {
+          position: relative;
+          display: inline-grid;
+          place-items: center;
+          width: 38px;
+          height: 40px;
+          border: 0;
+          border-radius: 50%;
+          color: #FFF8EC;
+          background: transparent;
+          cursor: pointer;
+          transition: color .18s, background-color .18s, transform .18s;
+        }
+        .nav-action:hover {
+          color: #D4AA45;
+          background: rgba(212, 170, 69, .12);
+          transform: translateY(-1px);
+        }
+        .nav-action__count {
+          position: absolute;
+          top: 4px;
+          right: 1px;
+          min-width: 15px;
+          height: 15px;
+          padding: 0 3px;
+          display: grid;
+          place-items: center;
+          border-radius: 50%;
+          background: #D4AA45;
+          color: #3D0007;
+          font: 700 9px/1 var(--font-primary, 'DM Sans', sans-serif);
+        }
+        .shop-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 500;
+          background: rgba(42, 0, 5, .46);
+          opacity: 0;
+          transition: opacity .28s;
+          pointer-events: none;
+        }
+        .shop-overlay--open {
+          opacity: 1;
+          pointer-events: auto;
+        }
+        .mobile-link {
+          display: flex;
+          align-items: center;
+          width: 100%;
+          text-align: left;
+          padding: 13px 10px;
+          font-family: 'Inter', sans-serif;
+          font-size: 15px;
+          font-weight: 500;
+          color: #FFF8EC;
+          background: transparent;
+          border: 0;
+          cursor: pointer;
+          transition: background-color .15s, color .15s;
+        }
+        .mobile-link:hover {
+          color: #D4AA45;
+          background-color: rgba(212, 170, 69, .08);
+        }
+        .search-shell {
+          position: fixed;
+          z-index: 501;
+          top: 0;
+          left: 0;
+          right: 0;
+          max-height: 100dvh;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+          padding: calc(68px + clamp(16px, 4vw, 40px)) clamp(16px, 4vw, 40px) 32px;
+          background: var(--bg-parchment);
+          transform: translateY(-105%);
+          transition: transform .34s cubic-bezier(.22, .8, .25, 1);
+          box-shadow: 0 16px 40px rgba(42, 0, 5, .16);
+        }
+        .search-shell--open {
+          transform: translateY(0);
+        }
+        .search-shell__inner {
+          width: min(100%, 900px);
+          margin: 0 auto;
+        }
+        .search-shell__top {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 16px;
+          margin-bottom: 16px;
+        }
+        .search-shell__eyebrow {
+          color: var(--gold);
+          font: 800 10px Inter, sans-serif;
+          letter-spacing: .18em;
+          text-transform: uppercase;
+        }
+        .search-field {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 0 16px;
+          border: 1px solid var(--border-warm);
+          background: var(--bg-ivory);
+          box-shadow: 0 8px 20px rgba(61, 0, 7, .06);
+          border-radius: 6px;
+        }
+        .search-field:focus-within {
+          border-color: var(--gold);
+        }
+        .search-field svg {
+          color: var(--gold);
+          flex: none;
+        }
+        .search-field input {
+          width: 100%;
+          height: 52px;
+          border: 0;
+          outline: 0;
+          background: transparent;
+          color: var(--text-dark);
+          font: 500 16px Inter, sans-serif;
+        }
+        .search-results {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+          margin-top: 16px;
+        }
+        .search-result {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          padding: 15px;
+          border: 1px solid var(--border-soft);
+          background: var(--bg-ivory);
+          text-align: left;
+          cursor: pointer;
+          border-radius: 4px;
+          transition: border-color .18s, transform .18s;
+        }
+        .search-result:hover {
+          border-color: var(--gold);
+          transform: translateY(-2px);
+        }
+        .search-result__name {
+          display: block;
+          color: var(--brand-maroon);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 14.5px;
+          font-weight: 700;
+          line-height: 1.25;
+        }
+        .search-result__info {
+          display: block;
+          margin-top: 4px;
+          color: var(--text-muted);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 11.5px;
+        }
+        .search-result__price {
+          color: var(--gold);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 13px;
+          font-weight: 700;
+          white-space: nowrap;
+        }
+        .search-status {
+          margin: 16px 2px 0;
+          color: var(--text-muted);
+          font-size: 13px;
+        }
+        @media (max-width: 899px) {
+          .nav-desktop-links { display: none !important; }
+          .nav-hamburger { display: flex !important; }
+          .nav-drawer { display: block !important; }
+          .nav-actions { gap: 3px; }
+          .nav-action {
+            width: 42px;
+            height: 44px;
+            min-width: 42px;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+          }
+          .nav-action svg { width: 19px; height: 19px; }
+          .nav-action__count {
+            top: 2px;
+            right: 2px;
+            border: 1.5px solid var(--brand-nav);
+          }
+          .search-results { grid-template-columns: 1fr; }
+          .search-shell { padding-top: 84px; }
+          .brand-logo__img { height: 48px !important; }
+        }
+        @media (max-width: 479px) {
+          .nav-action--account { display: none !important; }
+          .nav-actions { gap: 2px; }
+          .nav-action {
+            width: 40px;
+            height: 44px;
+            min-width: 40px;
+            min-height: 44px;
+          }
+          .nav-action svg { width: 18px; height: 18px; }
+          .brand-logo__img { height: 42px !important; }
+        }
+        @media (max-width: 360px) {
+          .nav-actions { gap: 1px; }
+          .nav-action {
+            width: 38px;
+            height: 44px;
+            min-width: 38px;
+            min-height: 44px;
+          }
+          .nav-action svg { width: 17px; height: 17px; }
+          .brand-logo__img { height: 36px !important; }
+          .nav-hamburger { min-width: 40px !important; min-height: 44px !important; }
+        }
+      `}</style>
+
+      <header
+        data-nav
+        role="banner"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 200,
+          height: 'var(--nav-h, 78px)',
+          backgroundColor: 'var(--brand-nav)',
+          borderBottom: scrolled ? '1px solid rgba(200,154,61,.28)' : 'none',
+          boxShadow: scrolled ? '0 6px 18px rgba(35,3,10,.16)' : 'none',
+          transition: 'box-shadow .3s, border-color .3s',
+          display: 'flex',
+          alignItems: 'center',
+        }}
+      >
+        <div
+          style={{
+            maxWidth: '1240px',
+            margin: '0 auto',
+            padding: '0 clamp(16px,3vw,48px)',
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+          }}
+        >
+          {/* Logo */}
+          <a
+            href="/"
+            className="brand-logo"
+            aria-label="MALWA NAMKEEN HOUSE — return to top"
+            onClick={e => {
+              e.preventDefault();
+              navigate('/');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          >
+            <img
+              src="/logo-nav.png"
+              alt="MALWA NAMKEEN HOUSE"
+              className="brand-logo__img"
+              style={{ height: '58px', width: 'auto', maxHeight: '62px', objectFit: 'contain' }}
+            />
+          </a>
+
+          {/* Desktop nav links */}
+          <nav className="nav-desktop-links" aria-label="Main navigation">
+            {navbarLinks.map(l => (
+              <NavLink key={l.href} href={l.href}>
+                {l.label}
+              </NavLink>
+            ))}
+          </nav>
+
+          {/* Action buttons (Search, Account, Cart, Mobile Menu) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+            <div className="nav-actions" aria-label="Utility navigation">
+              <button className="nav-action" onClick={showSearch} aria-label="Search products">
+                <Search size={19} strokeWidth={1.7} />
+              </button>
+              {(customer?.role === 'admin' || customer?.role === 'super_admin') && (
+                <button
+                  className="nav-action"
+                  onClick={() => navigate('/admin/dashboard')}
+                  aria-label="Open Admin Portal"
+                  title="Admin Portal"
+                  style={{ color: '#F0C74E' }}
+                >
+                  <ShieldCheck size={19} strokeWidth={1.8} />
+                </button>
+              )}
+              <button
+                className="nav-action nav-action--account"
+                onClick={openCustomerAccount}
+                aria-label={customer ? 'Open customer dashboard' : 'Sign in to your account'}
+              >
+                <UserRound size={19} strokeWidth={1.7} />
+              </button>
+              <button
+                className="nav-action"
+                onClick={() => navigate('/wishlist')}
+                aria-label={`Wishlist, ${wishlistCount} items`}
+                title="Wishlist"
+              >
+                <Heart size={19} strokeWidth={1.7} />
+                {wishlistCount > 0 && <span className="nav-action__count">{wishlistCount > 9 ? '9+' : wishlistCount}</span>}
+              </button>
+              <button className="nav-action" onClick={showCart} aria-label={`Cart, ${totalItems} items`}>
+                <ShoppingBag size={19} strokeWidth={1.7} />
+                {totalItems > 0 && <span className="nav-action__count">{totalItems > 9 ? '9+' : totalItems}</span>}
+              </button>
+            </div>
+
+            <button
+              className="nav-hamburger"
+              data-nav
+              onClick={() => setOpen(o => !o)}
+              aria-label={open ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={open}
+              aria-controls="mobile-nav"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '11px',
+                lineHeight: 0,
+                borderRadius: '4px',
+                minWidth: '44px',
+                minHeight: '44px',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <HamburgerIcon open={open} />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Drawer */}
+      <div
+        id="mobile-nav"
+        data-nav
+        className="nav-drawer"
+        role="navigation"
+        aria-label="Mobile navigation"
+        style={{
+          position: 'fixed',
+          top: 'var(--nav-h, 78px)',
+          left: 0,
+          right: 0,
+          zIndex: 199,
+          backgroundColor: 'var(--brand-nav)',
+          borderTop: '1px solid rgba(200,154,61,.22)',
+          boxShadow: '0 6px 18px rgba(35,3,10,.16)',
+          transform: open ? 'translateY(0)' : 'translateY(-110%)',
+          opacity: open ? 1 : 0,
+          transition: 'transform .28s ease, opacity .24s ease',
+          padding: '8px 18px calc(24px + env(safe-area-inset-bottom, 0px))',
+          maxHeight: 'calc(100dvh - var(--nav-h, 78px))',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          pointerEvents: open ? 'auto' : 'none',
+        }}
+      >
+        {(customer?.role === 'admin' || customer?.role === 'super_admin') && (
+          <button
+            type="button"
+            className="mobile-link"
+            onClick={() => {
+              setOpen(false);
+              navigate('/admin/dashboard');
+            }}
+            style={{ color: '#F0C74E', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(255,255,255,.08)' }}
+          >
+            <ShieldCheck size={16} /> Admin Portal
+          </button>
+        )}
+        <button
+          type="button"
+          className="mobile-link"
+          onClick={() => {
+            setOpen(false);
+            openCustomerAccount();
+          }}
+          style={{ borderBottom: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', gap: '8px' }}
+        >
+          <UserRound size={16} /> {customer ? 'Your Account' : 'Sign In'}
+        </button>
+        <button
+          type="button"
+          className="mobile-link"
+          onClick={() => {
+            setOpen(false);
+            navigate('/wishlist');
+          }}
+          style={{ borderBottom: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', gap: '8px' }}
+        >
+          <Heart size={16} /> Wishlist {wishlistCount > 0 ? `(${wishlistCount})` : ''}
+        </button>
+        {mobileLinks.map((link, i) => (
+          <a
+            key={link.href}
+            href={link.href}
+            onClick={e => {
+              e.preventDefault();
+              go(link.href);
+            }}
+            style={{
+              display: 'block',
+              padding: '13px 10px',
+              fontFamily: 'Inter, sans-serif',
+              fontSize: '15px',
+              fontWeight: 500,
+              color: '#FFF8EC',
+              textDecoration: 'none',
+              borderBottom: i < mobileLinks.length - 1 ? '1px solid rgba(255,255,255,.08)' : 'none',
+            }}
+          >
+            {link.label}
+          </a>
+        ))}
+      </div>
+
+      <div style={{ height: 'var(--nav-h, 78px)' }} aria-hidden="true" />
+
+      {/* Overlay for Search */}
+      <div
+        className={`shop-overlay ${searchOpen ? 'shop-overlay--open' : ''}`}
+        onClick={closePanels}
+        aria-hidden="true"
+      />
+
+      {/* Global Search Shell */}
+      <section
+        className={`search-shell ${searchOpen ? 'search-shell--open' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Search our menu"
+        aria-hidden={!searchOpen}
+      >
+        <div className="search-shell__inner">
+          <div className="search-shell__top">
+            <span className="search-shell__eyebrow">Search the menu</span>
+            <button className="panel-close" onClick={() => setSearchOpen(false)} aria-label="Close search">
+              <X size={19} />
+            </button>
+          </div>
+          <label className="search-field">
+            <Search size={20} strokeWidth={1.7} />
+            <input
+              ref={searchInput}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && query.trim()) {
+                  setSearchOpen(false);
+                  navigate(`/shop?q=${encodeURIComponent(query.trim())}`);
+                }
+              }}
+              placeholder="Search for a favourite delicacy…"
+              aria-label="Search delicacies"
+            />
+          </label>
+          {query.trim() && (
+            <>
+              {results.length ? (
+                <div className="search-results">
+                  {results.map(product => (
+                    <button className="search-result" key={product.id} onClick={() => addFromSearch(product)}>
+                      <span>
+                        <span className="search-result__name">{product.name}</span>
+                        <span className="search-result__info">{product.description || product.category}</span>
+                      </span>
+                      <span className="search-result__price">{product.price ? `₹${product.price}` : ''} +</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="search-status">No menu items match “{query.trim()}”. Try another flavour or dish.</p>
+              )}
+            </>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}

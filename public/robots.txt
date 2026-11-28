@@ -1,0 +1,21 @@
+User-agent: *
+Allow: /
+Allow: /shop
+Allow: /product/
+Allow: /account
+Allow: /wishlist
+Allow: /about-us
+Allow: /faq
+Allow: /contact
+Allow: /privacy-policy
+Allow: /terms-and-conditions
+Allow: /cancellation-policy
+Allow: /refund-policy
+Allow: /shipping-policy
+
+# Protected Internal Routes
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /api/
+
+Sitemap: https://www.malwanamkeenhouse.com/sitemap.xml

@@ -1,0 +1,899 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { type Product, type ProductWeightOption } from '../../data/products';
+import { useCart } from '../../lib/cartContext';
+import { useWishlist } from '../../lib/wishlistContext';
+import { optimizeCloudinary } from '../../lib/cloudinary';
+import { resolveProductImage, DEFAULT_FALLBACK_IMAGE } from '../../lib/productImage';
+
+/**
+ * Determines whether a specific product variant is currently in stock and purchasable.
+ * Handles variant-level and product-level availability conservatively.
+ * Malformed or unknown stock data is not assumed to be in stock.
+ */
+export function isVariantAvailable(
+  opt: ProductWeightOption | undefined | null,
+  product?: Product | null
+): boolean {
+  if (!opt) return false;
+  if (product && product.isAvailable === false) return false;
+  if ((opt as any).active === false) return false;
+
+  const stock = (opt as any).stock;
+  if (typeof stock === 'number') {
+    return !isNaN(stock) && stock > 0;
+  }
+  if (stock === null || (typeof stock !== 'undefined' && typeof stock !== 'number')) {
+    return false;
+  }
+
+  const prodStock = (product as any)?.stock;
+  if (typeof prodStock === 'number') {
+    return !isNaN(prodStock) && prodStock > 0;
+  }
+
+  if (product && typeof product.isAvailable === 'boolean') {
+    return product.isAvailable;
+  }
+
+  return false;
+}
+
+/**
+ * Determines whether a product has at least one in-stock, purchasable variant.
+ * If all variants have zero or negative stock, returns false (Sold Out).
+ */
+export function isProductAvailable(product: Product | undefined | null): boolean {
+  if (!product) return false;
+  if (product.isAvailable === false) return false;
+
+  if (!Array.isArray(product.options) || product.options.length === 0) {
+    const prodStock = (product as any)?.stock;
+    if (typeof prodStock === 'number') {
+      return !isNaN(prodStock) && prodStock > 0;
+    }
+    return Boolean(product.isAvailable);
+  }
+
+  return product.options.some(opt => isVariantAvailable(opt, product));
+}
+
+/**
+ * Synchronizes the selected variant with the latest product options.
+ * Matches by SKU first when available, then by option ID, then by weight as fallback.
+ * Preserves the user's selection if that variant still exists and is available.
+ * If the selected variant disappears or becomes unavailable, selects the first available variant.
+ * If none are available, maintains a safe sold-out state.
+ */
+export function syncSelectedVariant(
+  prev: ProductWeightOption | undefined | null,
+  product: Product | undefined | null
+): ProductWeightOption {
+  if (!product?.options || product.options.length === 0) {
+    return { weight: 'Standard', price: 150 };
+  }
+
+  const prevSku = (prev as any)?.sku;
+  const prevId = (prev as any)?.id;
+  const prevWeight = prev?.weight;
+
+  // Match by SKU first, then by ID, then by weight
+  const matchingOpt = product.options.find(o => {
+    if (prevSku && (o as any).sku && (o as any).sku === prevSku) return true;
+    if (prevId && (o as any).id && (o as any).id === prevId) return true;
+    return prevWeight ? o.weight === prevWeight : false;
+  });
+
+  if (matchingOpt && isVariantAvailable(matchingOpt, product)) {
+    // Preserve user selection with the latest matching option object reference
+    return matchingOpt;
+  }
+
+  // Selected variant disappeared or became unavailable: switch to first available
+  const firstAvailable = product.options.find(opt => isVariantAvailable(opt, product));
+  return firstAvailable || matchingOpt || product.options[0];
+}
+
+interface ProductCardProps {
+  product: Product;
+  onQuickView: (product: Product) => void;
+}
+
+export default function ProductCard({ product, onQuickView }: ProductCardProps) {
+  const navigate = useNavigate();
+  const { cart, addToCart, updateQuantity } = useCart();
+  const { isInWishlist, toggleWishlist } = useWishlist();
+  const isWishlisted = isInWishlist(product.id || (product as any)._id);
+
+  // Check product-level and variant availability
+  const isProductInStock = isProductAvailable(product);
+
+  // Default to the first in-stock variant if option[0] is out of stock
+  const [selectedOption, setSelectedOption] = useState<ProductWeightOption>(() => {
+    return syncSelectedVariant(null, product);
+  });
+
+  // Re-synchronize selected variant when product prop changes
+  useEffect(() => {
+    setSelectedOption(prev => {
+      const nextOpt = syncSelectedVariant(prev, product);
+      if (
+        prev &&
+        nextOpt.weight === prev.weight &&
+        nextOpt.price === prev.price &&
+        (nextOpt as any).stock === (prev as any).stock &&
+        (nextOpt as any).sku === (prev as any).sku &&
+        (nextOpt as any).active === (prev as any).active &&
+        (nextOpt as any).originalPrice === (prev as any).originalPrice
+      ) {
+        return prev;
+      }
+      return nextOpt;
+    });
+  }, [product]);
+
+  const isSelectedVariantInStock = isVariantAvailable(selectedOption, product);
+  const isPurchasable = isProductInStock && isSelectedVariantInStock;
+  const isSoldOut = !isProductInStock;
+
+  const [isAdding, setIsAdding] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  const prefetchProduct = () => {
+    if (product?.slug) {
+      import('../../pages/ProductDetail').catch(() => {});
+    }
+  };
+
+  // Check if currently selected weight is in the cart
+  const cartItem = cart.find(
+    item => item.product.id === product.id && item.selectedOption.weight === selectedOption.weight
+  );
+  const quantityInCart = cartItem?.quantity ?? 0;
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isPurchasable) return;
+    setIsAdding(true);
+    addToCart(product, selectedOption, 1);
+    setTimeout(() => setIsAdding(false), 500);
+  };
+
+  // Determine badge text: show SOLD OUT if entire product has no purchasable variants
+  const badgeText = isSoldOut
+    ? 'SOLD OUT'
+    : product.badge?.trim() || (product.isCombo ? 'COMBO PACK' : product.isBestSeller ? 'BESTSELLER' : undefined);
+
+  // Oil / Purity feature tag: only show if oilUsed is provided
+  const oilBadgeText = product.oilUsed?.trim()
+    ? product.oilUsed.includes('Desi Cow Ghee') || product.oilUsed.includes('Ghee')
+      ? 'Pure Desi Ghee'
+      : product.oilUsed
+    : undefined;
+
+  const productUrl = `/product/${product.slug || product.id}`;
+
+  return (
+    <article className="eb-product-card" aria-label={product.name}>
+      <style>{`
+        .eb-product-card {
+          content-visibility: auto;
+          contain-intrinsic-size: auto 440px;
+          background: #FFFFFF;
+          border: 1.5px solid rgba(200, 154, 61, 0.22);
+          border-radius: 18px;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          box-shadow: 0 4px 18px rgba(85, 0, 10, 0.04);
+          transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease, border-color 0.28s ease;
+          position: relative;
+        }
+
+        .eb-product-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 16px 36px rgba(85, 0, 10, 0.10);
+          border-color: rgba(201, 154, 50, 0.6);
+        }
+
+        /* ── Image & Badges Media Container ────────────────── */
+        .eb-product-card__media {
+          position: relative;
+          width: 100%;
+          aspect-ratio: 1.15 / 1;
+          background: #F8F4EE;
+          overflow: hidden;
+          cursor: pointer;
+        }
+
+        .eb-product-card__img-shimmer {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(
+            90deg,
+            #EFE9DE 0%,
+            #FBF8F2 35%,
+            #EFE9DE 70%
+          );
+          background-size: 200% 100%;
+          animation: ebCardImgShimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+          z-index: 1;
+          pointer-events: none;
+        }
+
+        @keyframes ebCardImgShimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+
+        .eb-product-card__img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: right center;
+          display: block;
+          opacity: 0;
+          transition: opacity 0.32s ease, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .eb-product-card__img--loaded {
+          opacity: 1;
+        }
+
+        .eb-product-card:hover .eb-product-card__img {
+          transform: scale(1.06);
+        }
+
+        .eb-product-card__img--soldout {
+          opacity: 0.78;
+          filter: grayscale(18%);
+        }
+
+        /* Top Left Highlight Tag (e.g. UNIQUE FLAVOUR / BESTSELLER / NEW / SOLD OUT) */
+        .eb-product-card__badge-tag {
+          position: absolute;
+          top: 12px;
+          left: 12px;
+          background: #FFD43B;
+          color: #1A1A1A;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          padding: 4px 9px;
+          border-radius: 6px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+          z-index: 3;
+          border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+
+        .eb-product-card__badge-tag--soldout {
+          background: #DC2626 !important;
+          color: #FFFFFF !important;
+          border-color: #B91C1C !important;
+          box-shadow: 0 2px 8px rgba(220, 38, 38, 0.35) !important;
+        }
+
+        /* Bottom Left Rating Pill (like Eat Better ★ 4.9) */
+        .eb-product-card__rating-pill {
+          position: absolute;
+          bottom: 12px;
+          left: 12px;
+          background: rgba(255, 255, 255, 0.95);
+          border: 1px solid rgba(200, 154, 61, 0.35);
+          border-radius: 6px;
+          padding: 3px 8px;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 11px;
+          font-weight: 700;
+          color: #2D231E;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
+          z-index: 3;
+          backdrop-filter: blur(4px);
+        }
+
+        .eb-product-card__rating-star {
+          color: #E5A100;
+          font-size: 12px;
+          line-height: 1;
+        }
+
+        /* Top Right Wishlist Button */
+        .eb-product-card__wish-btn {
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          background: rgba(255, 255, 255, 0.92);
+          border: 1px solid rgba(200, 154, 61, 0.28);
+          border-radius: 50%;
+          width: 34px;
+          height: 34px;
+          display: grid;
+          place-items: center;
+          cursor: pointer;
+          z-index: 4;
+          color: #75645C;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+          transition: transform 0.18s ease, color 0.18s ease, background 0.18s;
+          backdrop-filter: blur(4px);
+        }
+
+        .eb-product-card__wish-btn:hover {
+          transform: scale(1.12);
+          background: #FFFFFF;
+        }
+
+        .eb-product-card__wish-btn--active {
+          color: #DC2626 !important;
+          background: #FFF5F5 !important;
+          border-color: rgba(220, 38, 38, 0.3) !important;
+        }
+
+        /* Quick View Button on Image Hover */
+        .eb-product-card__quick-btn {
+          position: absolute;
+          bottom: 12px;
+          right: 12px;
+          background: rgba(85, 0, 10, 0.90);
+          color: #FFF8EC;
+          border: 1px solid rgba(200, 154, 61, 0.4);
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 10.5px;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          padding: 5px 12px;
+          border-radius: 999px;
+          opacity: 0;
+          transform: translateY(6px);
+          transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s;
+          cursor: pointer;
+          backdrop-filter: blur(4px);
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          z-index: 3;
+        }
+
+        .eb-product-card:hover .eb-product-card__quick-btn,
+        .eb-product-card__quick-btn:focus-visible {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        .eb-product-card__quick-btn:hover {
+          background: #6B000D;
+          color: #FFFDF8;
+        }
+
+        /* ── Card Content Body ─────────────────────────────── */
+        .eb-product-card__body {
+          padding: 16px 18px 18px;
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          background: #FFFFFF;
+        }
+
+        /* Dark Tag Chip (No Palm Oil) */
+        .eb-product-card__oil-pill {
+          display: inline-block;
+          align-self: flex-start;
+          background: #2B211E;
+          color: #F8F3EA;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.04em;
+          padding: 3px 8px;
+          border-radius: 4px;
+          margin-bottom: 10px;
+        }
+
+        /* Title & Hindi Name */
+        .eb-product-card__title-wrap {
+          margin-bottom: 4px;
+        }
+
+        .eb-product-card__title {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 14.5px;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          text-transform: uppercase;
+          color: #2D231E;
+          margin: 0;
+          line-height: 1.25;
+          cursor: pointer;
+          transition: color 0.18s ease;
+        }
+
+        .eb-product-card__title:hover {
+          color: #55000A;
+        }
+
+        .eb-product-card__hindi {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 12px;
+          color: #8C756B;
+          font-weight: 500;
+          margin-left: 6px;
+          text-transform: none;
+        }
+
+        /* Subtitle / Short Description */
+        .eb-product-card__sub {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 12px;
+          font-weight: 400;
+          color: #7A6961;
+          margin: 0 0 12px;
+          line-height: 1.5;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          min-height: 35px;
+        }
+
+        /* Weight Selector Chips */
+        .eb-product-card__weights {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-bottom: 14px;
+          flex-wrap: wrap;
+        }
+
+        .eb-product-card__weight-btn {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 11px;
+          font-weight: 600;
+          padding: 3px 9px;
+          border-radius: 6px;
+          border: 1px solid rgba(200, 154, 61, 0.32);
+          background: #FAF6F0;
+          color: #55000A;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+
+        .eb-product-card__weight-btn:focus-visible {
+          outline: 2px solid #55000A !important;
+          outline-offset: 2px !important;
+        }
+
+        .eb-product-card__weight-btn:hover {
+          border-color: #C99A32;
+          background: #F3EBDD;
+        }
+
+        .eb-product-card__weight-btn--active {
+          background: #55000A !important;
+          color: #FFF8EC !important;
+          border-color: #55000A !important;
+          box-shadow: 0 2px 6px rgba(85, 0, 10, 0.2);
+        }
+
+        .eb-product-card__weight-btn--active:focus-visible {
+          outline: 2px solid #C99A32 !important;
+          outline-offset: 2px !important;
+        }
+
+        .eb-product-card__weight-btn--soldout {
+          color: #9C857B !important;
+          background: #F5EFEB !important;
+          border-color: #DECFC7 !important;
+          border-style: dashed !important;
+          text-decoration: line-through;
+        }
+
+        .eb-product-card__weight-btn--soldout:focus-visible {
+          outline: 2px solid #75645C !important;
+          outline-offset: 2px !important;
+        }
+
+        .eb-product-card__weight-btn--soldout.eb-product-card__weight-btn--active {
+          background: #75645C !important;
+          color: #FFF8EC !important;
+          border-color: #75645C !important;
+          border-style: solid !important;
+          text-decoration: none;
+        }
+
+        /* Pricing Section */
+        .eb-product-card__price-row {
+          display: flex;
+          align-items: baseline;
+          gap: 8px;
+          margin-bottom: 14px;
+          margin-top: auto;
+        }
+
+        .eb-product-card__price {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 19px;
+          font-weight: 700;
+          color: #2D231E;
+          letter-spacing: -0.01em;
+          line-height: 1;
+        }
+
+        .eb-product-card__original-price {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 13px;
+          font-weight: 500;
+          color: #A39188;
+          text-decoration: line-through;
+        }
+
+        .eb-product-card__discount-tag {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 10px;
+          font-weight: 700;
+          color: #15803D;
+          background: #DCFCE7;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+
+        /* ── Quick Add / Add to Cart CTA Button ──────────────── */
+        .eb-product-card__cta-btn {
+          width: 100%;
+          height: 42px;
+          border-radius: 10px;
+          background: #55000A;
+          color: #FFF8EC;
+          border: 1.5px solid #55000A;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          box-shadow: 0 4px 14px rgba(85, 0, 10, 0.18);
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+          outline: none;
+        }
+
+        .eb-product-card__cta-btn:hover {
+          background: #6B000D;
+          border-color: #6B000D;
+          box-shadow: 0 6px 18px rgba(85, 0, 10, 0.26);
+          transform: translateY(-1px);
+        }
+
+        .eb-product-card__cta-btn:active {
+          transform: translateY(0);
+        }
+
+        .eb-product-card__cta-btn--disabled {
+          background: #E8DDD9 !important;
+          color: #8C756B !important;
+          border-color: #D6C7C0 !important;
+          cursor: not-allowed !important;
+          box-shadow: none !important;
+          transform: none !important;
+          opacity: 0.95;
+        }
+
+        .eb-product-card__cta-btn--disabled:hover {
+          background: #E8DDD9 !important;
+          color: #8C756B !important;
+          border-color: #D6C7C0 !important;
+          box-shadow: none !important;
+          transform: none !important;
+        }
+
+        /* Stepper when item is already in cart */
+        .eb-product-card__stepper {
+          width: 100%;
+          height: 42px;
+          border-radius: 10px;
+          background: #55000A;
+          border: 1.5px solid #55000A;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 8px;
+          box-shadow: 0 4px 14px rgba(85, 0, 10, 0.18);
+        }
+
+        .eb-product-card__step-btn {
+          width: 34px;
+          height: 32px;
+          border-radius: 6px;
+          background: rgba(255, 248, 236, 0.15);
+          border: none;
+          color: #FFF8EC;
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 16px;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: background 0.15s;
+        }
+
+        .eb-product-card__step-btn:hover {
+          background: rgba(255, 248, 236, 0.30);
+          color: #D4AA45;
+        }
+
+        .eb-product-card__step-val {
+          font-family: var(--font-primary, 'DM Sans', sans-serif);
+          font-size: 13px;
+          font-weight: 700;
+          color: #FFF8EC;
+          letter-spacing: 0.02em;
+        }
+
+        @media (max-width: 768px) {
+          .eb-product-card {
+            border-radius: 14px;
+          }
+          .eb-product-card__body {
+            padding: 12px 14px 14px;
+          }
+          .eb-product-card__title {
+            font-size: 13px;
+          }
+          .eb-product-card__hindi {
+            display: none;
+          }
+          .eb-product-card__sub {
+            font-size: 11px;
+            min-height: auto;
+            margin-bottom: 8px;
+            -webkit-line-clamp: 1;
+          }
+          .eb-product-card__weights {
+            margin-bottom: 10px;
+            gap: 4px;
+          }
+          .eb-product-card__weight-btn {
+            font-size: 9.5px;
+            padding: 2px 6px;
+          }
+          .eb-product-card__price {
+            font-size: 16px;
+          }
+          .eb-product-card__cta-btn {
+            height: 36px;
+            font-size: 10.5px;
+            border-radius: 8px;
+          }
+          .eb-product-card__cta-btn--disabled {
+            height: 36px;
+            font-size: 10.5px;
+            border-radius: 8px;
+          }
+          .eb-product-card__stepper {
+            height: 36px;
+            border-radius: 8px;
+          }
+          .eb-product-card__step-btn {
+            width: 30px;
+            height: 28px;
+            font-size: 14px;
+          }
+          .eb-product-card__quick-btn {
+            display: none;
+          }
+        }
+      `}</style>
+
+      {/* Media: Large Image + Badges */}
+      <div
+        className="eb-product-card__media"
+        onClick={() => navigate(productUrl)}
+        onMouseEnter={prefetchProduct}
+        onTouchStart={prefetchProduct}
+        title={`View details for ${product.name}`}
+      >
+        {!imageLoaded && <div className="eb-product-card__img-shimmer" aria-hidden="true" />}
+        <img
+          src={optimizeCloudinary(resolveProductImage(product), { width: 520, quality: 'auto', format: 'auto' })}
+          alt={product.name}
+          className={`eb-product-card__img ${imageLoaded ? 'eb-product-card__img--loaded' : ''} ${isSoldOut ? 'eb-product-card__img--soldout' : ''}`}
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setImageLoaded(true)}
+          onError={e => {
+            setImageLoaded(true);
+            const el = e.currentTarget;
+            if (!el.src.includes(DEFAULT_FALLBACK_IMAGE)) {
+              el.src = DEFAULT_FALLBACK_IMAGE;
+            }
+          }}
+        />
+
+        {/* Top-Left Tag Badge */}
+        {badgeText && (
+          <span className={`eb-product-card__badge-tag ${isSoldOut ? 'eb-product-card__badge-tag--soldout' : ''}`}>
+            {badgeText}
+          </span>
+        )}
+
+        {/* Bottom-Left Rating Pill */}
+        {Boolean(product.rating && product.rating > 0 && product.reviewCount && product.reviewCount > 0) && (
+          <div className="eb-product-card__rating-pill">
+            <span className="eb-product-card__rating-star" aria-hidden="true">★</span>
+            <span>{product.rating.toFixed(1)}</span>
+          </div>
+        )}
+
+        {/* Top-Right Wishlist Heart Button */}
+        <button
+          type="button"
+          onClick={e => {
+            e.stopPropagation();
+            toggleWishlist(product);
+          }}
+          className={`eb-product-card__wish-btn ${isWishlisted ? 'eb-product-card__wish-btn--active' : ''}`}
+          aria-label={isWishlisted ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill={isWishlisted ? '#DC2626' : 'none'}
+            stroke={isWishlisted ? '#DC2626' : 'currentColor'}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+          </svg>
+        </button>
+
+        {/* Quick View Button on Desktop Hover */}
+        <button
+          type="button"
+          className="eb-product-card__quick-btn"
+          onClick={e => {
+            e.stopPropagation();
+            onQuickView(product);
+          }}
+          aria-label={`Quick view ${product.name}`}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          Quick View
+        </button>
+      </div>
+
+      {/* Card Body */}
+      <div className="eb-product-card__body">
+        {/* Characteristic Pill (only if oilBadgeText exists) */}
+        {oilBadgeText && (
+          <span className="eb-product-card__oil-pill">{oilBadgeText}</span>
+        )}
+
+        {/* Product Title */}
+        <div className="eb-product-card__title-wrap">
+          <h3
+            className="eb-product-card__title"
+            onClick={() => navigate(productUrl)}
+          >
+            {product.name}
+            {Boolean(product.hindiName?.trim()) && (
+              <span className="eb-product-card__hindi">{product.hindiName}</span>
+            )}
+          </h3>
+        </div>
+
+        {/* Subtitle / Tagline */}
+        {Boolean(product.tagline?.trim() || product.description?.trim()) && (
+          <p
+            className="eb-product-card__sub"
+            onClick={() => navigate(productUrl)}
+            style={{ cursor: 'pointer' }}
+          >
+            {product.tagline || product.description}
+          </p>
+        )}
+
+        {/* Weight Selector */}
+        {product.options && product.options.length > 0 && (
+          <div className="eb-product-card__weights" role="group" aria-label="Available pack sizes">
+            {product.options.map(opt => {
+              const isSelected = selectedOption.weight === opt.weight;
+              const isOptAvailable = isVariantAvailable(opt, product);
+              return (
+                <button
+                  key={opt.weight}
+                  type="button"
+                  className={`eb-product-card__weight-btn ${isSelected ? 'eb-product-card__weight-btn--active' : ''} ${!isOptAvailable ? 'eb-product-card__weight-btn--soldout' : ''}`}
+                  onClick={() => setSelectedOption(opt)}
+                  aria-pressed={isSelected}
+                  aria-label={!isOptAvailable ? `${opt.weight} (Sold out)` : opt.weight}
+                  title={!isOptAvailable ? `${opt.weight} - Sold Out` : undefined}
+                >
+                  {opt.weight}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Price Row */}
+        <div className="eb-product-card__price-row">
+          <span className="eb-product-card__price">₹{selectedOption.price}</span>
+          {selectedOption.originalPrice && selectedOption.originalPrice > selectedOption.price && (
+            <>
+              <span className="eb-product-card__original-price">₹{selectedOption.originalPrice}</span>
+              <span className="eb-product-card__discount-tag">
+                {Math.round(((selectedOption.originalPrice - selectedOption.price) / selectedOption.originalPrice) * 100)}% OFF
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Add to Cart / Quick Add Button or Stepper */}
+        {!isPurchasable ? (
+          <button
+            type="button"
+            className="eb-product-card__cta-btn eb-product-card__cta-btn--disabled"
+            disabled
+            aria-disabled="true"
+            aria-label={`${product.name} ${selectedOption?.weight || ''} is sold out`}
+          >
+            SOLD OUT
+          </button>
+        ) : quantityInCart > 0 ? (
+          <div className="eb-product-card__stepper" aria-label={`Quantity of ${product.name} in cart`}>
+            <button
+              type="button"
+              className="eb-product-card__step-btn"
+              onClick={e => {
+                e.stopPropagation();
+                updateQuantity(product.id, selectedOption.weight, quantityInCart - 1);
+              }}
+              aria-label="Decrease quantity"
+            >
+              −
+            </button>
+            <span className="eb-product-card__step-val">{quantityInCart} in Cart</span>
+            <button
+              type="button"
+              className="eb-product-card__step-btn"
+              onClick={e => {
+                e.stopPropagation();
+                updateQuantity(product.id, selectedOption.weight, quantityInCart + 1);
+              }}
+              aria-label="Increase quantity"
+            >
+              +
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="eb-product-card__cta-btn"
+            onClick={handleAddToCart}
+            aria-label={`Add ${product.name} ${selectedOption.weight} to cart`}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <circle cx="9" cy="21" r="1" />
+              <circle cx="20" cy="21" r="1" />
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+            </svg>
+            {isAdding ? 'ADDING...' : 'QUICK ADD'}
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}

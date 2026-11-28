@@ -1,0 +1,253 @@
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+
+export interface CustomerProfile {
+  id?: string;
+  name: string;
+  email: string;
+  phone?: string;
+  avatar?: string;
+  role?: string;
+  googleId?: string | null;
+  hasPassword?: boolean;
+}
+
+interface CustomerSession {
+  customer: CustomerProfile | null;
+  loading: boolean;
+  signIn: (profile: CustomerProfile, token?: string) => void;
+  signOut: () => Promise<void>;
+  updateProfile: (profile: CustomerProfile) => void;
+  login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  register: (data: { name: string; email: string; phone?: string; password: string }) => Promise<{ success: boolean; message?: string }>;
+  loginWithGoogle: (credential: string) => Promise<{ success: boolean; message?: string }>;
+}
+
+const CustomerSessionContext = createContext<CustomerSession | null>(null);
+const KEY = 'malwa-customer-session';
+const TOKEN_KEY = 'malwa_auth_token';
+
+export function CustomerSessionProvider({ children }: { children: ReactNode }) {
+  const [customer, setCustomer] = useState<CustomerProfile | null>(() => {
+    try {
+      const value = localStorage.getItem(KEY);
+      return value ? (JSON.parse(value) as CustomerProfile) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState<boolean>(true);
+
+  // Sync profile from backend /api/auth/me on mount & renew active session
+  useEffect(() => {
+    let isMounted = true;
+    const token = localStorage.getItem(TOKEN_KEY);
+
+    // If no token in local storage, user is signed out — do NOT query server with lingering cookies
+    if (!token) {
+      setCustomer(null);
+      localStorage.removeItem(KEY);
+      setLoading(false);
+      return;
+    }
+
+    fetch('/api/auth/me', {
+      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include',
+    })
+      .then(res => (res.ok ? res.json() : null))
+      .then(async data => {
+        if (isMounted) {
+          if (data?.success && data.user) {
+            setCustomer(data.user);
+            localStorage.setItem(KEY, JSON.stringify(data.user));
+
+            // Silently refresh token to keep session continuously active
+            try {
+              const refreshRes = await fetch('/api/auth/refresh', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                credentials: 'include',
+              });
+              if (refreshRes.ok) {
+                const refreshData = await refreshRes.json();
+                if (refreshData?.success && refreshData.token) {
+                  localStorage.setItem(TOKEN_KEY, refreshData.token);
+                }
+              }
+            } catch {
+              // Ignore network failures on background refresh
+            }
+          } else {
+            // No valid session on server -> purge local credentials immediately
+            setCustomer(null);
+            localStorage.removeItem(KEY);
+            localStorage.removeItem(TOKEN_KEY);
+          }
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setCustomer(null);
+          localStorage.removeItem(KEY);
+          localStorage.removeItem(TOKEN_KEY);
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const signIn = useCallback((profile: CustomerProfile, token?: string) => {
+    setCustomer(profile);
+    localStorage.setItem(KEY, JSON.stringify(profile));
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+    }
+  }, []);
+
+  const signOut = useCallback(async () => {
+    // Disable Google Identity Services (FedCM) auto-reauthentication loop
+    if (typeof window !== 'undefined' && (window as any).google?.accounts?.id?.disableAutoSelect) {
+      try {
+        (window as any).google.accounts.id.disableAutoSelect();
+      } catch (err) {
+        console.warn('[GSI disableAutoSelect]', err);
+      }
+    }
+
+    // Immediately clear state and local persistence
+    setCustomer(null);
+    localStorage.removeItem(KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem('malwa_admin_token');
+    try {
+      sessionStorage.clear();
+      // Purge any accessible cookies client-side
+      document.cookie = 'malwa_auth_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; Max-Age=0;';
+    } catch {}
+
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        keepalive: true,
+      });
+    } catch {
+      // Ignore network errors during logout
+    }
+  }, []);
+
+  const updateProfile = useCallback((profile: CustomerProfile) => {
+    setCustomer(profile);
+    localStorage.setItem(KEY, JSON.stringify(profile));
+  }, []);
+
+  const login = useCallback(async (email: string, password: string) => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+        credentials: 'include',
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        return {
+          success: false,
+          message: data?.message || (res.ok ? 'Invalid email or password.' : `Sign-in failed (HTTP ${res.status}). Please try again.`),
+        };
+      }
+
+      signIn(data.user, data.token);
+      return { success: true };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        message: 'Network error. Could not connect to authentication server.',
+      };
+    }
+  }, [signIn]);
+
+  const register = useCallback(async (data: { name: string; email: string; phone?: string; password: string }) => {
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        credentials: 'include',
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        return {
+          success: false,
+          message: json?.message || `Failed to create account (HTTP ${res.status}). Please try again.`,
+        };
+      }
+
+      signIn(json.user, json.token);
+      return { success: true };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        message: 'Network error. Could not connect to registration server.',
+      };
+    }
+  }, [signIn]);
+
+  const loginWithGoogle = useCallback(async (credential: string) => {
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential }),
+        credentials: 'include',
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        return {
+          success: false,
+          message: data?.message || `Google Sign-In failed (HTTP ${res.status}). Please try again.`,
+        };
+      }
+
+      signIn(data.user, data.token);
+      return { success: true, user: data.user };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        message: 'Network error during Google Sign-In. Please check your connection.',
+      };
+    }
+  }, [signIn]);
+
+  return (
+    <CustomerSessionContext.Provider
+      value={{
+        customer,
+        loading,
+        signIn,
+        signOut,
+        updateProfile,
+        login,
+        register,
+        loginWithGoogle,
+      }}
+    >
+      {children}
+    </CustomerSessionContext.Provider>
+  );
+}
+
+export function useCustomerSession() {
+  const context = useContext(CustomerSessionContext);
+  if (!context) {
+    throw new Error('useCustomerSession must be used within CustomerSessionProvider');
+  }
+  return context;
+}
